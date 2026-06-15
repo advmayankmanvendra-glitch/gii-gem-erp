@@ -1831,13 +1831,9 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Level 1 - Current Screen Context Help</h2>
-            <p>{currentHelp.title}: {currentHelp.description}</p>
-          </div>
+        <ReportToolbar title="Level 1 - Current Screen Context Help" note={`${currentHelp.title}: ${currentHelp.description}`}>
           <span className="status active">Context Aware</span>
-        </div>
+        </ReportToolbar>
         <div className="help-three-column">
           <HelpList title="Purpose and Workflow" items={[currentHelp.description, ...currentHelp.workflow]} />
           <HelpList title="Accounting Impact" items={currentHelp.accountingImpact} />
@@ -1851,12 +1847,7 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Level 2 - Keyboard & Productivity Guide</h2>
-            <p>Complete shortcut guide including Smart Enter, function keys, voucher shortcuts and report actions.</p>
-          </div>
-        </div>
+        <ReportToolbar title="Level 2 - Keyboard & Productivity Guide" note="Complete shortcut guide including Smart Enter, function keys, voucher shortcuts and report actions." />
         <div className="shortcut-grid help-shortcut-grid">
           {filteredShortcuts.map(([title, rows]) => (
             <div className="shortcut-group" key={title}>
@@ -1874,13 +1865,9 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Level 3 - ERP User Manual</h2>
-            <p>Structured manual for new employees, operators, accountants and approvers.</p>
-          </div>
+        <ReportToolbar title="Level 3 - ERP User Manual" note="Structured manual for new employees, operators, accountants and approvers.">
           <span className="status draft">Version 2.0</span>
-        </div>
+        </ReportToolbar>
         <div className="manual-toc">
           <strong>Table of Contents</strong>
           <div>{erpManualSections.map(([title], index) => <span key={title}>{index + 1}. {title}</span>)}</div>
@@ -1897,12 +1884,7 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Government Supply Workflow Guide</h2>
-            <p>Operational path from order receipt to profitability and closure.</p>
-          </div>
-        </div>
+        <ReportToolbar title="Government Supply Workflow Guide" note="Operational path from order receipt to profitability and closure." />
         <div className="workflow-guide workflow-guide-detailed">
           {detailedWorkflowGuide.filter((row) => matchesHelpQuery(row, helpQuery)).map(([title, module, note], index) => (
             <article key={title}>
@@ -1914,13 +1896,9 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Training Mode 2.0</h2>
-            <p>Guided lessons and sample workflows for practice. Training Mode is isolated from live accounting data.</p>
-          </div>
+        <ReportToolbar title="Training Mode 2.0" note="Guided lessons and sample workflows for practice. Training Mode is isolated from live accounting data.">
           <span className={`status ${trainingMode ? "active" : "draft"}`}>{trainingMode ? "Active" : "Inactive"}</span>
-        </div>
+        </ReportToolbar>
         <div className="training-grid">
           {Object.entries(trainingSample).map(([key, value]) => (
             <article key={key}>
@@ -1959,12 +1937,7 @@ function HelpTrainingScreen({ currentView, trainingMode, setTrainingMode, onNavi
       </section>
 
       <section className="panel help-section">
-        <div className="panel-head">
-          <div>
-            <h2>Module Guidance Library</h2>
-            <p>Purpose, workflow, accounting impact, mistakes and reports for implemented modules.</p>
-          </div>
-        </div>
+        <ReportToolbar title="Module Guidance Library" note="Purpose, workflow, accounting impact, mistakes and reports for implemented modules." />
         <div className="module-help-grid">
           {filteredModules.slice(0, helpQuery.trim() ? 80 : 36).map((item) => (
             <article key={item.key}>
@@ -6626,12 +6599,10 @@ function ProfitabilityScreen({ notify, companyContext }) {
         <Metric label="Net Profit" value={formatCurrency(totals.netCompanyProfit)} note="After expense and incentive" icon="rupee" />
       </div>
       <section className="panel records-panel report-panel">
-        <div className="records-toolbar">
-          <div>
-            <h2>Order-wise Profitability</h2>
-            <span>{companyContext?.company_name || "No company selected"} - Gross Margin - GST Input Loss - Dynamic Expenses - Employee Incentive</span>
-          </div>
-        </div>
+        <ReportToolbar
+          title="Order-wise Profitability"
+          note={`${companyContext?.company_name || "No company selected"} - Gross Margin - GST Input Loss - Dynamic Expenses - Employee Incentive`}
+        />
         {rows.length ? (
           <div className="table-wrap">
             <table>
@@ -6978,16 +6949,10 @@ function documentChecklistColumns() {
 function OperationsTable({ title, rows, columns, onNavigate, onDrilldown }) {
   return (
     <section className="panel settings-panel report-panel">
-      <div className="records-toolbar accounting-toolbar">
-        <div>
-          <h2>{title}</h2>
-          <span>{rows.length} row(s)</span>
-        </div>
-        <div className="toolbar-controls">
-          <button className="ghost-btn" type="button" onClick={() => exportRows(title, rows)}>Export</button>
-          <button className="ghost-btn" type="button" onClick={requestPrintPreview}>Print</button>
-        </div>
-      </div>
+      <ReportToolbar title={title} note={`${rows.length} row(s)`} className="accounting-toolbar">
+        <button className="ghost-btn" type="button" onClick={() => exportRows(title, rows)}>Export</button>
+        <button className="ghost-btn" type="button" onClick={requestPrintPreview}>Print</button>
+      </ReportToolbar>
       {rows.length ? (
         <div className="table-wrap">
           <table>
@@ -7900,18 +7865,12 @@ function DocumentsScreen({ notify, companyContext }) {
 
   return (
     <section className="panel settings-panel report-panel">
-      <div className="records-toolbar">
-        <div>
-          <h2>Document Management</h2>
-          <span>{companyContext?.company_name || "No company selected"} - {documents.length} uploaded document(s)</span>
-        </div>
-        <div className="toolbar-controls">
-          <select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
-            <option value="">All Modules</option>
-            {Object.keys(importTemplates).map((module) => <option key={module} value={module}>{module.replaceAll("_", " ")}</option>)}
-          </select>
-        </div>
-      </div>
+      <ReportToolbar title="Document Management" note={`${companyContext?.company_name || "No company selected"} - ${documents.length} uploaded document(s)`}>
+        <select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
+          <option value="">All Modules</option>
+          {Object.keys(importTemplates).map((module) => <option key={module} value={module}>{module.replaceAll("_", " ")}</option>)}
+        </select>
+      </ReportToolbar>
       {documents.length ? (
         <div className="table-wrap">
           <table>

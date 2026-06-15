@@ -3325,7 +3325,7 @@ export function rollbackImportBatch(db, batchId, context = {}) {
   return { batchId, rolledBackRecords: preview.records.length };
 }
 
-export function uploadDocument(db, payload) {
+export function uploadDocument(db, payload, root = projectRoot()) {
   const sourcePath = payload.source_path;
   if (!sourcePath || !fs.existsSync(sourcePath)) throw new Error("Selected file was not found");
   const extension = path.extname(sourcePath).toLowerCase();
@@ -3339,7 +3339,7 @@ export function uploadDocument(db, payload) {
   const year = new Date().getFullYear().toString();
   const companyId = Number(payload.company_id || 0) || null;
   if (!companyId) throw new Error("Company context is required before uploading documents.");
-  const targetDir = path.join(projectRoot(), "documents", String(companyId || "common"), moduleName, year);
+  const targetDir = path.join(root, "documents", String(companyId || "common"), moduleName, year);
   fs.mkdirSync(targetDir, { recursive: true });
   const storedFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${sanitizeFilePart(path.basename(originalFileName, extension))}${extension}`;
   const targetPath = path.join(targetDir, storedFileName);

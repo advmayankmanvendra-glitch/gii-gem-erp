@@ -528,7 +528,7 @@ function registerIpc() {
   ipcMain.handle("imports:item-batches", () => listItemImportBatches(db));
   ipcMain.handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
   ipcMain.handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
-  ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload)));
+  ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
   ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
   ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
 
@@ -567,18 +567,18 @@ function registerIpc() {
   ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
   ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
 
-  ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db)));
-  ipcMain.handle("backup:list", () => listBackups());
+  ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
+  ipcMain.handle("backup:list", () => listBackups(runtimeDataRoot));
   ipcMain.handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
     db?.close();
     db = null;
     try {
-      const restored = restoreBackup(fileName);
+      const restored = restoreBackup(fileName, runtimeDataRoot);
       db = initializeDatabase(runtimeDataRoot);
       return restored;
     } catch (error) {
       if (["EBUSY", "EPERM"].includes(error.code)) {
-        const pending = preparePendingRestore(fileName);
+        const pending = preparePendingRestore(fileName, runtimeDataRoot);
         app.relaunch();
         app.exit(0);
         return pending;
