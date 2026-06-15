@@ -1,0 +1,80 @@
+{
+  "name": "gii-gem-erp",
+  "version": "0.1.0-internal-test",
+  "description": "GII GeM ERP - offline Windows desktop ERP for government supply, procurement and profitability management.",
+  "main": "src/main/main.js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "start": "electron .",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "db:init": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu src/main/database/init.js",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "pack:win": "npm run build && electron-builder --win --dir",
+    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "lint:syntax": "node --check src/main/main.js && node --check src/main/database/init.js && node --check src/preload/preload.cjs && node --check scripts/verify-financials.js && node --check scripts/verify-controls.js",
+    "verify:accounting": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-accounting.js",
+    "verify:financials": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-financials.js",
+    "verify:controls": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-controls.js",
+    "verify:voucher-inventory": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-voucher-workflows-inventory.js",
+    "verify:phase10": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-phase10-inventory-automation.js",
+    "verify:flow": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-operational-flow.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "better-sqlite3": "^12.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "concurrently": "^9.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^37.0.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^7.0.0",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "in.gestureindiainfrastructure.giigemerp",
+    "productName": "GII GeM ERP",
+    "directories": {
+      "output": "dist-installer"
+    },
+    "files": [
+      "dist",
+      "src/main",
+      "src/preload",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "database/gii_gem_erp.db",
+        "to": "database/gii_gem_erp.db"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "GII-GeM-ERP-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "GII-GeM-ERP-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-installer
+database/*.db
+database/*.db-shm
+database/*.db-wal
+logs/*.log
+backups/*.db
+exports/*
+reports/*

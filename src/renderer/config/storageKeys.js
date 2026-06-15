@@ -1,0 +1,6 @@
+export const COMPANY_CONTEXT_KEY = "gii-gem-current-company-id";
+export const COMPANY_SCOPE_KEY = "gii-gem-company-scope";
+export const RIGHT_UTILITY_SIDEBAR_KEY = "gii-gem-right-utility-sidebar-collapsed";
+export const DASHBOARD_VIEW_KEY = "gii-gem-dashboard-view-mode";
+export const DASHBOARD_HIDDEN_CARDS_KEY = "gii-gem-dashboard-hidden-cards";
+export const DASHBOARD_PINNED_CARDS_KEY = "gii-gem-dashboard-pinned-cards";
