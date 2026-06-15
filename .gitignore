@@ -1,10 +1,39 @@
-node_modules
-dist
-dist-installer
+# Dependencies
+node_modules/
+
+# Build and packaging output
+dist/
+dist-installer/
+
+# Electron runtime/user-data and caches
+runtime/
+
+# Uploaded business documents
+documents/
+
+# Database and backup files
 database/*.db
 database/*.db-shm
 database/*.db-wal
-logs/*.log
-backups/*.db
-exports/*
+backups/
+
+# Generated exports and logs
+exports/
+logs/
+*.log
+
+# Smoke-test runtime databases
+phase8b-smoke-db/
+
+# Local environment and secrets
+.env
+.env.*
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.old
+
+# Generated audit reports
 reports/*
