@@ -2403,8 +2403,9 @@ svg {
 }
 
 .validation-list button {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
+  align-items: start;
   justify-content: space-between;
   gap: 12px;
   min-height: 38px;
@@ -2429,7 +2430,16 @@ svg {
 }
 
 .validation-list button strong {
-  flex: 1;
+  display: block;
+}
+
+.validation-list button small {
+  display: block;
+  margin-top: 3px;
+  color: #6f3b35;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .validation-guidance.compact {
@@ -2444,8 +2454,13 @@ svg {
 }
 
 .validation-guidance.compact .validation-list button {
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr);
   min-height: 32px;
   padding: 5px 8px;
+}
+
+.validation-guidance.compact .validation-list button small {
+  display: none;
 }
 
 .supply-order-id-grid {

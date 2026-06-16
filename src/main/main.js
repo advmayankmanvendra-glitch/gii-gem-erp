@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -427,6 +427,59 @@ function desktopShortcutCommand(input = {}) {
   return null;
 }
 
+function sendShortcutCommand(command) {
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send("app:desktop-shortcut", command);
+}
+
+function installApplicationMenu() {
+  const template = [
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "ERP Print Preview",
+          accelerator: "CommandOrControl+P",
+          click: () => sendShortcutCommand("print-preview")
+        },
+        { type: "separator" },
+        { role: "quit", label: "Exit" }
+      ]
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" }
+      ]
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "togglefullscreen" }
+      ]
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "Keyboard Shortcuts",
+          accelerator: "F1",
+          click: () => sendShortcutCommand("f1")
+        }
+      ]
+    }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function registerIpc() {
   ipcMain.handle("auth:login", (_event, credentials) => {
     return authenticate(db, credentials.username, credentials.password);
@@ -609,6 +662,7 @@ app.whenReady().then(() => {
   applyPendingRestore(runtimeDataRoot);
   db = initializeDatabase(runtimeDataRoot);
   registerIpc();
+  installApplicationMenu();
   createWindow();
 
   app.on("activate", () => {

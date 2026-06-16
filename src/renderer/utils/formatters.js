@@ -6,8 +6,22 @@ export function formatCurrency(value) {
   }).format(value);
 }
 
-export function downloadText(fileName, content) {
-  const blob = new Blob([content], { type: "text/csv" });
+function safeExportFileName(value, extension = "csv") {
+  const base = String(value || "export")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${base || "export"}.${extension}`;
+}
+
+function csvCell(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+export function downloadText(fileName, content, type = "text/csv;charset=utf-8") {
+  const blob = new Blob(["\uFEFF", content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -17,14 +31,12 @@ export function downloadText(fileName, content) {
 }
 
 export function exportRows(title, rows) {
-  if (!rows.length) return;
+  if (!rows?.length) return false;
   const keys = Object.keys(rows[0]);
-  const csv = [keys.join(","), ...rows.map((row) => keys.map((key) => JSON.stringify(row[key] ?? "")).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${title.toLowerCase().replaceAll(" ", "-")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  const csv = [
+    keys.map(csvCell).join(","),
+    ...rows.map((row) => keys.map((key) => csvCell(row[key])).join(","))
+  ].join("\r\n") + "\r\n";
+  downloadText(safeExportFileName(title), csv);
+  return true;
 }

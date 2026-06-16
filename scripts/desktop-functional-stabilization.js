@@ -159,6 +159,7 @@ try {
       status: "active"
     }, "category", "Desktop Verification");
     context.bank = createAndUpdate("banks", {
+      company_id: context.company.id,
       bank_account_name: `Desktop Stabilization Bank ${suffix}`,
       bank_name: "Axis",
       account_number: `10${suffix}`,
@@ -167,6 +168,7 @@ try {
       status: "active"
     }, "opening_balance", 100);
     context.warehouse = createAndUpdate("warehouses", {
+      company_id: context.company.id,
       warehouse_name: `Desktop Stabilization Warehouse ${suffix}`,
       location: "Initial warehouse",
       responsible_person: "Keeper",
