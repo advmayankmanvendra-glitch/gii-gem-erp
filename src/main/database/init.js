@@ -4252,7 +4252,7 @@ export function dashboardCounts(db, filters = {}) {
     departments: count("government_departments"),
     items: count("items"),
     expenseHeads: count("expense_heads"),
-    banks: count("banks"),
+    banks: count("banks", `WHERE ${companyWhere}`),
     totalStockValue: inventorySummary.totalStockValue,
     lowStockItems: inventorySummary.lowStockItems,
     itemsInStock: inventorySummary.itemsInStock,
