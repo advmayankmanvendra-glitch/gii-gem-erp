@@ -73,14 +73,16 @@ function test(name, fn) {
   }
 }
 
-function createUpdateDelete(table, createPayload, patchField, patchValue) {
+function createUpdateDelete(table, createPayload, patchField, patchValue, options = {}) {
   const created = createRecord(db, table, createPayload);
   const updated = updateRecord(db, table, created.id, { ...created, [patchField]: patchValue });
   assert(String(updated[patchField]) === String(patchValue), `${table} edit did not persist`);
   const listed = listRecords(db, table, { search: String(patchValue), status: "all" });
   assert(listed.some((row) => row.id === created.id), `${table} updated value not visible in list`);
   assert(updated.updated_at, `${table} updated_at missing`);
-  deleteRecord(db, table, created.id);
+  if (options.deleteAfter !== false) {
+    deleteRecord(db, table, created.id);
+  }
   return created;
 }
 
@@ -99,7 +101,7 @@ let payment;
 let supplierPayment;
 
 test("Master edit: Company", () => {
-  company = createUpdateDelete("companies", { company_name: `Smoke Company ${suffix}`, gstin: "", pan: "", address: "A", bank_name: "SBI", account_number: "1", ifsc: "SBIN0000001", status: "active" }, "address", "Edited Address");
+  company = createUpdateDelete("companies", { company_name: `Smoke Company ${suffix}`, gstin: "", pan: "", address: "A", bank_name: "SBI", account_number: "1", ifsc: "SBIN0000001", status: "active" }, "address", "Edited Address", { deleteAfter: false });
 });
 
 test("Master edit: Employee", () => {
@@ -123,11 +125,11 @@ test("Master edit: Expense Head", () => {
 });
 
 test("Master edit: Bank", () => {
-  bank = createUpdateDelete("banks", { bank_account_name: `Smoke Bank ${suffix}`, bank_name: "Axis", account_number: `10${suffix}`, ifsc: "UTIB0000001", opening_balance: 0, status: "active" }, "opening_balance", 100);
+  bank = createUpdateDelete("banks", { company_id: 1, bank_account_name: `Smoke Bank ${suffix}`, bank_name: "Axis", account_number: `10${suffix}`, ifsc: "UTIB0000001", opening_balance: 0, status: "active" }, "opening_balance", 100);
 });
 
 test("Master edit: Warehouse", () => {
-  warehouse = createUpdateDelete("warehouses", { warehouse_name: `Smoke Store ${suffix}`, location: "Old", responsible_person: "Keeper", status: "active" }, "location", "New");
+  warehouse = createUpdateDelete("warehouses", { company_id: 1, warehouse_name: `Smoke Store ${suffix}`, location: "Old", responsible_person: "Keeper", status: "active" }, "location", "New");
 });
 
 test("Linked master delete becomes inactive, not hard-delete", () => {
@@ -141,7 +143,7 @@ test("Linked master delete becomes inactive, not hard-delete", () => {
 test("Operations edit: Supply Order", () => {
   const dept = createRecord(db, "government_departments", { department_name: `Ops Dept ${suffix}`, contact_person: "A", contact_number: "1", address: "Addr", status: "active" });
   const emp = createRecord(db, "employees", { employee_name: `Ops Emp ${suffix}`, mobile_number: `91${suffix}`, designation: "Ops", incentive_percentage: 15, status: "active" });
-  order = createRecord(db, "supply_orders", { order_number: `SO-${suffix}`, order_date: "2026-06-10", department_id: dept.id, institution_name: "Institution", location: "Old", employee_id: emp.id, supply_due_date: "2026-06-30", order_status: "Received", remarks: "" });
+  order = createRecord(db, "supply_orders", { company_id: 1, order_number: `SO-${suffix}`, order_date: "2026-06-10", department_id: dept.id, institution_name: "Institution", location: "Old", employee_id: emp.id, supply_due_date: "2026-06-30", order_status: "Received", remarks: "" });
   const updated = updateRecord(db, "supply_orders", order.id, { ...order, location: "Edited" });
   assert(updated.location === "Edited", "Supply order edit failed");
 });
@@ -149,7 +151,7 @@ test("Operations edit: Supply Order", () => {
 test("Operations edit: Procurement", () => {
   const sup = createRecord(db, "suppliers", { supplier_name: `Ops Supplier ${suffix}`, status: "active" });
   supplier = sup;
-  procurement = createRecord(db, "procurements", { order_id: order.id, purchase_date: "2026-06-11", supplier_id: sup.id, purchase_invoice_number: `PINV-${suffix}`, purchase_value: 1000, purchase_gst: 180, freight: 0, loading_charges: 0, amount_paid: 0, remarks: "" });
+  procurement = createRecord(db, "procurements", { company_id: 1, order_id: order.id, purchase_date: "2026-06-11", supplier_id: sup.id, purchase_invoice_number: `PINV-${suffix}`, purchase_value: 1000, purchase_gst: 180, freight: 0, loading_charges: 0, amount_paid: 0, remarks: "" });
   const updated = updateRecord(db, "procurements", procurement.id, { ...procurement, remarks: "Edited" });
   assert(updated.remarks === "Edited", "Procurement edit failed");
 });
@@ -157,7 +159,7 @@ test("Operations edit: Procurement", () => {
 test("Operations edit: Expenses", () => {
   const head = createRecord(db, "expense_heads", { expense_head_name: `Ops Expense ${suffix}`, default_calculation_method: "fixed", default_percentage: 0, category: "Ops", status: "active" });
   expenseHead = head;
-  const expense = createRecord(db, "expense_entries", { order_id: order.id, expense_head_id: head.id, expense_category: "Ops", calculation_method: "fixed", percentage: 0, fixed_amount: 50, remarks: "" });
+  const expense = createRecord(db, "expense_entries", { company_id: 1, order_id: order.id, expense_head_id: head.id, expense_category: "Ops", calculation_method: "fixed", percentage: 0, fixed_amount: 50, remarks: "" });
   const updated = updateRecord(db, "expense_entries", expense.id, { ...expense, fixed_amount: 75 });
   assert(Number(updated.fixed_amount) === 75, "Expense edit failed");
 });
@@ -177,7 +179,7 @@ test("Operations edit: Billing/Invoices", () => {
 });
 
 test("Operations edit: Payments", () => {
-  payment = createRecord(db, "payments", { order_id: order.id, payment_date: "2026-06-13", payment_amount: 300, payment_mode: "NEFT", utr_number: `UTR${suffix}`, bank_id: 1, remarks: "" });
+  payment = createRecord(db, "payments", { company_id: 1, order_id: order.id, payment_date: "2026-06-13", payment_amount: 300, payment_mode: "NEFT", utr_number: `UTR${suffix}`, bank_id: 1, remarks: "" });
   const updated = updateRecord(db, "payments", payment.id, { ...payment, remarks: "Edited payment" });
   assert(updated.remarks === "Edited payment", "Payment edit failed");
 });
@@ -190,7 +192,7 @@ test("Operations edit: Documents", () => {
 });
 
 test("Inventory edit and lock: Stock Inward", () => {
-  const store = createRecord(db, "warehouses", { warehouse_name: `Ops Store ${suffix}`, location: "WH", responsible_person: "K", status: "active" });
+  const store = createRecord(db, "warehouses", { company_id: 1, warehouse_name: `Ops Store ${suffix}`, location: "WH", responsible_person: "K", status: "active" });
   warehouse = store;
   const stockItem = createRecord(db, "items", { item_name: `Ops Stock ${suffix}`, brand: "", model: "", hsn_code: "9403", gst_rate: 18, unit: "Nos", category: "Stock", opening_stock: 0, opening_rate: 0, opening_value: 0, reorder_level: 0, minimum_stock_level: 0, maximum_stock_level: 0, track_serial_number: 0, track_batch_number: 0, warranty_period: 0, status: "active" });
   item = stockItem;
@@ -301,3 +303,4 @@ db.close();
 fs.rmSync(root, { recursive: true, force: true });
 
 if (failed.length) process.exit(1);
+process.exit(0);

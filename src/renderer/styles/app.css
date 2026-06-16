@@ -2326,6 +2326,335 @@ svg {
   gap: 12px;
 }
 
+.supply-order-screen {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.supply-order-viewbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+}
+
+.supply-order-viewbar h2,
+.supply-order-section h2,
+.supply-order-summary-card h2,
+.supply-order-readiness-panel h2 {
+  margin: 0;
+}
+
+.supply-order-viewbar span,
+.supply-order-section .section-header span,
+.supply-order-summary-card .section-header span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.supply-order-entry-form {
+  gap: 14px;
+}
+
+.supply-order-entry-form .panel-head {
+  align-items: flex-start;
+}
+
+.supply-order-section {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 14px;
+}
+
+.supply-order-section.section-has-error,
+.order-items-section.section-has-error {
+  border-color: #ef9a9a;
+  box-shadow: 0 0 0 2px rgba(198, 54, 45, 0.08);
+}
+
+.validation-guidance {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #ef9a9a;
+  border-radius: 6px;
+  background: #fff5f3;
+  color: #8a1f17;
+  padding: 12px;
+}
+
+.validation-guidance > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.validation-guidance span {
+  color: #9a4a42;
+  font-size: 13px;
+}
+
+.validation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.validation-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  border: 1px solid #f3b3ad;
+  border-radius: 6px;
+  background: #fff;
+  color: #14213d;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.validation-list button:hover {
+  border-color: #d4483d;
+  background: #fff8f7;
+}
+
+.validation-list button span {
+  min-width: 140px;
+  color: #8a1f17;
+  font-weight: 700;
+}
+
+.validation-list button strong {
+  flex: 1;
+}
+
+.validation-guidance.compact {
+  flex: 1;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.validation-guidance.compact .validation-list {
+  min-width: 260px;
+}
+
+.validation-guidance.compact .validation-list button {
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.supply-order-id-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.supply-order-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.supply-order-left-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.supply-order-right-column {
+  min-width: 0;
+}
+
+.supply-order-sticky {
+  position: sticky;
+  top: 88px;
+  display: grid;
+  gap: 12px;
+}
+
+.supply-order-summary-card,
+.supply-order-readiness-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fbfd;
+  padding: 14px;
+}
+
+.summary-card-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-card-grid .metric-line,
+.readiness-mini {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.readiness-mini {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.readiness-mini span,
+.readiness-row span {
+  color: var(--muted);
+}
+
+.readiness-list {
+  display: grid;
+  gap: 8px;
+}
+
+.readiness-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.readiness-row.ready {
+  border-color: #c6f0d8;
+  background: #effaf3;
+}
+
+.readiness-row.pending {
+  border-color: #fde4b6;
+  background: #fff8ea;
+}
+
+.readiness-row.neutral {
+  background: #f7fafc;
+}
+
+.supply-order-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  background: rgba(248, 251, 253, 0.94);
+  padding: 12px 0 0;
+}
+
+.supply-order-actionbar .primary-btn {
+  min-width: 220px;
+}
+
+.supply-order-list-panel {
+  width: 100%;
+}
+
+.order-items-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fbfd;
+  padding: 12px;
+}
+
+.order-items-section .section-header {
+  align-items: start;
+  gap: 10px;
+}
+
+.order-items-section .button-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.order-items-table-wrap {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.order-items-table {
+  min-width: 1280px;
+}
+
+.order-items-table th,
+.order-items-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.order-items-table input,
+.order-items-table select {
+  min-width: 112px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.order-items-table td:nth-child(1) select,
+.order-items-table td:nth-child(2) input,
+.order-items-table td:nth-child(13) input {
+  min-width: 180px;
+}
+
+.order-items-table .selected-row {
+  background: #fff7ed;
+}
+
+.order-items-table .row-has-error {
+  background: #fff5f3;
+}
+
+.field.field-error input,
+.field.field-error select,
+.field.field-error textarea,
+.order-items-table input[aria-invalid="true"],
+.order-items-table select[aria-invalid="true"] {
+  border-color: #d4483d;
+  background: #fff8f7;
+  box-shadow: 0 0 0 2px rgba(212, 72, 61, 0.08);
+}
+
+.field-error-note {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-total-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.order-total-grid .metric-line {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.danger-text {
+  color: #b42318;
+}
+
 .entry-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3973,6 +4302,16 @@ tr.keyboard-row-selected {
 
   .transaction-layout {
     grid-template-columns: 1fr;
+  }
+
+  .supply-order-two-column,
+  .supply-order-id-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .supply-order-sticky,
+  .supply-order-actionbar {
+    position: static;
   }
 
   .wizard-flow {

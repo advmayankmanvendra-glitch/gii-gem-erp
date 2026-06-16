@@ -71,7 +71,13 @@ export const MASTER_TABLES = {
 export const TRANSACTION_TABLES = {
   supply_orders: {
     label: "Supply Order",
-    fields: ["company_id", "order_number", "gem_order_number", "gem_contract_number", "order_date", "department_id", "institution_name", "consignee", "place_of_supply", "location", "employee_id", "supply_due_date", "order_status", "remarks"],
+    fields: [
+      "company_id", "order_number", "gem_order_number", "gem_contract_number", "supply_type", "order_date",
+      "department_id", "institution_name", "buyer_name", "buyer_designation", "buyer_mobile", "buyer_email",
+      "consignee", "consignee_address", "delivery_location", "place_of_supply", "location", "delivery_period",
+      "warranty_period", "payment_terms", "emd_amount", "security_deposit_amount", "employee_id", "supply_due_date",
+      "order_status", "total_quantity", "order_taxable_value", "order_gst_amount", "order_gross_value", "remarks"
+    ],
     required: ["order_number", "order_date", "department_id", "employee_id", "order_status"]
   },
   procurements: {
@@ -586,6 +592,18 @@ export function migrate(db) {
   runMigration(db, "019_company_context_layer", () => {
     addCompanyContextLayer(db);
   });
+
+  runMigration(db, "020_supply_order_item_entry_enhancement", () => {
+    addSupplyOrderItemEntryEnhancement(db);
+  });
+
+  runMigration(db, "021_transaction_soft_delete_column_repair", () => {
+    addAccountingColumns(db);
+  });
+
+  runMigration(db, "022_soft_delete_runtime_schema_guard", () => {
+    addRuntimeSoftDeleteColumns(db);
+  });
 }
 
 function runMigration(db, migrationName, callback) {
@@ -612,6 +630,33 @@ function tableExists(db, table) {
 function columnExists(db, table, column) {
   if (!tableExists(db, table)) return false;
   return db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+}
+
+function addSupplyOrderItemEntryEnhancement(db) {
+  [
+    ["supply_type", "TEXT NOT NULL DEFAULT 'GeM'"],
+    ["buyer_name", "TEXT"],
+    ["buyer_designation", "TEXT"],
+    ["buyer_mobile", "TEXT"],
+    ["buyer_email", "TEXT"],
+    ["consignee_address", "TEXT"],
+    ["delivery_location", "TEXT"],
+    ["delivery_period", "TEXT"],
+    ["warranty_period", "TEXT"],
+    ["payment_terms", "TEXT"],
+    ["emd_amount", "REAL NOT NULL DEFAULT 0"],
+    ["security_deposit_amount", "REAL NOT NULL DEFAULT 0"],
+    ["total_quantity", "REAL NOT NULL DEFAULT 0"],
+    ["order_taxable_value", "REAL NOT NULL DEFAULT 0"],
+    ["order_gst_amount", "REAL NOT NULL DEFAULT 0"],
+    ["order_gross_value", "REAL NOT NULL DEFAULT 0"]
+  ].forEach(([column, definition]) => addColumnIfMissing(db, "supply_orders", column, definition));
+
+  [
+    ["brand", "TEXT"],
+    ["model", "TEXT"],
+    ["hsn_sac", "TEXT"]
+  ].forEach(([column, definition]) => addColumnIfMissing(db, "order_items", column, definition));
 }
 
 function addCoreControlHardening(db) {
@@ -702,6 +747,32 @@ function addAccountingColumns(db) {
       db.prepare(`UPDATE ${table} SET company_id = ? WHERE company_id IS NULL`).run(company.id);
     });
   }
+}
+
+function addRuntimeSoftDeleteColumns(db) {
+  [
+    ...ACCOUNTING_TABLES,
+    "companies",
+    "items",
+    "warehouses",
+    "documents",
+    "goods_receipts",
+    "delivery_challans",
+    "warehouse_transfers",
+    "guided_vouchers",
+    "advance_receipts",
+    "supplier_advances",
+    "advance_adjustments",
+    "credit_terms",
+    "bank_statement_imports",
+    "bank_statement_entries",
+    "voucher_proposals"
+  ].forEach((table) => {
+    if (!tableExists(db, table)) return;
+    addColumnIfMissing(db, table, "is_deleted", "INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing(db, table, "deleted_at", "TEXT");
+    addColumnIfMissing(db, table, "deleted_by", "INTEGER REFERENCES users(id)");
+  });
 }
 
 function addSupplierExtendedFields(db) {
@@ -1957,6 +2028,7 @@ export function seed(db) {
     ifsc: "SBIN0000001",
     status: "active"
   });
+  const defaultCompanyId = db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || null;
 
   insertIfEmpty(db, "employees", {
     employee_name: "Mira Sharma",
@@ -2013,6 +2085,7 @@ export function seed(db) {
   });
 
   insertIfEmpty(db, "warehouses", {
+    company_id: defaultCompanyId,
     warehouse_name: "Main Store",
     location: "Head Office",
     responsible_person: "Store Keeper",
@@ -2040,6 +2113,7 @@ export function seed(db) {
   }
 
   insertIfEmpty(db, "banks", {
+    company_id: defaultCompanyId,
     bank_account_name: "SBI Current Account",
     bank_name: "SBI",
     account_number: "000000000001",
@@ -2048,10 +2122,47 @@ export function seed(db) {
     status: "active"
   });
 
+  repairSeedCompanyContext(db, defaultCompanyId);
   seedAccounts(db);
-  seedPhaseTwo(db);
+  seedPhaseTwo(db, defaultCompanyId);
   seedPhaseThreeAccountingFlow(db);
   seedPhase7Inventory(db);
+}
+
+function repairSeedCompanyContext(db, companyId) {
+  if (!companyId) return;
+  db.prepare(`
+    UPDATE warehouses
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '') AND warehouse_name = 'Main Store'
+  `).run(companyId);
+  db.prepare(`
+    UPDATE banks
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '')
+      AND bank_account_name = 'SBI Current Account'
+      AND account_number = '000000000001'
+  `).run(companyId);
+  db.prepare(`
+    UPDATE supply_orders
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '') AND order_number = 'GEM-2026-001'
+  `).run(companyId);
+  db.prepare(`
+    UPDATE procurements
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '') AND purchase_invoice_number = 'PIS-1001'
+  `).run(companyId);
+  db.prepare(`
+    UPDATE invoices
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '') AND invoice_number = 'GII-INV-001'
+  `).run(companyId);
+  db.prepare(`
+    UPDATE payments
+    SET company_id = ?
+    WHERE (company_id IS NULL OR company_id = '') AND utr_number = 'UTR10001'
+  `).run(companyId);
 }
 
 function seedAccounts(db, companyId = null) {
@@ -2073,29 +2184,62 @@ function seedAccounts(db, companyId = null) {
   });
 }
 
-function seedPhaseTwo(db) {
+function seedPhaseTwo(db, companyId = null) {
   const orderCount = db.prepare("SELECT COUNT(*) AS count FROM supply_orders").get().count;
   if (orderCount) return;
 
+  const effectiveCompanyId = companyId || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || null;
+  if (!effectiveCompanyId) return;
   const department = db.prepare("SELECT id FROM government_departments LIMIT 1").get();
   const employee = db.prepare("SELECT id FROM employees LIMIT 1").get();
   const supplier = db.prepare("SELECT id FROM suppliers LIMIT 1").get();
-  const bank = db.prepare("SELECT id FROM banks LIMIT 1").get();
-  if (!department || !employee || !supplier) return;
+  const bank = db.prepare("SELECT id FROM banks WHERE company_id = ? LIMIT 1").get(effectiveCompanyId);
+  const seedItem = db.prepare("SELECT id, item_name, brand, model, hsn_code, unit, gst_rate FROM items ORDER BY id LIMIT 1").get();
+  if (!department || !employee || !supplier || !seedItem) return;
 
   const order = createRecord(db, "supply_orders", {
+    company_id: effectiveCompanyId,
     order_number: "GEM-2026-001",
+    gem_order_number: "GEM-2026-001",
+    gem_contract_number: "GEM-CONTRACT-001",
+    supply_type: "GeM",
     order_date: "2026-06-09",
     department_id: department.id,
     institution_name: "PWD Central Store",
+    buyer_name: "PWD Procurement Officer",
+    buyer_designation: "Buyer",
+    buyer_mobile: "",
+    buyer_email: "",
+    consignee: "PWD Central Store",
+    consignee_address: "PWD Central Store, Mumbai",
+    delivery_location: "Mumbai",
+    place_of_supply: "Maharashtra",
     location: "Mumbai",
+    delivery_period: "15 days",
+    warranty_period: "12 months",
+    payment_terms: "As per GeM order",
+    emd_amount: 0,
+    security_deposit_amount: 0,
     employee_id: employee.id,
     supply_due_date: "2026-06-25",
     order_status: "Payment Pending",
+    order_items: [{
+      item_id: seedItem.id,
+      item_description: seedItem.item_name,
+      brand: seedItem.brand || "",
+      model: seedItem.model || "",
+      hsn_sac: seedItem.hsn_code || "",
+      quantity: 1,
+      unit: seedItem.unit || "Nos",
+      quoted_rate: 1000000,
+      gst_rate: Number(seedItem.gst_rate || 18),
+      remarks: "Seed order item for Phase 2 sample order."
+    }],
     remarks: "Phase 2 sample order for profitability testing."
   });
 
   createRecord(db, "procurements", {
+    company_id: effectiveCompanyId,
     order_id: order.id,
     purchase_date: "2026-06-10",
     supplier_id: supplier.id,
@@ -2111,6 +2255,7 @@ function seedPhaseTwo(db) {
   const heads = db.prepare("SELECT id, expense_head_name, default_calculation_method, default_percentage, category FROM expense_heads").all();
   heads.filter((head) => ["Authorization", "L1 Expense", "Commission"].includes(head.expense_head_name)).forEach((head) => {
     createRecord(db, "expense_entries", {
+      company_id: effectiveCompanyId,
       order_id: order.id,
       expense_head_id: head.id,
       expense_category: head.category,
@@ -2122,6 +2267,7 @@ function seedPhaseTwo(db) {
   });
 
   createRecord(db, "invoices", {
+    company_id: effectiveCompanyId,
     order_id: order.id,
     invoice_number: "GII-INV-001",
     invoice_date: "2026-06-15",
@@ -2133,6 +2279,7 @@ function seedPhaseTwo(db) {
 
   if (bank) {
     createRecord(db, "payments", {
+      company_id: effectiveCompanyId,
       order_id: order.id,
       payment_date: "2026-06-20",
       payment_amount: 350000,
@@ -2352,11 +2499,24 @@ export function cleanPayload(table, payload) {
   allowed.forEach((field) => {
     cleaned[field] = payload[field] ?? "";
   });
-  if (["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
-    ["company_id", "procurement_id", "order_id", "supplier_id", "department_id", "item_id", "warehouse_id"].forEach((field) => {
-      if (Object.prototype.hasOwnProperty.call(cleaned, field) && cleaned[field] === "") cleaned[field] = null;
-    });
-  }
+  [
+    "company_id",
+    "financial_year_id",
+    "order_id",
+    "billing_id",
+    "bank_id",
+    "department_id",
+    "employee_id",
+    "supplier_id",
+    "expense_head_id",
+    "procurement_id",
+    "order_item_id",
+    "item_id",
+    "warehouse_id",
+    "default_warehouse_id"
+  ].forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(cleaned, field) && cleaned[field] === "") cleaned[field] = null;
+  });
   ALL_TABLES[table].required.forEach((field) => {
     if (!String(cleaned[field] ?? "").trim()) {
       throw new Error(`${field.replaceAll("_", " ")} is required`);
@@ -2400,8 +2560,103 @@ function normalizePayloadForTable(table, payload = {}) {
   return normalized;
 }
 
+function money(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
+}
+
+function supplyOrderNeedsItems(status) {
+  return !["", "Draft", "Received"].includes(String(status || "").trim());
+}
+
+function extractSupplyOrderItems(payload = {}) {
+  if (Array.isArray(payload.order_items)) return payload.order_items;
+  if (Array.isArray(payload.items)) return payload.items;
+  return null;
+}
+
+function hasSupplyOrderItemInput(line = {}) {
+  return [
+    line.item_id,
+    line.item_description,
+    line.description,
+    line.brand,
+    line.model,
+    line.hsn_sac,
+    line.hsn,
+    line.quantity,
+    line.rate,
+    line.quoted_rate,
+    line.gst_rate,
+    line.remarks
+  ].some((value) => String(value ?? "").trim() !== "" && String(value ?? "").trim() !== "0");
+}
+
+function prepareSupplyOrderItems(db, companyId, orderId, lines, status) {
+  const source = Array.isArray(lines) ? lines.filter(hasSupplyOrderItemInput) : [];
+  if (supplyOrderNeedsItems(status) && !source.length) {
+    throw new Error("At least one order item is required before moving this order beyond Received/Draft.");
+  }
+  const prepared = source.map((line, index) => {
+    const itemId = line.item_id ? Number(line.item_id) : null;
+    const item = itemId ? db.prepare("SELECT * FROM items WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(itemId) : null;
+    const quantity = Number(line.quantity || 0);
+    const quotedRate = Number(line.rate ?? line.quoted_rate ?? 0);
+    const gstRate = Number(line.gst_rate ?? item?.gst_rate ?? 0);
+    const remarks = String(line.remarks || "").trim();
+    if (quantity <= 0) throw new Error(`Order item ${index + 1}: quantity must be greater than zero.`);
+    if (quotedRate <= 0) throw new Error(`Order item ${index + 1}: rate must be greater than zero.`);
+    if (!Number.isFinite(gstRate) || gstRate < 0) throw new Error(`Order item ${index + 1}: GST rate must be numeric and non-negative.`);
+    if (item && String(item.gst_rate ?? "") !== "" && Number(item.gst_rate || 0) !== gstRate && !remarks) {
+      throw new Error(`Order item ${index + 1}: GST override requires item remarks.`);
+    }
+    const taxableValue = money(quantity * quotedRate);
+    const gstAmount = money(taxableValue * gstRate / 100);
+    return {
+      company_id: companyId,
+      order_id: orderId || null,
+      item_id: itemId,
+      item_description: String(line.item_description || line.description || item?.item_name || "").trim(),
+      brand: String(line.brand || item?.brand || "").trim(),
+      model: String(line.model || item?.model || "").trim(),
+      hsn_sac: String(line.hsn_sac || line.hsn || item?.hsn_code || "").trim(),
+      quantity,
+      unit: String(line.unit || item?.unit || "").trim(),
+      quoted_rate: quotedRate,
+      gst_rate: gstRate,
+      taxable_value: taxableValue,
+      gst_amount: gstAmount,
+      gross_value: money(taxableValue + gstAmount),
+      remarks
+    };
+  });
+  const totals = prepared.reduce((sum, line) => ({
+    total_quantity: money(sum.total_quantity + Number(line.quantity || 0)),
+    order_taxable_value: money(sum.order_taxable_value + Number(line.taxable_value || 0)),
+    order_gst_amount: money(sum.order_gst_amount + Number(line.gst_amount || 0)),
+    order_gross_value: money(sum.order_gross_value + Number(line.gross_value || 0))
+  }), { total_quantity: 0, order_taxable_value: 0, order_gst_amount: 0, order_gross_value: 0 });
+  return { rows: prepared, totals };
+}
+
+function replaceSupplyOrderItems(db, orderId, companyId, rows) {
+  db.prepare("UPDATE order_items SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0").run(orderId);
+  const insert = db.prepare(`
+    INSERT INTO order_items (
+      company_id, order_id, item_id, item_description, brand, model, hsn_sac, quantity, unit,
+      quoted_rate, gst_rate, taxable_value, gst_amount, gross_value, remarks
+    )
+    VALUES (
+      @company_id, @order_id, @item_id, @item_description, @brand, @model, @hsn_sac, @quantity, @unit,
+      @quoted_rate, @gst_rate, @taxable_value, @gst_amount, @gross_value, @remarks
+    )
+  `);
+  rows.forEach((line) => insert.run({ ...line, company_id: companyId, order_id: orderId }));
+}
+
 export function createRecord(db, table, payload) {
   assertWriteAllowed(table, "create");
+  if (table === "supply_orders") return createSupplyOrderRecord(db, payload);
   const data = cleanPayload(table, payload);
   const requiresCompanyContext = TRANSACTION_TABLES[table] || COMPANY_SPECIFIC_MASTER_TABLES.has(table);
   if (requiresCompanyContext && !data.company_id) {
@@ -2440,6 +2695,25 @@ export function createRecord(db, table, payload) {
   }
   auditLog(db, { company_id: data.company_id, action: "create", table_name: table, record_id: result.lastInsertRowid, new_value: JSON.stringify(record) });
   return record;
+}
+
+function createSupplyOrderRecord(db, payload = {}) {
+  const transaction = db.transaction(() => {
+    const itemLines = extractSupplyOrderItems(payload);
+    const data = cleanPayload("supply_orders", payload);
+    if (!data.company_id) throw new Error("Company context is required. Select Current Company before saving this record.");
+    const prepared = prepareSupplyOrderItems(db, data.company_id, null, itemLines || [], data.order_status);
+    Object.assign(data, prepared.totals);
+    const columns = Object.keys(data);
+    const placeholders = columns.map((column) => `@${column}`).join(", ");
+    const result = db.prepare(`INSERT INTO supply_orders (${columns.join(", ")}) VALUES (${placeholders})`).run(data);
+    replaceSupplyOrderItems(db, result.lastInsertRowid, data.company_id, prepared.rows);
+    autoReserveOrderStock(db, result.lastInsertRowid);
+    const record = getRecord(db, "supply_orders", result.lastInsertRowid);
+    auditLog(db, { company_id: data.company_id, action: "create", table_name: "supply_orders", record_id: result.lastInsertRowid, new_value: JSON.stringify({ ...record, order_items: prepared.rows.length }) });
+    return record;
+  });
+  return transaction();
 }
 
 export function createLedgerAccount(db, payload = {}) {
@@ -2497,6 +2771,7 @@ function nextQuickLedgerAccountCode(db, companyId, accountType) {
 
 export function updateRecord(db, table, id, payload) {
   assertWriteAllowed(table, "update");
+  if (table === "supply_orders") return updateSupplyOrderRecord(db, id, payload);
   const oldRecord = getRecord(db, table, id);
   assertRecordEditable(table, oldRecord);
   const data = cleanPayload(table, payload);
@@ -2521,6 +2796,27 @@ export function updateRecord(db, table, id, payload) {
   const record = getRecord(db, table, id);
   auditLog(db, { company_id: data.company_id, action: "update", table_name: table, record_id: id, old_value: JSON.stringify(oldRecord), new_value: JSON.stringify(record) });
   return record;
+}
+
+function updateSupplyOrderRecord(db, id, payload = {}) {
+  const transaction = db.transaction(() => {
+    const oldRecord = getRecord(db, "supply_orders", id);
+    assertRecordEditable("supply_orders", oldRecord);
+    const itemLines = extractSupplyOrderItems(payload);
+    const data = cleanPayload("supply_orders", payload);
+    data.company_id = data.company_id || oldRecord?.company_id || null;
+    if (!data.company_id) throw new Error("Company context is required. Select Current Company before updating this record.");
+    const prepared = prepareSupplyOrderItems(db, data.company_id, id, itemLines || [], data.order_status);
+    Object.assign(data, prepared.totals);
+    const assignments = Object.keys(data).map((field) => `${field} = @${field}`).join(", ");
+    db.prepare(`UPDATE supply_orders SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({ ...data, id });
+    replaceSupplyOrderItems(db, id, data.company_id, prepared.rows);
+    autoReserveOrderStock(db, id);
+    const record = getRecord(db, "supply_orders", id);
+    auditLog(db, { company_id: data.company_id, action: "update", table_name: "supply_orders", record_id: id, old_value: JSON.stringify(oldRecord), new_value: JSON.stringify({ ...record, order_items: prepared.rows.length }) });
+    return record;
+  });
+  return transaction();
 }
 
 export function deleteRecord(db, table, id) {
@@ -2605,6 +2901,41 @@ export function listRecords(db, table, filters = {}) {
     where.push("COALESCE(is_deleted, 0) = 0");
   }
   const finalClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  if (table === "supply_orders") {
+    return db.prepare(`
+      SELECT supply_orders.*,
+        COALESCE((SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_total_quantity,
+        COALESCE((SELECT SUM(oi.taxable_value) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_order_taxable_value,
+        COALESCE((SELECT SUM(oi.gst_amount) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_order_gst_amount,
+        COALESCE((SELECT SUM(oi.gross_value) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_order_gross_value,
+        COALESCE((SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) order_item_count,
+        COALESCE((
+          SELECT json_group_array(json_object(
+            'id', oi.id,
+            'item_id', oi.item_id,
+            'item_description', oi.item_description,
+            'brand', oi.brand,
+            'model', oi.model,
+            'hsn_sac', oi.hsn_sac,
+            'quantity', oi.quantity,
+            'unit', oi.unit,
+            'quoted_rate', oi.quoted_rate,
+            'gst_rate', oi.gst_rate,
+            'taxable_value', oi.taxable_value,
+            'gst_amount', oi.gst_amount,
+            'gross_value', oi.gross_value,
+            'remarks', oi.remarks,
+            'item_name', it.item_name
+          ))
+          FROM order_items oi
+          LEFT JOIN items it ON it.id = oi.item_id
+          WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0
+        ), '[]') order_items_json
+      FROM supply_orders
+      ${finalClause}
+      ORDER BY supply_orders.id DESC
+    `).all(params);
+  }
   return db.prepare(`SELECT * FROM ${table} ${finalClause} ORDER BY id DESC`).all(params);
 }
 
@@ -8180,22 +8511,43 @@ function approvalQueueReport(db, companyId) {
 }
 
 function gstRegisters(db, companyId, dateFrom, dateTo) {
-  const output = db.prepare(`
-    SELECT i.invoice_date date, i.invoice_number reference, so.order_number, i.billing_value taxable,
-      i.billing_value * i.gst_rate / 100 gst_amount, i.gst_rate, i.posting_status
-    FROM invoices i
-    JOIN supply_orders so ON so.id = i.order_id
-    WHERE i.company_id = ? AND i.is_deleted = 0 AND i.posting_status = 'Posted' AND i.invoice_date BETWEEN ? AND ?
-    ORDER BY i.invoice_date DESC
-  `).all(companyId, dateFrom, dateTo);
-  const input = db.prepare(`
-    SELECT p.purchase_date date, p.purchase_invoice_number reference, so.order_number, p.purchase_value taxable,
-      p.purchase_gst gst_amount, CASE WHEN p.purchase_value > 0 THEN ROUND(p.purchase_gst * 100 / p.purchase_value, 2) ELSE 0 END gst_rate, p.posting_status
-    FROM procurements p
-    JOIN supply_orders so ON so.id = p.order_id
-    WHERE p.company_id = ? AND p.is_deleted = 0 AND p.posting_status = 'Posted' AND p.purchase_date BETWEEN ? AND ?
-    ORDER BY p.purchase_date DESC
-  `).all(companyId, dateFrom, dateTo);
+  const registerRows = (accountName, direction) => db.prepare(`
+    SELECT le.entry_date date,
+      COALESCE(i.invoice_number, p.purchase_invoice_number, v.voucher_number) reference,
+      COALESCE(so_i.order_number, so_p.order_number, '') order_number,
+      CASE
+        WHEN i.id IS NOT NULL THEN i.billing_value
+        WHEN p.id IS NOT NULL THEN p.purchase_value
+        ELSE 0
+      END taxable,
+      CASE
+        WHEN @direction = 'output' THEN le.credit - le.debit
+        ELSE le.debit - le.credit
+      END gst_amount,
+      CASE
+        WHEN i.id IS NOT NULL THEN i.gst_rate
+        WHEN p.id IS NOT NULL AND p.purchase_value > 0 THEN ROUND(p.purchase_gst * 100 / p.purchase_value, 2)
+        ELSE 0
+      END gst_rate,
+      'Posted' posting_status,
+      v.voucher_number,
+      v.voucher_type,
+      v.source_module
+    FROM ledger_entries le
+    JOIN accounts a ON a.id = le.account_id
+    JOIN vouchers v ON v.id = le.voucher_id
+    LEFT JOIN invoices i ON v.source_module = 'billing' AND i.id = v.source_id AND i.is_deleted = 0
+    LEFT JOIN procurements p ON v.source_module = 'procurement' AND p.id = v.source_id AND p.is_deleted = 0
+    LEFT JOIN supply_orders so_i ON so_i.id = i.order_id
+    LEFT JOIN supply_orders so_p ON so_p.id = p.order_id
+    WHERE le.company_id = @companyId
+      AND a.account_name = @accountName
+      AND v.is_deleted = 0
+      AND le.entry_date BETWEEN @dateFrom AND @dateTo
+    ORDER BY le.entry_date DESC, le.id DESC
+  `).all({ companyId, accountName, dateFrom, dateTo, direction });
+  const output = registerRows("Output GST", "output");
+  const input = registerRows("Input GST", "input");
   return { output, input, payable: output.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) - input.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) };
 }
 

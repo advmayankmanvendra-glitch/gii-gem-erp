@@ -7,7 +7,14 @@ const importTemplates = {
   warehouses: ["warehouse_name", "location", "responsible_person", "status"],
   expense_heads: ["expense_head_name", "default_calculation_method", "default_percentage", "category", "status"],
   banks: ["bank_account_name", "bank_name", "account_number", "ifsc", "opening_balance", "status"],
-  supply_orders: ["company", "order_number", "order_date", "department", "institution_name", "location", "employee_assigned", "supply_due_date", "order_status", "remarks"],
+  supply_orders: [
+    "company", "order_number", "supply_type", "gem_order_number", "gem_contract_number", "order_date", "department",
+    "institution_name", "buyer_name", "buyer_designation", "buyer_mobile", "buyer_email", "consignee_name",
+    "consignee_address", "delivery_location", "place_of_supply", "location", "delivery_period", "warranty_period",
+    "payment_terms", "emd_amount", "security_deposit_amount", "employee_assigned", "supply_due_date", "order_status",
+    "item_name", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "rate", "gst_rate",
+    "taxable_value", "gst_amount", "gross_value", "item_remarks", "remarks"
+  ],
   procurements: ["order_number", "purchase_date", "supplier_name", "purchase_invoice_number", "item_name", "quantity", "purchase_value", "gst_rate", "gst_amount", "freight", "loading_charges", "remarks"],
   expense_entries: ["order_number", "expense_head", "calculation_method", "percentage", "fixed_amount", "expense_amount", "payable_to", "payment_status", "remarks"],
   invoices: ["order_number", "invoice_number", "invoice_date", "billing_value", "gst_rate", "gst_amount", "total_invoice_value", "invoice_type", "remarks"],

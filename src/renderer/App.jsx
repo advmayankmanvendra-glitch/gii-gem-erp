@@ -5576,10 +5576,17 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   const [references, setReferences] = useState(null);
   const [filters, setFilters] = useState({ search: "", status: "all" });
   const [form, setForm] = useState(blank);
+  const [orderItems, setOrderItems] = useState(() => [blankSupplyOrderItem()]);
+  const [showSupplyOrderEntry, setShowSupplyOrderEntry] = useState(table === "supply_orders");
+  const [validationErrors, setValidationErrors] = useState([]);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
+  const isSupplyOrder = table === "supply_orders";
   const isStockTable = ["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table);
-  const formDirty = editing ? formChanged(form, Object.fromEntries(config.fields.map(([name,, type]) => [name, editing[name] ?? defaultValueFor(type)]))) : formChanged(form, blank);
+  const orderItemBaseline = editing ? supplyOrderItemsFromRecord(editing) : [blankSupplyOrderItem()];
+  const formDirty = editing
+    ? formChanged(form, Object.fromEntries(config.fields.map(([name,, type]) => [name, editing[name] ?? defaultValueFor(type)]))) || (isSupplyOrder && formChanged(orderItems, orderItemBaseline))
+    : formChanged(form, blank) || (isSupplyOrder && formChanged(orderItems, [blankSupplyOrderItem()]));
   useUnsavedChanges(formDirty);
 
   async function load() {
@@ -5603,17 +5610,25 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   }, [table, filters.search, companyContext?.company_id]);
 
   useEffect(() => {
-    if (table !== "supply_orders" || !references || editing) return;
+    setShowSupplyOrderEntry(table === "supply_orders");
+    setValidationErrors([]);
+  }, [table]);
+
+  useEffect(() => {
+    if (!isSupplyOrder || !references || editing) return;
     setForm((current) => {
       if (String(current.order_number || "").trim()) return current;
       return { ...current, order_number: nextSupplyOrderNumber(references.orders || records || []) };
     });
-  }, [table, references, editing, records]);
+  }, [isSupplyOrder, references, editing, records]);
 
   useEffect(() => {
     function newRecord() {
       setEditing(null);
       setForm(blank);
+      setOrderItems([blankSupplyOrderItem()]);
+      setValidationErrors([]);
+      if (table === "supply_orders") setShowSupplyOrderEntry(true);
     }
     window.addEventListener("gii-gem-new-record", newRecord);
     window.addEventListener("gii-gem-refresh-screen", load);
@@ -5626,9 +5641,24 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   async function submit(event) {
     event.preventDefault();
     try {
-      validateTransaction(config, form);
+      setValidationErrors([]);
+      const uiErrors = isSupplyOrder ? buildSupplyOrderValidationErrors(config, form, orderItems, references, companyContext) : [];
+      if (uiErrors.length) {
+        setValidationErrors(uiErrors);
+        window.setTimeout(() => focusValidationTarget(uiErrors[0]), 40);
+        throw new Error(uiErrors[0].message);
+      }
+      if (isSupplyOrder) {
+        validateSupplyOrderItems(form, orderItems, references);
+      } else {
+        validateTransaction(config, form);
+      }
       if (!companyContext?.company_id) throw new Error("Select Current Company before saving this transaction.");
-      const payload = { ...form, company_id: companyContext.company_id };
+      const payload = {
+        ...form,
+        company_id: companyContext.company_id,
+        ...(isSupplyOrder ? { order_items: normalizedSupplyOrderItems(orderItems, references) } : {})
+      };
       if (editing) {
         if (editing.company_id && String(editing.company_id) !== String(companyContext.company_id)) throw new Error("Selected company does not match this record. Switch company before editing.");
         await api.updateRecord(table, editing.id, payload);
@@ -5638,8 +5668,11 @@ function TransactionScreen({ table, config, notify, companyContext }) {
         notify(`${config.title} saved`);
       }
       setForm(blank);
+      setOrderItems([blankSupplyOrderItem()]);
       setEditing(null);
+      setValidationErrors([]);
       await load();
+      if (isSupplyOrder) setShowSupplyOrderEntry(false);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -5664,6 +5697,9 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   function edit(record) {
     setEditing(record);
     setForm(Object.fromEntries(config.fields.map(([name,, type]) => [name, record[name] ?? defaultValueFor(type)])));
+    setOrderItems(isSupplyOrder ? supplyOrderItemsFromRecord(record) : [blankSupplyOrderItem()]);
+    setValidationErrors([]);
+    if (isSupplyOrder) setShowSupplyOrderEntry(true);
   }
 
   async function postStockRecord(record) {
@@ -5702,13 +5738,66 @@ function TransactionScreen({ table, config, notify, companyContext }) {
     }
   }
 
+  if (isSupplyOrder) {
+    return (
+      <section className="supply-order-screen">
+        <div className="panel supply-order-viewbar">
+          <div>
+            <h2>{showSupplyOrderEntry ? (editing ? "Edit Supply Order" : "New Supply Order") : "Supply Order List"}</h2>
+            <span>{showSupplyOrderEntry ? "Capture order identity, item grid, buyer, delivery and commercial controls." : `${records.length} order record(s)`}</span>
+          </div>
+          <div className="button-row">
+            {showSupplyOrderEntry ? (
+              <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(false); }}>Back to List</button>
+            ) : (
+              <button type="button" className="primary-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(true); }}>New Supply Order</button>
+            )}
+          </div>
+        </div>
+
+        {showSupplyOrderEntry ? (
+          <AddRecordPanel table={table} title={config.title} notify={notify} onImported={load} records={records}>
+            <SupplyOrderEntryForm
+              config={config}
+              form={form}
+              setForm={setForm}
+              orderItems={orderItems}
+              setOrderItems={setOrderItems}
+              references={references}
+              validationErrors={validationErrors}
+              onFieldChange={(name, value) => {
+                setForm({ ...form, [name]: value });
+                setValidationErrors((current) => current.filter((error) => error.name !== name));
+              }}
+              editing={editing}
+              onSubmit={submit}
+              onClear={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setValidationErrors([]); }}
+            />
+            <PhasePanel title="Order item lifecycle visibility" note="Saved order item rows feed procurement planning, reservation, billing and order lifecycle reports. Incomplete received/draft orders stay usable for follow-up." />
+          </AddRecordPanel>
+        ) : (
+          <SupplyOrderRecordsPanel
+            config={config}
+            records={records}
+            references={references}
+            filters={filters}
+            setFilters={setFilters}
+            loading={loading}
+            edit={edit}
+            remove={remove}
+          />
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="transaction-layout">
       <AddRecordPanel table={table} title={config.title} notify={notify} onImported={load} records={records}>
         <form className="entry-form-inner" data-entry-form="true" onSubmit={submit}>
           <div className="panel-head">
             <h2>{editing ? "Edit Entry" : "Add Entry"}</h2>
-            {editing && <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); }}>Clear</button>}
+            {editing && <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); }}>Clear</button>}
           </div>
           <div className="form-grid">
             {config.fields.map(([name, label, type]) => (
@@ -5723,9 +5812,17 @@ function TransactionScreen({ table, config, notify, companyContext }) {
               />
             ))}
           </div>
+          {table === "supply_orders" && (
+            <SupplyOrderItemsGrid
+              items={orderItems}
+              setItems={setOrderItems}
+              references={references}
+              orderStatus={form.order_status}
+            />
+          )}
           <button className="primary-btn">{editing ? "Update" : "Save"}</button>
         </form>
-        {table === "supply_orders" && <PhasePanel title="Order item grid and lifecycle visibility" note="Use Operations > Order Items and Order Lifecycle for item-wise drilldown, lifecycle quantities and document readiness. The generated order number can be overwritten manually before saving." />}
+        {table === "supply_orders" && <PhasePanel title="Order item lifecycle visibility" note="Saved order item rows feed procurement planning, reservation, billing and order lifecycle reports. Incomplete received/draft orders stay usable for follow-up." />}
         {table === "procurements" && <PhasePanel title="Procurement item grid visibility" note="Use Operations > Purchase Bills and GRN Status to review item-wise procurement, warehouse receipt and posting status." />}
         {table === "payments" && <PhasePanel title="Receipt allocation controls" note="Use Receipt Allocation for invoice-wise allocation, TDS, GST TDS and before/after outstanding reconciliation." />}
       </AddRecordPanel>
@@ -5761,7 +5858,7 @@ function TransactionScreen({ table, config, notify, companyContext }) {
                       return (
                         <>
                     <td><strong>{transactionPrimary(record, config)}</strong></td>
-                    <td>{orderLabel(record.order_id, references) || "-"}</td>
+                    <td>{table === "supply_orders" ? `${record.order_item_count || 0} item(s)` : (orderLabel(record.order_id, references) || "-")}</td>
                     <td>{transactionAmount(record)}</td>
                     <td>{record.order_date || record.purchase_date || record.invoice_date || record.payment_date || "-"}</td>
                     <td><span className={`status ${(record.posting_status || "draft").toLowerCase().replaceAll(" ", "-")}`}>{record.posting_status || "Draft"}</span></td>
@@ -5787,46 +5884,679 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   );
 }
 
-function TransactionField({ name, label, type, value, references, onChange }) {
+function SupplyOrderEntryForm({ config, form, orderItems, setOrderItems, references, validationErrors = [], onFieldChange, editing, onSubmit, onClear }) {
+  const isGemSupply = String(form.supply_type || "GeM") === "GeM";
+  const totals = supplyOrderItemTotals(orderItems, references);
+  const errorMap = useMemo(() => Object.fromEntries(validationErrors.filter((error) => error.name).map((error) => [error.name, error])), [validationErrors]);
+  const sectionHasError = (section) => validationErrors.some((error) => error.section === section);
+  const field = (name) => {
+    const definition = config.fields.find(([fieldName]) => fieldName === name);
+    if (!definition) return null;
+    const [, label, type] = definition;
+    return (
+      <TransactionField
+        key={name}
+        name={name}
+        label={label}
+        type={type}
+        value={form[name] ?? ""}
+        references={references}
+        error={errorMap[name]?.message}
+        onChange={(value) => onFieldChange(name, value)}
+      />
+    );
+  };
+
+  return (
+    <form className="entry-form-inner supply-order-entry-form" data-entry-form="true" onSubmit={onSubmit}>
+      <div className="panel-head">
+        <div>
+          <h2>{editing ? "Edit Supply Order" : "Add Supply Order"}</h2>
+          <span>Order-first entry with item-wise commercial and delivery controls.</span>
+        </div>
+        {editing && <button type="button" className="ghost-btn" onClick={onClear}>Clear</button>}
+      </div>
+
+      {validationErrors.length ? <ValidationGuidanceBanner errors={validationErrors} /> : null}
+
+      <section className={`supply-order-section ${sectionHasError("Order Identification") ? "section-has-error" : ""}`} data-validation-section="Order Identification">
+        <div className="section-header">
+          <div>
+            <h2>Order Identification</h2>
+            <span>Core order references and status.</span>
+          </div>
+        </div>
+        <div className="form-grid supply-order-id-grid">
+          {field("order_number")}
+          {field("supply_type")}
+          {field("order_date")}
+          {isGemSupply && field("gem_order_number")}
+          {isGemSupply && field("gem_contract_number")}
+          {field("order_status")}
+        </div>
+      </section>
+
+      <SupplyOrderItemsGrid
+        items={orderItems}
+        setItems={setOrderItems}
+        references={references}
+        orderStatus={form.order_status}
+        validationErrors={validationErrors}
+      />
+
+      <div className="supply-order-two-column">
+        <div className="supply-order-left-column">
+          <SupplyOrderFieldSection title="Buyer & Department" note="Buyer contacts and department ownership for follow-up." hasError={sectionHasError("Buyer & Department")}>
+            <div className="form-grid">
+              {field("department_id")}
+              {field("institution_name")}
+              {field("buyer_name")}
+              {field("buyer_designation")}
+              {field("buyer_mobile")}
+              {field("buyer_email")}
+            </div>
+          </SupplyOrderFieldSection>
+
+          <SupplyOrderFieldSection title="Consignee & Delivery" note="Delivery contact, location and service commitments." hasError={sectionHasError("Consignee & Delivery")}>
+            <div className="form-grid">
+              {field("consignee")}
+              {field("consignee_address")}
+              {field("delivery_location")}
+              {field("place_of_supply")}
+              {field("location")}
+              {field("supply_due_date")}
+              {field("delivery_period")}
+              {field("warranty_period")}
+            </div>
+          </SupplyOrderFieldSection>
+
+          <SupplyOrderFieldSection title="Commercial Terms" note="Payment, EMD and security deposit details." hasError={sectionHasError("Commercial Terms")}>
+            <div className="form-grid">
+              {field("payment_terms")}
+              {field("emd_amount")}
+              {field("security_deposit_amount")}
+            </div>
+          </SupplyOrderFieldSection>
+
+          <SupplyOrderFieldSection title="Internal Control" note="Owner, internal remarks and accountability." hasError={sectionHasError("Internal Control")}>
+            <div className="form-grid">
+              {field("employee_id")}
+              {field("remarks")}
+            </div>
+          </SupplyOrderFieldSection>
+        </div>
+
+        <aside className="supply-order-right-column">
+          <div className="supply-order-sticky">
+            <SupplyOrderSummaryCard totals={totals} form={form} orderItems={orderItems} references={references} />
+            <SupplyOrderReadinessPanel title="Document Readiness" rows={supplyOrderDocumentReadiness(form, editing)} />
+            <SupplyOrderReadinessPanel title="Operational Readiness" rows={supplyOrderOperationalReadiness(form, orderItems, references, editing)} />
+          </div>
+        </aside>
+      </div>
+
+      <div className="supply-order-actionbar">
+        {validationErrors.length ? <ValidationGuidanceBanner errors={validationErrors} compact /> : null}
+        <button className="primary-btn">{editing ? "Update Supply Order" : "Save Supply Order"}</button>
+      </div>
+    </form>
+  );
+}
+
+function ValidationGuidanceBanner({ errors, compact = false }) {
+  if (!errors?.length) return null;
+  const firstError = errors[0];
+  const visibleErrors = compact ? errors.slice(0, 1) : errors.slice(0, 4);
+  return (
+    <div className={`validation-guidance ${compact ? "compact" : ""}`}>
+      <div>
+        <strong>{compact ? firstError.message : "Please fix the highlighted field(s)"}</strong>
+        {!compact && <span>{errors.length} issue{errors.length === 1 ? "" : "s"} found before this record can be saved.</span>}
+      </div>
+      <div className="validation-list">
+        {visibleErrors.map((error, index) => (
+          <button type="button" key={`${error.name || error.section}-${index}`} onClick={() => focusValidationTarget(error)}>
+            <span>{error.section}</span>
+            <strong>{error.message}</strong>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SupplyOrderFieldSection({ title, note, hasError = false, children }) {
+  return (
+    <section className={`supply-order-section ${hasError ? "section-has-error" : ""}`} data-validation-section={title}>
+      <div className="section-header">
+        <div>
+          <h2>{title}</h2>
+          {note && <span>{note}</span>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SupplyOrderSummaryCard({ totals, form, orderItems, references }) {
+  const normalized = normalizedSupplyOrderItems(orderItems, references);
+  const pendingItems = normalized.length ? "Item details captured" : "Item details pending";
+  return (
+    <section className="supply-order-summary-card">
+      <div className="section-header">
+        <div>
+          <h2>Order Summary</h2>
+          <span>{pendingItems}</span>
+        </div>
+      </div>
+      <div className="summary-card-grid">
+        <MetricLine label="Total Quantity" value={formatNumber(totals.quantity)} />
+        <MetricLine label="Taxable Value" value={formatCurrency(totals.taxable)} />
+        <MetricLine label="GST Amount" value={formatCurrency(totals.gst)} />
+        <MetricLine label="Gross Order Value" value={formatCurrency(totals.gross)} />
+      </div>
+      <div className="readiness-mini">
+        <span>Supply Type</span>
+        <strong>{form.supply_type || "GeM"}</strong>
+      </div>
+      <div className="readiness-mini">
+        <span>Status</span>
+        <strong>{form.order_status || "Received"}</strong>
+      </div>
+    </section>
+  );
+}
+
+function SupplyOrderReadinessPanel({ title, rows }) {
+  return (
+    <section className="supply-order-readiness-panel">
+      <h2>{title}</h2>
+      <div className="readiness-list">
+        {rows.map((row) => (
+          <div key={row.label} className={`readiness-row ${row.tone}`}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function supplyOrderDocumentReadiness(form, editing) {
+  const emdAmount = Number(form.emd_amount || 0);
+  const securityDeposit = Number(form.security_deposit_amount || 0);
+  return [
+    { label: "Order Copy", value: editing ? "Record saved" : "Attach after save", tone: editing ? "ready" : "pending" },
+    { label: "OEM Authorization", value: "Review document upload", tone: "pending" },
+    { label: "EMD", value: emdAmount > 0 ? formatCurrency(emdAmount) : "Not applicable", tone: emdAmount > 0 ? "ready" : "neutral" },
+    { label: "Security Deposit", value: securityDeposit > 0 ? formatCurrency(securityDeposit) : "Not applicable", tone: securityDeposit > 0 ? "ready" : "neutral" }
+  ];
+}
+
+function supplyOrderOperationalReadiness(form, orderItems, references, editing) {
+  const hasItems = normalizedSupplyOrderItems(orderItems, references).length > 0;
+  const status = String(form.order_status || "Received");
+  return [
+    { label: "Reservation Status", value: hasItems ? "Ready for reservation" : "Items pending", tone: hasItems ? "ready" : "pending" },
+    { label: "Procurement Status", value: status.includes("Procurement") ? status : (editing ? "Review procurement" : "Not started"), tone: status.includes("Procurement") ? "ready" : "pending" },
+    { label: "Billing Status", value: status.includes("Bill") || status.includes("Payment") || status === "Closed" ? status : "Not billed", tone: status.includes("Bill") || status.includes("Payment") || status === "Closed" ? "ready" : "pending" }
+  ];
+}
+
+function SupplyOrderRecordsPanel({ config, records, references, filters, setFilters, loading, edit, remove }) {
+  return (
+    <section className="panel records-panel supply-order-list-panel">
+      <div className="records-toolbar">
+        <div>
+          <h2>{config.title}</h2>
+          <span>{records.length} order record(s)</span>
+        </div>
+        <div className="toolbar-controls">
+          <input data-search-input="true" placeholder="Search supply orders" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} />
+        </div>
+      </div>
+      {loading ? <EmptyState title="Loading supply orders" /> : records.length ? (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Items</th>
+                <th>Value</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((record) => {
+                const locked = isRecordLocked(record);
+                return (
+                  <tr key={record.id}>
+                    <td><strong>{transactionPrimary(record, config)}</strong></td>
+                    <td>{record.order_item_count || 0} item(s)</td>
+                    <td>{transactionAmount(record)}</td>
+                    <td>{record.order_date || "-"}</td>
+                    <td><span className={`status ${(record.order_status || record.posting_status || "draft").toLowerCase().replaceAll(" ", "-")}`}>{record.order_status || record.posting_status || "Draft"}</span></td>
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" onClick={() => edit(record)} title={locked ? "Locked record" : "Edit"} disabled={locked}><Icon name="edit" /></button>
+                        <button type="button" onClick={() => remove(record)} title={locked ? "Locked record" : "Delete"} disabled={locked}><Icon name="trash" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : <EmptyState title="No supply orders found" note="Create the first supply order from the New Supply Order button." />}
+    </section>
+  );
+}
+
+function buildSupplyOrderValidationErrors(config, form, orderItems, references, companyContext) {
+  const labels = Object.fromEntries(config.fields.map(([name, label]) => [name, label]));
+  const errors = [];
+  const fieldSection = {
+    order_number: "Order Identification",
+    supply_type: "Order Identification",
+    order_date: "Order Identification",
+    gem_order_number: "Order Identification",
+    gem_contract_number: "Order Identification",
+    order_status: "Order Identification",
+    department_id: "Buyer & Department",
+    institution_name: "Buyer & Department",
+    buyer_name: "Buyer & Department",
+    buyer_designation: "Buyer & Department",
+    buyer_mobile: "Buyer & Department",
+    buyer_email: "Buyer & Department",
+    consignee: "Consignee & Delivery",
+    consignee_address: "Consignee & Delivery",
+    delivery_location: "Consignee & Delivery",
+    place_of_supply: "Consignee & Delivery",
+    location: "Consignee & Delivery",
+    supply_due_date: "Consignee & Delivery",
+    delivery_period: "Consignee & Delivery",
+    warranty_period: "Consignee & Delivery",
+    payment_terms: "Commercial Terms",
+    emd_amount: "Commercial Terms",
+    security_deposit_amount: "Commercial Terms",
+    employee_id: "Internal Control",
+    remarks: "Internal Control"
+  };
+  const add = (name, section, message, itemIndex = null) => errors.push({ name, section, message, itemIndex });
+  const requireField = (name, message) => {
+    if (!String(form[name] ?? "").trim()) add(name, fieldSection[name] || "Order Identification", message || `${labels[name] || name} is required`);
+  };
+  const isGemSupply = String(form.supply_type || "GeM") === "GeM";
+
+  if (!companyContext?.company_id) add(null, "Current Company", "Select Current Company before saving this transaction.");
+  requireField("order_number");
+  requireField("supply_type");
+  requireField("order_date");
+  if (isGemSupply) {
+    requireField("gem_order_number");
+    requireField("gem_contract_number");
+  }
+  requireField("department_id", "Department is required");
+  requireField("employee_id", "Employee Assigned is required");
+
+  Object.entries(form).forEach(([key, value]) => {
+    if ((key.includes("value") || key.includes("amount") || key.includes("gst") || key.includes("freight") || key.includes("charges") || key.includes("percentage")) && Number(value || 0) < 0) {
+      add(key, fieldSection[key] || "Commercial Terms", `${labels[key] || "Amount"} cannot be negative`);
+    }
+  });
+
+  const normalized = normalizedSupplyOrderItems(orderItems, references);
+  if (statusRequiresSupplyOrderItems(form.order_status) && !normalized.length) {
+    add("order_items", "Order Items", "Add at least one order item before moving this order beyond Received/Draft.");
+  }
+
+  orderItems.forEach((line, index) => {
+    if (!supplyOrderLineHasInput(line)) return;
+    const calculated = calculatedSupplyOrderLine(line, references);
+    if (Number(calculated.quantity || 0) <= 0) add("quantity", "Order Items", `Order item ${index + 1}: quantity must be greater than zero.`, index);
+    if (Number(calculated.quoted_rate || 0) <= 0) add("quoted_rate", "Order Items", `Order item ${index + 1}: rate must be greater than zero.`, index);
+    if (!String(calculated.hsn_sac || "").trim()) add("hsn_sac", "Order Items", `Order item ${index + 1}: HSN/SAC is missing.`, index);
+    if (String(calculated.gst_rate ?? "").trim() === "") add("gst_rate", "Order Items", `Order item ${index + 1}: GST rate is missing.`, index);
+    const item = itemById(references, calculated.item_id);
+    if (item && String(item.gst_rate ?? "") !== "" && Number(item.gst_rate || 0) !== Number(calculated.gst_rate || 0) && !String(calculated.remarks || "").trim()) {
+      add("remarks", "Order Items", `Order item ${index + 1}: GST override requires remarks.`, index);
+    }
+  });
+  return errors;
+}
+
+function focusValidationTarget(error = {}) {
+  let target = null;
+  if (error.itemIndex !== null && error.itemIndex !== undefined) {
+    const row = document.querySelector(`[data-order-item-row="${error.itemIndex}"]`);
+    target = row?.querySelector(`[data-line-field="${error.name}"]`) || row;
+  }
+  if (!target && error.name) {
+    const field = document.querySelector(`[data-field-name="${error.name}"]`);
+    target = field?.querySelector("input, select, textarea, button") || field;
+  }
+  if (!target && error.section) {
+    target = document.querySelector(`[data-validation-section="${error.section}"]`);
+  }
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (typeof target.focus === "function") window.setTimeout(() => target.focus({ preventScroll: true }), 220);
+}
+
+function blankSupplyOrderItem() {
+  return {
+    _key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    item_id: "",
+    item_description: "",
+    brand: "",
+    model: "",
+    hsn_sac: "",
+    quantity: "",
+    unit: "",
+    quoted_rate: "",
+    gst_rate: "",
+    remarks: ""
+  };
+}
+
+function supplyOrderLineHasInput(line = {}) {
+  return ["item_id", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "quoted_rate", "gst_rate", "remarks"].some((key) => String(line[key] ?? "").trim());
+}
+
+function itemById(references, id) {
+  return (references?.items || []).find((item) => String(item.id) === String(id));
+}
+
+function calculatedSupplyOrderLine(line = {}, references) {
+  const item = itemById(references, line.item_id);
+  const quantity = Number(line.quantity || 0);
+  const rate = Number(line.quoted_rate || line.rate || 0);
+  const gstRate = Number(line.gst_rate === "" || line.gst_rate === undefined ? (item?.gst_rate || 0) : line.gst_rate);
+  const taxable = Math.round(quantity * rate * 100) / 100;
+  const gstAmount = Math.round((taxable * gstRate / 100) * 100) / 100;
+  return {
+    ...line,
+    item_description: line.item_description || item?.item_name || "",
+    brand: line.brand || item?.brand || "",
+    model: line.model || item?.model || "",
+    hsn_sac: line.hsn_sac || item?.hsn_code || "",
+    unit: line.unit || item?.unit || "",
+    gst_rate: line.gst_rate === "" || line.gst_rate === undefined ? (item?.gst_rate ?? "") : line.gst_rate,
+    taxable_value: taxable,
+    gst_amount: gstAmount,
+    gross_value: Math.round((taxable + gstAmount) * 100) / 100
+  };
+}
+
+function normalizedSupplyOrderItems(lines = [], references) {
+  return lines
+    .filter(supplyOrderLineHasInput)
+    .map((line) => {
+      const calculated = calculatedSupplyOrderLine(line, references);
+      return {
+        item_id: calculated.item_id || null,
+        item_description: calculated.item_description,
+        brand: calculated.brand,
+        model: calculated.model,
+        hsn_sac: calculated.hsn_sac,
+        quantity: Number(calculated.quantity || 0),
+        unit: calculated.unit,
+        quoted_rate: Number(calculated.quoted_rate || 0),
+        gst_rate: Number(calculated.gst_rate || 0),
+        taxable_value: calculated.taxable_value,
+        gst_amount: calculated.gst_amount,
+        gross_value: calculated.gross_value,
+        remarks: calculated.remarks || ""
+      };
+    });
+}
+
+function supplyOrderItemsFromRecord(record = {}) {
+  try {
+    const parsed = record.order_items_json ? JSON.parse(record.order_items_json) : [];
+    const rows = Array.isArray(parsed) ? parsed.filter((row) => row && (row.id || row.item_id || row.item_description)).map((row) => ({
+      _key: `existing-${row.id || Math.random().toString(36).slice(2)}`,
+      item_id: row.item_id || "",
+      item_description: row.item_description || row.item_name || "",
+      brand: row.brand || "",
+      model: row.model || "",
+      hsn_sac: row.hsn_sac || "",
+      quantity: row.quantity ?? "",
+      unit: row.unit || "",
+      quoted_rate: row.quoted_rate ?? "",
+      gst_rate: row.gst_rate ?? "",
+      remarks: row.remarks || ""
+    })) : [];
+    return rows.length ? rows : [blankSupplyOrderItem()];
+  } catch {
+    return [blankSupplyOrderItem()];
+  }
+}
+
+function supplyOrderItemTotals(lines = [], references) {
+  return lines.map((line) => calculatedSupplyOrderLine(line, references)).reduce((sum, line) => ({
+    quantity: sum.quantity + Number(line.quantity || 0),
+    taxable: sum.taxable + Number(line.taxable_value || 0),
+    gst: sum.gst + Number(line.gst_amount || 0),
+    gross: sum.gross + Number(line.gross_value || 0)
+  }), { quantity: 0, taxable: 0, gst: 0, gross: 0 });
+}
+
+function statusRequiresSupplyOrderItems(status) {
+  return !["", "Draft", "Received"].includes(String(status || "").trim());
+}
+
+function validateSupplyOrderItems(form, lines, references) {
+  const normalized = normalizedSupplyOrderItems(lines, references);
+  if (statusRequiresSupplyOrderItems(form.order_status) && !normalized.length) {
+    throw new Error("At least one order item is required before marking this order as Procurement Pending or beyond.");
+  }
+  normalized.forEach((line, index) => {
+    if (Number(line.quantity || 0) <= 0) throw new Error(`Order item ${index + 1}: quantity must be greater than zero.`);
+    if (Number(line.quoted_rate || 0) <= 0) throw new Error(`Order item ${index + 1}: rate must be greater than zero.`);
+    const item = itemById(references, line.item_id);
+    if (item && String(item.gst_rate ?? "") !== "" && Number(item.gst_rate || 0) !== Number(line.gst_rate || 0) && !String(line.remarks || "").trim()) {
+      throw new Error(`Order item ${index + 1}: GST override requires remarks.`);
+    }
+  });
+}
+
+function SupplyOrderItemsGrid({ items, setItems, references, orderStatus, validationErrors = [] }) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const itemOptions = references?.items || [];
+  const totals = supplyOrderItemTotals(items, references);
+  const hasItems = normalizedSupplyOrderItems(items, references).length > 0;
+  const missingTax = items.some((line) => supplyOrderLineHasInput(line) && (!String(calculatedSupplyOrderLine(line, references).hsn_sac || "").trim() || String(calculatedSupplyOrderLine(line, references).gst_rate ?? "").trim() === ""));
+  const sectionErrors = validationErrors.filter((error) => error.section === "Order Items");
+  const itemErrorFor = (index, name) => sectionErrors.find((error) => error.itemIndex === index && (!error.name || error.name === name));
+
+  function updateLine(index, patch) {
+    setItems((current) => current.map((line, lineIndex) => {
+      if (lineIndex !== index) return line;
+      const next = { ...line, ...patch };
+      if (Object.prototype.hasOwnProperty.call(patch, "item_id")) {
+        const item = itemById(references, patch.item_id);
+        return {
+          ...next,
+          item_description: item?.item_name || next.item_description || "",
+          brand: item?.brand || next.brand || "",
+          model: item?.model || next.model || "",
+          hsn_sac: item?.hsn_code || next.hsn_sac || "",
+          unit: item?.unit || next.unit || "",
+          gst_rate: item?.gst_rate ?? next.gst_rate ?? ""
+        };
+      }
+      return next;
+    }));
+  }
+
+  function addLine() {
+    setItems((current) => [...current, blankSupplyOrderItem()]);
+    setSelectedIndex(items.length);
+  }
+
+  function removeLine() {
+    setItems((current) => current.length <= 1 ? [blankSupplyOrderItem()] : current.filter((_, index) => index !== selectedIndex));
+    setSelectedIndex(0);
+  }
+
+  function editLine() {
+    const element = document.querySelector(`[data-order-item-row="${selectedIndex}"] input, [data-order-item-row="${selectedIndex}"] select`);
+    element?.focus();
+  }
+
+  return (
+    <section className={`order-items-section ${sectionErrors.length ? "section-has-error" : ""}`} data-validation-section="Order Items">
+      <div className="section-header">
+        <div>
+          <h2>Order Items</h2>
+          <span>Item-wise commercial details for procurement, reservation, billing and profitability.</span>
+        </div>
+        <div className="button-row">
+          <button type="button" className="ghost-btn" onClick={addLine}>Add Item</button>
+          <button type="button" className="ghost-btn" onClick={editLine}>Edit Item</button>
+          <button type="button" className="ghost-btn danger-text" onClick={removeLine}>Remove Item</button>
+        </div>
+      </div>
+      {!hasItems && statusRequiresSupplyOrderItems(orderStatus) && <div className="warning-banner"><strong>Items required</strong><span>Add at least one item before moving this order beyond Received/Draft.</span></div>}
+      {!hasItems && !statusRequiresSupplyOrderItems(orderStatus) && <div className="info-banner"><strong>Draft allowed</strong><span>This order can stay Received/Draft until item details are available.</span></div>}
+      {missingTax && <div className="warning-banner"><strong>HSN/GST warning</strong><span>One or more item lines are missing HSN/SAC or GST details.</span></div>}
+      <div className="table-wrap order-items-table-wrap">
+        <table className="order-items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Description</th>
+              <th>Brand</th>
+              <th>Model</th>
+              <th>HSN/SAC</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Rate</th>
+              <th>GST %</th>
+              <th>Taxable</th>
+              <th>GST</th>
+              <th>Gross</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((line, index) => {
+              const calculated = calculatedSupplyOrderLine(line, references);
+              return (
+                <tr key={line._key || index} data-order-item-row={index} className={`${selectedIndex === index ? "selected-row" : ""} ${sectionErrors.some((error) => error.itemIndex === index) ? "row-has-error" : ""}`} onClick={() => setSelectedIndex(index)}>
+                  <td>
+                    <select value={line.item_id || ""} data-line-field="item_id" aria-invalid={Boolean(itemErrorFor(index, "item_id"))} onChange={(event) => updateLine(index, { item_id: event.target.value })}>
+                      <option value="">Select item</option>
+                      {itemOptions.map((item) => <option key={item.id} value={item.id}>{item.item_name}</option>)}
+                    </select>
+                  </td>
+                  <td><input value={calculated.item_description || ""} data-line-field="item_description" aria-invalid={Boolean(itemErrorFor(index, "item_description"))} onChange={(event) => updateLine(index, { item_description: event.target.value })} /></td>
+                  <td><input value={calculated.brand || ""} data-line-field="brand" onChange={(event) => updateLine(index, { brand: event.target.value })} /></td>
+                  <td><input value={calculated.model || ""} data-line-field="model" onChange={(event) => updateLine(index, { model: event.target.value })} /></td>
+                  <td><input value={calculated.hsn_sac || ""} data-line-field="hsn_sac" aria-invalid={Boolean(itemErrorFor(index, "hsn_sac"))} onChange={(event) => updateLine(index, { hsn_sac: event.target.value })} /></td>
+                  <td><input type="number" min="0" step="0.01" value={line.quantity ?? ""} data-line-field="quantity" aria-invalid={Boolean(itemErrorFor(index, "quantity"))} onChange={(event) => updateLine(index, { quantity: event.target.value })} /></td>
+                  <td><input value={calculated.unit || ""} data-line-field="unit" onChange={(event) => updateLine(index, { unit: event.target.value })} /></td>
+                  <td><input type="number" min="0" step="0.01" value={line.quoted_rate ?? ""} data-line-field="quoted_rate" aria-invalid={Boolean(itemErrorFor(index, "quoted_rate"))} onChange={(event) => updateLine(index, { quoted_rate: event.target.value })} /></td>
+                  <td><input type="number" min="0" step="0.01" value={calculated.gst_rate ?? ""} data-line-field="gst_rate" aria-invalid={Boolean(itemErrorFor(index, "gst_rate"))} onChange={(event) => updateLine(index, { gst_rate: event.target.value })} /></td>
+                  <td>{formatCurrency(calculated.taxable_value)}</td>
+                  <td>{formatCurrency(calculated.gst_amount)}</td>
+                  <td>{formatCurrency(calculated.gross_value)}</td>
+                  <td><input value={line.remarks || ""} data-line-field="remarks" aria-invalid={Boolean(itemErrorFor(index, "remarks"))} onChange={(event) => updateLine(index, { remarks: event.target.value })} placeholder="Required for GST override" /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="order-total-grid">
+        <MetricLine label="Total Quantity" value={formatNumber(totals.quantity)} />
+        <MetricLine label="Taxable Value" value={formatCurrency(totals.taxable)} />
+        <MetricLine label="GST Amount" value={formatCurrency(totals.gst)} />
+        <MetricLine label="Gross Order Value" value={formatCurrency(totals.gross)} />
+      </div>
+    </section>
+  );
+}
+
+function TransactionField({ name, label, type, value, references, onChange, error }) {
+  const fieldClass = `field ${error ? "field-error" : ""}`;
+  const errorNote = error ? <small className="field-error-note">{error}</small> : null;
+  const selectField = (options, fallback = "") => (
+    <label className={fieldClass} data-field-name={name}>
+      {label}
+      <select value={value || fallback} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => {
+          const valueLabel = Array.isArray(option) ? option : [option, option];
+          return <option key={valueLabel[0]} value={valueLabel[0]}>{valueLabel[1]}</option>;
+        })}
+      </select>
+      {errorNote}
+    </label>
+  );
   if (["department", "employee", "supplier", "bank", "expense_head", "order", "item", "warehouse"].includes(type)) {
     return (
-      <label className="field">
+      <label className={fieldClass} data-field-name={name}>
         {label}
-        <select value={value || ""} onChange={(event) => onChange(event.target.value)} required>
+        <select value={value || ""} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} required>
           <option value="">Select</option>
           {referenceOptions(type, references).map(([id, text]) => <option key={id} value={id}>{text}</option>)}
         </select>
+        {errorNote}
       </label>
     );
   }
   if (type === "order_status") {
-    return <SelectField label={label} value={value || "Received"} onChange={onChange} options={["Received", "Procurement Pending", "Procurement Completed", "Supply Pending", "Supplied", "Bill Raised", "Payment Pending", "Partially Received", "Fully Received", "Closed"]} />;
+    return selectField(["Draft", "Received", "Procurement Pending", "Procurement Completed", "Supply Pending", "Supplied", "Bill Raised", "Payment Pending", "Partially Received", "Fully Received", "Closed"], "Received");
+  }
+  if (type === "supply_type") {
+    return selectField(["GeM", "eProc", "Manual", "Other"], "GeM");
   }
   if (type === "invoice_type") {
-    return <SelectField label={label} value={value || "Tax Invoice"} onChange={onChange} options={["Tax Invoice", "Revised Invoice", "Credit Note", "Debit Note"]} />;
+    return selectField(["Tax Invoice", "Revised Invoice", "Credit Note", "Debit Note"], "Tax Invoice");
   }
   if (type === "payment_mode") {
-    return <SelectField label={label} value={value || "NEFT"} onChange={onChange} options={["Cash", "NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Other"]} />;
+    return selectField(["Cash", "NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Other"], "NEFT");
   }
   if (type === "procurement_status") {
-    return <SelectField label={label} value={value || "Draft"} onChange={onChange} options={["Draft", "Pending Receipt", "GRN Pending", "Partially Received", "Fully Received", "Posted"]} />;
+    return selectField(["Draft", "Pending Receipt", "GRN Pending", "Partially Received", "Fully Received", "Posted"], "Draft");
   }
   if (type === "payment_status") {
-    return <SelectField label={label} value={value || "Unpaid"} onChange={onChange} options={["Paid", "Unpaid", "Partially Paid"]} />;
+    return selectField(["Paid", "Unpaid", "Partially Paid"], "Unpaid");
   }
   if (type === "allocation_status") {
-    return <SelectField label={label} value={value || "Unallocated"} onChange={onChange} options={["Unallocated", "Partially Allocated", "Allocated", "Advance"]} />;
+    return selectField(["Unallocated", "Partially Allocated", "Allocated", "Advance"], "Unallocated");
   }
   if (type === "adjustment_type") {
-    return <SelectField label={label} value={value || "Increase"} onChange={onChange} options={["Increase", "Decrease"]} />;
+    return selectField(["Increase", "Decrease"], "Increase");
   }
   if (type === "return_type") {
-    return <SelectField label={label} value={value || "Department"} onChange={onChange} options={["Department", "Supplier"]} />;
+    return selectField(["Department", "Supplier"], "Department");
   }
   if (type === "condition_status") {
-    return <SelectField label={label} value={value || "Good"} onChange={onChange} options={["Good", "Defective", "Damaged", "Warranty Claim"]} />;
+    return selectField(["Good", "Defective", "Damaged", "Warranty Claim"], "Good");
   }
-  return <Field name={name} label={label} type={type} value={value} onChange={onChange} />;
+  if (type === "textarea") {
+    return (
+      <label className={`${fieldClass} wide`} data-field-name={name}>
+        {label}
+        <textarea value={value || ""} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
+        {errorNote}
+      </label>
+    );
+  }
+  return (
+    <label className={fieldClass} data-field-name={name}>
+      {label}
+      <input type={type} value={value || ""} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} />
+      {errorNote}
+    </label>
+  );
 }
 
 function formatNumber(value) {
@@ -6289,7 +7019,7 @@ function transactionPrimary(record, config) {
 }
 
 function transactionAmount(record) {
-  const value = record.billing_value ?? record.payment_amount ?? record.purchase_value ?? record.expense_amount ?? record.fixed_amount ?? "";
+  const value = record.computed_order_gross_value ?? record.order_gross_value ?? record.billing_value ?? record.payment_amount ?? record.purchase_value ?? record.expense_amount ?? record.fixed_amount ?? "";
   return value === "" ? "-" : formatCurrency(Number(value || 0));
 }
 
@@ -6308,6 +7038,7 @@ function nextSupplyOrderNumber(orders = []) {
 function defaultValueFor(type) {
   if (type === "date") return new Date().toISOString().slice(0, 10);
   if (type === "number") return 0;
+  if (type === "supply_type") return "GeM";
   if (type === "calculation") return "percentage_gross";
   if (type === "order_status") return "Received";
   if (type === "invoice_type") return "Tax Invoice";
@@ -6340,7 +7071,7 @@ function formChanged(current, baseline) {
 function normalizeFormValue(value) {
   if (Array.isArray(value)) return value.map(normalizeFormValue);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, normalizeFormValue(value[key])]));
+    return Object.fromEntries(Object.keys(value).filter((key) => key !== "_key").sort().map((key) => [key, normalizeFormValue(value[key])]));
   }
   if (value === null || value === undefined) return "";
   return String(value);

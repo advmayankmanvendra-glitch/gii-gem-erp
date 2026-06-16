@@ -62,6 +62,7 @@ try {
   const item = createRecord(db, "items", { item_name: "Controls Item", gst_rate: 18, unit: "Nos", status: "active" });
   const warehouse = createRecord(db, "warehouses", { company_id: company.id, warehouse_name: "Controls Warehouse", location: "Test", warehouse_type: "Main", responsible_person: "Audit", status: "active" });
   const order = createRecord(db, "supply_orders", {
+    company_id: company.id,
     order_number: `CTRL-${Date.now()}`,
     order_date: "2026-06-12",
     department_id: department.id,
