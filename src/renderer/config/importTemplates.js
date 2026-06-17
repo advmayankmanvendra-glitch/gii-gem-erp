@@ -13,7 +13,7 @@ const importTemplates = {
     "consignee_address", "delivery_location", "place_of_supply", "location", "delivery_period", "warranty_period",
     "payment_terms", "emd_amount", "security_deposit_amount", "employee_assigned", "supply_due_date", "order_status",
     "item_name", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "rate", "gst_rate",
-    "taxable_value", "gst_amount", "gross_value", "item_remarks", "remarks"
+    "taxable_value", "gst_amount", "gross_value", "required_delivery_date", "item_remarks", "remarks"
   ],
   procurements: ["order_number", "purchase_date", "supplier_name", "purchase_invoice_number", "item_name", "quantity", "purchase_value", "gst_rate", "gst_amount", "freight", "loading_charges", "remarks"],
   expense_entries: ["order_number", "expense_head", "calculation_method", "percentage", "fixed_amount", "expense_amount", "payable_to", "payment_status", "remarks"],

@@ -655,7 +655,8 @@ function addSupplyOrderItemEntryEnhancement(db) {
   [
     ["brand", "TEXT"],
     ["model", "TEXT"],
-    ["hsn_sac", "TEXT"]
+    ["hsn_sac", "TEXT"],
+    ["required_delivery_date", "TEXT"]
   ].forEach(([column, definition]) => addColumnIfMissing(db, "order_items", column, definition));
 }
 
@@ -1831,6 +1832,7 @@ function createAccountingTables(db) {
       taxable_value REAL NOT NULL DEFAULT 0,
       gst_amount REAL NOT NULL DEFAULT 0,
       gross_value REAL NOT NULL DEFAULT 0,
+      required_delivery_date TEXT,
       remarks TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2233,6 +2235,7 @@ function seedPhaseTwo(db, companyId = null) {
       unit: seedItem.unit || "Nos",
       quoted_rate: 1000000,
       gst_rate: Number(seedItem.gst_rate || 18),
+      required_delivery_date: "2026-06-25",
       remarks: "Seed order item for Phase 2 sample order."
     }],
     remarks: "Phase 2 sample order for profitability testing."
@@ -2588,6 +2591,7 @@ function hasSupplyOrderItemInput(line = {}) {
     line.rate,
     line.quoted_rate,
     line.gst_rate,
+    line.required_delivery_date,
     line.remarks
   ].some((value) => String(value ?? "").trim() !== "" && String(value ?? "").trim() !== "0");
 }
@@ -2627,6 +2631,7 @@ function prepareSupplyOrderItems(db, companyId, orderId, lines, status) {
       taxable_value: taxableValue,
       gst_amount: gstAmount,
       gross_value: money(taxableValue + gstAmount),
+      required_delivery_date: String(line.required_delivery_date || "").trim() || null,
       remarks
     };
   });
@@ -2644,11 +2649,11 @@ function replaceSupplyOrderItems(db, orderId, companyId, rows) {
   const insert = db.prepare(`
     INSERT INTO order_items (
       company_id, order_id, item_id, item_description, brand, model, hsn_sac, quantity, unit,
-      quoted_rate, gst_rate, taxable_value, gst_amount, gross_value, remarks
+      quoted_rate, gst_rate, taxable_value, gst_amount, gross_value, required_delivery_date, remarks
     )
     VALUES (
       @company_id, @order_id, @item_id, @item_description, @brand, @model, @hsn_sac, @quantity, @unit,
-      @quoted_rate, @gst_rate, @taxable_value, @gst_amount, @gross_value, @remarks
+      @quoted_rate, @gst_rate, @taxable_value, @gst_amount, @gross_value, @required_delivery_date, @remarks
     )
   `);
   rows.forEach((line) => insert.run({ ...line, company_id: companyId, order_id: orderId }));
@@ -2924,6 +2929,7 @@ export function listRecords(db, table, filters = {}) {
             'taxable_value', oi.taxable_value,
             'gst_amount', oi.gst_amount,
             'gross_value', oi.gross_value,
+            'required_delivery_date', oi.required_delivery_date,
             'remarks', oi.remarks,
             'item_name', it.item_name
           ))
@@ -4078,15 +4084,55 @@ function validateImportRow(db, table, row, context) {
     payload.status ||= "active";
   } else if (table === "supply_orders") {
     payload.order_number = requireValue("order_number");
+    payload.supply_type = value("supply_type") || "GeM";
+    payload.gem_order_number = value("gem_order_number");
+    payload.gem_contract_number = value("gem_contract_number");
     payload.order_date = dateValue("order_date", "order_date");
     payload.department_id = findOne("government_departments", "department_name", requireValue("department"), "department");
     payload.employee_id = findOne("employees", "employee_name", requireValue("employee_assigned"), "employee_assigned");
     payload.institution_name = value("institution_name");
+    payload.buyer_name = value("buyer_name");
+    payload.buyer_designation = value("buyer_designation");
+    payload.buyer_mobile = value("buyer_mobile");
+    payload.buyer_email = value("buyer_email");
+    payload.consignee = value("consignee_name") || value("consignee");
+    payload.consignee_address = value("consignee_address");
+    payload.delivery_location = value("delivery_location");
+    payload.place_of_supply = value("place_of_supply");
     payload.location = value("location");
+    payload.delivery_period = value("delivery_period");
+    payload.warranty_period = value("warranty_period");
+    payload.payment_terms = value("payment_terms");
+    payload.emd_amount = numberValue("emd_amount", "emd_amount") || 0;
+    payload.security_deposit_amount = numberValue("security_deposit_amount", "security_deposit_amount") || 0;
     payload.supply_due_date = dateValue("supply_due_date", "supply_due_date");
     payload.order_status = value("order_status") || "Received";
     payload.remarks = value("remarks");
     payload.company_id = companyId;
+    const itemName = value("item_name");
+    const item = itemName ? db.prepare("SELECT * FROM items WHERE LOWER(item_name) = LOWER(?) AND COALESCE(is_deleted, 0) = 0 LIMIT 1").get(itemName) : null;
+    const itemLine = {
+      item_id: item?.id || null,
+      item_description: value("item_description") || itemName,
+      brand: value("brand") || item?.brand || "",
+      model: value("model") || item?.model || "",
+      hsn_sac: value("hsn_sac") || value("hsn") || item?.hsn_code || "",
+      quantity: numberValue("quantity", "quantity", false),
+      unit: value("unit") || item?.unit || "",
+      quoted_rate: numberValue("rate", "rate", false) || numberValue("quoted_rate", "quoted_rate", false),
+      gst_rate: value("gst_rate") === "" ? (item?.gst_rate ?? "") : numberValue("gst_rate", "gst_rate", false),
+      required_delivery_date: dateValue("required_delivery_date", "required_delivery_date"),
+      remarks: value("item_remarks")
+    };
+    const hasItemLine = hasSupplyOrderItemInput(itemLine);
+    if (hasItemLine) payload.order_items = [itemLine];
+    if (supplyOrderNeedsItems(payload.order_status) && !hasItemLine) errors.push("At least one order item is required before moving this order beyond Received/Draft");
+    if (hasItemLine) {
+      if (Number(itemLine.quantity || 0) <= 0) errors.push("quantity must be greater than zero");
+      if (Number(itemLine.quoted_rate || 0) <= 0) errors.push("rate must be greater than zero");
+      if (!String(itemLine.hsn_sac || "").trim()) errors.push("hsn_sac is required for order item");
+      if (String(itemLine.gst_rate ?? "").trim() === "") errors.push("gst_rate is required for order item");
+    }
     if (payload.order_number && db.prepare("SELECT id FROM supply_orders WHERE order_number = ? AND COALESCE(is_deleted, 0) = 0").get(payload.order_number)) return { status: "duplicate", errors: ["Duplicate order number"], payload };
   } else if (table === "procurements") {
     payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");

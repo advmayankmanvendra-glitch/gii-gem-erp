@@ -5165,12 +5165,13 @@ function blankSupplyOrderItem() {
     unit: "",
     quoted_rate: "",
     gst_rate: "",
+    required_delivery_date: "",
     remarks: ""
   };
 }
 
 function supplyOrderLineHasInput(line = {}) {
-  return ["item_id", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "quoted_rate", "gst_rate", "remarks"].some((key) => String(line[key] ?? "").trim());
+  return ["item_id", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "quoted_rate", "gst_rate", "required_delivery_date", "remarks"].some((key) => String(line[key] ?? "").trim());
 }
 
 function itemById(references, id) {
@@ -5216,6 +5217,7 @@ function normalizedSupplyOrderItems(lines = [], references) {
         taxable_value: calculated.taxable_value,
         gst_amount: calculated.gst_amount,
         gross_value: calculated.gross_value,
+        required_delivery_date: calculated.required_delivery_date || "",
         remarks: calculated.remarks || ""
       };
     });
@@ -5235,6 +5237,7 @@ function supplyOrderItemsFromRecord(record = {}) {
       unit: row.unit || "",
       quoted_rate: row.quoted_rate ?? "",
       gst_rate: row.gst_rate ?? "",
+      required_delivery_date: row.required_delivery_date || "",
       remarks: row.remarks || ""
     })) : [];
     return rows.length ? rows : [blankSupplyOrderItem()];
@@ -5347,6 +5350,7 @@ function SupplyOrderItemsGrid({ items, setItems, references, orderStatus, valida
               <th>Taxable</th>
               <th>GST</th>
               <th>Gross</th>
+              <th>Required Delivery</th>
               <th>Remarks</th>
             </tr>
           </thead>
@@ -5372,6 +5376,7 @@ function SupplyOrderItemsGrid({ items, setItems, references, orderStatus, valida
                   <td>{formatCurrency(calculated.taxable_value)}</td>
                   <td>{formatCurrency(calculated.gst_amount)}</td>
                   <td>{formatCurrency(calculated.gross_value)}</td>
+                  <td><input type="date" value={line.required_delivery_date || ""} data-line-field="required_delivery_date" onChange={(event) => updateLine(index, { required_delivery_date: event.target.value })} /></td>
                   <td><input value={line.remarks || ""} data-line-field="remarks" aria-invalid={Boolean(itemErrorFor(index, "remarks"))} onChange={(event) => updateLine(index, { remarks: event.target.value })} placeholder="Required for GST override" /></td>
                 </tr>
               );
@@ -6143,6 +6148,7 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
       ["taxable_text", "Taxable"],
       ["gst_text", "GST"],
       ["gross_text", "Gross"],
+      ["required_delivery_date", "Required Delivery"],
       ["billed_text", "Billed"]
     ]],
     order_lifecycle: ["Order Lifecycle Summary", data.lifecycle, [
@@ -6667,7 +6673,7 @@ function buildOperationsDrilldown(row, data) {
     recommendedAction: intelligence.recommendedAction,
     attentionReason: intelligence.attentionReason,
     sections: [
-      { title: "Order Details", rows: context.orderDetails, columns: ["order_number", "item_name", "item_description", "quantity_text", "gross_text", "order_status"] },
+      { title: "Order Details", rows: context.orderDetails, columns: ["order_number", "item_name", "item_description", "quantity_text", "gross_text", "required_delivery_date", "order_status"] },
       { title: "Procurement Details", rows: context.procurementDetails, columns: ["purchase_invoice_number", "supplier_name", "purchase_date", "purchase_text", "procurement_status", "posting_status"] },
       { title: "Billing Details", rows: context.billingDetails, columns: ["invoice_number", "invoice_date", "billing_value", "gst_amount", "invoice_value", "posting_status"] },
       { title: "Receipt Allocation", rows: context.receiptAllocation, columns: ["invoice_number", "payment_reference", "invoice_amount", "allocated_amount", "amount_received", "balance_outstanding", "status"] },
