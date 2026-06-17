@@ -9,6 +9,7 @@ import { importTemplates, importTemplateSampleRows, masterImportTemplateDefiniti
 import { bankStatementViews, businessVoucherRouteKinds, flatNavItems, inventoryReportViews, navGroups, operationsReportViews, routeAliases, viewTitles, voucherProposalViews } from "./config/navigation.js";
 import { EmptyState, Icon, IntelligenceCard, Metric, MetricRows, MiniDataTable, SummaryTable } from "./components/common.jsx";
 import { Field, MetricLine, ReadOnlyBox, ReportToolbar, SearchableSelect, SelectBox, SelectField } from "./components/forms/index.jsx";
+import { MasterRecordsPanel } from "./components/tables/MasterRecordsPanel.jsx";
 import {
   ContextHelpDialog,
   ContextShortcutPanel,
@@ -3606,61 +3607,19 @@ function MasterScreen({ table, config, notify, companyContext }) {
         </form>
       </AddRecordPanel>
 
-      <section className="panel records-panel">
-        <div className="records-toolbar">
-          <div>
-            <h2>{config.title}</h2>
-            <span>{records.length} record(s)</span>
-          </div>
-          <div className="toolbar-controls">
-            {table === "items" && <button type="button" className="ghost-btn danger" onClick={deleteUnusedItems}>Bulk Delete Imported Items</button>}
-            <input data-search-input="true" placeholder="Search records" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} />
-            <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
-        {loading ? <EmptyState title="Loading records" /> : records.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>{config.fields[0][1]}</th>
-                  <th>{config.fields[1]?.[1] || "Details"}</th>
-                  <th>Status</th>
-                  <th>Updated</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((record) => (
-                  <tr
-                    key={record.id}
-                    data-record-id={record.id}
-                    data-order-status={record.order_status || ""}
-                    data-posting-status={record.posting_status || ""}
-                    data-status={record.status || ""}
-                    onClick={(event) => selectTableRow(event.currentTarget)}
-                  >
-                    <td><strong>{displayPrimary(record, config.primary)}</strong></td>
-                    <td>{record[config.fields[1]?.[0]] || "-"}</td>
-                    <td><span className={`status ${record.status}`}>{record.status}</span></td>
-                    <td>{new Date(record.updated_at || record.created_at).toLocaleDateString("en-IN")}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button type="button" onClick={() => edit(record)} title="Edit"><Icon name="edit" /></button>
-                        <button type="button" onClick={() => remove(record)} title="Delete"><Icon name="trash" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <EmptyState title="No records found" note="Add the first record from the form on the left." />}
-      </section>
+      <MasterRecordsPanel
+        config={config}
+        table={table}
+        records={records}
+        filters={filters}
+        onFiltersChange={setFilters}
+        loading={loading}
+        onBulkDeleteImportedItems={deleteUnusedItems}
+        onEditRecord={edit}
+        onDeleteRecord={remove}
+        onSelectRow={selectTableRow}
+        displayPrimaryValue={displayPrimary}
+      />
     </section>
   );
 }

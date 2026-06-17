@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { dashboardDefaultVisible, dashboardModeLabels } from "../config/dashboard.js";
 import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
-import { Icon } from "../components/common.jsx";
+import { DashboardCardGrid, DashboardCustomizer, DashboardSetupChecklist, DashboardViewToolbar } from "../components/dashboard/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { readJsonPreference } from "../utils/uiHelpers.js";
 
@@ -117,81 +117,35 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
         <span>{companyContext.company_name || "Create a company to begin"}</span>
       </div>
 
-      <section className="panel dashboard-toolbar">
-        <div>
-          <h2>Dashboard View</h2>
-          <p>Choose the card set that matches the review you are doing now.</p>
-        </div>
-        <div className="dashboard-mode-controls" role="group" aria-label="Dashboard view mode">
-          {Object.entries(dashboardModeLabels).map(([mode, label]) => (
-            <button type="button" key={mode} className={dashboardMode === mode ? "active" : ""} onClick={() => changeMode(mode)}>{label}</button>
-          ))}
-          <button type="button" className="ghost-btn" onClick={() => setCustomizing((current) => !current)}>{customizing ? "Close Customize" : "Customize"}</button>
-        </div>
-      </section>
+      <DashboardViewToolbar
+        dashboardMode={dashboardMode}
+        dashboardModeLabels={dashboardModeLabels}
+        customizing={customizing}
+        onChangeMode={changeMode}
+        onToggleCustomize={() => setCustomizing((current) => !current)}
+      />
 
       {customizing && (
-        <section className="panel dashboard-customizer">
-          <div>
-            <h2>Customize {dashboardModeLabels[dashboardMode]} Cards</h2>
-            <p>Show, hide or pin cards without changing dashboard calculations.</p>
-          </div>
-          <div className="dashboard-customizer-grid">
-            {modeCards.map((card) => {
-              const hidden = modeHiddenCards.includes(card.id);
-              const pinned = pinnedCards.includes(`${dashboardMode}:${card.id}`);
-              return (
-                <div className="dashboard-customizer-row" key={card.id}>
-                  <label>
-                    <input type="checkbox" checked={!hidden} onChange={() => toggleCardVisibility(card.id)} />
-                    <span>{card.label}</span>
-                  </label>
-                  <button type="button" className={pinned ? "pinned" : ""} onClick={() => togglePinnedCard(card.id)}>{pinned ? "Pinned" : "Pin"}</button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <DashboardCustomizer
+          dashboardMode={dashboardMode}
+          dashboardModeLabels={dashboardModeLabels}
+          modeCards={modeCards}
+          modeHiddenCards={modeHiddenCards}
+          pinnedCards={pinnedCards}
+          onToggleCardVisibility={toggleCardVisibility}
+          onTogglePinnedCard={togglePinnedCard}
+        />
       )}
 
-      <div className="metric-grid simplified-dashboard-grid">
-        {visibleCards.map((card) => {
-          const pinned = pinnedCards.includes(`${dashboardMode}:${card.id}`);
-          return (
-            <div className={`metric-card dashboard-card ${pinned ? "pinned" : ""}`} key={card.id}>
-              <button type="button" className="metric-card-main" onClick={() => setView(card.target)} title={`Review ${card.label}: ${card.note}`}>
-                <div>
-                  <span>{card.label}</span>
-                  <strong>{card.value}</strong>
-                  <small>{card.note}</small>
-                </div>
-                <Icon name={card.icon} />
-              </button>
-              <button type="button" className="dashboard-card-pin" onClick={() => togglePinnedCard(card.id)} title={pinned ? "Unpin card" : "Pin card"}>{pinned ? "*" : "+"}</button>
-            </div>
-          );
-        })}
-      </div>
+      <DashboardCardGrid
+        dashboardMode={dashboardMode}
+        visibleCards={visibleCards}
+        pinnedCards={pinnedCards}
+        onOpenCard={setView}
+        onTogglePinnedCard={togglePinnedCard}
+      />
 
-      {!visibleCards.length && (
-        <section className="panel empty-state">
-          <Icon name="grid" />
-          <strong>No dashboard cards visible</strong>
-          <span>Open Customize and enable at least one card for this view.</span>
-        </section>
-      )}
-
-      <section className="panel setup-panel">
-        <h2><Icon name="card" /> Getting Started - Setup Checklist</h2>
-        <div className="checklist">
-          {checklist.map(([label, target]) => (
-            <button key={label} onClick={() => setView(target)}>
-              <span className="dot"></span>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
+      <DashboardSetupChecklist checklist={checklist} onOpen={setView} />
     </section>
   );
 }
