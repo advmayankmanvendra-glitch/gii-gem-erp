@@ -1907,6 +1907,117 @@ svg {
   font-size: 13px;
 }
 
+.drilldown-action-center {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.drilldown-action-center > div:first-child,
+.operations-action-center > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.drilldown-action-center h3 {
+  margin: 0;
+}
+
+.drilldown-action-center span,
+.operations-action-center span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.drilldown-action-groups,
+.operations-action-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.drilldown-action-group,
+.operations-action-group {
+  display: grid;
+  gap: 8px;
+}
+
+.drilldown-action-group > strong,
+.operations-action-group > strong {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.drilldown-action-list,
+.operations-action-list {
+  display: grid;
+  gap: 6px;
+}
+
+.drilldown-action,
+.operations-action {
+  min-height: 54px;
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  justify-items: start;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.drilldown-action:hover:not(:disabled),
+.operations-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: #fff8ec;
+}
+
+.drilldown-action span,
+.operations-action span {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.drilldown-action small,
+.operations-action small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.drilldown-action.warning,
+.operations-action.warning {
+  border-color: #f3c27d;
+  background: #fff7ea;
+}
+
+.drilldown-action.danger,
+.operations-action.danger {
+  border-color: #f1a6a0;
+  background: #fff1f0;
+}
+
+.drilldown-action.blocked,
+.operations-action.blocked,
+.drilldown-action:disabled,
+.operations-action:disabled {
+  cursor: not-allowed;
+  border-color: #d7dfe8;
+  background: #f3f6f9;
+  color: var(--muted);
+  opacity: .82;
+}
+
 .billing-control-panel,
 .warning-panel,
 .compact-summary {

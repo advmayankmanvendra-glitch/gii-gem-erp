@@ -1086,7 +1086,7 @@ function App() {
           {bankStatementViews.has(effectiveView) && <BankStatementScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
           {voucherProposalViews.has(effectiveView) && <VoucherProposalScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
           {["receipt_allocation_workflow", "supplier_allocation_workflow", "advance_adjustment_wizard", "supplier_advance_adjustment_wizard", "party_opening_balances", "credit_terms"].includes(effectiveView) && <AllocationWorkflowScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
-          {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
+          {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
           {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
           {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
           {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
@@ -8961,7 +8961,7 @@ function inventoryTableConfig(view, data = {}) {
   return configs[view] || configs.stock_summary;
 }
 
-function AccountingScreen({ view, notify, role, companyContext }) {
+function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
   const today = new Date().toISOString().slice(0, 10);
   const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: "2026-01-01", date_to: today });
   const [data, setData] = useState(null);
@@ -9516,14 +9516,20 @@ function AccountingScreen({ view, notify, role, companyContext }) {
           </div>
         </div>
       )}
-      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} />}
+      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
     </section>
   );
 }
 
-function DrilldownPanel({ drilldown, onClose }) {
+function DrilldownPanel({ drilldown, onClose, onNavigate }) {
   const voucher = drilldown.voucher;
   const source = drilldown.source;
+  const actions = buildDrilldownActions(drilldown);
+  function openAction(action) {
+    if (action.disabled || !action.view || !onNavigate) return;
+    onNavigate(action.view);
+    onClose?.();
+  }
   if (drilldown.mode === "control_evidence") {
     return (
       <div className="voucher-detail-panel reconciliation-drill-panel">
@@ -9539,6 +9545,7 @@ function DrilldownPanel({ drilldown, onClose }) {
           <span>{drilldown.sourceRow?.blocking_reason || "Review linked source, voucher, ledger and audit evidence."}</span>
           <small>{drilldown.sourceRow?.recommended_action || ""}</small>
         </div>
+        <DrilldownActionCenter actions={actions} onAction={openAction} />
         <ReconciliationDrillTable title={drilldown.sourceTitle} rows={drilldown.sourceRows} />
         <ReconciliationDrillTable title={drilldown.voucherTitle} rows={drilldown.voucherRows} />
         <ReconciliationDrillTable title={drilldown.ledgerTitle} rows={drilldown.ledgerRows} />
@@ -9561,6 +9568,7 @@ function DrilldownPanel({ drilldown, onClose }) {
           <span>{drilldown.sourceRow?.possible_issue || "Check linked entries and allocations."}</span>
           <small>{drilldown.sourceRow?.recommended_action || ""}</small>
         </div>
+        <DrilldownActionCenter actions={actions} onAction={openAction} />
         <ReconciliationDrillTable title={drilldown.ledgerTitle} rows={drilldown.ledgerRows} />
         <ReconciliationDrillTable title={drilldown.subledgerTitle} rows={drilldown.subledgerRows} />
         <ReconciliationDrillTable title={drilldown.relatedTitle} rows={drilldown.relatedRows} />
@@ -9576,6 +9584,7 @@ function DrilldownPanel({ drilldown, onClose }) {
         </div>
         <button className="ghost-btn" type="button" onClick={onClose}>Close</button>
       </div>
+      <DrilldownActionCenter actions={actions} onAction={openAction} />
       {drilldown.ledger?.length ? (
         <div className="table-wrap compact-table">
           <table>
@@ -9656,6 +9665,211 @@ function DrilldownPanel({ drilldown, onClose }) {
       ) : null}
     </div>
   );
+}
+
+function DrilldownActionCenter({ actions, onAction }) {
+  const grouped = actions.reduce((acc, action) => {
+    const key = action.group || "Review";
+    acc[key] = acc[key] || [];
+    acc[key].push(action);
+    return acc;
+  }, {});
+  return (
+    <section className="drilldown-action-center">
+      <div>
+        <h3>Action Center</h3>
+        <span>Use existing workflows to inspect, correct, reverse, allocate or attach evidence.</span>
+      </div>
+      <div className="drilldown-action-groups">
+        {Object.entries(grouped).map(([group, groupActions]) => (
+          <div key={group} className="drilldown-action-group">
+            <strong>{group}</strong>
+            <div className="drilldown-action-list">
+              {groupActions.map((action) => (
+                <button
+                  key={`${group}-${action.label}`}
+                  type="button"
+                  className={`drilldown-action ${action.tone || "normal"}`}
+                  disabled={action.disabled}
+                  onClick={() => onAction(action)}
+                >
+                  <span>{action.label}</span>
+                  <small>{action.reason || action.description}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function buildDrilldownActions(drilldown) {
+  const voucher = drilldown.voucher?.header || drilldown.source?.linkedVoucher || {};
+  const source = drilldown.source || {};
+  const record = source.record || drilldown.sourceRow || {};
+  const sourceModule = source.source_module || record.source_module || record.module || record.module_name || "";
+  const sourceView = viewForSourceModule(sourceModule);
+  const statusInfo = drilldownStatusInfo(voucher, record);
+  const actions = [];
+
+  if (sourceView) {
+    actions.push({
+      group: "Source Record",
+      label: "Open Source Record",
+      view: sourceView,
+      description: "Review the original transaction screen."
+    });
+    actions.push({
+      group: "Source Record",
+      label: "Edit Source Record",
+      view: sourceView,
+      tone: statusInfo.locked ? "blocked" : "warning",
+      disabled: statusInfo.locked,
+      description: "Allowed only for draft or unposted records.",
+      reason: statusInfo.locked ? statusInfo.reason : "Open source screen and use permitted edit controls."
+    });
+  }
+
+  if (voucher?.voucher_number || voucher?.id || record?.voucher_number || record?.voucher_id) {
+    actions.push({
+      group: "Voucher Correction",
+      label: "Open Voucher Register",
+      view: "voucher_register",
+      description: "Trace posted voucher and line entries."
+    });
+    actions.push({
+      group: "Voucher Correction",
+      label: "Open Reversal Workflow",
+      view: "reversal_voucher",
+      tone: "danger",
+      description: "Use reversal for posted vouchers; reason is required inside the workflow."
+    });
+  } else {
+    actions.push({
+      group: "Voucher Correction",
+      label: "Create Correction Voucher",
+      view: "manual_voucher",
+      tone: "warning",
+      description: "Create a controlled journal only after source review."
+    });
+  }
+
+  const moduleText = String(sourceModule || voucher.source_module || voucher.voucher_type || drilldown.title || "").toLowerCase();
+  if (moduleText.includes("sale") || moduleText.includes("billing") || moduleText.includes("invoice") || moduleText.includes("receivable")) {
+    actions.push({
+      group: "Commercial Correction",
+      label: "Open Credit Note",
+      view: "business_credit_note",
+      tone: "warning",
+      description: "Use for sales/invoice reduction correction."
+    });
+    actions.push({
+      group: "Allocation",
+      label: "Review Receipt Allocation",
+      view: "receipt_allocation_workflow",
+      description: "Check receipt application against invoices."
+    });
+  }
+  if (moduleText.includes("purchase") || moduleText.includes("supplier") || moduleText.includes("payable") || moduleText.includes("procurement")) {
+    actions.push({
+      group: "Commercial Correction",
+      label: "Open Debit Note",
+      view: "business_debit_note",
+      tone: "warning",
+      description: "Use for purchase/supplier correction."
+    });
+    actions.push({
+      group: "Allocation",
+      label: "Review Supplier Allocation",
+      view: "supplier_allocation_workflow",
+      description: "Check supplier payment application."
+    });
+  }
+
+  if (drilldown.mode === "party_reconciliation") {
+    actions.push(
+      { group: "Allocation", label: "Receipt Allocation", view: "receipt_allocation_workflow", description: "Review customer/dept receipt allocation." },
+      { group: "Allocation", label: "Supplier Allocation", view: "supplier_allocation_workflow", description: "Review supplier bill allocation." },
+      { group: "Allocation", label: "Party Ledger", view: "party_ledger", description: "Compare party ledger movement." }
+    );
+  }
+
+  if (drilldown.mode === "control_evidence") {
+    actions.push(
+      { group: "Financial Control", label: "Posting Queue", view: "posting_control", description: "Review blocking and retry status." },
+      { group: "Financial Control", label: "Approval Queue", view: "approval_queue", description: "Review approval state and reasons." },
+      { group: "Financial Control", label: "Controls Dashboard", view: "financial_control", description: "Review control health." }
+    );
+  }
+
+  actions.push(
+    { group: "Evidence", label: "General Ledger", view: "ledger_view", description: "Trace account movement." },
+    { group: "Evidence", label: "Documents", view: "documents", description: "Attach or review supporting documents." },
+    { group: "Evidence", label: "Audit Log", view: "audit_log", description: "Review historical actions and reasons." }
+  );
+
+  return dedupeDrilldownActions(actions);
+}
+
+function drilldownStatusInfo(voucher, record) {
+  const statusText = [voucher?.status, voucher?.posting_status, record?.status, record?.posting_status, record?.status_display]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (statusText.includes("reversed")) {
+    return { locked: true, reason: "Reversed records cannot be edited directly. Use correction workflow." };
+  }
+  if (statusText.includes("posted")) {
+    return { locked: true, reason: "Posted records cannot be edited directly. Use reversal or correction workflow." };
+  }
+  return { locked: false, reason: "" };
+}
+
+function viewForSourceModule(sourceModule) {
+  const key = String(sourceModule || "").toLowerCase().replaceAll(" ", "_");
+  const map = {
+    billing: "invoices",
+    invoice: "invoices",
+    invoices: "invoices",
+    sales: "invoices",
+    procurement: "procurements",
+    procurements: "procurements",
+    purchase: "procurements",
+    payment: "payments",
+    payments: "payments",
+    receipt: "payments",
+    expense: "expenses",
+    expenses: "expenses",
+    expense_entries: "expenses",
+    supplier_payment: "supplier_allocation_workflow",
+    supplier_payments: "supplier_allocation_workflow",
+    bank_statement_import: "bank_reconciliation",
+    bank_statement_entries: "bank_reconciliation",
+    voucher_proposals: "voucher_proposal_queue",
+    stock_inward: "stock_inwards",
+    stock_inwards: "stock_inwards",
+    stock_outward: "stock_outwards",
+    stock_outwards: "stock_outwards",
+    stock_adjustment: "stock_adjustments",
+    stock_adjustments: "stock_adjustments",
+    warehouse_transfer: "warehouse_transfers",
+    warehouse_transfers: "warehouse_transfers",
+    supply_order: "supply_orders",
+    supply_orders: "supply_orders"
+  };
+  return map[key] || "";
+}
+
+function dedupeDrilldownActions(actions) {
+  const seen = new Set();
+  return actions.filter((action) => {
+    const key = `${action.group}-${action.label}-${action.view || ""}-${action.disabled ? "disabled" : "active"}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function ReconciliationDrillTable({ title, rows = [] }) {

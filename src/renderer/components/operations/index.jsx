@@ -42,6 +42,12 @@ export function OperationsAttentionQueueTable({ title, rows, columns, onNavigate
 
 export function OperationsDrilldownContent({ drilldown, onClose, onNavigate }) {
   const summary = drilldown.summary;
+  const actions = buildOperationsDrilldownActions(drilldown);
+  function openAction(action) {
+    if (action.disabled || !action.view || !onNavigate) return;
+    onNavigate(action.view);
+    onClose?.();
+  }
   return (
     <section className="panel operations-drilldown-panel">
       <div className="panel-head">
@@ -57,10 +63,49 @@ export function OperationsDrilldownContent({ drilldown, onClose, onNavigate }) {
       <OperationsExceptionSummary exceptions={drilldown.exceptions} />
       <OperationsRecommendations action={drilldown.recommendedAction} closure={drilldown.closure} />
       <OperationsClosureReadiness closure={drilldown.closure} />
+      <OperationsActionCenter actions={actions} onAction={openAction} />
       <OperationsEvidenceSections sections={drilldown.sections} />
       <div className="button-row">
         {summary.target_view && <button type="button" className="ghost-btn" onClick={() => onNavigate(summary.target_view)}>Open Source Screen</button>}
         <button type="button" className="primary-btn" onClick={onClose}>Done</button>
+      </div>
+    </section>
+  );
+}
+
+export function OperationsActionCenter({ actions, onAction }) {
+  const grouped = actions.reduce((acc, action) => {
+    const key = action.group || "Actions";
+    acc[key] = acc[key] || [];
+    acc[key].push(action);
+    return acc;
+  }, {});
+  return (
+    <section className="operations-evidence-card operations-action-center">
+      <div>
+        <h3>Action Center</h3>
+        <span>Open the next safe operational workflow without changing posted records directly.</span>
+      </div>
+      <div className="operations-action-groups">
+        {Object.entries(grouped).map(([group, groupActions]) => (
+          <div key={group} className="operations-action-group">
+            <strong>{group}</strong>
+            <div className="operations-action-list">
+              {groupActions.map((action) => (
+                <button
+                  key={`${group}-${action.label}`}
+                  type="button"
+                  className={`operations-action ${action.tone || "normal"}`}
+                  disabled={action.disabled}
+                  onClick={() => onAction(action)}
+                >
+                  <span>{action.label}</span>
+                  <small>{action.reason || action.description}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -225,6 +270,70 @@ function renderEvidenceCell(value, column) {
   }
   if (column === "new_value" && String(value || "").length > 110) return `${String(value).slice(0, 110)}...`;
   return operationDisplay(value);
+}
+
+function buildOperationsDrilldownActions(drilldown) {
+  const summary = drilldown.summary || {};
+  const recommendation = String(drilldown.recommendedAction || summary.attention || "").toLowerCase();
+  const exceptions = drilldown.exceptions || [];
+  const closure = drilldown.closure || { ready: false, checks: [] };
+  const actions = [];
+
+  if (summary.target_view) {
+    actions.push({
+      group: "Source",
+      label: summary.target_label || "Open Source Screen",
+      view: summary.target_view,
+      description: "Review the linked source record."
+    });
+  }
+
+  if (recommendation.includes("procurement")) {
+    actions.push({ group: "Next Action", label: "Create Procurement", view: "procurements", description: "Open procurement workflow for pending order items." });
+  }
+  if (recommendation.includes("grn") || recommendation.includes("receipt") || recommendation.includes("stock receipt")) {
+    actions.push({ group: "Next Action", label: "Open Stock Receipt", view: "stock_inwards", description: "Review or create goods receipt evidence." });
+  }
+  if (recommendation.includes("issue") || recommendation.includes("supply")) {
+    actions.push({ group: "Next Action", label: "Issue Stock", view: "stock_outwards", description: "Open stock issue/delivery workflow." });
+  }
+  if (recommendation.includes("bill") || recommendation.includes("invoice")) {
+    actions.push({ group: "Next Action", label: "Raise Invoice", view: "invoices", description: "Open billing workflow for this order." });
+  }
+  if (recommendation.includes("receipt") || recommendation.includes("allocate")) {
+    actions.push({ group: "Next Action", label: "Allocate Receipt", view: "receipt_allocation_workflow", description: "Open receipt allocation workflow." });
+  }
+
+  if (exceptions.some((item) => String(item.code || item.title || "").toLowerCase().includes("document") || String(item.title || "").toLowerCase().includes("missing"))) {
+    actions.push({ group: "Evidence", label: "Upload Documents", view: "documents", tone: "warning", description: "Attach missing order, delivery, CRAC, installation or payment proof." });
+  }
+
+  actions.push(
+    { group: "Evidence", label: "Stock Ledger", view: "stock_ledger", description: "Trace inventory movement evidence." },
+    { group: "Evidence", label: "General Ledger", view: "ledger_view", description: "Trace accounting movement evidence." },
+    { group: "Evidence", label: "Audit Trail", view: "audit_log", description: "Review action history." },
+    {
+      group: "Closure",
+      label: "Review Order Closure",
+      view: "supply_orders",
+      tone: closure.ready ? "normal" : "blocked",
+      disabled: !closure.ready,
+      description: "Open order screen when closure checks are complete.",
+      reason: closure.ready ? "" : "Closure blocked until pending checklist items are complete."
+    }
+  );
+
+  return dedupeOperationsActions(actions);
+}
+
+function dedupeOperationsActions(actions) {
+  const seen = new Set();
+  return actions.filter((action) => {
+    const key = `${action.group}-${action.label}-${action.view || ""}-${action.disabled ? "disabled" : "active"}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function normalizeStatusClass(status) {
