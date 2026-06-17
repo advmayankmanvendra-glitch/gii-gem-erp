@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { isDesktopRuntime } from "../api/client.js";
-import { EmptyState } from "../components/common.jsx";
+import { SettingsPanel } from "../components/settings/index.jsx";
 
 export function SettingsScreen({ notify, apiClient, confirmAction }) {
   const [backups, setBackups] = useState([]);
@@ -126,79 +126,16 @@ export function SettingsScreen({ notify, apiClient, confirmAction }) {
   }
 
   return (
-    <section className="panel settings-panel">
-      <div className="panel-head">
-        <div>
-          <h2>Settings</h2>
-          <p>Local database safety, offline folders, restore controls and manual updates.</p>
-        </div>
-        <button className="primary-btn" onClick={backup}>Create Backup</button>
-      </div>
-      <div className="settings-grid">
-        <div className="settings-card">
-          <strong>Database</strong>
-          <span>SQLite: gii_gem_erp.db</span>
-          <small>Stored locally in the database folder.</small>
-        </div>
-        <div className="settings-card">
-          <strong>Documents</strong>
-          <span>PDF, images, XLSX and CSV</span>
-          <small>Stored company/module/year wise.</small>
-        </div>
-        <div className="settings-card">
-          <strong>Backups</strong>
-          <span>{backups.length} backup file(s)</span>
-          <small>Create backups before bulk import or restore.</small>
-        </div>
-        <div className="settings-card">
-          <strong>Offline Mode</strong>
-          <span>Windows desktop ready</span>
-          <small>No cloud dependency for core ERP data.</small>
-        </div>
-      </div>
-      <div className="section-title">Manual Internal Updater</div>
-      <div className="settings-grid">
-        <div className="settings-card">
-          <strong>Current Version</strong>
-          <span>{updateStatus?.currentVersion || "-"}</span>
-          <small>Installed app version.</small>
-        </div>
-        <div className="settings-card">
-          <strong>Latest Available</strong>
-          <span>{updateStatus?.latestVersion || "No update package found"}</span>
-          <small>{updateStatus?.installerFileName || "Place installer EXE in the update folder."}</small>
-        </div>
-        <div className="settings-card">
-          <strong>Update Folder</strong>
-          <span>{updateStatus?.updateFolder || "Windows desktop app only"}</span>
-          <small>Store internal update installers and latest.json here.</small>
-        </div>
-        <div className="settings-card">
-          <strong>Update Status</strong>
-          <span>{updateStatus?.updateAvailable ? "Update available" : "No newer package detected"}</span>
-          <small>{updateStatus?.manifestError || updateStatus?.source || "Manual check"}</small>
-        </div>
-      </div>
-      <div className="backup-row">
-        <span style={{ whiteSpace: "pre-wrap" }}>{updateStatus?.releaseNotes || "Check the update folder for release notes."}</span>
-        <div className="update-actions">
-          <button onClick={() => refreshUpdates()} disabled={updateLoading}>{updateLoading ? "Checking..." : "Check Updates"}</button>
-          <button onClick={openUpdateFolder}>Open Update Folder</button>
-          <button className="primary-btn" onClick={installUpdate} disabled={!updateStatus?.installerPath}>Install Update</button>
-        </div>
-      </div>
-      <div className="section-title">Backup and Restore</div>
-      {backups.length ? (
-        <div className="backup-list">
-          {backups.map((file) => (
-            <div className="backup-row" key={file.name}>
-              <span>{file.name}{file.size ? ` (${Math.round(file.size / 1024)} KB)` : ""}</span>
-              <button onClick={() => restore(file)}>Restore</button>
-            </div>
-          ))}
-        </div>
-      ) : <EmptyState title="No backups yet" note="Create the first local database backup." />}
-    </section>
+    <SettingsPanel
+      backups={backups}
+      updateStatus={updateStatus}
+      updateLoading={updateLoading}
+      onCreateBackup={backup}
+      onRestoreBackup={restore}
+      onRefreshUpdates={refreshUpdates}
+      onOpenUpdateFolder={openUpdateFolder}
+      onInstallUpdate={installUpdate}
+    />
   );
 }
 

@@ -3,7 +3,7 @@ import { keyboardGuideSections } from "../../config/helpContent.js";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
 import { formatCurrency } from "../../utils/formatters.js";
-import { HelpList } from "../../screens/HelpTrainingScreen.jsx";
+import { HelpList } from "../helpTraining/index.jsx";
 
 export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, onAction, onLearn }) {
   const [shortcutQuery, setShortcutQuery] = useState("");

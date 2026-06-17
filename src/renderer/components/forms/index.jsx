@@ -172,6 +172,41 @@ export function FilterBar({ children, className = "" }) {
   return <div className={['toolbar-controls filter-bar', className].filter(Boolean).join(' ')}>{children}</div>;
 }
 
+export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo, onCompanyChange, onDateFromChange, onDateToChange }) {
+  return (
+    <>
+      {onCompanyChange && (
+        <select value={companyId || ""} onChange={(event) => onCompanyChange(event.target.value)}>
+          {companies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+        </select>
+      )}
+      {onDateFromChange && <input type="date" value={dateFrom || ""} onChange={(event) => onDateFromChange(event.target.value)} />}
+      {onDateToChange && <input type="date" value={dateTo || ""} onChange={(event) => onDateToChange(event.target.value)} />}
+    </>
+  );
+}
+
+export function ReportSelectFilter({ value, onChange, options = [], placeholderLabel, placeholderValue = "" }) {
+  return (
+    <select value={value || ""} onChange={(event) => onChange(event.target.value)}>
+      {placeholderLabel !== undefined && <option value={placeholderValue}>{placeholderLabel}</option>}
+      {options.map((option) => {
+        const [optionValue, optionLabel] = Array.isArray(option) ? option : [option.value, option.label];
+        return <option key={optionValue} value={optionValue}>{optionLabel}</option>;
+      })}
+    </select>
+  );
+}
+
+export function ReportActionButtons({ onExport, onPrint, exportLabel = "Export", printLabel = "Print" }) {
+  return (
+    <>
+      {onExport && <button className="ghost-btn" type="button" onClick={onExport}>{exportLabel}</button>}
+      {onPrint && <button className="ghost-btn" type="button" onClick={onPrint}>{printLabel}</button>}
+    </>
+  );
+}
+
 export function ReportToolbar({ title, note, children, className = "" }) {
   return (
     <div className={['records-toolbar report-toolbar', className].filter(Boolean).join(' ')}>
@@ -180,6 +215,18 @@ export function ReportToolbar({ title, note, children, className = "" }) {
         {note && <span>{note}</span>}
       </div>
       {children && <div className="toolbar-controls">{children}</div>}
+    </div>
+  );
+}
+
+export function ViewTabs({ tabs = [], active, onChange, className = "view-tabs" }) {
+  return (
+    <div className={className}>
+      {tabs.map((tab) => (
+        <button key={tab.key} type="button" className={active === tab.key ? "active" : ""} onClick={() => onChange?.(tab.key)}>
+          {tab.label}
+        </button>
+      ))}
     </div>
   );
 }

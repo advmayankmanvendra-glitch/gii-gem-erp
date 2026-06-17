@@ -8,7 +8,7 @@ import { masterViews, transactionViews } from "./config/viewDefinitions.js";
 import { importTemplates, importTemplateSampleRows, masterImportTemplateDefinitions } from "./config/importTemplates.js";
 import { bankStatementViews, businessVoucherRouteKinds, flatNavItems, inventoryReportViews, navGroups, operationsReportViews, routeAliases, viewTitles, voucherProposalViews } from "./config/navigation.js";
 import { EmptyState, Icon, IntelligenceCard, Metric, MetricRows, MiniDataTable, SummaryTable } from "./components/common.jsx";
-import { Field, MetricLine, ReadOnlyBox, ReportToolbar, SearchableSelect, SelectBox, SelectField } from "./components/forms/index.jsx";
+import { Field, MetricLine, ReadOnlyBox, ReportActionButtons, ReportDateFilters, ReportSelectFilter, ReportToolbar, SearchableSelect, SelectBox, SelectField, ViewTabs } from "./components/forms/index.jsx";
 import { MasterRecordsPanel } from "./components/tables/MasterRecordsPanel.jsx";
 import {
   ContextHelpDialog,
@@ -23,6 +23,9 @@ import {
 } from "./components/helpProductivity/index.jsx";
 import { NavigationSidebar, RightUtilitySidebar, WorkspaceFrame } from "./components/layout/index.jsx";
 import { ConfirmDialog, GlobalSearchOverlay, PrintPreviewDialog } from "./components/overlays/index.jsx";
+import { OperationsAttentionQueueTable } from "./components/operations/index.jsx";
+import { InventoryReadOnlyReportPanel } from "./components/inventoryReports/index.jsx";
+import { AccountingControlReportTable, FinancialControlOverview, LockedYearControlNotice } from "./components/accountingControls/index.jsx";
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
@@ -2575,17 +2578,16 @@ function TallyMasterMigrationAssistantScreen({ notify, session, companyContext, 
               <h3>Ledger Classification Preview</h3>
               <p className="muted-note">Pending rows are the active work queue. Mapped or reviewed rows move to Resolved automatically and remain available for audit.</p>
               <div className="ledger-review-toolbar" aria-label="Ledger review queue filter">
-                <div className="ledger-review-tabs">
-                  <button type="button" className={ledgerReviewQueueMode === "pending" ? "active" : ""} onClick={() => { setLedgerReviewQueueMode("pending"); clearLedgerReviewSelection(); }}>
-                    Pending Review ({pendingLedgerReviewRows.length})
-                  </button>
-                  <button type="button" className={ledgerReviewQueueMode === "resolved" ? "active" : ""} onClick={() => { setLedgerReviewQueueMode("resolved"); clearLedgerReviewSelection(); }}>
-                    Resolved ({resolvedLedgerReviewRows.length})
-                  </button>
-                  <button type="button" className={ledgerReviewQueueMode === "all" ? "active" : ""} onClick={() => { setLedgerReviewQueueMode("all"); clearLedgerReviewSelection(); }}>
-                    All Ledgers ({preview.ledgers?.length || 0})
-                  </button>
-                </div>
+                <ViewTabs
+                  className="ledger-review-tabs"
+                  active={ledgerReviewQueueMode}
+                  onChange={(mode) => { setLedgerReviewQueueMode(mode); clearLedgerReviewSelection(); }}
+                  tabs={[
+                    { key: "pending", label: `Pending Review (${pendingLedgerReviewRows.length})` },
+                    { key: "resolved", label: `Resolved (${resolvedLedgerReviewRows.length})` },
+                    { key: "all", label: `All Ledgers (${preview.ledgers?.length || 0})` }
+                  ]}
+                />
                 <span className="muted-note">Bulk actions apply to selected rows in the current view.</span>
               </div>
               <div className="table-wrap preview-table tall-preview">
@@ -6108,7 +6110,7 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
             <button type="button" className="ghost-btn subtle" onClick={() => setQueueFilter("all")}>Clear Filter</button>
           </div>
         )}
-        <OperationsTable
+        <OperationsAttentionQueueTable
           title={queueFilter === "all" ? "Operations Attention Queue" : `Operations Attention Queue - ${activeFilter?.label || "Filtered"}`}
           rows={attentionRows}
           columns={[
@@ -6123,6 +6125,8 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
           ]}
           onNavigate={onNavigate}
           onDrilldown={(row) => setDrilldown(buildOperationsDrilldown(row, data))}
+          onExport={() => exportRows(queueFilter === "all" ? "Operations Attention Queue" : `Operations Attention Queue - ${activeFilter?.label || "Filtered"}`, attentionRows)}
+          onPrint={requestPrintPreview}
         />
         {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
       </section>
@@ -6256,12 +6260,14 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
   const [title, rows, columns] = reportMap[view] || ["Operations Report", [], []];
   return (
     <>
-      <OperationsTable
+      <OperationsAttentionQueueTable
         title={title}
         rows={rows}
         columns={columns}
         onNavigate={onNavigate}
         onDrilldown={(row) => setDrilldown(buildOperationsDrilldown(row, data))}
+        onExport={() => exportRows(title, rows)}
+        onPrint={requestPrintPreview}
       />
       {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
     </>
@@ -6276,52 +6282,6 @@ function documentChecklistColumns() {
     ["status", "Status"],
     ["warning", "Warning"]
   ];
-}
-
-function OperationsTable({ title, rows, columns, onNavigate, onDrilldown }) {
-  return (
-    <section className="panel settings-panel report-panel">
-      <ReportToolbar title={title} note={`${rows.length} row(s)`} className="accounting-toolbar">
-        <button className="ghost-btn" type="button" onClick={() => exportRows(title, rows)}>Export</button>
-        <button className="ghost-btn" type="button" onClick={requestPrintPreview}>Print</button>
-      </ReportToolbar>
-      {rows.length ? (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                {columns.map(([, label]) => <th key={label}>{label}</th>)}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={row.id || row.key || `${title}-${index}`}>
-                  {columns.map(([key]) => (
-                    <td key={key}>{renderOperationCell(row[key], key)}</td>
-                  ))}
-                  <td>
-                    <div className="operations-row-actions">
-                      {onDrilldown && <button type="button" className="ghost-btn" onClick={() => onDrilldown(row)}>View</button>}
-                      {row.target_view && <button type="button" className="ghost-btn subtle" onClick={() => onNavigate(row.target_view)}>{row.target_label || "Open Source"}</button>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <EmptyState title="No operational exceptions" note="Current posted and draft records do not require attention for this view." />}
-    </section>
-  );
-}
-
-function renderOperationCell(value, key) {
-  if (key.includes("status") || key === "status") {
-    const display = operationDisplay(value);
-    return <span className={`status ${normalizeStatusClass(display)}`}>{display}</span>;
-  }
-  return operationDisplay(value);
 }
 
 function operationDisplay(value) {
@@ -7037,10 +6997,12 @@ function DocumentsScreen({ notify, companyContext }) {
   return (
     <section className="panel settings-panel report-panel">
       <ReportToolbar title="Document Management" note={`${companyContext?.company_name || "No company selected"} - ${documents.length} uploaded document(s)`}>
-        <select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)}>
-          <option value="">All Modules</option>
-          {Object.keys(importTemplates).map((module) => <option key={module} value={module}>{module.replaceAll("_", " ")}</option>)}
-        </select>
+        <ReportSelectFilter
+          value={moduleFilter}
+          onChange={setModuleFilter}
+          placeholderLabel="All Modules"
+          options={Object.keys(importTemplates).map((module) => [module, module.replaceAll("_", " ")])}
+        />
       </ReportToolbar>
       {documents.length ? (
         <div className="table-wrap">
@@ -8652,40 +8614,20 @@ function InventoryReportScreen({ view, notify, companyContext }) {
     );
   }
   return (
-    <section className="panel settings-panel report-panel">
+    <InventoryReadOnlyReportPanel
+      view={view}
+      config={config}
+      rows={rows}
+      filters={filters}
+      setFilters={setFilters}
+      companies={data?.companies || []}
+      formatValue={formatCell}
+      onExport={() => exportRows(config.title, rows)}
+      onPrint={requestPrintPreview}
+    >
       {view === "delivery_challans" && <DeliveryChallanQuickForm data={data || {}} notify={notify} onSaved={load} />}
       {view === "warehouse_transfers" && <WarehouseTransferQuickForm data={data || {}} notify={notify} onSaved={load} />}
-      <ReportToolbar title={config.title} note={`${rows.length} row(s)`} className="accounting-toolbar">
-          <select value={filters.company_id} onChange={(event) => setFilters({ ...filters, company_id: event.target.value })}>
-            {(data?.companies || []).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
-          </select>
-          {view === "low_stock" && (
-            <select value={filters.low_stock_mode || "stocked"} onChange={(event) => setFilters({ ...filters, low_stock_mode: event.target.value })}>
-              <option value="stocked">Show stocked items only</option>
-              <option value="never_stocked">Show never-stocked items</option>
-              <option value="all">Show all</option>
-            </select>
-          )}
-          <input type="date" value={filters.date_from} onChange={(event) => setFilters({ ...filters, date_from: event.target.value })} />
-          <input type="date" value={filters.date_to} onChange={(event) => setFilters({ ...filters, date_to: event.target.value })} />
-          <button className="ghost-btn" onClick={() => exportRows(config.title, rows)}>Export</button>
-          <button className="ghost-btn" onClick={requestPrintPreview}>Print</button>
-      </ReportToolbar>
-      {rows.length ? (
-        <div className="table-wrap">
-          <table>
-            <thead><tr>{config.columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={row.id || `${view}-${index}`}>
-                  {config.columns.map((column) => <td key={column.key}>{formatCell(row[column.key], column.type)}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <EmptyState title="No inventory data" note="Post stock inward or outward documents to populate this report." />}
-    </section>
+    </InventoryReadOnlyReportPanel>
   );
 }
 
@@ -9046,6 +8988,8 @@ function AccountingScreen({ view, notify, role, companyContext }) {
     ? buildReadOnlyReportFamilyConfig(view, data || {})
     : accountingTableConfig(view, data || {});
   const rows = config.rows || [];
+  const accountingControlPanelViews = ["posting_control", "approval_queue", "financial_control", "audit_log"];
+  const isAccountingControlPanelView = accountingControlPanelViews.includes(view);
   const voucherLines = selectedVoucher ? (data?.voucherLines || []).filter((line) => Number(line.voucher_id) === Number(selectedVoucher.id)) : [];
 
   async function handleReverse(row) {
@@ -9430,24 +9374,21 @@ function AccountingScreen({ view, notify, role, companyContext }) {
 
   return (
     <section className="panel settings-panel report-panel">
-      <div className="records-toolbar accounting-toolbar">
-        <div>
-          <h2>{config.title}</h2>
-          <span>{rows.length} row(s)</span>
-        </div>
-        <div className="toolbar-controls">
-          <select value={filters.company_id} onChange={(event) => setFilters({ ...filters, company_id: event.target.value })}>
-            {(data?.companies || []).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
-          </select>
-          <input type="date" value={filters.date_from} onChange={(event) => setFilters({ ...filters, date_from: event.target.value })} />
-          <input type="date" value={filters.date_to} onChange={(event) => setFilters({ ...filters, date_to: event.target.value })} />
-          <button className="ghost-btn" onClick={() => exportRows(config.title, rows)}>Export</button>
-          <button className="ghost-btn" onClick={requestPrintPreview}>Print</button>
+      <ReportToolbar title={config.title} note={`${rows.length} row(s)`} className="accounting-toolbar">
+          <ReportDateFilters
+            companyId={filters.company_id}
+            companies={data?.companies || []}
+            dateFrom={filters.date_from}
+            dateTo={filters.date_to}
+            onCompanyChange={(company_id) => setFilters({ ...filters, company_id })}
+            onDateFromChange={(date_from) => setFilters({ ...filters, date_from })}
+            onDateToChange={(date_to) => setFilters({ ...filters, date_to })}
+          />
+          <ReportActionButtons onExport={() => exportRows(config.title, rows)} onPrint={requestPrintPreview} />
           {view === "financial_years" && <button className="ghost-btn" onClick={createFinancialYearFromPrompt} disabled={!canManagePeriods}>New FY</button>}
           {view === "opening_balances" && <button className="ghost-btn" onClick={createOpeningBalanceFromPrompt} disabled={!canPostControls}>Add Opening</button>}
           {view === "year_end_closing" && <button className="ghost-btn" onClick={closeYearFromPrompt} disabled={!canManagePeriods}>Close Year</button>}
-        </div>
-      </div>
+      </ReportToolbar>
       {view === "financial_control" && <FinancialControlOverview data={data || {}} onDrill={openFinancialControlDrill} />}
       {["financial_years", "year_end_closing", "carry_forward", "opening_balances"].includes(view) && <LockedYearControlNotice data={data || {}} />}
       {readOnlyReportFamily ? (
@@ -9458,6 +9399,16 @@ function AccountingScreen({ view, notify, role, companyContext }) {
           onDrillVoucher={(row) => openDrilldown(row, "voucher")}
           onDrillSource={(row) => openDrilldown(row, "source")}
           onPartyReconciliationDrill={openPartyReconciliationDrill}
+        />
+      ) : isAccountingControlPanelView ? (
+        <AccountingControlReportTable
+          config={config}
+          rows={rows}
+          formatCell={formatCell}
+          canApproveControls={canApproveControls}
+          canPostControls={canPostControls}
+          handlePostingAction={handlePostingAction}
+          openFinancialControlDrill={openFinancialControlDrill}
         />
       ) : rows.length ? (
         <div className="table-wrap">
@@ -9724,68 +9675,6 @@ function ReconciliationDrillTable({ title, rows = [] }) {
         </div>
       ) : <EmptyState title="No rows found" note="No linked rows are currently available for this drilldown." />}
       {rows.length > visibleRows.length ? <p className="hint">Showing first {visibleRows.length} of {rows.length} rows. Use export for full review.</p> : null}
-    </div>
-  );
-}
-
-function FinancialControlOverview({ data, onDrill }) {
-  const controls = data.financialControl || [];
-  const findControl = (id) => controls.find((row) => row.id === id) || {};
-  const unposted = findControl("unposted");
-  const approval = findControl("approval");
-  const partyRecon = findControl("party_recon");
-  const trial = findControl("trial");
-  const lockedYears = (data.financialYears || []).filter((row) => ["Closed", "Locked"].includes(row.status));
-  const blockers = controls.filter((row) => ["Mismatch", "Review Required", "Checker Pending", "Missing"].includes(row.status));
-  return (
-    <div className="control-dashboard">
-      <div className="metric-grid compact-metrics">
-        <button type="button" className="metric-card metric-card-link" onClick={() => onDrill(unposted)}>
-          <span>Unposted Records</span>
-          <strong>{unposted.value ?? 0}</strong>
-          <small>{unposted.status || "Clear"}</small>
-        </button>
-        <button type="button" className="metric-card metric-card-link" onClick={() => onDrill(approval)}>
-          <span>Pending Approvals</span>
-          <strong>{approval.value ?? 0}</strong>
-          <small>{approval.status || "Clear"}</small>
-        </button>
-        <button type="button" className="metric-card metric-card-link" onClick={() => onDrill(partyRecon)}>
-          <span>Reconciliation</span>
-          <strong>{partyRecon.value ?? 0}</strong>
-          <small>{partyRecon.status || "Matched"}</small>
-        </button>
-        <button type="button" className="metric-card metric-card-link" onClick={() => onDrill(trial)}>
-          <span>Trial Balance</span>
-          <strong>{formatCurrency(Number(trial.value || 0))}</strong>
-          <small>{trial.status || "Balanced"}</small>
-        </button>
-      </div>
-      {lockedYears.length ? (
-        <div className="workflow-note">
-          <strong>Locked year warning</strong>
-          <span>{lockedYears.length} closed/locked financial year(s) exist. Backdated posting should be routed through controlled reopening or correction workflow.</span>
-        </div>
-      ) : null}
-      {blockers.length ? (
-        <div className="source-box">
-          <h3>Pending Control Attention</h3>
-          {blockers.slice(0, 5).map((row) => (
-            <p key={row.id}><strong>{row.control}:</strong> {row.blocking_reason || row.status_reason || row.status}</p>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function LockedYearControlNotice({ data }) {
-  const lockedYears = (data.financialYears || []).filter((row) => ["Closed", "Locked"].includes(row.status));
-  if (!lockedYears.length) return null;
-  return (
-    <div className="mini-panel">
-      <h3>Locked Year Warning</h3>
-      <p>{lockedYears.length} financial year(s) are closed or locked. Posting, opening-balance changes and carry-forward actions for those periods should remain blocked unless the year is formally reopened.</p>
     </div>
   );
 }
@@ -10286,16 +10175,13 @@ function VoucherProposalScreen({ view, notify, role, companyContext }) {
   if (view !== "voucher_proposal_queue") {
     return (
       <section className="panel settings-panel report-panel">
-        <div className="records-toolbar">
-          <div>
-            <h2>{viewTitles[view]?.[0] || "Voucher Proposal Report"}</h2>
-            <span>{reportRows.length} row(s)</span>
-          </div>
-          <div className="button-row">
-            <button className="ghost-btn" type="button" onClick={() => exportRows(viewTitles[view]?.[0] || "voucher-proposals", reportRows)}>Export CSV</button>
-            <button className="ghost-btn" type="button" onClick={requestPrintPreview}>Print</button>
-          </div>
-        </div>
+        <ReportToolbar title={viewTitles[view]?.[0] || "Voucher Proposal Report"} note={`${reportRows.length} row(s)`}>
+          <ReportActionButtons
+            exportLabel="Export CSV"
+            onExport={() => exportRows(viewTitles[view]?.[0] || "voucher-proposals", reportRows)}
+            onPrint={requestPrintPreview}
+          />
+        </ReportToolbar>
         <VoucherProposalTable rows={reportRows} onSelect={selectProposal} reportOnly />
       </section>
     );
@@ -10323,7 +10209,7 @@ function VoucherProposalScreen({ view, notify, role, companyContext }) {
             <h2>Voucher Proposal Queue</h2>
             <span>{proposals.length} proposal(s)</span>
           </div>
-          <button className="ghost-btn" type="button" onClick={() => exportRows("voucher-proposal-queue", proposals)}>Export</button>
+          <ReportActionButtons onExport={() => exportRows("voucher-proposal-queue", proposals)} />
         </div>
         <VoucherProposalTable rows={proposals} selectedId={selected?.id} onSelect={selectProposal} />
       </section>
@@ -10763,7 +10649,7 @@ function BankStatementScreen({ view, notify, companyContext }) {
               <h2>Reconciliation Matches</h2>
               <span>{data?.matches?.length || 0} match row(s)</span>
             </div>
-            <button className="ghost-btn" type="button" onClick={() => exportRows("bank-reconciliation", data?.matches || [])}>Export</button>
+            <ReportActionButtons onExport={() => exportRows("bank-reconciliation", data?.matches || [])} />
           </div>
           <BankRowsTable rows={data?.matches || []} matchReport />
         </section>

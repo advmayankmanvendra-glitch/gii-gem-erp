@@ -1,6 +1,55 @@
 import React, { useEffect, useState } from "react";
 import { EmptyState } from "../common.jsx";
 
+export function ModalBackdrop({ children, className = "", dataEscClose = false }) {
+  const escCloseProps = dataEscClose ? { "data-esc-close": "true" } : {};
+  return (
+    <div className={["modal-backdrop", className].filter(Boolean).join(" ")} role="presentation" {...escCloseProps}>
+      {children}
+    </div>
+  );
+}
+
+export function ModalPanel({ children, className, labelledBy }) {
+  const labelledByProps = labelledBy ? { "aria-labelledby": labelledBy } : {};
+  return (
+    <section className={className} role="dialog" aria-modal="true" {...labelledByProps}>
+      {children}
+    </section>
+  );
+}
+
+export function AlertPanel({ title, message, titleId = "confirm-title" }) {
+  return (
+    <>
+      <h2 id={titleId}>{title}</h2>
+      <p>{message}</p>
+    </>
+  );
+}
+
+export function ReasonEntry({ label, placeholder, value, onChange }) {
+  return (
+    <label className="confirm-reason">
+      {label || "Reason"}
+      <textarea value={value} placeholder={placeholder || "Enter reason"} onChange={(event) => onChange(event.target.value)} autoFocus />
+    </label>
+  );
+}
+
+export function ModalActions({ children, className = "confirm-actions" }) {
+  return <div className={className}>{children}</div>;
+}
+
+export function ConfirmationActions({ dialog, canConfirm, onCancel, onConfirm }) {
+  return (
+    <ModalActions>
+      {!dialog.hideCancel && <button type="button" className="ghost-btn" onClick={onCancel}>{dialog.cancelLabel || "No"}</button>}
+      <button type="button" className={dialog.mode === "danger" ? "primary-btn danger" : "primary-btn"} disabled={!canConfirm} onClick={onConfirm}>{dialog.confirmLabel || "Yes"}</button>
+    </ModalActions>
+  );
+}
+
 export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
   useEffect(() => {
     function onKeyDown(event) {
@@ -55,8 +104,8 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
   }
 
   return (
-    <div className="modal-backdrop print-preview-backdrop" data-esc-close="true">
-      <section className="print-preview-dialog" role="dialog" aria-modal="true">
+    <ModalBackdrop className="print-preview-backdrop" dataEscClose>
+      <ModalPanel className="print-preview-dialog">
         <div className="print-preview-toolbar">
           <div>
             <h2>Print Preview</h2>
@@ -82,8 +131,8 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
           </header>
           <div className="print-page-content" dangerouslySetInnerHTML={{ __html: preview.html }} />
         </article>
-      </section>
-    </div>
+      </ModalPanel>
+    </ModalBackdrop>
   );
 }
 
@@ -107,22 +156,21 @@ export function ConfirmDialog({ dialog, onResolve }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canConfirm, dialog, needsReason, onResolve, reason]);
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className={`confirm-dialog ${dialog.mode || "normal"}`} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h2 id="confirm-title">{dialog.title}</h2>
-        <p>{dialog.message}</p>
-        {needsReason && (
-          <label className="confirm-reason">
-            {dialog.reasonLabel || "Reason"}
-            <textarea value={reason} placeholder={dialog.reasonPlaceholder || "Enter reason"} onChange={(event) => setReason(event.target.value)} autoFocus />
-          </label>
-        )}
-        <div className="confirm-actions">
-          {!dialog.hideCancel && <button type="button" className="ghost-btn" onClick={() => onResolve({ confirmed: false, reason: "" })}>{dialog.cancelLabel || "No"}</button>}
-          <button type="button" className={dialog.mode === "danger" ? "primary-btn danger" : "primary-btn"} disabled={!canConfirm} onClick={() => { dialog.onConfirm?.(); onResolve({ confirmed: true, reason: reason.trim() }); }}>{dialog.confirmLabel || "Yes"}</button>
-        </div>
-      </section>
-    </div>
+    <ModalBackdrop>
+      <ModalPanel className={`confirm-dialog ${dialog.mode || "normal"}`} labelledBy="confirm-title">
+        <AlertPanel title={dialog.title} message={dialog.message} />
+        {needsReason && <ReasonEntry label={dialog.reasonLabel} placeholder={dialog.reasonPlaceholder} value={reason} onChange={setReason} />}
+        <ConfirmationActions
+          dialog={dialog}
+          canConfirm={canConfirm}
+          onCancel={() => onResolve({ confirmed: false, reason: "" })}
+          onConfirm={() => {
+            dialog.onConfirm?.();
+            onResolve({ confirmed: true, reason: reason.trim() });
+          }}
+        />
+      </ModalPanel>
+    </ModalBackdrop>
   );
 }
 
@@ -143,8 +191,8 @@ export function GlobalSearchOverlay({ query, setQuery, results, onNavigate, onCl
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [firstResult, onClose, onNavigate]);
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="global-search-dialog" role="dialog" aria-modal="true">
+    <ModalBackdrop>
+      <ModalPanel className="global-search-dialog">
         <div className="panel-head">
           <div>
             <h2>Global Search</h2>
@@ -166,7 +214,7 @@ export function GlobalSearchOverlay({ query, setQuery, results, onNavigate, onCl
             </div>
           ) : null) : <EmptyState title="No matching ERP records" note="Try order number, invoice number, supplier, item, voucher or report name." />}
         </div>
-      </section>
-    </div>
+      </ModalPanel>
+    </ModalBackdrop>
   );
 }
