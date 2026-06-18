@@ -67,15 +67,16 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
     <div className="health-center">
       <section className="panel health-hero">
         <div>
-          <p className="eyebrow">diagnostics and recovery</p>
+          <p className="eyebrow">diagnostics, recovery and support</p>
           <h2>ERP Health Center</h2>
-          <p>Review runtime paths, database readiness, accounting balance health, logs, support bundles and safe recovery guidance.</p>
+          <p>Review runtime paths, database readiness, accounting balance health, logs, support bundles and safe recovery guidance from one place.</p>
         </div>
         <div className="health-score-strip">
           <div><strong>{passCount}</strong><span>Passed</span></div>
           <div><strong>{warningCount}</strong><span>Warnings</span></div>
           <div><strong>{failedCount}</strong><span>Failed</span></div>
           <button type="button" className="secondary-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
+          <button type="button" className="secondary-btn" onClick={() => setActiveTab("support")}>Support Bundle</button>
         </div>
       </section>
 

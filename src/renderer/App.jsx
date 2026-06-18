@@ -32,6 +32,7 @@ import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
+import { HelpAssistant } from "./modules/helpAssistant/HelpAssistant.jsx";
 import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryReport.jsx";
 import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
 import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
@@ -286,6 +287,7 @@ function App() {
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [userPreferencesOpen, setUserPreferencesOpen] = useState(false);
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
+  const [helpAssistantSourceView, setHelpAssistantSourceView] = useState("dashboard");
   const [firstTourOpen, setFirstTourOpen] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
   const [shortcutPanelCollapsed, setShortcutPanelCollapsed] = useState(() => window.localStorage?.getItem("gii-gem-shortcut-panel-collapsed") !== "no");
@@ -312,7 +314,7 @@ function App() {
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "health_center"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center"].includes(effectiveView);
 
   const notify = (message, type = "success") => {
     setToast({ message: type === "error" ? friendlyToastMessage(message) : message, type });
@@ -1148,6 +1150,13 @@ function App() {
             {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
             {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
             {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
+            {effectiveView === "help_assistant" && (
+              <HelpAssistant
+                currentView={helpAssistantSourceView || view}
+                currentHelp={helpForView(helpAssistantSourceView || view)}
+                onNavigate={navigate}
+              />
+            )}
             {effectiveView === "help_training" && (
               <HelpTrainingScreen
                 currentView={view}
@@ -1165,9 +1174,9 @@ function App() {
         </RendererErrorBoundary>
       </WorkspaceFrame>
       <RendererErrorBoundary
-        title="Utility panel could not load"
+        title="Utilities panel could not load"
         resetKey={`utility-${effectiveView}-${rightUtilityCollapsed}-${shortcutPanelCollapsed}`}
-        onError={(error) => notify(error.message || "Utility panel could not load", "error")}
+        onError={(error) => notify(error.message || "Utilities panel could not load", "error")}
         onReset={() => { setRightUtilityCollapsed(true); setShortcutPanelCollapsed(true); }}
       >
         <RightUtilitySidebar
@@ -1176,6 +1185,10 @@ function App() {
           session={session}
           trainingMode={trainingMode}
           onHelp={() => setContextHelpOpen(true)}
+          onHelpAssistant={() => {
+            setHelpAssistantSourceView(effectiveView);
+            navigate("help_assistant");
+          }}
           onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
           onLogout={() => setSession(null)}
           companies={safeCompanies}
