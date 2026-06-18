@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { dashboardDefaultVisible, dashboardModeLabels } from "../config/dashboard.js";
 import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
 import { DashboardCardGrid, DashboardCustomizer, DashboardSetupChecklist, DashboardViewToolbar } from "../components/dashboard/index.jsx";
+import { safeArray, safeObject } from "../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { readJsonPreference } from "../utils/uiHelpers.js";
 
@@ -9,8 +10,8 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
   const [counts, setCounts] = useState(null);
   const [dashboardMode, setDashboardMode] = useState(() => window.localStorage?.getItem(DASHBOARD_VIEW_KEY) || "executive");
   const [customizing, setCustomizing] = useState(false);
-  const [hiddenCards, setHiddenCards] = useState(() => readJsonPreference(DASHBOARD_HIDDEN_CARDS_KEY, {}));
-  const [pinnedCards, setPinnedCards] = useState(() => readJsonPreference(DASHBOARD_PINNED_CARDS_KEY, []));
+  const [hiddenCards, setHiddenCards] = useState(() => safeObject(readJsonPreference(DASHBOARD_HIDDEN_CARDS_KEY, {})));
+  const [pinnedCards, setPinnedCards] = useState(() => safeArray(readJsonPreference(DASHBOARD_PINNED_CARDS_KEY, [])));
 
   useEffect(() => {
     apiClient.getDashboardCounts(companyContext).then(setCounts).catch((error) => notify(error.message, "error"));
@@ -70,12 +71,14 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
     ]
   };
 
-  const modeCards = dashboardCards[dashboardMode] || dashboardCards.executive;
-  const defaultVisible = dashboardDefaultVisible[dashboardMode] || dashboardDefaultVisible.executive;
-  const modeHiddenCards = hiddenCards[dashboardMode] || modeCards.filter((card) => !defaultVisible.includes(card.id)).map((card) => card.id);
+  const modeCards = safeArray(dashboardCards[dashboardMode] || dashboardCards.executive);
+  const defaultVisible = safeArray(dashboardDefaultVisible[dashboardMode] || dashboardDefaultVisible.executive);
+  const safeHiddenCards = safeObject(hiddenCards);
+  const safePinnedCards = safeArray(pinnedCards);
+  const modeHiddenCards = safeArray(safeHiddenCards[dashboardMode] || modeCards.filter((card) => !defaultVisible.includes(card.id)).map((card) => card.id));
   const sortedCards = [...modeCards].sort((left, right) => {
-    const leftPinned = pinnedCards.includes(`${dashboardMode}:${left.id}`) ? 0 : 1;
-    const rightPinned = pinnedCards.includes(`${dashboardMode}:${right.id}`) ? 0 : 1;
+    const leftPinned = safePinnedCards.includes(`${dashboardMode}:${left.id}`) ? 0 : 1;
+    const rightPinned = safePinnedCards.includes(`${dashboardMode}:${right.id}`) ? 0 : 1;
     return leftPinned - rightPinned;
   });
   const visibleCards = sortedCards.filter((card) => !modeHiddenCards.includes(card.id));
@@ -87,15 +90,19 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
 
   function toggleCardVisibility(cardId) {
     setHiddenCards((current) => {
-      const currentHidden = current[dashboardMode] || modeCards.filter((card) => !defaultVisible.includes(card.id)).map((card) => card.id);
+      const safeCurrent = safeObject(current);
+      const currentHidden = safeArray(safeCurrent[dashboardMode] || modeCards.filter((card) => !defaultVisible.includes(card.id)).map((card) => card.id));
       const nextHidden = currentHidden.includes(cardId) ? currentHidden.filter((id) => id !== cardId) : [...currentHidden, cardId];
-      return { ...current, [dashboardMode]: nextHidden };
+      return { ...safeCurrent, [dashboardMode]: nextHidden };
     });
   }
 
   function togglePinnedCard(cardId) {
     const pinKey = `${dashboardMode}:${cardId}`;
-    setPinnedCards((current) => current.includes(pinKey) ? current.filter((item) => item !== pinKey) : [...current, pinKey]);
+    setPinnedCards((current) => {
+      const safeCurrent = safeArray(current);
+      return safeCurrent.includes(pinKey) ? safeCurrent.filter((item) => item !== pinKey) : [...safeCurrent, pinKey];
+    });
   }
 
   const checklist = [
@@ -131,7 +138,7 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
           dashboardModeLabels={dashboardModeLabels}
           modeCards={modeCards}
           modeHiddenCards={modeHiddenCards}
-          pinnedCards={pinnedCards}
+          pinnedCards={safePinnedCards}
           onToggleCardVisibility={toggleCardVisibility}
           onTogglePinnedCard={togglePinnedCard}
         />
@@ -140,7 +147,7 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
       <DashboardCardGrid
         dashboardMode={dashboardMode}
         visibleCards={visibleCards}
-        pinnedCards={pinnedCards}
+        pinnedCards={safePinnedCards}
         onOpenCard={setView}
         onTogglePinnedCard={togglePinnedCard}
       />

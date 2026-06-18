@@ -1,5 +1,21 @@
 import React from "react";
 
+const HELP_ASSISTANT_MODES = [
+  ["help", "Help Mode"],
+  ["screen", "Screen Guidance"],
+  ["onboarding", "Onboarding"],
+  ["coach", "ERP Coach"],
+  ["data", "Data Mode"]
+];
+
+const MODE_PLACEHOLDERS = {
+  help: "Example: why is my voucher not posting?",
+  screen: "Example: what should I do on this screen?",
+  onboarding: "Example: I made the company, now where do I start?",
+  coach: "Example: what should I do today?",
+  data: "Example: show receivable outstanding summary"
+};
+
 function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }) {
   return (
     <section className="panel help-assistant-search">
@@ -16,12 +32,15 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
             onKeyDown={(event) => {
               if (event.key === "Enter") onAsk();
             }}
-            placeholder="Example: why is my voucher not posting?"
+            placeholder={MODE_PLACEHOLDERS[mode] || MODE_PLACEHOLDERS.help}
           />
         </label>
         <div className="help-assistant-mode-buttons" role="group" aria-label="Help assistant mode">
-          <button type="button" className={mode === "help" ? "active" : ""} onClick={() => onModeChange("help")}>Help Mode</button>
-          <button type="button" className={mode === "screen" ? "active" : ""} onClick={() => onModeChange("screen")}>Screen Guidance</button>
+          {HELP_ASSISTANT_MODES.map(([key, label]) => (
+            <button type="button" key={key} className={mode === key ? "active" : ""} onClick={() => onModeChange(key)}>
+              {label}
+            </button>
+          ))}
         </div>
         <button type="button" className="primary-btn" onClick={onAsk}>Ask</button>
       </div>
@@ -29,4 +48,4 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
   );
 }
 
-export { HelpAssistantSearch };
+export { HELP_ASSISTANT_MODES, HelpAssistantSearch };

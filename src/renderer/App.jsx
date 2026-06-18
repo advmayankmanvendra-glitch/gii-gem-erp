@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { isDesktopRuntime, resolveApi } from "./api/client.js";
 import { downloadText, exportRows, formatCurrency } from "./utils/formatters.js";
@@ -7,6 +7,8 @@ import { COMPANY_CONTEXT_KEY, COMPANY_SCOPE_KEY, RIGHT_UTILITY_SIDEBAR_KEY } fro
 import { masterViews, transactionViews } from "./config/viewDefinitions.js";
 import { importTemplates, importTemplateSampleRows, masterImportTemplateDefinitions } from "./config/importTemplates.js";
 import { bankStatementViews, businessVoucherRouteKinds, flatNavItems, inventoryReportViews, navGroups, operationsReportViews, routeAliases, viewTitles, voucherProposalViews } from "./config/navigation.js";
+import { getPrintTemplateOptionsForView } from "./print/printTemplateConfig.js";
+import { collectPrintTemplateData } from "./print/printUtils.js";
 import { EmptyState, Icon, IntelligenceCard, Metric, MetricRows, MiniDataTable, SummaryTable } from "./components/common.jsx";
 import { Field, MetricLine, ReadOnlyBox, ReportActionButtons, ReportDateFilters, ReportSelectFilter, ReportToolbar, SearchableSelect, SelectBox, SelectField, ViewTabs } from "./components/forms/index.jsx";
 import { MasterRecordsPanel } from "./components/tables/MasterRecordsPanel.jsx";
@@ -39,48 +41,13 @@ import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
 import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "./screens/ReadOnlyReportFamilyScreen.jsx";
 import { AccountingReportsIndex, CashFlowSummary, EmployeePerformanceSummary, GstSummary } from "./screens/ReadOnlySummaryReports.jsx";
 import { SettingsScreen } from "./screens/SettingsScreen.jsx";
+import { SafeModeRecoveryScreen } from "./screens/SafeMode/index.js";
+import { RendererErrorBoundary } from "./stability/RendererErrorBoundary.jsx";
+import { runStartupSelfTest } from "./stability/startupSelfTest.js";
 import "./styles/app.css";
 
 const fallbackApi = createBrowserFallbackApi();
 const api = resolveApi(fallbackApi);
-
-class RendererErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { error: null, resetKey: props.resetKey };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { error };
-  }
-
-  static getDerivedStateFromProps(props, state) {
-    if (props.resetKey !== state.resetKey) {
-      return { error: null, resetKey: props.resetKey };
-    }
-    return null;
-  }
-
-  componentDidCatch(error, info) {
-    console.error("Renderer section failed", error, info);
-    this.props.onError?.(error, info);
-  }
-
-  render() {
-    if (!this.state.error) return this.props.children;
-    const message = cleanErrorMessage(this.state.error);
-    return (
-      <section className="panel renderer-error-panel">
-        <div>
-          <h2>{this.props.title || "Screen could not load"}</h2>
-          <p>{message}</p>
-          <small>The ERP shell stayed open so this error can be reviewed instead of showing a blank screen.</small>
-        </div>
-        <button type="button" className="primary-btn" onClick={this.props.onReset}>Return to Dashboard</button>
-      </section>
-    );
-  }
-}
 
 function friendlyToastMessage(message) {
   const guidance = buildActionErrorGuidance(message);
@@ -314,7 +281,24 @@ function App() {
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center", "safe_mode"].includes(effectiveView);
+  const rendererCrashContext = useMemo(() => ({
+    view: effectiveView,
+    routeView: view,
+    company: companyContext.company_name || "Unselected",
+    companyId: companyContext.company_id,
+    companyScope: companyContext.company_scope,
+    user: session?.displayName || session?.username || session?.name || session?.role || "Unknown",
+    role: session?.role || ""
+  }), [effectiveView, view, companyContext.company_name, companyContext.company_id, companyContext.company_scope, session]);
+  const startupSelfTest = useMemo(() => runStartupSelfTest({
+    apiClient: api,
+    companyContext,
+    currentView: effectiveView,
+    hasDashboardRoute: flatNavItems.some((item) => item.key === "dashboard"),
+    hasHealthCenterRoute: flatNavItems.some((item) => item.key === "health_center"),
+    helpers: { productivityScopeForView, helpForView }
+  }), [companyContext, effectiveView]);
 
   const notify = (message, type = "success") => {
     setToast({ message: type === "error" ? friendlyToastMessage(message) : message, type });
@@ -573,7 +557,11 @@ function App() {
       subtitle: currentTitle[1] || "",
       breadcrumb: breadcrumb.join(" > "),
       generatedAt: new Date().toLocaleString("en-IN"),
-      html: createPrintableSnapshot(host)
+      html: createPrintableSnapshot(host),
+      templateData: collectPrintTemplateData(host),
+      templateOptions: getPrintTemplateOptionsForView(effectiveView),
+      selectedTemplateKey: "screen_snapshot",
+      sourceView: effectiveView
     });
   }
 
@@ -1083,7 +1071,9 @@ function App() {
       <RendererErrorBoundary
         title="Navigation could not load"
         resetKey={`nav-${view}-${navSearch}`}
+        crashContext={{ ...rendererCrashContext, section: "navigation" }}
         onError={(error) => notify(error.message || "Navigation could not load", "error")}
+        onOpenSafeMode={() => setView("safe_mode")}
         onReset={() => { setView("dashboard"); setNavSearch(""); setExpandedGroups({}); }}
       >
         <NavigationSidebar
@@ -1113,7 +1103,9 @@ function App() {
         <RendererErrorBoundary
           title="Screen could not load"
           resetKey={`${effectiveView}-${refreshNonce}`}
+          crashContext={{ ...rendererCrashContext, section: "screen" }}
           onError={(error) => notify(error.message || "Screen could not load", "error")}
+          onOpenSafeMode={() => setView("safe_mode")}
           onReset={() => { setView("dashboard"); setRefreshNonce((current) => current + 1); }}
         >
           <div className="screen-host" key={`${effectiveView}-${refreshNonce}`}>
@@ -1130,6 +1122,7 @@ function App() {
               />
             ) : (
               <>
+            {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
@@ -1152,9 +1145,13 @@ function App() {
             {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
             {effectiveView === "help_assistant" && (
               <HelpAssistant
+                companies={safeCompanies}
+                companyContext={companyContext}
                 currentView={helpAssistantSourceView || view}
                 currentHelp={helpForView(helpAssistantSourceView || view)}
                 onNavigate={navigate}
+                session={session}
+                stats={productivityStats}
               />
             )}
             {effectiveView === "help_training" && (
@@ -1176,7 +1173,9 @@ function App() {
       <RendererErrorBoundary
         title="Utilities panel could not load"
         resetKey={`utility-${effectiveView}-${rightUtilityCollapsed}-${shortcutPanelCollapsed}`}
+        crashContext={{ ...rendererCrashContext, section: "right_utility_sidebar" }}
         onError={(error) => notify(error.message || "Utilities panel could not load", "error")}
+        onOpenSafeMode={() => setView("safe_mode")}
         onReset={() => { setRightUtilityCollapsed(true); setShortcutPanelCollapsed(true); }}
       >
         <RightUtilitySidebar
@@ -12621,6 +12620,7 @@ if (rootElement) {
     <RendererErrorBoundary
       title="ERP could not load"
       resetKey="root"
+      crashContext={{ section: "root", view: "root", company: "Unknown", user: "Unknown" }}
       onError={(error) => console.error("ERP root failed", error)}
       onReset={() => window.location.reload()}
     >

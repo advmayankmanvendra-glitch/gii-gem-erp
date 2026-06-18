@@ -142,6 +142,7 @@ const viewTitles = {
   tally_xml_import: ["Tally XML Import Assistant", "Preview, validate and import Tally Prime stock item XML safely."],
   tally_migration_assistant: ["Tally Master Migration Assistant", "Stage 1 Tally master migration for ledgers, parties, items, units, banks and warehouses."],
   health_center: ["ERP Health Center", "Runtime diagnostics, recovery guidance, support bundles and verification checklist."],
+  safe_mode: ["Safe Mode Recovery", "Renderer crash recovery, diagnostics and support options."],
   help_training: ["Help & Training", "Guided ERP learning, workflows, FAQ, troubleshooting and knowledge base."],
   help_assistant: ["GII ERP Help Assistant", "Ask practical ERP guidance questions without changing records."]
 };

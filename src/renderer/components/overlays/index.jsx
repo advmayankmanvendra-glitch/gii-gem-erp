@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../common.jsx";
+import { makePrintPreviewForTemplate } from "../../print/printUtils.js";
 
 export function ModalBackdrop({ children, className = "", dataEscClose = false }) {
   const escCloseProps = dataEscClose ? { "data-esc-close": "true" } : {};
@@ -51,6 +52,10 @@ export function ConfirmationActions({ dialog, canConfirm, onCancel, onConfirm })
 }
 
 export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
+  const templateOptions = preview.templateOptions?.length ? preview.templateOptions : [{ key: "screen_snapshot", label: "Screen Snapshot" }];
+  const [templateKey, setTemplateKey] = useState(preview.selectedTemplateKey || "screen_snapshot");
+  const activePreview = useMemo(() => makePrintPreviewForTemplate(preview, templateKey), [preview, templateKey]);
+
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key === "Escape") onClose();
@@ -61,12 +66,12 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [activePreview, onClose]);
 
   async function printPreviewContent() {
     if (desktopApi?.printHtml) {
       try {
-        const result = await desktopApi.printHtml(preview);
+        const result = await desktopApi.printHtml(activePreview);
         if (result?.success) {
           notify?.("Print job sent");
         } else if (result?.failureReason) {
@@ -94,7 +99,7 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
       return;
     }
     try {
-      const result = await desktopApi.savePrintPdf(preview);
+      const result = await desktopApi.savePrintPdf(activePreview);
       if (result?.success) notify?.(`PDF saved: ${result.filePath}`);
       else if (result?.canceled) notify?.("PDF export cancelled", "warning");
       else notify?.("PDF export was not completed", "warning");
@@ -109,9 +114,19 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
         <div className="print-preview-toolbar">
           <div>
             <h2>Print Preview</h2>
-            <p>{preview.breadcrumb}</p>
+            <p>{activePreview.breadcrumb}</p>
           </div>
           <div className="button-row">
+            {templateOptions.length > 1 && (
+              <label className="print-template-selector">
+                <span>Template</span>
+                <select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)}>
+                  {templateOptions.map((option) => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button type="button" className="primary-btn" onClick={printPreviewContent}>Print</button>
             <button type="button" className="ghost-btn" onClick={savePreviewPdf}>Save PDF</button>
             <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
@@ -121,15 +136,15 @@ export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
           <header className="print-page-header">
             <div>
               <strong>GII GeM ERP</strong>
-              <h1>{preview.title}</h1>
-              <p>{preview.subtitle}</p>
+              <h1>{activePreview.title}</h1>
+              <p>{activePreview.subtitle}</p>
             </div>
             <div>
-              <span>{preview.generatedAt}</span>
-              <small>{preview.breadcrumb}</small>
+              <span>{activePreview.generatedAt}</span>
+              <small>{activePreview.breadcrumb}</small>
             </div>
           </header>
-          <div className="print-page-content" dangerouslySetInnerHTML={{ __html: preview.html }} />
+          <div className="print-page-content" dangerouslySetInnerHTML={{ __html: activePreview.html }} />
         </article>
       </ModalPanel>
     </ModalBackdrop>

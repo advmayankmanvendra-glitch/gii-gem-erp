@@ -92,6 +92,7 @@ import {
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { createSupportBundle } from "./services/supportBundleService.js";
+import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -694,6 +695,14 @@ function registerIpc() {
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
+  });
+  ipcMain.handle("health:verification-console", () => {
+    return getVerificationConsoleState(runtimeDataRoot);
+  });
+  ipcMain.handle("health:verification-snapshot", (_event, context) => {
+    const healthContext = { ...context, dbName: DB_NAME };
+    const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
+    return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
   });
   ipcMain.handle("health:open-folder", async (_event, kind) => {
     const folders = {

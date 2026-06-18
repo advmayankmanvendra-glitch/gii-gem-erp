@@ -100,7 +100,7 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
             {(checks?.checks || []).slice(0, 6).map((item) => <HealthCheckCard key={item.id} check={item} />)}
             {apiContract.map((item) => <HealthCheckCard key={item.id} check={item} />)}
           </section>
-          <VerificationConsole checks={checks} />
+          <VerificationConsole apiClient={apiClient} context={context} notify={notify} />
         </>
       ) : null}
 

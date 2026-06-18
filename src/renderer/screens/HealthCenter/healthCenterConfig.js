@@ -1,15 +1,5 @@
 const verificationCommands = [
   {
-    title: "Syntax Check",
-    command: "npm.cmd run lint:syntax",
-    note: "Confirms renderer and main-process source parse cleanly."
-  },
-  {
-    title: "Production Build",
-    command: "npm.cmd run build",
-    note: "Confirms the packaged renderer can be built."
-  },
-  {
     title: "Accounting Verification",
     command: "npm.cmd run verify:accounting",
     note: "Confirms vouchers and ledger entries remain balanced."
@@ -18,6 +8,26 @@ const verificationCommands = [
     title: "Financial Verification",
     command: "npm.cmd run verify:financials",
     note: "Confirms GST and financial report reconciliation checks."
+  },
+  {
+    title: "Controls Verification",
+    command: "npm.cmd run verify:controls",
+    note: "Confirms control, lock and safety checks."
+  },
+  {
+    title: "Voucher and Inventory Verification",
+    command: "npm.cmd run verify:voucher-inventory",
+    note: "Confirms voucher dependency and inventory integration checks."
+  },
+  {
+    title: "Operational Flow Verification",
+    command: "npm.cmd run verify:flow",
+    note: "Confirms the controlled operational flow checks."
+  },
+  {
+    title: "Phase 10 Inventory Verification",
+    command: "npm.cmd run verify:phase10",
+    note: "Confirms Phase 10 inventory automation checks."
   }
 ];
 

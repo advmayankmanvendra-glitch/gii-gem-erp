@@ -2,23 +2,24 @@ import React, { useEffect, useState } from "react";
 import { keyboardGuideSections } from "../../config/helpContent.js";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
+import { safeArray, safeObject } from "../../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../../utils/formatters.js";
 import { HelpList } from "../helpTraining/index.jsx";
 
 export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, onAction, onLearn }) {
   const [shortcutQuery, setShortcutQuery] = useState("");
   const screenTitle = viewTitles[view]?.[0] || masterViews[view]?.title || transactionViews[view]?.title || "ERP Screen";
-  const groups = shortcutGroupsForView(view);
-  const quickActions = quickActionsForView(view, role);
-  const liveStats = productivityStatsForView(view, stats);
-  const tasks = pendingTasksForView(view, stats);
+  const groups = safeArray(shortcutGroupsForView(view));
+  const quickActions = safeArray(quickActionsForView(view, role));
+  const liveStats = safeArray(productivityStatsForView(view, stats));
+  const tasks = safeArray(pendingTasksForView(view, stats));
   const shortcutNeedle = shortcutQuery.trim().toLowerCase();
   const filteredGroups = shortcutNeedle ? groups
     .map((group) => ({
       ...group,
-      items: group.items.filter(([keys, label]) => `${keys} ${label}`.toLowerCase().includes(shortcutNeedle))
+      items: safeArray(group.items).filter(([keys, label]) => `${keys} ${label}`.toLowerCase().includes(shortcutNeedle))
     }))
-    .filter((group) => group.items.length) : groups;
+    .filter((group) => safeArray(group.items).length) : groups;
   return (
     <section className={`shortcut-context-panel productivity-panel ${collapsed ? "collapsed" : ""}`} aria-label="Context productivity panel">
       <button type="button" className="shortcut-panel-head" onClick={onToggle} title={collapsed ? "Show productivity panel" : "Hide productivity panel"}>
@@ -39,7 +40,7 @@ export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, o
             <div className="shortcut-panel-group" key={group.title}>
               <span>{group.title}</span>
               <div>
-                {group.items.map(([keys, label]) => (
+                {safeArray(group.items).map(([keys, label]) => (
                   <p key={`${group.title}-${keys}`}>
                     <kbd>{keys}</kbd>
                     <small>{label}</small>
@@ -118,7 +119,8 @@ export function ProductivityLearnDialog({ view, onClose, onOpenTraining }) {
 }
 
 function shortcutGroupsForView(view) {
-  const meta = flatNavItems.find((item) => item.key === view) || {};
+  const navigationItems = safeArray(flatNavItems);
+  const meta = navigationItems.find((item) => item.key === view) || {};
   const groupId = meta.groupId;
   const groups = [];
   if (view === "supply_orders") {
@@ -150,7 +152,7 @@ function shortcutGroupsForView(view) {
 }
 
 export function productivityScopeForView(view) {
-  const meta = flatNavItems.find((item) => item.key === view) || {};
+  const meta = safeArray(flatNavItems).find((item) => item.key === view) || {};
   if (view === "supply_orders") return "supply_orders";
   if (meta.groupId === "inventory" || inventoryReportViews.has(view)) return "inventory";
   if (meta.groupId === "accounting" || view === "voucher_dashboard" || view === "manual_voucher") return "accounting";
@@ -216,15 +218,16 @@ function quickActionsForView(view, role) {
       { label: "Audit Log", type: "navigate", view: "audit_log", scope: "report" }
     ]
   };
-  const actions = actionSets[scope] || actionSets.reports;
+  const actions = safeArray(actionSets[scope] || actionSets.reports);
   return actions.map((action) => ({ ...action, disabled: !roleAllowsAction(role, action.scope) }));
 }
 
 function productivityStatsForView(view, stats) {
   const scope = productivityScopeForView(view);
-  const counts = stats?.counts || {};
-  const accounting = stats?.accounting || {};
-  const inventory = stats?.inventory || {};
+  const safeStats = safeObject(stats);
+  const counts = safeObject(safeStats.counts);
+  const accounting = safeObject(safeStats.accounting);
+  const inventory = safeObject(safeStats.inventory);
   const rows = {
     supply_orders: [
       ["Open Orders", counts.activeOrders ?? 0],
@@ -234,29 +237,29 @@ function productivityStatsForView(view, stats) {
     ],
     inventory: [
       ["Stock Value", formatCurrency(counts.totalStockValue || 0)],
-      ["Reserved Stock", (inventory.reservations || []).length || 0],
+      ["Reserved Stock", safeArray(inventory.reservations).length || 0],
       ["Low Stock Items", counts.lowStockItems ?? 0],
-      ["Pending Deliveries", (inventory.deliveryChallans || []).filter((row) => row.status !== "Confirmed").length || 0]
+      ["Pending Deliveries", safeArray(inventory.deliveryChallans).filter((row) => row.status !== "Confirmed").length || 0]
     ],
     accounting: [
-      ["Unposted Vouchers", (accounting.postingControl || []).length || 0],
-      ["Pending Approval", (accounting.approvalQueue || []).filter((row) => row.status !== "Approved").length || 0],
-      ["Reversed Vouchers", (accounting.vouchers || []).filter((row) => row.status === "Reversed").length || 0],
-      ["Draft Vouchers", (accounting.guidedVouchers || []).filter((row) => row.status === "Draft").length || 0]
+      ["Unposted Vouchers", safeArray(accounting.postingControl).length || 0],
+      ["Pending Approval", safeArray(accounting.approvalQueue).filter((row) => row.status !== "Approved").length || 0],
+      ["Reversed Vouchers", safeArray(accounting.vouchers).filter((row) => row.status === "Reversed").length || 0],
+      ["Draft Vouchers", safeArray(accounting.guidedVouchers).filter((row) => row.status === "Draft").length || 0]
     ],
     receivables: [
-      ["Outstanding Amount", formatCurrency((accounting.billWiseReceivables || accounting.receivables || []).reduce((sum, row) => sum + Number(row.balance_outstanding || row.outstanding || 0), 0))],
-      ["Overdue Invoices", (accounting.receivableAgeing || []).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
-      ["Receipts Today", (accounting.payments || []).filter((row) => row.payment_date === todayIso()).length || 0]
+      ["Outstanding Amount", formatCurrency(safeArray(accounting.billWiseReceivables || accounting.receivables).reduce((sum, row) => sum + Number(row.balance_outstanding || row.outstanding || 0), 0))],
+      ["Overdue Invoices", safeArray(accounting.receivableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
+      ["Receipts Today", safeArray(accounting.payments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
     payables: [
-      ["Outstanding Payables", formatCurrency((accounting.billWisePayables || accounting.payables || []).reduce((sum, row) => sum + Number(row.balance_due || 0), 0))],
-      ["Overdue Supplier Bills", (accounting.payableAgeing || []).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
-      ["Payments Today", (accounting.supplierPayments || []).filter((row) => row.payment_date === todayIso()).length || 0]
+      ["Outstanding Payables", formatCurrency(safeArray(accounting.billWisePayables || accounting.payables).reduce((sum, row) => sum + Number(row.balance_due || 0), 0))],
+      ["Overdue Supplier Bills", safeArray(accounting.payableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
+      ["Payments Today", safeArray(accounting.supplierPayments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
     reports: [
-      ["Available Reports", flatNavItems.filter((item) => item.groupId === "reports").length],
-      ["Last Refresh Time", stats?.refreshedAt || "-"]
+      ["Available Reports", safeArray(flatNavItems).filter((item) => item.groupId === "reports").length],
+      ["Last Refresh Time", safeStats.refreshedAt || "-"]
     ]
   };
   return rows[scope] || rows.reports;
@@ -264,9 +267,10 @@ function productivityStatsForView(view, stats) {
 
 function pendingTasksForView(view, stats) {
   const scope = productivityScopeForView(view);
-  const counts = stats?.counts || {};
-  const accounting = stats?.accounting || {};
-  const inventory = stats?.inventory || {};
+  const safeStats = safeObject(stats);
+  const counts = safeObject(safeStats.counts);
+  const accounting = safeObject(safeStats.accounting);
+  const inventory = safeObject(safeStats.inventory);
   const tasks = {
     supply_orders: [
       `${Number(counts.activeOrders || 0)} order(s) need active follow-up`,
@@ -274,17 +278,17 @@ function pendingTasksForView(view, stats) {
     ],
     inventory: [
       `${Number(counts.lowStockItems || 0)} low-stock item(s) need attention`,
-      `${(inventory.inwards || []).filter((row) => row.posting_status !== "Posted").length || 0} stock receipt(s) pending posting`
+      `${safeArray(inventory.inwards).filter((row) => row.posting_status !== "Posted").length || 0} stock receipt(s) pending posting`
     ],
     accounting: [
-      `${(accounting.approvalQueue || []).length || 0} approval item(s) pending`,
-      `${(accounting.postingControl || []).length || 0} posting control item(s) pending`
+      `${safeArray(accounting.approvalQueue).length || 0} approval item(s) pending`,
+      `${safeArray(accounting.postingControl).length || 0} posting control item(s) pending`
     ],
     receivables: [
-      `${(accounting.receivableAgeing || []).length || 0} receivable ageing row(s) to review`
+      `${safeArray(accounting.receivableAgeing).length || 0} receivable ageing row(s) to review`
     ],
     payables: [
-      `${(accounting.payableAgeing || []).length || 0} payable ageing row(s) to review`
+      `${safeArray(accounting.payableAgeing).length || 0} payable ageing row(s) to review`
     ],
     reports: [
       "Refresh report data before export or print"

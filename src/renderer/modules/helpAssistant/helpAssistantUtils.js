@@ -1,3 +1,6 @@
+import { buildIntentAnswer, detectHelpAssistantIntent } from "./helpAssistantIntents.js";
+import { answerReadOnlyDataQuestion } from "./helpAssistantReadiness.js";
+
 function normalizeText(value) {
   return String(value || "")
     .toLowerCase()
@@ -62,8 +65,27 @@ function isScreenGuidanceQuestion(query) {
     normalized.includes("help here");
 }
 
-function buildHelpAssistantAnswer({ query, mode, topics, currentHelp }) {
-  const screenMode = mode === "screen" || isScreenGuidanceQuestion(query);
+function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness, coach, stats }) {
+  const intent = detectHelpAssistantIntent(query, mode);
+  const intentAnswer = buildIntentAnswer({ intent, readiness, coach });
+  if (intentAnswer) return intentAnswer;
+
+  if (intent === "data") {
+    const dataAnswer = answerReadOnlyDataQuestion({ query, stats });
+    return {
+      mode: "Read-only Data Mode",
+      title: dataAnswer.title,
+      type: "Safe Data Guidance",
+      summary: dataAnswer.summary,
+      sourceLabel: dataAnswer.sourceLabel,
+      steps: normalizeList(dataAnswer.steps),
+      commonMistakes: dataAnswer.limitation ? [dataAnswer.limitation] : [],
+      relatedTopics: [],
+      safetyNote: "Read-only foundation: this assistant does not run SQL, write records, post, import, restore, delete or alter ERP data."
+    };
+  }
+
+  const screenMode = mode === "screen" || intent === "screen" || isScreenGuidanceQuestion(query);
   const matches = screenMode ? [] : searchHelpTopics(topics, query, 6);
   const topic = screenMode
     ? buildCurrentScreenTopic(currentHelp)
@@ -79,6 +101,7 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp }) {
     steps: normalizeList(topic.steps),
     commonMistakes: normalizeList(topic.commonMistakes),
     relatedTopics: related.map((item) => ({ id: item.id, title: item.title, type: item.type, menuPath: item.menuPath })),
+    sourceLabel: topic.type || "Help knowledge base",
     safetyNote: "Guidance only: this assistant does not save, post, reverse, import, restore, delete or alter ERP records."
   };
 }

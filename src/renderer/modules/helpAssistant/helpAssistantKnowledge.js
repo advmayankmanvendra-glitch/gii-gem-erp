@@ -9,6 +9,10 @@ import {
 import { flatNavItems, viewTitles } from "../../config/navigation.js";
 
 const HELP_ASSISTANT_SUGGESTIONS = [
+  "I made the company, now where do I start?",
+  "What should I do today?",
+  "Show receivable outstanding summary",
+  "Do I have low stock items?",
   "Where do I enter a supply order?",
   "Why is a voucher not posting?",
   "How do I allocate a receipt?",
