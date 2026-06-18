@@ -60,6 +60,8 @@ import {
   postStockReturn,
   postWarehouseTransfer,
   referenceData,
+  reallocateReceiptAllocation,
+  reallocateSupplierPaymentAllocation,
   reverseVoucher,
   rollbackImportBatch,
   rejectVoucherProposal,
@@ -88,6 +90,8 @@ import {
   previewImportRollback
 } from "./database/init.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
+import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
+import { createSupportBundle } from "./services/supportBundleService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,6 +104,28 @@ app.commandLine.appendSwitch("disable-gpu-compositing");
 app.commandLine.appendSwitch("disable-gpu-sandbox");
 app.commandLine.appendSwitch("disable-accelerated-2d-canvas");
 app.commandLine.appendSwitch("in-process-gpu");
+
+if (!app.isPackaged) {
+  try {
+    const devUserDataRoot = path.join(sourceProjectRoot(), "runtime", "electron-user-data");
+    fs.mkdirSync(devUserDataRoot, { recursive: true });
+    app.setPath("userData", devUserDataRoot);
+    app.setPath("sessionData", path.join(devUserDataRoot, "session"));
+  } catch {
+    // Falling back to Electron defaults is safer than blocking app startup.
+  }
+}
+
+function safeMainLog(level, message) {
+  try {
+    const root = runtimeDataRoot || sourceProjectRoot();
+    const logDir = path.join(root, "logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(path.join(logDir, "electron-renderer.log"), `[${new Date().toISOString()}] ${level} ${message}\n`);
+  } catch {
+    // Diagnostics must never crash the main process.
+  }
+}
 
 function firstPayload(args) {
   return args.find((arg) => arg && typeof arg === "object" && !Array.isArray(arg)) || {};
@@ -368,6 +394,20 @@ function createWindow() {
     win.loadFile(path.join(appRoot, "dist", "index.html"));
   }
 
+  win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    if (level >= 2) {
+      safeMainLog("warn", `[renderer:${level}] ${message} (${sourceId}:${line})`);
+    }
+  });
+
+  win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    safeMainLog("error", `[renderer-load-failed] ${errorCode} ${errorDescription} ${validatedURL}`);
+  });
+
+  win.webContents.on("render-process-gone", (_event, details) => {
+    safeMainLog("error", `[renderer-process-gone] ${JSON.stringify(details)}`);
+  });
+
   win.webContents.on("before-input-event", (event, input) => {
     const command = desktopShortcutCommand(input);
     if (command) {
@@ -522,8 +562,10 @@ function registerIpc() {
   ipcMain.handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
   ipcMain.handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
   ipcMain.handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
+  ipcMain.handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
   ipcMain.handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
   ipcMain.handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
+  ipcMain.handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
   ipcMain.handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
   ipcMain.handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
   ipcMain.handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
@@ -640,6 +682,34 @@ function registerIpc() {
       throw error;
     }
   }));
+
+  ipcMain.handle("health:diagnostics", (_event, context) => {
+    return getHealthDiagnostics(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
+  });
+  ipcMain.handle("health:checks", (_event, context) => {
+    return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
+  });
+  ipcMain.handle("health:support-bundle", (_event, context) => {
+    const healthContext = { ...context, dbName: DB_NAME };
+    const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
+    const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
+    return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
+  });
+  ipcMain.handle("health:open-folder", async (_event, kind) => {
+    const folders = {
+      runtime: runtimeDataRoot,
+      database: path.join(runtimeDataRoot, "database"),
+      backups: path.join(runtimeDataRoot, "backups"),
+      documents: path.join(runtimeDataRoot, "documents"),
+      logs: path.join(runtimeDataRoot, "logs"),
+      exports: path.join(runtimeDataRoot, "exports")
+    };
+    const folder = folders[kind] || folders.runtime;
+    fs.mkdirSync(folder, { recursive: true });
+    const failureReason = await shell.openPath(folder);
+    if (failureReason) throw new Error(failureReason);
+    return { success: true, folder, message: "Folder opened" };
+  });
 
   ipcMain.handle("updates:status", () => getUpdateStatus());
   ipcMain.handle("updates:open-folder", async () => {

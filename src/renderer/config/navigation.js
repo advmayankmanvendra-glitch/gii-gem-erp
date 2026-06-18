@@ -141,6 +141,7 @@ const viewTitles = {
   master_import_templates: ["Master Import Templates", "Download, validate, map and import controlled master templates."],
   tally_xml_import: ["Tally XML Import Assistant", "Preview, validate and import Tally Prime stock item XML safely."],
   tally_migration_assistant: ["Tally Master Migration Assistant", "Stage 1 Tally master migration for ledgers, parties, items, units, banks and warehouses."],
+  health_center: ["ERP Health Center", "Runtime diagnostics, recovery guidance, support bundles and verification checklist."],
   help_training: ["Help & Training", "Guided ERP learning, workflows, FAQ, troubleshooting and knowledge base."]
 };
 
@@ -239,9 +240,10 @@ const navGroups = [
     label: "Utilities",
     icon: "settings",
     sections: [
-      { id: "import_export", label: "Import / Export", items: [["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"]] }
+      { id: "import_export", label: "Import / Export", items: [["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"]] },
+      { id: "support_recovery", label: "Support & Recovery", items: [["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]] }
     ],
-    items: [["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"]]
+    items: [["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
   },
   { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"]] },
   { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }

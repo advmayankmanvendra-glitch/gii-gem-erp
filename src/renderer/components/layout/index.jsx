@@ -17,6 +17,10 @@ export function NavigationSidebar({
   onNavigate,
   onFavorite
 }) {
+  const safeGroups = Array.isArray(searchedGroups) ? searchedGroups : [];
+  const safeRecentScreens = Array.isArray(recentScreens) ? recentScreens : [];
+  const safeFavorites = Array.isArray(favorites) ? favorites : [];
+
   return (
     <aside className={`sidebar ${compactSidebar ? "compact" : ""}`}>
       <div className="brand">
@@ -39,9 +43,10 @@ export function NavigationSidebar({
             <span>Dashboard</span>
           </button>
         </div>
-        {searchedGroups.map((group) => {
+        {safeGroups.map((group) => {
           const isExpanded = Boolean(navSearch) || expandedGroups[group.id];
-          const groupActive = group.items.some(([key]) => key === view || key === effectiveView);
+          const groupItems = Array.isArray(group.items) ? group.items : [];
+          const groupActive = groupItems.some(([key]) => key === view || key === effectiveView);
           return (
             <div className={`nav-group ${isExpanded ? "expanded" : ""}`} key={group.id}>
               <button type="button" className={`nav-group-trigger ${groupActive ? "active-group" : ""} ${isExpanded ? "expanded-group" : ""}`} title={group.label} onClick={() => onSetExpandedGroups((current) => current[group.id] ? {} : { [group.id]: true })}>
@@ -51,9 +56,10 @@ export function NavigationSidebar({
               </button>
               {isExpanded && (
                 <div className="nav-children">
-                  {(group.sections || [{ id: "default", label: "", items: group.items }]).map((section) => {
+                  {(group.sections || [{ id: "default", label: "", items: groupItems }]).map((section) => {
                     const sectionKey = `${group.id}:${section.id}`;
-                    const sectionActive = section.items.some(([key]) => key === view || key === effectiveView);
+                    const sectionItems = Array.isArray(section.items) ? section.items : [];
+                    const sectionActive = sectionItems.some(([key]) => key === view || key === effectiveView);
                     const sectionExpanded = !section.label || Boolean(navSearch) || sectionActive || expandedGroups[sectionKey];
                     return (
                       <div className={`nav-subgroup ${sectionExpanded ? "expanded" : ""}`} key={sectionKey}>
@@ -63,12 +69,12 @@ export function NavigationSidebar({
                             <strong>{sectionExpanded ? "-" : "+"}</strong>
                           </button>
                         )}
-                        {sectionExpanded && section.items.map(([key, label]) => (
+                        {sectionExpanded && sectionItems.map(([key, label]) => (
                           <div className="nav-child-row" key={key}>
                             <button type="button" className={view === key ? "active" : ""} title={`${group.label} > ${section.label ? `${section.label} > ` : ""}${label}`} onClick={() => onNavigate(key)}>
                               <span>{label}</span>
                             </button>
-                            <button type="button" className={`favorite-pin ${favorites.includes(key) ? "pinned" : ""}`} title={favorites.includes(key) ? "Remove favorite" : "Add favorite"} onClick={() => onFavorite(key)}>*</button>
+                            <button type="button" className={`favorite-pin ${safeFavorites.includes(key) ? "pinned" : ""}`} title={safeFavorites.includes(key) ? "Remove favorite" : "Add favorite"} onClick={() => onFavorite(key)}>*</button>
                           </div>
                         ))}
                       </div>
@@ -79,8 +85,8 @@ export function NavigationSidebar({
             </div>
           );
         })}
-        {recentScreens.length > 0 && <NavQuickSection title="Recent" items={recentScreens} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
-        {favorites.length > 0 && <NavQuickSection title="Favorites" items={favorites} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
+        {safeRecentScreens.length > 0 && <NavQuickSection title="Recent" items={safeRecentScreens} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
+        {safeFavorites.length > 0 && <NavQuickSection title="Favorites" items={safeFavorites} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
       </nav>
       <div className="version">v0.4.0 - Accounting Controls</div>
     </aside>
@@ -125,6 +131,8 @@ export function RightUtilitySidebar({
   productivityPanel,
   extension
 }) {
+  const safeCompanies = Array.isArray(companies) ? companies : [];
+
   if (collapsed) {
     return (
       <aside className="right-utility-sidebar compact" aria-label="Utility sidebar">
@@ -163,8 +171,8 @@ export function RightUtilitySidebar({
         <label>
           <span>Current Company</span>
           <select value={companyContext.company_scope === "all" ? "__all" : currentCompanyId} onChange={(event) => onCompanyChange(event.target.value)}>
-            {!companies.length && <option value="">Create company first</option>}
-            {companies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+            {!safeCompanies.length && <option value="">Create company first</option>}
+            {safeCompanies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
             {adminUser && <option value="__all">All Companies View</option>}
           </select>
         </label>
@@ -189,7 +197,8 @@ export function RightUtilitySidebar({
 }
 
 function NavQuickSection({ title, items, current, compact, onNavigate, onFavorite }) {
-  const resolved = items.map((key) => flatNavItems.find((item) => item.key === key)).filter(Boolean);
+  const safeItems = Array.isArray(items) ? items : [];
+  const resolved = safeItems.map((key) => flatNavItems.find((item) => item.key === key)).filter(Boolean);
   if (!resolved.length) return null;
   return (
     <div className="nav-quick-section">

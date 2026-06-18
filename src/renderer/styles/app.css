@@ -1433,6 +1433,46 @@ svg {
   box-shadow: var(--shadow);
 }
 
+.renderer-error-panel {
+  border-color: #f2b8b5;
+  background: #fff7f7;
+  color: #5f1515;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px;
+  padding: 18px;
+}
+
+.renderer-error-panel h2 {
+  margin: 0 0 6px;
+  color: #7a1f1f;
+}
+
+.renderer-error-panel p {
+  margin: 0 0 4px;
+}
+
+.renderer-error-panel small {
+  color: #8a4b4b;
+}
+
+.boot-fallback {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  color: #0b2a3a;
+  background: #f3f8fc;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-align: center;
+}
+
+.boot-fallback span {
+  color: #536477;
+}
+
 .metric-card {
   min-height: 134px;
   padding: 24px;
@@ -3298,6 +3338,20 @@ svg {
   gap: 12px;
 }
 
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.checkbox-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #344052;
+  font-weight: 600;
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -4443,6 +4497,185 @@ tr.keyboard-row-selected {
   .wizard-flow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.health-center {
+  display: grid;
+  gap: 16px;
+}
+
+.health-hero {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.health-score-strip {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.health-score-strip div {
+  min-width: 86px;
+  padding: 10px 12px;
+  border: 1px solid #d3e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.health-score-strip strong {
+  display: block;
+  font-size: 22px;
+}
+
+.health-score-strip span,
+.health-diagnostic-row span,
+.health-diagnostic-row small {
+  color: #536579;
+}
+
+.health-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.health-tab-bar button {
+  border: 1px solid #cfdbe5;
+  border-radius: 8px;
+  background: #fff;
+  padding: 9px 12px;
+  font-weight: 700;
+}
+
+.health-tab-bar button.active {
+  border-color: #f49a21;
+  background: #fff5e8;
+}
+
+.health-section {
+  display: grid;
+  gap: 14px;
+}
+
+.health-card-grid,
+.health-guidance-grid,
+.verification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.health-card,
+.health-guidance-card,
+.verification-box,
+.health-result-box {
+  border: 1px solid #d3e0e8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+
+.health-card-header,
+.verification-box,
+.runtime-path-row,
+.health-lock-row {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.health-card h3,
+.health-guidance-card h3,
+.verification-box h3 {
+  margin: 0 0 6px;
+}
+
+.health-status-pass {
+  border-left: 4px solid #138a4d;
+}
+
+.health-status-warn {
+  border-left: 4px solid #d18400;
+}
+
+.health-status-fail {
+  border-left: 4px solid #c43d32;
+}
+
+.health-status-info {
+  border-left: 4px solid #1e6a96;
+}
+
+.health-diagnostic-grid,
+.health-path-grid,
+.health-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.health-diagnostic-row,
+.runtime-path-row,
+.health-lock-row {
+  border: 1px solid #d3e0e8;
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 12px;
+}
+
+.health-diagnostic-row strong,
+.runtime-path-row p,
+.health-result-box p {
+  word-break: break-word;
+}
+
+.path-ok {
+  border-left: 4px solid #138a4d;
+}
+
+.path-warn {
+  border-left: 4px solid #d18400;
+}
+
+.health-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 16px;
+}
+
+.health-action-stack {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.health-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.health-log-details {
+  border: 1px solid #d3e0e8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.health-log-details pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.health-lock-list {
+  display: grid;
+  gap: 8px;
 }
 
 @media print {

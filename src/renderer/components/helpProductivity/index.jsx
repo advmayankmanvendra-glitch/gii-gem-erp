@@ -149,7 +149,7 @@ function shortcutGroupsForView(view) {
   return groups;
 }
 
-function productivityScopeForView(view) {
+export function productivityScopeForView(view) {
   const meta = flatNavItems.find((item) => item.key === view) || {};
   if (view === "supply_orders") return "supply_orders";
   if (meta.groupId === "inventory" || inventoryReportViews.has(view)) return "inventory";

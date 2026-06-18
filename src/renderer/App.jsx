@@ -19,6 +19,7 @@ import {
   UserPreferencesDialog,
   helpForView,
   matchesHelpQuery,
+  productivityScopeForView,
   roleAllowsAction
 } from "./components/helpProductivity/index.jsx";
 import { NavigationSidebar, RightUtilitySidebar, WorkspaceFrame } from "./components/layout/index.jsx";
@@ -29,6 +30,7 @@ import { AccountingControlReportTable, FinancialControlOverview, LockedYearContr
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
+import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
 import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryReport.jsx";
 import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
@@ -40,6 +42,44 @@ import "./styles/app.css";
 
 const fallbackApi = createBrowserFallbackApi();
 const api = resolveApi(fallbackApi);
+
+class RendererErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null, resetKey: props.resetKey };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  static getDerivedStateFromProps(props, state) {
+    if (props.resetKey !== state.resetKey) {
+      return { error: null, resetKey: props.resetKey };
+    }
+    return null;
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Renderer section failed", error, info);
+    this.props.onError?.(error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    const message = cleanErrorMessage(this.state.error);
+    return (
+      <section className="panel renderer-error-panel">
+        <div>
+          <h2>{this.props.title || "Screen could not load"}</h2>
+          <p>{message}</p>
+          <small>The ERP shell stayed open so this error can be reviewed instead of showing a blank screen.</small>
+        </div>
+        <button type="button" className="primary-btn" onClick={this.props.onReset}>Return to Dashboard</button>
+      </section>
+    );
+  }
+}
 
 function friendlyToastMessage(message) {
   const guidance = buildActionErrorGuidance(message);
@@ -264,14 +304,15 @@ function App() {
   const searchedGroups = buildVisibleNavGroups(navSearch).filter((group) => group.id !== "dashboard");
   const globalSearchResults = useMemo(() => buildGlobalSearchResults(globalSearchQuery, globalSearchData), [globalSearchQuery, globalSearchData]);
   const adminUser = isAdminUser(session);
-  const currentCompany = companies.find((company) => String(company.id) === String(currentCompanyId));
+  const safeCompanies = Array.isArray(companies) ? companies : [];
+  const currentCompany = safeCompanies.find((company) => String(company.id) === String(currentCompanyId));
   const effectiveCompanyScope = adminUser ? companyScope : "single";
   const companyContext = useMemo(() => ({
     company_id: effectiveCompanyScope === "all" ? "" : currentCompanyId,
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "health_center"].includes(effectiveView);
 
   const notify = (message, type = "success") => {
     setToast({ message: type === "error" ? friendlyToastMessage(message) : message, type });
@@ -283,10 +324,11 @@ function App() {
     if (!session) return;
     try {
       const rows = await api.listRecords("companies", { status: "active" });
-      setCompanies(rows);
+      const normalizedRows = Array.isArray(rows) ? rows : [];
+      setCompanies(normalizedRows);
       setCurrentCompanyId((current) => {
-        if (current && rows.some((company) => String(company.id) === String(current))) return current;
-        const firstCompanyId = rows[0]?.id ? String(rows[0].id) : "";
+        if (current && normalizedRows.some((company) => String(company.id) === String(current))) return current;
+        const firstCompanyId = normalizedRows[0]?.id ? String(normalizedRows[0].id) : "";
         if (firstCompanyId) window.localStorage?.setItem(COMPANY_CONTEXT_KEY, firstCompanyId);
         return firstCompanyId;
       });
@@ -319,7 +361,7 @@ function App() {
       setRefreshNonce((current) => current + 1);
       return;
     }
-    const selected = companies.find((company) => String(company.id) === String(value));
+    const selected = safeCompanies.find((company) => String(company.id) === String(value));
     setCompanyScope("single");
     setCurrentCompanyId(value);
     window.localStorage?.setItem(COMPANY_SCOPE_KEY, "single");
@@ -1036,21 +1078,28 @@ function App() {
 
   return (
     <div className={`app-shell ${compactSidebar ? "compact-shell" : ""} ${rightUtilityCollapsed ? "utility-compact-shell" : ""} ${mobileSidebarOpen ? "sidebar-open" : ""}`}>
-      <NavigationSidebar
-        compactSidebar={compactSidebar}
-        navSearch={navSearch}
-        onNavSearchChange={setNavSearch}
-        onToggleCompact={() => setCompactSidebar((current) => !current)}
-        view={view}
-        effectiveView={effectiveView}
-        searchedGroups={searchedGroups}
-        expandedGroups={expandedGroups}
-        onSetExpandedGroups={setExpandedGroups}
-        recentScreens={recentScreens}
-        favorites={favorites}
-        onNavigate={navigate}
-        onFavorite={toggleFavorite}
-      />
+      <RendererErrorBoundary
+        title="Navigation could not load"
+        resetKey={`nav-${view}-${navSearch}`}
+        onError={(error) => notify(error.message || "Navigation could not load", "error")}
+        onReset={() => { setView("dashboard"); setNavSearch(""); setExpandedGroups({}); }}
+      >
+        <NavigationSidebar
+          compactSidebar={compactSidebar}
+          navSearch={navSearch}
+          onNavSearchChange={setNavSearch}
+          onToggleCompact={() => setCompactSidebar((current) => !current)}
+          view={view}
+          effectiveView={effectiveView}
+          searchedGroups={searchedGroups}
+          expandedGroups={expandedGroups}
+          onSetExpandedGroups={setExpandedGroups}
+          recentScreens={recentScreens}
+          favorites={favorites}
+          onNavigate={navigate}
+          onFavorite={toggleFavorite}
+        />
+      </RendererErrorBoundary>
 
       <WorkspaceFrame
         breadcrumb={breadcrumb.join(" > ")}
@@ -1059,84 +1108,99 @@ function App() {
         onToggleMobileSidebar={() => setMobileSidebarOpen((current) => !current)}
       >
 
-        <div className="screen-host" key={`${effectiveView}-${refreshNonce}`}>
-          {!isDesktopRuntime && (
-            <div className="runtime-banner">
-              <strong>Browser Preview Only:</strong> this screen is not connected to the SQLite desktop database. Real saving, posting, backup, restore, uploads and accounting entries require opening GII GeM ERP in the Windows Electron desktop app.
-            </div>
-          )}
-          {trainingMode && <div className="training-banner"><strong>Training Mode:</strong> sample guidance is active. Live accounting data is not changed by the training workspace.</div>}
-          {allCompaniesReadOnly ? (
-            <AllCompaniesReadOnlyScreen
-              companies={companies}
-              onSwitchCompany={() => changeCompanyContext(currentCompanyId || companies[0]?.id || "")}
-            />
-          ) : (
-            <>
-          {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
-          {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
-          {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
-          {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
-          {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} />}
-          {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
-          {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
-          {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} />}
-          {effectiveView === "voucher_dashboard" && <BusinessVoucherScreen notify={notify} onNavigate={navigate} role={session.role} requestedVoucherKind={businessVoucherRouteKinds[view]} companyContext={companyContext} />}
-          {effectiveView === "manual_voucher" && <VoucherEntryScreen notify={notify} companyContext={companyContext} />}
-          {bankStatementViews.has(effectiveView) && <BankStatementScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
-          {voucherProposalViews.has(effectiveView) && <VoucherProposalScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
-          {["receipt_allocation_workflow", "supplier_allocation_workflow", "advance_adjustment_wizard", "supplier_advance_adjustment_wizard", "party_opening_balances", "credit_terms"].includes(effectiveView) && <AllocationWorkflowScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
-          {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
-          {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
-          {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
-          {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
-          {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
-          {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
-          {effectiveView === "help_training" && (
-            <HelpTrainingScreen
-              currentView={view}
-              trainingMode={trainingMode}
-              setTrainingMode={setTrainingMode}
-              onNavigate={navigate}
-              onShortcutHelp={() => setShortcutHelpOpen(true)}
-              helpForView={helpForView}
-              matchesHelpQuery={matchesHelpQuery}
-            />
-          )}
-            </>
-          )}
-        </div>
+        <RendererErrorBoundary
+          title="Screen could not load"
+          resetKey={`${effectiveView}-${refreshNonce}`}
+          onError={(error) => notify(error.message || "Screen could not load", "error")}
+          onReset={() => { setView("dashboard"); setRefreshNonce((current) => current + 1); }}
+        >
+          <div className="screen-host" key={`${effectiveView}-${refreshNonce}`}>
+            {!isDesktopRuntime && (
+              <div className="runtime-banner">
+                <strong>Browser Preview Only:</strong> this screen is not connected to the SQLite desktop database. Real saving, posting, backup, restore, uploads and accounting entries require opening GII GeM ERP in the Windows Electron desktop app.
+              </div>
+            )}
+            {trainingMode && <div className="training-banner"><strong>Training Mode:</strong> sample guidance is active. Live accounting data is not changed by the training workspace.</div>}
+            {allCompaniesReadOnly ? (
+              <AllCompaniesReadOnlyScreen
+                companies={safeCompanies}
+                onSwitchCompany={() => changeCompanyContext(currentCompanyId || safeCompanies[0]?.id || "")}
+              />
+            ) : (
+              <>
+            {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
+            {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
+            {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
+            {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
+            {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
+            {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} />}
+            {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
+            {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} />}
+            {effectiveView === "voucher_dashboard" && <BusinessVoucherScreen notify={notify} onNavigate={navigate} role={session.role} requestedVoucherKind={businessVoucherRouteKinds[view]} companyContext={companyContext} />}
+            {effectiveView === "manual_voucher" && <VoucherEntryScreen notify={notify} companyContext={companyContext} />}
+            {bankStatementViews.has(effectiveView) && <BankStatementScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {voucherProposalViews.has(effectiveView) && <VoucherProposalScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
+            {["receipt_allocation_workflow", "supplier_allocation_workflow", "advance_adjustment_wizard", "supplier_advance_adjustment_wizard", "party_opening_balances", "credit_terms"].includes(effectiveView) && <AllocationWorkflowScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
+            {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
+            {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
+            {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
+            {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
+            {effectiveView === "help_training" && (
+              <HelpTrainingScreen
+                currentView={view}
+                trainingMode={trainingMode}
+                setTrainingMode={setTrainingMode}
+                onNavigate={navigate}
+                onShortcutHelp={() => setShortcutHelpOpen(true)}
+                helpForView={helpForView}
+                matchesHelpQuery={matchesHelpQuery}
+              />
+            )}
+              </>
+            )}
+          </div>
+        </RendererErrorBoundary>
       </WorkspaceFrame>
-      <RightUtilitySidebar
-        collapsed={rightUtilityCollapsed}
-        onToggle={toggleRightUtilitySidebar}
-        session={session}
-        trainingMode={trainingMode}
-        onHelp={() => setContextHelpOpen(true)}
-        onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
-        onLogout={() => setSession(null)}
-        companies={companies}
-        companyContext={companyContext}
-        currentCompanyId={currentCompanyId}
-        adminUser={adminUser}
-        onCompanyChange={changeCompanyContext}
-        onCreateCompany={openCreateCompany}
-        onAlterCompany={openAlterCompany}
-        onSettings={() => navigate("settings")}
-        onShortcutPanelToggle={toggleShortcutPanel}
-        productivityPanel={(
-          <ContextShortcutPanel
-            view={effectiveView}
-            role={session.role}
-            stats={productivityStats}
-            collapsed={shortcutPanelCollapsed}
-            onToggle={toggleShortcutPanel}
-            onAction={handleProductivityAction}
-            onLearn={() => setProductivityLearnOpen(true)}
-          />
-        )}
-        extension={utilityExtension}
-      />
+      <RendererErrorBoundary
+        title="Utility panel could not load"
+        resetKey={`utility-${effectiveView}-${rightUtilityCollapsed}-${shortcutPanelCollapsed}`}
+        onError={(error) => notify(error.message || "Utility panel could not load", "error")}
+        onReset={() => { setRightUtilityCollapsed(true); setShortcutPanelCollapsed(true); }}
+      >
+        <RightUtilitySidebar
+          collapsed={rightUtilityCollapsed}
+          onToggle={toggleRightUtilitySidebar}
+          session={session}
+          trainingMode={trainingMode}
+          onHelp={() => setContextHelpOpen(true)}
+          onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
+          onLogout={() => setSession(null)}
+          companies={safeCompanies}
+          companyContext={companyContext}
+          currentCompanyId={currentCompanyId}
+          adminUser={adminUser}
+          onCompanyChange={changeCompanyContext}
+          onCreateCompany={openCreateCompany}
+          onAlterCompany={openAlterCompany}
+          onSettings={() => navigate("settings")}
+          onShortcutPanelToggle={toggleShortcutPanel}
+          productivityPanel={(
+            <ContextShortcutPanel
+              view={effectiveView}
+              role={session.role}
+              stats={productivityStats}
+              collapsed={shortcutPanelCollapsed}
+              onToggle={toggleShortcutPanel}
+              onAction={handleProductivityAction}
+              onLearn={() => setProductivityLearnOpen(true)}
+            />
+          )}
+          extension={utilityExtension}
+        />
+      </RendererErrorBoundary>
       {mobileSidebarOpen && <button className="sidebar-scrim" type="button" aria-label="Close menu" onClick={() => setMobileSidebarOpen(false)} />}
       {confirmDialog && <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />}
       {globalSearchOpen && <GlobalSearchOverlay query={globalSearchQuery} setQuery={setGlobalSearchQuery} results={globalSearchResults} onNavigate={(key) => { setGlobalSearchOpen(false); setGlobalSearchQuery(""); navigate(key); }} onClose={() => setGlobalSearchOpen(false)} />}
@@ -5474,6 +5538,18 @@ function formatNumber(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(2);
 }
 
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function splitGrossByGst(grossAmount, gstRate) {
+  const gross = roundMoney(grossAmount);
+  const rate = Number(gstRate || 0);
+  if (!rate) return { taxable: gross, gst: 0, gross };
+  const taxable = roundMoney(gross / (1 + rate / 100));
+  return { taxable, gst: roundMoney(gross - taxable), gross };
+}
+
 function displayPrimary(record, primary) {
   if (primary === "supplier_name") {
     return record.supplier_name || record.supplier_account_name || record.beneficiary_account_name || record.account_name || "Unnamed Supplier";
@@ -7237,31 +7313,49 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
   function applyInvoice(row, mode = "full") {
     const balance = Number(row.balance_outstanding || 0);
     const allocation = mode === "full" ? balance : Number(form.allocation_amount || form.amount || 0);
-    setForm((current) => ({
-      ...current,
-      linked_invoice_id: row.billing_id || row.id,
-      department_id: row.department_id || current.department_id,
-      invoice_number: row.invoice_number || current.invoice_number,
-      order_id: row.order_id || current.order_id,
-      amount: String(allocation),
-      allocation_amount: String(allocation),
-      narration: current.narration || `Against invoice ${row.invoice_number || ""}`.trim()
-    }));
+    setForm((current) => {
+      const isCreditNote = current.voucher_kind === "credit_note";
+      const noteSplit = isCreditNote ? splitGrossByGst(allocation, current.gst_rate || 18) : null;
+      return {
+        ...current,
+        linked_invoice_id: row.billing_id || row.id,
+        department_id: row.department_id || current.department_id,
+        invoice_number: row.invoice_number || current.invoice_number,
+        order_id: row.order_id || current.order_id,
+        amount: String(allocation),
+        allocation_amount: String(allocation),
+        taxable_value: isCreditNote ? String(noteSplit.taxable) : current.taxable_value,
+        gst_amount: isCreditNote ? String(noteSplit.gst) : current.gst_amount,
+        gst_rate: isCreditNote ? String(current.gst_rate || 18) : current.gst_rate,
+        reason_code: isCreditNote ? (current.reason_code || "Rate Difference") : current.reason_code,
+        reference_number: isCreditNote ? (current.reference_number || `CN-${row.invoice_number || row.billing_id || row.id}`) : current.reference_number,
+        narration: current.narration || `${isCreditNote ? "Credit note" : "Against"} invoice ${row.invoice_number || ""}`.trim()
+      };
+    });
   }
 
   function applyPurchaseBill(row, mode = "full") {
     const balance = Number(row.balance_due || row.balance_outstanding || 0);
     const allocation = mode === "full" ? balance : Number(form.allocation_amount || form.amount || 0);
-    setForm((current) => ({
-      ...current,
-      linked_purchase_id: row.procurement_id || row.id,
-      supplier_id: row.supplier_id || current.supplier_id,
-      purchase_invoice_number: row.purchase_invoice_number || current.purchase_invoice_number,
-      order_id: row.order_id || current.order_id,
-      amount: String(allocation),
-      allocation_amount: String(allocation),
-      narration: current.narration || `Against purchase bill ${row.purchase_invoice_number || ""}`.trim()
-    }));
+    setForm((current) => {
+      const isDebitNote = current.voucher_kind === "debit_note";
+      const noteSplit = isDebitNote ? splitGrossByGst(allocation, current.gst_rate || 18) : null;
+      return {
+        ...current,
+        linked_purchase_id: row.procurement_id || row.id,
+        supplier_id: row.supplier_id || current.supplier_id,
+        purchase_invoice_number: row.purchase_invoice_number || current.purchase_invoice_number,
+        order_id: row.order_id || current.order_id,
+        amount: String(allocation),
+        allocation_amount: String(allocation),
+        taxable_value: isDebitNote ? String(noteSplit.taxable) : current.taxable_value,
+        gst_amount: isDebitNote ? String(noteSplit.gst) : current.gst_amount,
+        gst_rate: isDebitNote ? String(current.gst_rate || 18) : current.gst_rate,
+        reason_code: isDebitNote ? (current.reason_code || "Rate Difference") : current.reason_code,
+        reference_number: isDebitNote ? (current.reference_number || `DN-${row.purchase_invoice_number || row.procurement_id || row.id}`) : current.reference_number,
+        narration: current.narration || `${isDebitNote ? "Debit note" : "Against"} purchase bill ${row.purchase_invoice_number || ""}`.trim()
+      };
+    });
   }
 
   function applyAutoAmount(kind) {
@@ -7677,6 +7771,7 @@ function BusinessVoucherIntelligencePanel({
   const receivableReduction = amount + tds + gstTds + other;
   const invoiceBalance = Number(selectedInvoice?.balance_outstanding || 0);
   const purchaseBalance = Number(selectedPurchaseBill?.balance_due || selectedPurchaseBill?.balance_outstanding || 0);
+  const proposedNoteAmount = Number(form.taxable_value || 0) + Number(form.gst_amount || (Number(form.taxable_value || 0) * Number(form.gst_rate || 0) / 100));
   const commissionAmount = Number(form.billing_value || 0) * Number(form.commission_percentage || 0) / 100;
   const incentiveAmount = Number(form.initial_profit || 0) * Number(form.incentive_percentage || 0) / 100;
   const orderBillingValue = orderInvoices.reduce((sum, row) => sum + Number(row.invoice_amount || 0), 0);
@@ -7715,7 +7810,7 @@ function BusinessVoucherIntelligencePanel({
                 formatCurrency(row.gst_tds_deducted || 0),
                 formatCurrency(row.balance_outstanding || 0),
                 row.days_outstanding ?? 0,
-                <button type="button" className="ghost-btn" onClick={() => onApplyInvoice(row, "full")}>Use full</button>
+                <button type="button" className="ghost-btn" onClick={() => onApplyInvoice(row, "full")}>{kind === "credit_note" ? "Use for note" : "Use full"}</button>
               ])}
             />
           </IntelligenceCard>
@@ -7727,8 +7822,10 @@ function BusinessVoucherIntelligencePanel({
               ["Remaining invoice outstanding", selectedInvoice ? formatCurrency(invoiceBalance - receivableReduction) : "-"]
             ] : [
               ["Original invoice", selectedInvoice?.invoice_number || "-"],
+              ["Earlier credit notes", selectedInvoice ? formatCurrency(selectedInvoice.credit_note_adjusted || 0) : "-"],
               ["Invoice balance", selectedInvoice ? formatCurrency(invoiceBalance) : "-"],
-              ["Proposed reduction", formatCurrency(Number(form.taxable_value || 0) + Number(form.gst_amount || (Number(form.taxable_value || 0) * Number(form.gst_rate || 0) / 100)))],
+              ["Proposed reduction", formatCurrency(proposedNoteAmount)],
+              ["Balance after note", selectedInvoice ? formatCurrency(invoiceBalance - proposedNoteAmount) : "-"],
               ["Reason", form.reason_code || "-"]
             ]} />
           </IntelligenceCard>
@@ -7748,7 +7845,7 @@ function BusinessVoucherIntelligencePanel({
                 formatCurrency(row.amount_paid || 0),
                 formatCurrency(row.balance_due || row.balance_outstanding || 0),
                 row.days_outstanding ?? 0,
-                <button type="button" className="ghost-btn" onClick={() => onApplyPurchaseBill(row, "full")}>Use full</button>
+                <button type="button" className="ghost-btn" onClick={() => onApplyPurchaseBill(row, "full")}>{kind === "debit_note" ? "Use for note" : "Use full"}</button>
               ])}
             />
           </IntelligenceCard>
@@ -7759,8 +7856,10 @@ function BusinessVoucherIntelligencePanel({
               ["Remaining payable", selectedPurchaseBill ? formatCurrency(purchaseBalance - Number(form.allocation_amount || amount || 0)) : "-"]
             ] : [
               ["Original purchase bill", selectedPurchaseBill?.purchase_invoice_number || "-"],
+              ["Earlier debit notes", selectedPurchaseBill ? formatCurrency(selectedPurchaseBill.debit_note_adjusted || 0) : "-"],
               ["Purchase bill balance", selectedPurchaseBill ? formatCurrency(purchaseBalance) : "-"],
-              ["Proposed adjustment", formatCurrency(Number(form.taxable_value || 0) + Number(form.gst_amount || (Number(form.taxable_value || 0) * Number(form.gst_rate || 0) / 100)))],
+              ["Proposed adjustment", formatCurrency(proposedNoteAmount)],
+              ["Balance after note", selectedPurchaseBill ? formatCurrency(purchaseBalance - proposedNoteAmount) : "-"],
               ["Reason", form.reason_code || "-"]
             ]} />
           </IntelligenceCard>
@@ -7955,8 +8054,26 @@ function businessVoucherValidationMessages({ form, selectedInvoice, selectedPurc
   if (kind === "credit_note" && selectedInvoice && taxable + gst > invoiceBalance && !form.authorize_excess) {
     messages.push({ severity: "error", message: "Credit note cannot exceed original invoice outstanding." });
   }
+  if (kind === "credit_note" && !form.linked_invoice_id) {
+    messages.push({ severity: "error", message: "Credit note must be linked to the original invoice being corrected." });
+  }
+  if (kind === "credit_note" && taxable <= 0) {
+    messages.push({ severity: "error", message: "Credit note taxable value must be greater than zero." });
+  }
   if (kind === "debit_note" && selectedPurchaseBill && taxable + gst > purchaseBalance && !form.authorize_excess) {
     messages.push({ severity: "error", message: "Debit note cannot exceed original purchase bill balance." });
+  }
+  if (kind === "debit_note" && !form.linked_purchase_id) {
+    messages.push({ severity: "error", message: "Debit note must be linked to the original supplier purchase bill being corrected." });
+  }
+  if (kind === "debit_note" && taxable <= 0) {
+    messages.push({ severity: "error", message: "Debit note taxable value must be greater than zero." });
+  }
+  if (["credit_note", "debit_note"].includes(kind) && !form.reason_code) {
+    messages.push({ severity: "error", message: "Select a correction reason before saving the note." });
+  }
+  if (["credit_note", "debit_note"].includes(kind) && (form.reason_code === "Other" || form.authorize_excess) && !String(form.narration || "").trim()) {
+    messages.push({ severity: "error", message: "Enter narration explaining the correction reason." });
   }
   if (kind === "expense" && form.paid_status === "paid" && !form.bank_account_id) {
     messages.push({ severity: "error", message: "Paid expense requires a bank or cash account." });
@@ -8961,12 +9078,44 @@ function inventoryTableConfig(view, data = {}) {
   return configs[view] || configs.stock_summary;
 }
 
+function buildAllocationCorrectionForm(kind, row = {}) {
+  return {
+    action: "unallocate",
+    target_id: kind === "receipt" ? row.billing_id || "" : row.procurement_id || "",
+    allocated_amount: row.allocated_amount || "",
+    tds_deducted: row.tds_deducted || 0,
+    gst_tds_deducted: row.gst_tds_deducted || 0,
+    other_deductions: row.other_deductions || 0,
+    allow_excess: Number(row.allow_excess || 0) === 1,
+    reason: ""
+  };
+}
+
+function allocationTargetOptions(kind, data = {}) {
+  if (kind === "receipt") {
+    return (data.billWiseReceivables || [])
+      .filter((row) => row.billing_id)
+      .map((row) => [
+        row.billing_id,
+        `${row.invoice_number || `Invoice ${row.billing_id}`} | ${row.department_name || "Department"} | Balance ${formatCurrency(Number(row.balance_outstanding || 0))}`
+      ]);
+  }
+  return (data.billWisePayables || [])
+    .filter((row) => row.procurement_id)
+    .map((row) => [
+      row.procurement_id,
+      `${row.purchase_invoice_number || `Purchase ${row.procurement_id}`} | ${row.supplier_name || "Supplier"} | Balance ${formatCurrency(Number(row.balance_due || 0))}`
+    ]);
+}
+
 function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
   const today = new Date().toISOString().slice(0, 10);
   const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: "2026-01-01", date_to: today });
   const [data, setData] = useState(null);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [drilldown, setDrilldown] = useState(null);
+  const [allocationCorrection, setAllocationCorrection] = useState(null);
+  const [allocationCorrectionForm, setAllocationCorrectionForm] = useState(buildAllocationCorrectionForm("receipt"));
   const canPostControls = roleAllowsAction(role, "voucher");
   const canApproveControls = roleAllowsAction(role, "approve");
   const canManagePeriods = roleAllowsAction(role, "approve");
@@ -9079,27 +9228,69 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
     }
   }
 
-  async function handleAllocationAction(kind, row) {
+  function handleAllocationAction(kind, row) {
+    setAllocationCorrection({ kind, row });
+    setAllocationCorrectionForm(buildAllocationCorrectionForm(kind, row));
+  }
+
+  async function submitAllocationCorrection(event) {
+    event.preventDefault();
+    if (!allocationCorrection) return;
+    const { kind, row } = allocationCorrection;
+    const reason = allocationCorrectionForm.reason.trim();
     const label = kind === "receipt" ? row.receipt_voucher : row.payment_voucher;
+    if (!reason) {
+      notify("Correction reason is required before changing an allocation", "error");
+      return;
+    }
+    if (allocationCorrectionForm.action === "reallocate" && !allocationCorrectionForm.target_id) {
+      notify(kind === "receipt" ? "Select the invoice to reallocate this receipt to" : "Select the purchase bill to reallocate this supplier payment to", "error");
+      return;
+    }
     const confirmed = await confirmAction({
       mode: "danger",
-      title: "Unallocate Entry",
-      message: `Unallocate ${label}? This may affect receivable/payable reconciliation reports.`,
-      confirmLabel: "Yes, Proceed",
+      title: allocationCorrectionForm.action === "reallocate" ? "Reallocate Entry" : "Unallocate Entry",
+      message: allocationCorrectionForm.action === "reallocate"
+        ? `Reallocate ${label}? This will reverse the current allocation and create a new controlled allocation.`
+        : `Unallocate ${label}? This may affect receivable/payable reconciliation reports.`,
+      confirmLabel: allocationCorrectionForm.action === "reallocate" ? "Yes, Reallocate" : "Yes, Unallocate",
       cancelLabel: "No, Cancel",
-      requireReason: true,
-      reasonLabel: "Reason for unallocation/reallocation",
       moduleName: kind === "receipt" ? "payment_allocations" : "supplier_payment_allocations",
       recordId: row.id
     });
     if (!confirmed.confirmed) return;
     try {
-      if (kind === "receipt") {
-        await api.unallocateReceiptAllocation(row.id, confirmed.reason);
+      if (allocationCorrectionForm.action === "reallocate") {
+        if (kind === "receipt") {
+          await api.reallocateReceiptAllocation(row.id, {
+            billing_id: allocationCorrectionForm.target_id,
+            allocated_amount: Number(allocationCorrectionForm.allocated_amount || 0),
+            tds_deducted: Number(allocationCorrectionForm.tds_deducted || 0),
+            gst_tds_deducted: Number(allocationCorrectionForm.gst_tds_deducted || 0),
+            other_deductions: Number(allocationCorrectionForm.other_deductions || 0),
+            allow_excess: allocationCorrectionForm.allow_excess,
+            remarks: reason,
+            reason
+          });
+        } else {
+          await api.reallocateSupplierPaymentAllocation(row.id, {
+            procurement_id: allocationCorrectionForm.target_id,
+            allocated_amount: Number(allocationCorrectionForm.allocated_amount || 0),
+            allow_excess: allocationCorrectionForm.allow_excess,
+            remarks: reason,
+            reason
+          });
+        }
+        notify("Allocation reallocated and audit trail updated");
       } else {
-        await api.unallocateSupplierPaymentAllocation(row.id, confirmed.reason);
+        if (kind === "receipt") {
+          await api.unallocateReceiptAllocation(row.id, reason);
+        } else {
+          await api.unallocateSupplierPaymentAllocation(row.id, reason);
+        }
+        notify("Allocation removed and audit trail updated");
       }
-      notify("Allocation removed and audit trail updated");
+      setAllocationCorrection(null);
       load();
     } catch (error) {
       notify(error.message, "error");
@@ -9486,6 +9677,94 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
           </table>
         </div>
       ) : <EmptyState title="No accounting data" note="Post vouchers or run seed data to populate this view." />}
+      {allocationCorrection && (
+        <div className="voucher-detail-panel">
+          <div className="panel-head">
+            <div>
+              <h3>{allocationCorrection.kind === "receipt" ? "Receipt Allocation Correction" : "Supplier Payment Allocation Correction"}</h3>
+              <p>Use this controlled workflow to unallocate or reallocate without editing posted accounting entries directly.</p>
+            </div>
+            <button className="ghost-btn" type="button" onClick={() => setAllocationCorrection(null)}>Close</button>
+          </div>
+          <div className="workflow-note">
+            <strong>{allocationCorrection.kind === "receipt" ? allocationCorrection.row.receipt_voucher : allocationCorrection.row.payment_voucher}</strong>
+            <span>
+              Current allocation: {formatCurrency(Number(allocationCorrection.row.allocated_amount || 0))}
+              {allocationCorrection.kind === "receipt" ? ` | TDS ${formatCurrency(Number(allocationCorrection.row.tds_deducted || 0))} | GST TDS ${formatCurrency(Number(allocationCorrection.row.gst_tds_deducted || 0))}` : ""}
+            </span>
+            <small>Reason is mandatory and the action is written to allocation audit.</small>
+          </div>
+          <form className="form-grid" onSubmit={submitAllocationCorrection}>
+            <SelectBox
+              label="Correction Action"
+              value={allocationCorrectionForm.action}
+              onChange={(action) => setAllocationCorrectionForm((current) => ({ ...current, action }))}
+              options={[
+                ["unallocate", "Unallocate only"],
+                ["reallocate", "Reallocate to another invoice / bill"]
+              ]}
+            />
+            {allocationCorrectionForm.action === "reallocate" && (
+              <>
+                <SelectBox
+                  label={allocationCorrection.kind === "receipt" ? "Target Invoice" : "Target Purchase Bill"}
+                  value={allocationCorrectionForm.target_id}
+                  onChange={(target_id) => setAllocationCorrectionForm((current) => ({ ...current, target_id }))}
+                  options={allocationTargetOptions(allocationCorrection.kind, data || {})}
+                />
+                <Field
+                  label="Allocated Amount"
+                  type="number"
+                  value={allocationCorrectionForm.allocated_amount}
+                  onChange={(allocated_amount) => setAllocationCorrectionForm((current) => ({ ...current, allocated_amount }))}
+                />
+                {allocationCorrection.kind === "receipt" && (
+                  <>
+                    <Field
+                      label="TDS Deducted"
+                      type="number"
+                      value={allocationCorrectionForm.tds_deducted}
+                      onChange={(tds_deducted) => setAllocationCorrectionForm((current) => ({ ...current, tds_deducted }))}
+                    />
+                    <Field
+                      label="GST TDS Deducted"
+                      type="number"
+                      value={allocationCorrectionForm.gst_tds_deducted}
+                      onChange={(gst_tds_deducted) => setAllocationCorrectionForm((current) => ({ ...current, gst_tds_deducted }))}
+                    />
+                    <Field
+                      label="Other Deductions"
+                      type="number"
+                      value={allocationCorrectionForm.other_deductions}
+                      onChange={(other_deductions) => setAllocationCorrectionForm((current) => ({ ...current, other_deductions }))}
+                    />
+                  </>
+                )}
+                <label className="checkbox-line">
+                  <input
+                    type="checkbox"
+                    checked={allocationCorrectionForm.allow_excess}
+                    onChange={(event) => setAllocationCorrectionForm((current) => ({ ...current, allow_excess: event.target.checked }))}
+                  />
+                  Allow excess allocation after review
+                </label>
+              </>
+            )}
+            <Field
+              label="Correction Reason"
+              type="textarea"
+              value={allocationCorrectionForm.reason}
+              onChange={(reason) => setAllocationCorrectionForm((current) => ({ ...current, reason }))}
+            />
+            <div className="form-actions">
+              <button className="ghost-btn" type="button" onClick={() => setAllocationCorrection(null)}>Cancel</button>
+              <button className="primary-btn" type="submit">
+                {allocationCorrectionForm.action === "reallocate" ? "Confirm Reallocation" : "Confirm Unallocation"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {view === "day_book" && selectedVoucher && (
         <div className="voucher-detail-panel">
           <div>
@@ -9997,6 +10276,8 @@ function accountingTableConfig(view, data = {}) {
         { key: "balance_remaining", label: "Balance Remaining", type: "money" },
         { key: "order_number", label: "Order" },
         { key: "allocation_status", label: "Status" },
+        { key: "change_reason", label: "Correction Reason" },
+        { key: "reallocated_from_id", label: "Reallocated From" },
         { key: "actions", label: "Actions", type: "allocation_actions" }
       ]
     };
@@ -10015,6 +10296,8 @@ function accountingTableConfig(view, data = {}) {
         { key: "balance_remaining", label: "Balance Remaining", type: "money" },
         { key: "order_number", label: "Order" },
         { key: "allocation_status", label: "Status" },
+        { key: "change_reason", label: "Correction Reason" },
+        { key: "reallocated_from_id", label: "Reallocated From" },
         { key: "actions", label: "Actions", type: "allocation_actions" }
       ]
     };
@@ -12112,8 +12395,10 @@ function createBrowserFallbackApi() {
     createOpeningBalance: async (payload) => ({ id: Date.now(), ...payload }),
     createReceiptAllocation: async (payload) => ({ id: Date.now(), ...payload, allocation_status: "Partially Allocated" }),
     unallocateReceiptAllocation: async (id, reason) => ({ id, reason, allocation_status: "Reallocated" }),
+    reallocateReceiptAllocation: async (id, payload) => ({ id: Date.now(), ...payload, reallocated_from_id: id, allocation_status: "Partially Allocated" }),
     createSupplierPaymentAllocation: async (payload) => ({ id: Date.now(), ...payload, allocation_status: "Partially Allocated" }),
     unallocateSupplierPaymentAllocation: async (id, reason) => ({ id, reason, allocation_status: "Reallocated" }),
+    reallocateSupplierPaymentAllocation: async (id, payload) => ({ id: Date.now(), ...payload, reallocated_from_id: id, allocation_status: "Partially Allocated" }),
     createAdvanceReceipt: async (payload) => ({ id: Date.now(), ...payload, status: "Open" }),
     createSupplierAdvance: async (payload) => ({ id: Date.now(), ...payload, status: "Open" }),
     adjustAdvanceReceipt: async (payload) => ({ id: Date.now(), ...payload, adjustment_type: "receipt", status: "Active" }),
@@ -12154,6 +12439,43 @@ function createBrowserFallbackApi() {
       write(parsed.database || {});
       return true;
     },
+    getHealthDiagnostics: async (context = {}) => ({
+      generatedAt: new Date().toISOString(),
+      app: { name: "GII GeM ERP", version: "browser-preview", packaged: false, userData: "Browser preview only" },
+      runtime: { platform: "browser", arch: "n/a", node: "n/a", electron: "n/a", chrome: navigator.userAgent },
+      context,
+      paths: {
+        runtimeRoot: "Browser preview only",
+        database: { path: "Browser localStorage preview", exists: true },
+        folders: ["database", "backups", "documents", "exports", "logs"].map((key) => ({
+          key,
+          label: key,
+          path: "Available in Windows desktop app only",
+          exists: false,
+          writable: false
+        }))
+      },
+      logs: { rendererTail: "", bootErrorTail: "", mainTail: "" },
+      database: { connected: true, tables: Object.keys(read()) }
+    }),
+    runHealthChecks: async (context = {}) => ({
+      generatedAt: new Date().toISOString(),
+      summary: { pass: 2, warn: 2, fail: 0 },
+      checks: [
+        { id: "browser_preview", label: "Browser Preview", status: "warn", severity: "warning", details: "This is the browser fallback runtime, not the SQLite desktop runtime.", recommendation: "Open the Windows Electron app for final diagnostics.", meta: context },
+        { id: "database_preview", label: "Preview Store", status: "pass", severity: "normal", details: "Browser preview localStorage responded.", recommendation: "No action for preview mode." },
+        { id: "accounting_preview", label: "Accounting Verification", status: "warn", severity: "warning", details: "Accounting verification is terminal-controlled and desktop-backed.", recommendation: "Run npm.cmd run verify:accounting in the project folder." },
+        { id: "preload_contract_preview", label: "Health API Contract", status: "pass", severity: "normal", details: "Health fallback API methods are available.", recommendation: "No action required." }
+      ]
+    }),
+    exportSupportBundle: async (context = {}) => {
+      const payload = { createdAt: new Date().toISOString(), context, mode: "browser-preview" };
+      const content = JSON.stringify(payload, null, 2);
+      const fileName = `gii-gem-erp-browser-support-bundle-${Date.now()}.json`;
+      downloadText(fileName, content);
+      return { success: true, fileName, filePath: "Downloaded from browser preview", createdAt: payload.createdAt, size: content.length };
+    },
+    openHealthFolder: async () => ({ success: false, message: "Runtime folders are available in the Windows desktop app only." }),
     printHtml: async () => ({ success: false, failureReason: "Open the Windows desktop app for controlled ERP printing." }),
     savePrintPdf: async () => ({ success: false, failureReason: "Open the Windows desktop app for PDF export." })
   };
@@ -12272,4 +12594,24 @@ function calculatePreviewProfit(db) {
   });
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+const rootElement = document.getElementById("root");
+
+if (rootElement) {
+  rootElement.innerHTML = `
+    <div class="boot-fallback">
+      <strong>Loading GII GeM ERP...</strong>
+      <span>If this stays visible, the renderer did not finish starting.</span>
+    </div>
+  `;
+
+  createRoot(rootElement).render(
+    <RendererErrorBoundary
+      title="ERP could not load"
+      resetKey="root"
+      onError={(error) => console.error("ERP root failed", error)}
+      onReset={() => window.location.reload()}
+    >
+      <App />
+    </RendererErrorBoundary>
+  );
+}

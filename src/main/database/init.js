@@ -5017,6 +5017,22 @@ export function postGuidedVoucher(db, guidedVoucherId, userId = null) {
       WHERE id = ?
     `).run(voucher.id, userId, row.id);
     auditLog(db, { company_id: row.company_id, user_id: userId, action: "guided_voucher_posted", table_name: "guided_vouchers", record_id: row.id, new_value: JSON.stringify({ voucher_number: voucher.voucher_number }) });
+    if (["credit_note", "debit_note"].includes(String(row.voucher_kind || "").toLowerCase())) {
+      auditLog(db, {
+        company_id: row.company_id,
+        user_id: userId,
+        action: `${row.voucher_kind}_operational_correction_posted`,
+        table_name: "guided_vouchers",
+        record_id: row.id,
+        new_value: JSON.stringify({
+          voucher_number: voucher.voucher_number,
+          linked_invoice_id: payload.linked_invoice_id || null,
+          linked_purchase_id: payload.linked_purchase_id || null,
+          reason_code: payload.reason_code || null,
+          reference_number: payload.reference_number || null
+        })
+      });
+    }
     return voucher;
   });
   return tx();
@@ -6077,9 +6093,9 @@ export function createReceiptAllocation(db, payload) {
   if (allocated + tds + gstTds + other > outstanding && !payload.allow_excess) throw new Error("Allocation cannot exceed invoice outstanding");
   const status = payload.allow_excess ? "Excess" : available === allocated ? "Fully Allocated" : "Partially Allocated";
   const result = db.prepare(`
-    INSERT INTO payment_allocations (company_id, payment_id, billing_id, order_id, allocated_amount, tds_deducted, gst_tds_deducted, other_deductions, remarks, allocation_status, allow_excess)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(payment.company_id, payment.id, invoice.id, invoice.order_id, allocated, tds, gstTds, other, payload.remarks || "", status, payload.allow_excess ? 1 : 0);
+    INSERT INTO payment_allocations (company_id, payment_id, billing_id, order_id, allocated_amount, tds_deducted, gst_tds_deducted, other_deductions, remarks, allocation_status, allow_excess, reallocated_from_id, change_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(payment.company_id, payment.id, invoice.id, invoice.order_id, allocated, tds, gstTds, other, payload.remarks || "", status, payload.allow_excess ? 1 : 0, payload.reallocated_from_id || null, payload.change_reason || payload.reason || null);
   refreshReceivable(db, invoice.id);
   allocationAudit(db, payment.company_id, "receipt", result.lastInsertRowid, "create", null, payload, payload.remarks || "");
   return db.prepare("SELECT * FROM payment_allocations WHERE id = ?").get(result.lastInsertRowid);
@@ -6099,8 +6115,10 @@ export function reallocateReceiptAllocation(db, allocationId, payload) {
   const old = db.prepare("SELECT * FROM payment_allocations WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(allocationId);
   if (!old) throw new Error("Allocation not found");
   if (!payload.reason) throw new Error("Reason is required for reallocation");
-  unallocateReceiptAllocation(db, allocationId, payload.reason);
-  return createReceiptAllocation(db, { ...payload, payment_id: old.payment_id, reallocated_from_id: allocationId });
+  return db.transaction(() => {
+    unallocateReceiptAllocation(db, allocationId, payload.reason);
+    return createReceiptAllocation(db, { ...payload, payment_id: old.payment_id, reallocated_from_id: allocationId });
+  })();
 }
 
 export function createSupplierPaymentAllocation(db, payload) {
@@ -6116,9 +6134,9 @@ export function createSupplierPaymentAllocation(db, payload) {
   if (amount > outstanding && !payload.allow_excess) throw new Error("Allocation cannot exceed purchase bill outstanding");
   const status = payload.allow_excess ? "Excess" : amount === available ? "Fully Allocated" : "Partially Allocated";
   const result = db.prepare(`
-    INSERT INTO supplier_payment_allocations (company_id, supplier_payment_id, procurement_id, allocated_amount, remarks, allocation_status, allow_excess)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(payment.company_id, payment.id, procurement.id, amount, payload.remarks || "", status, payload.allow_excess ? 1 : 0);
+    INSERT INTO supplier_payment_allocations (company_id, supplier_payment_id, procurement_id, allocated_amount, remarks, allocation_status, allow_excess, reallocated_from_id, change_reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(payment.company_id, payment.id, procurement.id, amount, payload.remarks || "", status, payload.allow_excess ? 1 : 0, payload.reallocated_from_id || null, payload.change_reason || payload.reason || null);
   allocationAudit(db, payment.company_id, "supplier_payment", result.lastInsertRowid, "create", null, payload, payload.remarks || "");
   return db.prepare("SELECT * FROM supplier_payment_allocations WHERE id = ?").get(result.lastInsertRowid);
 }
@@ -6130,6 +6148,16 @@ export function unallocateSupplierPaymentAllocation(db, allocationId, reason = "
   db.prepare("UPDATE supplier_payment_allocations SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reallocated', change_reason = ? WHERE id = ?").run(reason, allocationId);
   allocationAudit(db, row.company_id, "supplier_payment", allocationId, "unallocate", row, null, reason);
   return true;
+}
+
+export function reallocateSupplierPaymentAllocation(db, allocationId, payload) {
+  const old = db.prepare("SELECT * FROM supplier_payment_allocations WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(allocationId);
+  if (!old) throw new Error("Supplier allocation not found");
+  if (!payload.reason) throw new Error("Reason is required for supplier reallocation");
+  return db.transaction(() => {
+    unallocateSupplierPaymentAllocation(db, allocationId, payload.reason);
+    return createSupplierPaymentAllocation(db, { ...payload, supplier_payment_id: old.supplier_payment_id, reallocated_from_id: allocationId });
+  })();
 }
 
 export function createAdvanceReceipt(db, payload) {
@@ -8153,8 +8181,55 @@ function ageBucket(days) {
   return "Above 90 Days";
 }
 
+function round2(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function parseGuidedVoucherPayload(payloadJson) {
+  try {
+    return JSON.parse(payloadJson || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function postedGuidedNoteAdjustments(db, companyId, noteKind, linkField) {
+  const rows = db.prepare(`
+    SELECT gv.id guided_voucher_id, gv.payload_json, gv.voucher_kind, gv.voucher_date,
+      v.id voucher_id, v.voucher_number, v.voucher_date posted_voucher_date
+    FROM guided_vouchers gv
+    JOIN vouchers v ON v.source_module = 'guided_vouchers' AND v.source_id = gv.id AND COALESCE(v.is_deleted, 0) = 0
+    WHERE gv.company_id = ?
+      AND gv.voucher_kind = ?
+      AND gv.status = 'Posted'
+      AND COALESCE(gv.is_deleted, 0) = 0
+  `).all(companyId, noteKind);
+  return rows.reduce((map, row) => {
+    const payload = parseGuidedVoucherPayload(row.payload_json);
+    const linkedId = Number(payload[linkField] || 0);
+    if (!linkedId) return map;
+    const taxable = Number(payload.taxable_value || 0);
+    const gst = Number(payload.gst_amount || (taxable * Number(payload.gst_rate || 0) / 100));
+    const amount = round2(taxable + gst);
+    if (amount <= 0) return map;
+    const existing = map.get(linkedId) || { amount: 0, vouchers: [] };
+    existing.amount = round2(existing.amount + amount);
+    existing.vouchers.push({
+      guided_voucher_id: row.guided_voucher_id,
+      voucher_id: row.voucher_id,
+      voucher_number: row.voucher_number,
+      voucher_date: row.posted_voucher_date || row.voucher_date,
+      reason_code: payload.reason_code || "",
+      reference_number: payload.reference_number || ""
+    });
+    map.set(linkedId, existing);
+    return map;
+  }, new Map());
+}
+
 function billWiseReceivableReport(db, companyId) {
   const today = new Date().toISOString().slice(0, 10);
+  const creditNotesByInvoice = postedGuidedNoteAdjustments(db, companyId, "credit_note", "linked_invoice_id");
   return db.prepare(`
     SELECT r.id, r.department_id, gd.department_name, so.order_number, r.billing_id, r.invoice_number, r.invoice_date,
       r.invoice_amount, r.amount_received, r.tds_deducted, r.gst_tds_deducted, r.other_deductions,
@@ -8168,23 +8243,30 @@ function billWiseReceivableReport(db, companyId) {
     ORDER BY r.invoice_date DESC, r.id DESC
   `).all(today, companyId).map((row) => {
     const settled = Number(row.amount_received || 0) + Number(row.tds_deducted || 0) + Number(row.gst_tds_deducted || 0) + Number(row.other_deductions || 0);
+    const noteAdjustment = creditNotesByInvoice.get(Number(row.billing_id || 0)) || { amount: 0, vouchers: [] };
+    const correctedBalance = round2(Number(row.balance_outstanding || 0) - Number(noteAdjustment.amount || 0));
+    const correctedSettled = round2(settled + Number(noteAdjustment.amount || 0));
     const dueDate = creditDueDate(db, companyId, "department", row.department_id, row.invoice_date, row.explicit_due_date);
     const days = Math.max(0, daysBetween(dueDate, today));
     return {
       ...row,
       due_date: dueDate,
       net_payment_received: row.amount_received,
-      settled_amount: settled,
+      settled_amount: correctedSettled,
+      credit_note_adjusted: noteAdjustment.amount,
+      credit_note_vouchers: noteAdjustment.vouchers,
+      balance_outstanding: correctedBalance,
       days_outstanding: days,
       age_bucket: ageBucket(days),
-      status: billStatus(row.balance_outstanding, settled, row.invoice_amount, days),
-      allocation_status: row.allocation_status || allocationStatus(settled, row.invoice_amount)
+      status: billStatus(correctedBalance, correctedSettled, row.invoice_amount, days),
+      allocation_status: row.allocation_status || allocationStatus(correctedSettled, row.invoice_amount)
     };
   });
 }
 
 function billWisePayableReport(db, companyId) {
   const today = new Date().toISOString().slice(0, 10);
+  const debitNotesByPurchase = postedGuidedNoteAdjustments(db, companyId, "debit_note", "linked_purchase_id");
   return db.prepare(`
     SELECT s.supplier_name, s.id supplier_id, p.id procurement_id, p.purchase_invoice_number, p.purchase_date invoice_date,
       so.order_number,
@@ -8202,28 +8284,33 @@ function billWisePayableReport(db, companyId) {
     ORDER BY p.purchase_date DESC, p.id DESC
   `).all(today, companyId).map((row) => {
     const paid = Number(row.amount_paid || 0) + Number(row.advance_adjusted || 0);
-    const balance = Number(row.invoice_amount || 0) - paid;
+    const noteAdjustment = debitNotesByPurchase.get(Number(row.procurement_id || 0)) || { amount: 0, vouchers: [] };
+    const adjustedPaid = round2(paid + Number(noteAdjustment.amount || 0));
+    const balance = round2(Number(row.invoice_amount || 0) - adjustedPaid);
     const dueDate = creditDueDate(db, companyId, "supplier", row.supplier_id, row.invoice_date, row.explicit_due_date);
     const days = Math.max(0, daysBetween(dueDate, today));
     return {
       ...row,
       due_date: dueDate,
+      debit_note_adjusted: noteAdjustment.amount,
+      debit_note_vouchers: noteAdjustment.vouchers,
+      settled_amount: adjustedPaid,
       balance_due: balance,
       days_outstanding: days,
       age_bucket: ageBucket(days),
-      status: billStatus(balance, paid, row.invoice_amount, days),
-      allocation_status: allocationStatus(paid, row.invoice_amount)
+      status: billStatus(balance, adjustedPaid, row.invoice_amount, days),
+      allocation_status: allocationStatus(adjustedPaid, row.invoice_amount)
     };
   });
 }
 
 function paymentAllocationReport(db, companyId) {
   return db.prepare(`
-    SELECT pa.id, p.id payment_id, COALESCE(p.utr_number, 'Receipt ' || p.id) receipt_voucher,
+    SELECT pa.id, p.id payment_id, pa.billing_id, COALESCE(p.utr_number, 'Receipt ' || p.id) receipt_voucher,
       p.payment_date, p.payment_amount, i.invoice_number, r.invoice_amount,
       pa.allocated_amount, pa.tds_deducted, pa.gst_tds_deducted, pa.other_deductions,
       r.balance_outstanding balance_remaining, gd.department_name, so.order_number, pa.remarks,
-      pa.allocation_status
+      pa.allocation_status, pa.allow_excess, pa.reallocated_from_id, pa.change_reason
     FROM payment_allocations pa
     JOIN payments p ON p.id = pa.payment_id
     JOIN invoices i ON i.id = pa.billing_id
@@ -8237,14 +8324,14 @@ function paymentAllocationReport(db, companyId) {
 
 function supplierPaymentAllocationReport(db, companyId) {
   return db.prepare(`
-    SELECT spa.id, sp.id supplier_payment_id, COALESCE(sp.utr_number, 'Supplier Payment ' || sp.id) payment_voucher,
+    SELECT spa.id, sp.id supplier_payment_id, spa.procurement_id, COALESCE(sp.utr_number, 'Supplier Payment ' || sp.id) payment_voucher,
       sp.payment_date, sp.amount_paid payment_amount, s.supplier_name, p.purchase_invoice_number,
       COALESCE(SUM(pi.gross_value), p.purchase_value + p.purchase_gst) purchase_amount,
       spa.allocated_amount,
       COALESCE(SUM(pi.gross_value), p.purchase_value + p.purchase_gst)
         - COALESCE((SELECT SUM(spa2.allocated_amount) FROM supplier_payment_allocations spa2 WHERE spa2.procurement_id = p.id AND COALESCE(spa2.is_deleted, 0) = 0), 0)
         - COALESCE((SELECT SUM(aa.adjusted_amount) FROM advance_adjustments aa WHERE aa.adjustment_type = 'supplier' AND aa.procurement_id = p.id AND COALESCE(aa.is_deleted, 0) = 0 AND aa.status = 'Active'), 0) balance_remaining,
-      so.order_number, spa.remarks, spa.allocation_status
+      so.order_number, spa.remarks, spa.allocation_status, spa.allow_excess, spa.reallocated_from_id, spa.change_reason
     FROM supplier_payment_allocations spa
     JOIN supplier_payments sp ON sp.id = spa.supplier_payment_id
     JOIN procurements p ON p.id = spa.procurement_id
