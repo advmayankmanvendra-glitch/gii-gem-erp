@@ -3,6 +3,7 @@ import { DiagnosticRow, RuntimePathStatus } from "../../components/health/index.
 
 function RuntimeDiagnosticsPanel({ diagnostics }) {
   const folders = diagnostics?.paths?.folders || [];
+  const masterDataTools = diagnostics?.masterDataTools;
   return (
     <section className="panel health-section">
       <div className="section-heading">
@@ -26,6 +27,18 @@ function RuntimeDiagnosticsPanel({ diagnostics }) {
           <RuntimePathStatus key={folder.key} pathInfo={folder} />
         ))}
       </div>
+      {masterDataTools && (
+        <>
+          <h3 className="health-section-subtitle">Master Data Tools</h3>
+          <div className="health-diagnostic-grid">
+            <DiagnosticRow label="Average Completeness" value={`${masterDataTools.averageCompleteness || 0}%`} />
+            <DiagnosticRow label="Rejected Import Rows" value={masterDataTools.lastRejectedImportRows || 0} />
+            <DiagnosticRow label="Last Template Download" value={masterDataTools.lastTemplateDownload?.created_at || "Not recorded"} />
+            <DiagnosticRow label="Last Master Export" value={masterDataTools.lastMasterExport?.created_at || "Not recorded"} />
+            <DiagnosticRow label="Last Master Update" value={masterDataTools.lastMasterUpdate?.created_at || "Not recorded"} />
+          </div>
+        </>
+      )}
     </section>
   );
 }

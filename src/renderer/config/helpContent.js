@@ -147,7 +147,7 @@ const trainingSample = {
   procurement: 700000,
   billing: 1000000,
   gstRate: 18,
-  expenses: "Authorization 5%, L1 2%, Commission 10%, Transport 25000, Installation 15000",
+  expenses: "Authorization 5%, L1 2%, Work Incentive 10%, Transport 25000, Installation 15000",
   receipt: "Advance 200000, second receipt 300000, final receipt with TDS/GST TDS review"
 };
 

@@ -107,7 +107,7 @@ const masterImportTemplateDefinitions = [
     required: ["expense_head_name", "default_calculation_method", "status"],
     duplicateKeys: ["expense_head_name"],
     sample: ["Authorization", "percentage_gross", "5", "Order Expense", "active"],
-    guidance: "Use for authorization, L1, commission, transport and similar dynamic expense heads."
+    guidance: "Use for authorization, L1, work incentive, transport and similar dynamic expense heads."
   },
   {
     id: "bank_master",

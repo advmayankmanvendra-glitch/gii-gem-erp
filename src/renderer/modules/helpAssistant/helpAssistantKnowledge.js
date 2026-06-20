@@ -32,6 +32,7 @@ function buildHelpAssistantKnowledge(currentHelp = null) {
       title: titleMeta[0] || item.label,
       summary: titleMeta[1] || `${item.label} is available under ${item.group}.`,
       menuPath: `Dashboard > ${item.group} > ${item.label}`,
+      viewKey: item.key,
       steps: [`Open ${item.group} from the left sidebar.`, `Select ${item.label}.`, "Use the screen filters, entry form, or report actions shown there."],
       commonMistakes: ["Check Current Company before entering or reviewing company-specific data.", "Use posted reports for accounting conclusions."],
       relatedTopics: [item.group, item.label, item.aliases].filter(Boolean),

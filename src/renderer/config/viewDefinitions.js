@@ -175,7 +175,7 @@ const transactionViews = {
   },
   expense_entries: {
     title: "Order Expenses",
-    description: "Create dynamic order expense ledger entries for authorization, L1, commission and fixed costs.",
+    description: "Create dynamic order expense ledger entries for authorization, L1, work incentive and fixed costs.",
     primary: "remarks",
     fields: [
       ["order_id", "Supply Order", "order"],

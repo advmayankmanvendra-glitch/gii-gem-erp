@@ -29,6 +29,7 @@ import { ConfirmDialog, GlobalSearchOverlay, PrintPreviewDialog } from "./compon
 import { OperationsAttentionQueueTable } from "./components/operations/index.jsx";
 import { InventoryReadOnlyReportPanel } from "./components/inventoryReports/index.jsx";
 import { AccountingControlReportTable, FinancialControlOverview, LockedYearControlNotice } from "./components/accountingControls/index.jsx";
+import { StockAdjustmentControlPanel, validateStockAdjustmentDraft } from "./features/inventory/StockAdjustmentControlPanel.jsx";
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
@@ -36,6 +37,7 @@ import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
 import { HelpAssistant } from "./modules/helpAssistant/HelpAssistant.jsx";
 import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryReport.jsx";
+import { MasterDataToolsScreen } from "./screens/MasterDataTools/index.js";
 import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
 import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
 import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "./screens/ReadOnlyReportFamilyScreen.jsx";
@@ -281,7 +283,7 @@ function App() {
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center", "safe_mode"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center", "master_data_tools", "safe_mode"].includes(effectiveView);
   const rendererCrashContext = useMemo(() => ({
     view: effectiveView,
     routeView: view,
@@ -1097,6 +1099,8 @@ function App() {
         breadcrumb={breadcrumb.join(" > ")}
         title={currentTitle[0]}
         subtitle={currentTitle[1]}
+        canGoBack={effectiveView !== "dashboard"}
+        onBack={exitCurrentScreen}
         onToggleMobileSidebar={() => setMobileSidebarOpen((current) => !current)}
       >
 
@@ -1128,7 +1132,7 @@ function App() {
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
-            {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} />}
+            {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
             {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
             {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} />}
@@ -1140,6 +1144,7 @@ function App() {
             {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
             {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {effectiveView === "master_data_tools" && <MasterDataToolsScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
             {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
             {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
@@ -1149,6 +1154,7 @@ function App() {
                 companyContext={companyContext}
                 currentView={helpAssistantSourceView || view}
                 currentHelp={helpForView(helpAssistantSourceView || view)}
+                onBack={exitCurrentScreen}
                 onNavigate={navigate}
                 session={session}
                 stats={productivityStats}
@@ -4541,10 +4547,11 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
   );
 }
 
-function TransactionScreen({ table, config, notify, companyContext }) {
+function TransactionScreen({ table, config, notify, companyContext, onNavigate }) {
   const blank = useMemo(() => Object.fromEntries(config.fields.map(([name,, type]) => [name, defaultValueFor(type)])), [config]);
   const [records, setRecords] = useState([]);
   const [references, setReferences] = useState(null);
+  const [inventorySnapshot, setInventorySnapshot] = useState(null);
   const [filters, setFilters] = useState({ search: "", status: "all" });
   const [form, setForm] = useState(blank);
   const [orderItems, setOrderItems] = useState(() => [blankSupplyOrderItem()]);
@@ -4563,12 +4570,15 @@ function TransactionScreen({ table, config, notify, companyContext }) {
   async function load() {
     setLoading(true);
     try {
-      const [rows, refs] = await Promise.all([
+      const shouldLoadInventorySnapshot = table === "stock_adjustments" && api.getInventoryData;
+      const [rows, refs, inventory] = await Promise.all([
         api.listRecords(table, { ...filters, company_id: companyContext?.company_id }),
-        api.getReferences(companyContext)
+        api.getReferences(companyContext),
+        shouldLoadInventorySnapshot ? api.getInventoryData(companyContext) : Promise.resolve(null)
       ]);
       setRecords(rows);
       setReferences(refs);
+      setInventorySnapshot(inventory);
     } catch (error) {
       notify(error.message, "error");
     } finally {
@@ -4582,6 +4592,7 @@ function TransactionScreen({ table, config, notify, companyContext }) {
 
   useEffect(() => {
     setShowSupplyOrderEntry(table === "supply_orders");
+    setInventorySnapshot(null);
     setValidationErrors([]);
   }, [table]);
 
@@ -4623,6 +4634,7 @@ function TransactionScreen({ table, config, notify, companyContext }) {
       if (isSupplyOrder) {
         validateSupplyOrderItems(form, orderItems, references);
       } else {
+        if (table === "stock_adjustments") validateStockAdjustmentDraft(form, inventorySnapshot);
         validateTransaction(config, form);
       }
       if (!companyContext?.company_id) throw new Error("Select Current Company before saving this transaction.");
@@ -4795,6 +4807,15 @@ function TransactionScreen({ table, config, notify, companyContext }) {
               setItems={setOrderItems}
               references={references}
               orderStatus={form.order_status}
+            />
+          )}
+          {table === "stock_adjustments" && (
+            <StockAdjustmentControlPanel
+              form={form}
+              references={references}
+              inventoryData={inventorySnapshot}
+              onReasonSelect={(reason) => setForm((current) => ({ ...current, reason }))}
+              onOpenStockLedger={() => onNavigate?.("stock_ledger")}
             />
           )}
           <button className="primary-btn">{editing ? "Update" : "Save"}</button>
@@ -7138,7 +7159,7 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
     ["sales", "Sales Voucher", "Taxable billing with output GST"],
     ["purchase", "Purchase Voucher", "Inventory or purchase booking with input GST"],
     ["expense", "Expense Voucher", "Authorization, L1, transport, installation or other costs"],
-    ["commission", "Commission Voucher", "Percentage-based commission expense"],
+    ["commission", "Work Incentive Voucher", "Percentage-based work incentive expense"],
     ["employee_incentive", "Employee Incentive Voucher", "Employee incentive accrual or payment"],
     ["contra", "Contra Voucher", "Cash/bank transfer between ledgers"],
     ["credit_note", "Credit Note", "Reduce department receivable and sales/GST"],
@@ -7640,7 +7661,7 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
           {["sales", "purchase"].includes(form.voucher_kind) && <Field name="rate" label={form.voucher_kind === "sales" ? "Billing Rate" : "Receipt Rate"} type="number" value={form.rate} onChange={(value) => form.voucher_kind === "sales" ? updateSalesLine({ rate: value }) : setValue("rate", value)} />}
           {["expense"].includes(form.voucher_kind) && <SearchableSelect label="Expense Head" value={form.expense_head_name} onChange={(value) => setValue("expense_head_name", value)} options={(data?.references?.expenseHeads || []).map((row) => [row.expense_head_name, row.expense_head_name, row.category])} onQuickCreate={() => openQuickCreate("expense_head", "expense_head_name")} />}
           {["commission"].includes(form.voucher_kind) && <Field name="billing_value" label="Billing Value" type="number" value={form.billing_value} onChange={(value) => setValue("billing_value", value)} />}
-          {["commission"].includes(form.voucher_kind) && <Field name="commission_percentage" label="Commission %" type="number" value={form.commission_percentage} onChange={(value) => setValue("commission_percentage", value)} />}
+          {["commission"].includes(form.voucher_kind) && <Field name="commission_percentage" label="Work Incentive %" type="number" value={form.commission_percentage} onChange={(value) => setValue("commission_percentage", value)} />}
           {["employee_incentive"].includes(form.voucher_kind) && <Field name="initial_profit" label="Initial Profit" type="number" value={form.initial_profit} onChange={(value) => setValue("initial_profit", value)} />}
           {["employee_incentive"].includes(form.voucher_kind) && <Field name="incentive_percentage" label="Incentive %" type="number" value={form.incentive_percentage} onChange={(value) => setValue("incentive_percentage", value)} />}
           {!["sales", "purchase", "commission", "employee_incentive", "credit_note", "debit_note"].includes(form.voucher_kind) && <Field name="amount" label={amountLabel} type="number" value={form.amount} onChange={(value) => setValue("amount", value)} />}
@@ -7784,12 +7805,12 @@ function BusinessVoucherIntelligencePanel({
   const invoiceBalance = Number(selectedInvoice?.balance_outstanding || 0);
   const purchaseBalance = Number(selectedPurchaseBill?.balance_due || selectedPurchaseBill?.balance_outstanding || 0);
   const proposedNoteAmount = Number(form.taxable_value || 0) + Number(form.gst_amount || (Number(form.taxable_value || 0) * Number(form.gst_rate || 0) / 100));
-  const commissionAmount = Number(form.billing_value || 0) * Number(form.commission_percentage || 0) / 100;
+  const workIncentiveAmount = Number(form.billing_value || 0) * Number(form.commission_percentage || 0) / 100;
   const incentiveAmount = Number(form.initial_profit || 0) * Number(form.incentive_percentage || 0) / 100;
   const orderBillingValue = orderInvoices.reduce((sum, row) => sum + Number(row.invoice_amount || 0), 0);
   const orderPurchaseValue = orderPurchases.reduce((sum, row) => sum + Number(row.invoice_amount || row.purchase_value || 0), 0);
   const orderQuantity = Number(selectedOrder?.order_quantity || selectedOrder?.quantity || 0);
-  const suggestedExpenseHeads = ["Authorization", "L1 Expense", "Commission", "Transport", "Installation", "Labour", "Documentation", "Miscellaneous"];
+  const suggestedExpenseHeads = ["Authorization", "L1 Expense", "Work Incentive", "Transport", "Installation", "Labour", "Documentation", "Miscellaneous"];
 
   return (
     <section className="voucher-intelligence-panel">
@@ -7926,11 +7947,11 @@ function BusinessVoucherIntelligencePanel({
 
       {["commission", "employee_incentive"].includes(kind) && (
         <div className="intelligence-grid">
-          <IntelligenceCard title={kind === "commission" ? "Commission Calculation" : "Employee Incentive Calculation"}>
+          <IntelligenceCard title={kind === "commission" ? "Work Incentive Calculation" : "Employee Incentive Calculation"}>
             <MetricRows rows={kind === "commission" ? [
               ["Billing value", formatCurrency(form.billing_value || orderBillingValue || 0)],
-              ["Commission %", `${form.commission_percentage || 0}%`],
-              ["Calculated commission", formatCurrency(commissionAmount)],
+              ["Work Incentive %", `${form.commission_percentage || 0}%`],
+              ["Calculated work incentive", formatCurrency(workIncentiveAmount)],
               ["Existing booked", "Tracked after posting"]
             ] : [
               ["Initial profit", formatCurrency(form.initial_profit || 0)],
@@ -7972,7 +7993,7 @@ function voucherPlainLanguage(kind) {
     sales: "Create a sales receivable with output GST from an order context.",
     purchase: "Book purchase/inventory payable with input GST from order requirements.",
     expense: "Book order-linked operating expenses as payable or paid.",
-    commission: "Calculate and book commission expense from billing value.",
+    commission: "Calculate and book work incentive expense from billing value.",
     employee_incentive: "Calculate and book employee incentive from initial profit.",
     contra: "Move money between cash and bank ledgers.",
     credit_note: "Reduce a department invoice and related GST/sales values.",
@@ -7993,7 +8014,7 @@ function voucherTooltips(kind) {
       { label: "GST TDS", text: "GST tax deducted by a government buyer before releasing payment." },
       { label: "Advance Adjusted", text: "Earlier receipt applied against this invoice." }
     ],
-    commission: [{ label: "Commission %", text: "Percentage of billing value used to calculate commission expense." }],
+    commission: [{ label: "Work Incentive %", text: "Percentage of billing value used to calculate work incentive expense." }],
     employee_incentive: [{ label: "Incentive %", text: "Percentage of initial profit payable to the assigned employee." }],
     credit_note: [{ label: "Credit Note", text: "Use to reduce an already raised sales invoice." }],
     debit_note: [{ label: "Debit Note", text: "Use to reduce or adjust an already booked supplier bill." }],
@@ -8034,8 +8055,8 @@ function voucherLearningContent(kind) {
     supplier_payment: ["Supplier Payment Voucher", "Record money paid to supplier.", "Use after supplier payment is made or payable is settled.", "Dr Trade Payables, Cr Bank/Cash.", "Do not book purchases here; use Purchase Voucher first.", "Payables, Supplier Ledger, Cash/Bank Book"],
     sales: ["Sales Voucher", "Raise taxable billing and receivable.", "Use for approved supply billing.", "Dr Trade Receivables, Cr Sales and Output GST.", "Do not enter payment receipt here.", "Sales Register, GST Summary, Receivables"],
     purchase: ["Purchase Voucher", "Book supplier bill or inventory receipt.", "Use when supplier invoice/procurement is accepted.", "Dr Purchase/Inventory and Input GST, Cr Trade Payables.", "Do not pay supplier from this voucher unless using payment workflow.", "Purchase Register, Payables, Stock Ledger"],
-    expense: ["Expense Voucher", "Book order-linked operational cost.", "Use for authorization, L1, transport, installation and similar costs.", "Dr Expense, Cr Expense Payable or Bank.", "Do not duplicate commission/incentive expenses.", "Expense Analysis, Profitability"],
-    commission: ["Commission Voucher", "Book commission from billing value.", "Use after billing value is known.", "Dr Commission Expense, Cr Payable or Bank.", "Check if commission was already booked.", "Commission Analysis, Profitability"],
+    expense: ["Expense Voucher", "Book order-linked operational cost.", "Use for authorization, L1, transport, installation and similar costs.", "Dr Expense, Cr Expense Payable or Bank.", "Do not duplicate work incentive/employee incentive expenses.", "Expense Analysis, Profitability"],
+    commission: ["Work Incentive Voucher", "Book work incentive from billing value.", "Use after billing value is known.", "Dr Work Incentive Expense, Cr Payable or Bank.", "Check if work incentive was already booked.", "Work Incentive Analysis, Profitability"],
     employee_incentive: ["Employee Incentive Voucher", "Book employee incentive from initial profit.", "Use after order profitability is known.", "Dr Incentive Expense, Cr Incentive Payable or Bank.", "Do not calculate incentive on gross billing.", "Employee Performance, Profitability"],
     contra: ["Contra Voucher", "Move money between cash and bank ledgers.", "Use for bank deposit, withdrawal or bank-to-bank transfer.", "Dr receiving account, Cr paying account.", "Do not use for customer or supplier settlement.", "Cash Book, Bank Book"],
     credit_note: ["Credit Note", "Reduce a sales invoice.", "Use for return, discount, billing error or rate difference.", "Dr Sales/Output GST, Cr Trade Receivables.", "Do not exceed original invoice balance.", "GST Register, Receivables"],
@@ -8146,7 +8167,7 @@ function businessVoucherPreview(form) {
   if (kind === "commission" && Number(form.billing_value || 0)) {
     const commission = Number(form.billing_value || 0) * Number(form.commission_percentage || 0) / 100;
     return [
-      { account: "Commission Expense", debit: commission, credit: 0 },
+      { account: "Work Incentive Expense", debit: commission, credit: 0 },
       { account: paid ? (form.payment_mode === "Cash" ? "Cash" : "Bank") : "Expense Payable", debit: 0, credit: commission }
     ];
   }
@@ -11611,11 +11632,11 @@ function createBrowserFallbackApi() {
     suppliers: [{ id: 1, supplier_name: "Prime Industrial Suppliers", supplier_type: "Vendor", supplier_code: "SUP-001", date_of_activation: "2026-06-09", supplier_account_name: "Prime Industrial Suppliers", supplier_account_number: "000000000002", supplier_bank_name: "HDFC", supplier_bank_ifsc_code: "HDFC0000001", supplier_branch: "Mumbai", supplier_contact: "purchase@primeindustrial.example", remarks: "", gstin: "27SUPPL1234F1Z8", contact_details: "purchase@primeindustrial.example", bank_details: "HDFC", status: "active" }],
     items: [{ id: 1, item_name: "Office Workstation", brand: "Generic", model: "GEM-WS-01", hsn_code: "9403", gst_rate: 18, unit: "Nos", category: "Furniture", opening_stock: 0, opening_rate: 0, opening_value: 0, reorder_level: 2, minimum_stock_level: 1, maximum_stock_level: 25, track_serial_number: 0, track_batch_number: 0, warranty_period: 12, status: "active" }, { id: 2, item_name: "Printer", brand: "HP", model: "LaserJet Pro", hsn_code: "8443", gst_rate: 18, unit: "Nos", category: "IT Hardware", opening_stock: 0, opening_rate: 0, opening_value: 0, reorder_level: 3, minimum_stock_level: 2, maximum_stock_level: 20, track_serial_number: 1, track_batch_number: 0, warranty_period: 12, status: "active" }],
     warehouses: [{ id: 1, warehouse_name: "Main Store", location: "Head Office", responsible_person: "Store Keeper", status: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
-    expense_heads: [{ id: 1, expense_head_name: "Authorization", default_calculation_method: "percentage_gross", default_percentage: 5, category: "Authorization", status: "active" }, { id: 2, expense_head_name: "L1 Expense", default_calculation_method: "percentage_gross", default_percentage: 2, category: "Tender", status: "active" }, { id: 3, expense_head_name: "Commission", default_calculation_method: "percentage_gross", default_percentage: 10, category: "Commission", status: "active" }],
+    expense_heads: [{ id: 1, expense_head_name: "Authorization", default_calculation_method: "percentage_gross", default_percentage: 5, category: "Authorization", status: "active" }, { id: 2, expense_head_name: "L1 Expense", default_calculation_method: "percentage_gross", default_percentage: 2, category: "Tender", status: "active" }, { id: 3, expense_head_name: "Work Incentive", default_calculation_method: "percentage_gross", default_percentage: 10, category: "Work Incentive", status: "active" }],
     banks: [{ id: 1, bank_account_name: "SBI Current Account", bank_name: "SBI", account_number: "000000000001", ifsc: "SBIN0000001", opening_balance: 0, status: "active" }],
     supply_orders: [{ id: 1, order_number: "GEM-2026-001", order_date: "2026-06-09", department_id: 1, institution_name: "PWD Central Store", location: "Mumbai", employee_id: 1, supply_due_date: "2026-06-25", order_status: "Payment Pending", remarks: "Preview order" }],
     procurements: [{ id: 1, order_id: 1, purchase_date: "2026-06-10", supplier_id: 1, purchase_invoice_number: "PIS-1001", purchase_value: 700000, purchase_gst: 126000, freight: 12000, loading_charges: 3000, amount_paid: 400000, remarks: "" }],
-    expense_entries: [{ id: 1, order_id: 1, expense_head_id: 1, expense_category: "Authorization", calculation_method: "percentage_gross", percentage: 5, fixed_amount: 0, remarks: "" }, { id: 2, order_id: 1, expense_head_id: 2, expense_category: "Tender", calculation_method: "percentage_gross", percentage: 2, fixed_amount: 0, remarks: "" }, { id: 3, order_id: 1, expense_head_id: 3, expense_category: "Commission", calculation_method: "percentage_gross", percentage: 10, fixed_amount: 0, remarks: "" }],
+    expense_entries: [{ id: 1, order_id: 1, expense_head_id: 1, expense_category: "Authorization", calculation_method: "percentage_gross", percentage: 5, fixed_amount: 0, remarks: "" }, { id: 2, order_id: 1, expense_head_id: 2, expense_category: "Tender", calculation_method: "percentage_gross", percentage: 2, fixed_amount: 0, remarks: "" }, { id: 3, order_id: 1, expense_head_id: 3, expense_category: "Work Incentive", calculation_method: "percentage_gross", percentage: 10, fixed_amount: 0, remarks: "" }],
     invoices: [{ id: 1, order_id: 1, invoice_number: "GII-INV-001", invoice_date: "2026-06-15", billing_value: 1000000, gst_rate: 18, invoice_type: "Tax Invoice", remarks: "" }],
     payments: [{ id: 1, order_id: 1, payment_date: "2026-06-20", payment_amount: 350000, payment_mode: "NEFT", utr_number: "UTR10001", bank_id: 1, remarks: "" }],
     stock_inwards: [{ id: 1, company_id: 1, order_id: 1, supplier_id: 1, item_id: 2, warehouse_id: 1, inward_date: "2026-06-10", purchase_invoice_number: "INV-STOCK-001", quantity: 5, rate: 18000, gst_rate: 18, landed_cost: 90000, serial_number: "PRN-DEMO-001", batch_number: "", posting_status: "Posted", approval_status: "Approved", remarks: "" }],
@@ -11668,7 +11689,7 @@ function createBrowserFallbackApi() {
     ["2110", "Output GST", "Liability", "Credit"],
     ["4000", "Sales", "Income", "Credit"],
     ["5000", "Purchase", "Expense", "Debit"],
-    ["5100", "Commission Expense", "Expense", "Debit"],
+    ["5100", "Work Incentive Expense", "Expense", "Debit"],
     ["5110", "Authorization Expense", "Expense", "Debit"],
     ["5120", "L1 Expense", "Expense", "Debit"],
     ["5130", "Transport Expense", "Expense", "Debit"],

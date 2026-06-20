@@ -28,42 +28,42 @@ export {
 export const MASTER_TABLES = {
   companies: {
     label: "Company",
-    fields: ["company_name", "gstin", "pan", "address", "bank_name", "account_number", "ifsc", "status"],
+    fields: ["company_code", "company_name", "gstin", "pan", "address", "bank_name", "account_number", "ifsc", "status"],
     required: ["company_name", "status"]
   },
   employees: {
     label: "Employee",
-    fields: ["employee_name", "mobile_number", "designation", "incentive_percentage", "status"],
+    fields: ["employee_code", "employee_name", "mobile_number", "email", "designation", "incentive_percentage", "pan", "aadhaar_last4", "bank_name", "account_number", "ifsc", "branch", "joining_date", "remarks", "status"],
     required: ["employee_name", "mobile_number", "status"]
   },
   government_departments: {
     label: "Government Department",
-    fields: ["department_name", "contact_person", "contact_number", "address", "status"],
+    fields: ["department_code", "department_name", "gstin", "billing_address", "consignee_address", "district", "state", "pincode", "contact_person", "contact_number", "mobile", "email", "payment_authority", "address", "status"],
     required: ["department_name", "status"]
   },
   suppliers: {
     label: "Supplier",
-    fields: ["supplier_name", "supplier_type", "supplier_code", "date_of_activation", "supplier_account_name", "supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch", "supplier_contact", "remarks", "gstin", "contact_details", "bank_details", "status"],
+    fields: ["supplier_name", "supplier_type", "supplier_code", "date_of_activation", "supplier_account_name", "supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch", "supplier_contact", "remarks", "gstin", "pan", "address", "city", "state", "pincode", "contact_person", "mobile", "email", "upi_id", "msme_number", "payment_terms", "contact_details", "bank_details", "status"],
     required: ["supplier_name", "status"]
   },
   items: {
     label: "Item",
-    fields: ["item_code", "item_name", "brand", "model", "hsn_code", "gst_rate", "unit", "category", "inventory_enabled", "opening_stock", "opening_rate", "opening_value", "reorder_level", "minimum_stock_level", "maximum_stock_level", "default_warehouse_id", "valuation_method", "track_serial_number", "track_batch_number", "warranty_period", "status", "import_batch_id"],
+    fields: ["item_code", "item_name", "brand", "model", "hsn_code", "gst_rate", "unit", "category", "oem_name", "make_in_india_class", "country_of_origin", "inventory_enabled", "opening_stock", "opening_rate", "opening_value", "reorder_level", "minimum_stock_level", "maximum_stock_level", "default_warehouse_id", "valuation_method", "track_serial_number", "track_batch_number", "warranty_period", "remarks", "status", "import_batch_id"],
     required: ["item_name", "gst_rate", "unit", "status"]
   },
   warehouses: {
     label: "Warehouse",
-    fields: ["company_id", "warehouse_name", "location", "warehouse_type", "responsible_person", "status"],
+    fields: ["company_id", "warehouse_code", "warehouse_name", "location", "address", "warehouse_type", "responsible_person", "incharge_name", "mobile", "remarks", "status"],
     required: ["warehouse_name", "status"]
   },
   expense_heads: {
     label: "Expense Head",
-    fields: ["expense_head_name", "default_calculation_method", "default_percentage", "category", "status"],
+    fields: ["expense_head_code", "expense_head_name", "default_calculation_method", "default_percentage", "category", "default_gst_rate", "remarks", "status"],
     required: ["expense_head_name", "default_calculation_method", "status"]
   },
   banks: {
     label: "Bank Account",
-    fields: ["company_id", "bank_account_name", "bank_name", "account_number", "ifsc", "opening_balance", "status"],
+    fields: ["company_id", "bank_code", "bank_account_name", "bank_name", "account_number", "ifsc", "branch", "opening_balance", "remarks", "status"],
     required: ["bank_account_name", "bank_name", "status"]
   }
 };
@@ -172,7 +172,7 @@ const DEFAULT_ACCOUNTS = [
   ["4000", "Sales", "Income", "Credit", 0],
   ["5000", "Purchase", "Expense", "Debit", 0],
   ["5050", "Cost of Goods Sold", "Expense", "Debit", 0],
-  ["5100", "Commission Expense", "Expense", "Debit", 0],
+  ["5100", "Work Incentive Expense", "Expense", "Debit", 0],
   ["5110", "Authorization Expense", "Expense", "Debit", 0],
   ["5120", "L1 Expense", "Expense", "Debit", 0],
   ["5130", "Transport Expense", "Expense", "Debit", 0],
@@ -604,6 +604,18 @@ export function migrate(db) {
   runMigration(db, "022_soft_delete_runtime_schema_guard", () => {
     addRuntimeSoftDeleteColumns(db);
   });
+
+  runMigration(db, "023_work_incentive_terminology", () => {
+    applyWorkIncentiveTerminology(db);
+  });
+
+  runMigration(db, "024_phase15h_master_data_tools", () => {
+    addPhase15HMasterDataToolsColumns(db);
+  });
+
+  runMigration(db, "025_phase15h_department_remarks_column", () => {
+    addColumnIfMissing(db, "government_departments", "remarks", "TEXT");
+  });
 }
 
 function runMigration(db, migrationName, callback) {
@@ -621,6 +633,88 @@ function addColumnIfMissing(db, table, column, definition) {
   if (!columns.includes(column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+}
+
+function applyWorkIncentiveTerminology(db) {
+  if (tableExists(db, "accounts")) {
+    db.prepare(`
+      UPDATE accounts
+      SET account_name = 'Work Incentive Expense', updated_at = CURRENT_TIMESTAMP
+      WHERE account_name = 'Commission Expense'
+    `).run();
+  }
+  if (tableExists(db, "expense_heads")) {
+    db.prepare(`
+      UPDATE expense_heads
+      SET expense_head_name = 'Work Incentive', category = 'Work Incentive', updated_at = CURRENT_TIMESTAMP
+      WHERE expense_head_name = 'Commission'
+    `).run();
+    db.prepare(`
+      UPDATE expense_heads
+      SET category = 'Work Incentive', updated_at = CURRENT_TIMESTAMP
+      WHERE category = 'Commission'
+    `).run();
+  }
+  if (tableExists(db, "expense_entries")) {
+    db.prepare(`
+      UPDATE expense_entries
+      SET expense_category = 'Work Incentive', updated_at = CURRENT_TIMESTAMP
+      WHERE expense_category = 'Commission'
+    `).run();
+  }
+}
+
+function addPhase15HMasterDataToolsColumns(db) {
+  [
+    ["companies", "company_code", "TEXT"],
+    ["employees", "employee_code", "TEXT"],
+    ["employees", "email", "TEXT"],
+    ["employees", "pan", "TEXT"],
+    ["employees", "aadhaar_last4", "TEXT"],
+    ["employees", "bank_name", "TEXT"],
+    ["employees", "account_number", "TEXT"],
+    ["employees", "ifsc", "TEXT"],
+    ["employees", "branch", "TEXT"],
+    ["employees", "joining_date", "TEXT"],
+    ["employees", "remarks", "TEXT"],
+    ["government_departments", "department_code", "TEXT"],
+    ["government_departments", "gstin", "TEXT"],
+    ["government_departments", "billing_address", "TEXT"],
+    ["government_departments", "consignee_address", "TEXT"],
+    ["government_departments", "district", "TEXT"],
+    ["government_departments", "state", "TEXT"],
+    ["government_departments", "pincode", "TEXT"],
+    ["government_departments", "mobile", "TEXT"],
+    ["government_departments", "email", "TEXT"],
+    ["government_departments", "payment_authority", "TEXT"],
+    ["government_departments", "remarks", "TEXT"],
+    ["suppliers", "pan", "TEXT"],
+    ["suppliers", "address", "TEXT"],
+    ["suppliers", "city", "TEXT"],
+    ["suppliers", "state", "TEXT"],
+    ["suppliers", "pincode", "TEXT"],
+    ["suppliers", "contact_person", "TEXT"],
+    ["suppliers", "mobile", "TEXT"],
+    ["suppliers", "email", "TEXT"],
+    ["suppliers", "upi_id", "TEXT"],
+    ["suppliers", "msme_number", "TEXT"],
+    ["suppliers", "payment_terms", "TEXT"],
+    ["items", "oem_name", "TEXT"],
+    ["items", "make_in_india_class", "TEXT"],
+    ["items", "country_of_origin", "TEXT"],
+    ["items", "remarks", "TEXT"],
+    ["warehouses", "warehouse_code", "TEXT"],
+    ["warehouses", "address", "TEXT"],
+    ["warehouses", "incharge_name", "TEXT"],
+    ["warehouses", "mobile", "TEXT"],
+    ["warehouses", "remarks", "TEXT"],
+    ["expense_heads", "expense_head_code", "TEXT"],
+    ["expense_heads", "default_gst_rate", "REAL"],
+    ["expense_heads", "remarks", "TEXT"],
+    ["banks", "bank_code", "TEXT"],
+    ["banks", "branch", "TEXT"],
+    ["banks", "remarks", "TEXT"]
+  ].forEach(([table, column, definition]) => addColumnIfMissing(db, table, column, definition));
 }
 
 function tableExists(db, table) {
@@ -2099,7 +2193,7 @@ export function seed(db) {
     [
       ["Authorization", "percentage_gross", 5, "Authorization"],
       ["L1 Expense", "percentage_gross", 2, "Tender"],
-      ["Commission", "percentage_gross", 10, "Commission"],
+      ["Work Incentive", "percentage_gross", 10, "Work Incentive"],
       ["Transport", "fixed", 0, "Logistics"],
       ["Installation", "fixed", 0, "Execution"],
       ["Miscellaneous", "fixed", 0, "Other"]
@@ -2256,7 +2350,7 @@ function seedPhaseTwo(db, companyId = null) {
   });
 
   const heads = db.prepare("SELECT id, expense_head_name, default_calculation_method, default_percentage, category FROM expense_heads").all();
-  heads.filter((head) => ["Authorization", "L1 Expense", "Commission"].includes(head.expense_head_name)).forEach((head) => {
+  heads.filter((head) => ["Authorization", "L1 Expense", "Work Incentive", "Commission"].includes(head.expense_head_name)).forEach((head) => {
     createRecord(db, "expense_entries", {
       company_id: effectiveCompanyId,
       order_id: order.id,
@@ -5366,7 +5460,7 @@ function businessVoucherPayload(db, companyId, voucherKind, payload) {
     const calculated = kind.includes("commission") ? billingValue * Number(payload.commission_percentage || payload.percentage || 0) / 100 : amount || Number(payload.fixed_amount || 0);
     const expenseAmount = Number(payload.commission_amount || payload.expense_amount || calculated || 0);
     assertPositive(expenseAmount, "Expense amount");
-    const accountName = kind.includes("commission") ? "Commission Expense" : expenseLedgerForName(payload.expense_head_name || payload.expense_type || "Miscellaneous");
+    const accountName = kind.includes("commission") ? "Work Incentive Expense" : expenseLedgerForName(payload.expense_head_name || payload.expense_type || "Miscellaneous");
     const paid = ["paid", "yes", "true", true].includes(payload.paid_status || payload.paid);
     const creditAccount = paid ? bankAccount : accountId(db, companyId, "Expense Payable");
     const lines = [
@@ -5453,9 +5547,9 @@ function expenseLedgerForName(name = "") {
   if (/\bl1\b|l1 expense/i.test(name)) return "L1 Expense";
   if (/transport|freight/i.test(name)) return "Transport Expense";
   if (/install/i.test(name)) return "Installation Expense";
-  if (/commission/i.test(name)) return "Commission Expense";
+  if (/commission|work incentive/i.test(name)) return "Work Incentive Expense";
   if (/bank/i.test(name)) return "Bank Charges";
-  return "Commission Expense";
+  return "Work Incentive Expense";
 }
 
 function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, sourceModule, sourceId) {
@@ -6450,9 +6544,9 @@ function postExpenseAccrualsForOrder(db, orderId) {
     if (amount <= 0) return;
     const accountName = expense.expense_head_name.includes("Authorization") ? "Authorization Expense" :
       expense.expense_head_name.includes("L1") ? "L1 Expense" :
-      expense.expense_head_name.includes("Commission") ? "Commission Expense" :
+      /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
       expense.expense_head_name.includes("Transport") ? "Transport Expense" :
-      expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Commission Expense";
+      expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
     const voucher = createBalancedVoucher(db, {
       company_id: expense.company_id,
       voucher_date: new Date().toISOString().slice(0, 10),

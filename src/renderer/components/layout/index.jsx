@@ -93,13 +93,21 @@ export function NavigationSidebar({
   );
 }
 
-export function WorkspaceFrame({ breadcrumb, title, subtitle, onToggleMobileSidebar, children }) {
+export function WorkspaceFrame({ breadcrumb, title, subtitle, canGoBack, onBack, onToggleMobileSidebar, children }) {
   return (
     <main className="workspace">
       <header className="topbar">
-        <button className="hamburger" type="button" onClick={onToggleMobileSidebar} title="Open menu">
-          <Icon name="menu" />
-        </button>
+        <div className="topbar-nav-actions">
+          <button className="hamburger" type="button" onClick={onToggleMobileSidebar} title="Open menu">
+            <Icon name="menu" />
+          </button>
+          {canGoBack && (
+            <button className="workspace-back-btn" type="button" onClick={onBack} title="Return to previous screen">
+              <Icon name="undo" />
+              <span>Back</span>
+            </button>
+          )}
+        </div>
         <div>
           <div className="breadcrumb">{breadcrumb}</div>
           <h1>{title}</h1>

@@ -91,6 +91,14 @@ import {
 } from "./database/init.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
+import {
+  confirmMasterDataUpdate,
+  exportMasterData,
+  getMasterDataCompleteness,
+  getMasterDataToolDefinitions,
+  getMasterDataToolsHealth,
+  previewMasterDataUpdate
+} from "./services/masterDataToolsService.js";
 import { createSupportBundle } from "./services/supportBundleService.js";
 import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
 
@@ -531,6 +539,7 @@ function registerIpc() {
 
   ipcMain.handle("meta:masters", () => MASTER_TABLES);
   ipcMain.handle("meta:transactions", () => TRANSACTION_TABLES);
+  ipcMain.handle("master-data:definitions", () => getMasterDataToolDefinitions());
   ipcMain.handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
   ipcMain.handle("references:list", (_event, filters) => referenceData(db, filters));
   ipcMain.handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
@@ -624,6 +633,23 @@ function registerIpc() {
   ipcMain.handle("imports:item-batches", () => listItemImportBatches(db));
   ipcMain.handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
   ipcMain.handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
+  ipcMain.handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
+    const context = userContext([payload], { module: "master_data_tools" });
+    return exportMasterData(db, payload, context, (entry) => auditLog(db, entry));
+  }));
+  ipcMain.handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
+    return previewMasterDataUpdate(db, payload, userContext([payload], { module: "master_data_tools" }));
+  }));
+  ipcMain.handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
+    const context = userContext([payload], { module: "master_data_tools" });
+    return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
+  }));
+  ipcMain.handle("master-data:completeness", (_event, context) => {
+    return getMasterDataCompleteness(db, userContext([context], { module: "master_data_tools" }));
+  });
+  ipcMain.handle("master-data:health", (_event, context) => {
+    return getMasterDataToolsHealth(db, userContext([context], { module: "master_data_tools" }));
+  });
   ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
   ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
   ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
@@ -685,7 +711,11 @@ function registerIpc() {
   }));
 
   ipcMain.handle("health:diagnostics", (_event, context) => {
-    return getHealthDiagnostics(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
+    const healthContext = { ...context, dbName: DB_NAME };
+    return {
+      ...getHealthDiagnostics(db, runtimeDataRoot, healthContext),
+      masterDataTools: getMasterDataToolsHealth(db, userContext([healthContext], { module: "master_data_tools" }))
+    };
   });
   ipcMain.handle("health:checks", (_event, context) => {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });

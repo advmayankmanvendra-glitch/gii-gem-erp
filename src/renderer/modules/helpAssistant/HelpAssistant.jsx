@@ -9,7 +9,7 @@ import { HelpAssistantSearch } from "./HelpAssistantSearch.jsx";
 import { HelpAssistantSuggestions } from "./HelpAssistantSuggestions.jsx";
 import { buildCoachPriorities, buildOnboardingReadiness } from "./helpAssistantReadiness.js";
 
-function HelpAssistant({ companies = [], companyContext = {}, currentHelp, currentView, onNavigate, session, stats }) {
+function HelpAssistant({ companies = [], companyContext = {}, currentHelp, currentView, onBack, onNavigate, session, stats }) {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("screen");
   const topics = useMemo(() => buildHelpAssistantKnowledge(currentHelp), [currentHelp]);
@@ -36,6 +36,18 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
     ask(title, "help");
   }
 
+  function openTopicScreen(topic) {
+    if (topic?.viewKey) onNavigate?.(topic.viewKey);
+  }
+
+  function goBack() {
+    if (onBack) {
+      onBack();
+      return;
+    }
+    onNavigate?.(currentView || "dashboard");
+  }
+
   useEffect(() => {
     setAnswer(buildHelpAssistantAnswer({ query, mode, ...answerContext }));
   }, [answerContext, currentView]);
@@ -48,18 +60,21 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
           <h2>GII ERP Help Assistant</h2>
           <p>Search the ERP manual, workflow guide, FAQ, troubleshooting notes, screen metadata and keyboard shortcuts without changing any ERP data.</p>
         </div>
-        <div className="help-assistant-current">
-          <small>Current guidance context</small>
-          <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>
-          <small>{companyContext?.company_name || "No company selected"}</small>
-          <small>{session?.role || "User"} guidance only</small>
+        <div className="help-assistant-hero-actions">
+          <button type="button" className="ghost-btn" onClick={goBack}>Back</button>
+          <div className="help-assistant-current">
+            <small>Current guidance context</small>
+            <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>
+            <small>{companyContext?.company_name || "No company selected"}</small>
+            <small>{session?.role || "User"} guidance only</small>
+          </div>
         </div>
       </section>
 
       <div className="help-assistant-layout">
         <div className="help-assistant-main">
           <HelpAssistantSearch query={query} mode={mode} onQueryChange={setQuery} onModeChange={changeMode} onAsk={() => ask()} />
-          <HelpAssistantAnswer answer={answer} onAction={onNavigate} onRelatedTopic={askRelated} />
+          <HelpAssistantAnswer answer={answer} onAction={onNavigate} onOpenScreen={onNavigate} onRelatedTopic={askRelated} />
           {mode === "onboarding" && <HelpAssistantOnboarding readiness={readiness} onNavigate={onNavigate} />}
           {mode === "coach" && <HelpAssistantCoach coach={coach} onNavigate={onNavigate} />}
           {mode === "data" && <HelpAssistantDataMode onAsk={ask} />}
@@ -72,13 +87,22 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
           <section className="panel help-assistant-results">
             <h2>Search Results</h2>
             {query.trim() ? (
-              results.length ? results.map((topic) => (
-                <button type="button" key={topic.id} onClick={() => askRelated(topic.title)}>
-                  <span>{topic.type}</span>
-                  <strong>{topic.title}</strong>
-                  {topic.menuPath && <small>{topic.menuPath}</small>}
-                </button>
-              )) : <p>No matching topics yet.</p>
+              results.length ? (
+                <div className="help-assistant-results-list">
+                  {results.map((topic) => (
+                    <article className="help-assistant-result-card" key={topic.id}>
+                      <button type="button" className="help-assistant-result-topic" onClick={() => askRelated(topic.title)}>
+                        <span>{topic.type}</span>
+                        <strong>{topic.title}</strong>
+                        {topic.menuPath && <small>{topic.menuPath}</small>}
+                      </button>
+                      {topic.viewKey && (
+                        <button type="button" className="ghost-btn small-btn" onClick={() => openTopicScreen(topic)}>Open Screen</button>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              ) : <p>No matching topics yet.</p>
             ) : <p>Type a question to see matching help topics.</p>}
           </section>
           <section className="panel help-assistant-boundary">
