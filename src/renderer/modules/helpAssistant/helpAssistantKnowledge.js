@@ -113,15 +113,26 @@ function buildHelpAssistantKnowledge(currentHelp = null) {
     title: currentHelp.title || "Current Screen",
     summary: currentHelp.description || "Guidance for the current ERP screen.",
     menuPath: currentHelp.menuPath || "",
+    viewKey: currentHelp.viewKey || currentHelp.key,
     steps: safeArray(currentHelp.howToUse, ["Review the screen purpose.", "Check required fields, filters and available reports.", "Use Help, Training or Productivity shortcuts if unsure."]),
     commonMistakes: safeArray(currentHelp.commonMistakes),
-    relatedTopics: safeArray(currentHelp.relatedReports),
+    relatedTopics: [
+      ...safeArray(currentHelp.relatedReports),
+      ...safeArray(currentHelp.relatedShortcuts)
+    ],
     keywords: [
       currentHelp.title,
       currentHelp.description,
+      currentHelp.moduleName,
       ...(currentHelp.howToUse || []),
+      ...(currentHelp.keyFields || []),
+      ...(currentHelp.requiredFields || []),
+      ...(currentHelp.accountingImpact || []),
+      ...(currentHelp.inventoryImpact || []),
+      ...(currentHelp.gstImpact || []),
       ...(currentHelp.commonMistakes || []),
-      ...(currentHelp.relatedReports || [])
+      ...(currentHelp.relatedReports || []),
+      ...(currentHelp.relatedShortcuts || [])
     ].filter(Boolean)
   }] : [];
 

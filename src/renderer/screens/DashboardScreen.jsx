@@ -52,6 +52,9 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
       { id: "ready_for_closure", label: "Ready For Closure", value: counts?.readyForClosure ?? 0, note: "Review closure-ready orders", icon: "clipboard", target: "operations_dashboard" },
       { id: "low_stock", label: "Low Stock", value: counts?.lowStockItems ?? 0, note: "Open low-stock list", icon: "shield", target: "low_stock" },
       { id: "pending_delivery", label: "Pending Delivery", value: counts?.pendingDeliveries ?? 0, note: "Open delivery challans", icon: "truck", target: "delivery_challans" },
+      { id: "crac_pending", label: "CRAC Pending", value: counts?.cracPending ?? 0, note: "Open CRAC tracker", icon: "file", target: "crac_tracker" },
+      { id: "crac_generated", label: "CRAC Generated", value: counts?.cracGenerated ?? 0, note: "Open CRAC management", icon: "file", target: "crac_management" },
+      { id: "payment_ready", label: "Payment Ready Orders", value: counts?.paymentReadyOrders ?? 0, note: "Open payment readiness", icon: "card", target: "payment_readiness" },
       { id: "items_in_stock", label: "Items In Stock", value: counts?.itemsInStock ?? 0, note: "Verify stock summary", icon: "box", target: "stock_summary" },
       { id: "items_issued", label: "Items Issued", value: counts?.itemsIssued ?? 0, note: "Verify stock ledger", icon: "truck", target: "stock_ledger" },
       { id: "returns", label: "Returns", value: counts?.returnedItems ?? 0, note: "Open return register", icon: "undo", target: "stock_returns" }

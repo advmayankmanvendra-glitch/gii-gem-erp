@@ -1,6 +1,16 @@
 import { buildIntentAnswer, detectHelpAssistantIntent } from "./helpAssistantIntents.js";
+import { inferFollowUpQuery } from "./helpAssistantConversation.js";
+import { extractEntities } from "./helpAssistantEntities.js";
+import { SUGGESTED_KEYWORDS, expandQueryTerms } from "./helpAssistantIntentMap.js";
+import { searchHelpTopics } from "./helpAssistantScoring.js";
 import { answerReadOnlyDataQuestion } from "./helpAssistantReadiness.js";
+import { buildCurrentScreenTopic } from "./screenHelpAnswer.js";
 
+const LOW_CONFIDENCE_THRESHOLD = 0.24;
+
+/**
+ * Normalizes answer text for local rule checks.
+ */
 function normalizeText(value) {
   return String(value || "")
     .toLowerCase()
@@ -8,10 +18,9 @@ function normalizeText(value) {
     .trim();
 }
 
-function tokenSet(value) {
-  return new Set(normalizeText(value).split(/\s+/).filter((token) => token.length > 1));
-}
-
+/**
+ * Builds a combined topic string for answer enrichment checks.
+ */
 function topicHaystack(topic) {
   return [
     topic.title,
@@ -25,36 +34,9 @@ function topicHaystack(topic) {
   ].join(" ");
 }
 
-function scoreTopic(topic, query) {
-  const normalizedQuery = normalizeText(query);
-  if (!normalizedQuery) return 0;
-  const title = normalizeText(topic.title);
-  const summary = normalizeText(topic.summary);
-  const haystack = normalizeText(topicHaystack(topic));
-  let score = 0;
-  if (title === normalizedQuery) score += 80;
-  if (title.includes(normalizedQuery)) score += 45;
-  if (summary.includes(normalizedQuery)) score += 22;
-  if (haystack.includes(normalizedQuery)) score += 18;
-
-  const queryTokens = tokenSet(normalizedQuery);
-  const haystackTokens = tokenSet(haystack);
-  queryTokens.forEach((token) => {
-    if (haystackTokens.has(token)) score += 9;
-    if (title.includes(token)) score += 6;
-  });
-  return score;
-}
-
-function searchHelpTopics(topics, query, limit = 8) {
-  return topics
-    .map((topic) => ({ topic, score: scoreTopic(topic, query) }))
-    .filter((row) => row.score > 0)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, limit)
-    .map((row) => row.topic);
-}
-
+/**
+ * Detects whether the user's wording asks for the current screen rather than the knowledge base.
+ */
 function isScreenGuidanceQuestion(query) {
   const normalized = normalizeText(query);
   return normalized.includes("this screen") ||
@@ -64,52 +46,108 @@ function isScreenGuidanceQuestion(query) {
     normalized.includes("help here");
 }
 
-function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness, coach, stats }) {
-  const intent = detectHelpAssistantIntent(query, mode);
+/**
+ * Builds the help assistant answer while preserving the existing answer object shape.
+ */
+function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness, coach, stats, conversationHistory = [] }) {
+  const submittedQuestion = String(query || "").trim();
+  const effectiveQuery = inferFollowUpQuery(submittedQuestion, conversationHistory);
+  const extractedEntities = extractEntities(submittedQuestion);
+  const intent = detectHelpAssistantIntent(effectiveQuery, mode, conversationHistory);
   const intentAnswer = buildIntentAnswer({ intent, readiness, coach });
-  if (intentAnswer) return intentAnswer;
+  if (intentAnswer) {
+    return enrichAnswer(intentAnswer, {
+      query: submittedQuestion,
+      extractedEntities,
+      intent,
+      relatedQuestions: buildRelatedQuestions(intentAnswer, intent)
+    });
+  }
 
   if (intent === "data") {
     const dataAnswer = answerReadOnlyDataQuestion({ query, stats });
-    return {
+    return enrichAnswer({
       mode: "Read-only Data Mode",
       title: dataAnswer.title,
       type: "Safe Data Guidance",
       summary: dataAnswer.summary,
+      directAnswer: dataAnswer.summary,
       sourceLabel: dataAnswer.sourceLabel,
       steps: normalizeList(dataAnswer.steps),
       commonMistakes: dataAnswer.limitation ? [dataAnswer.limitation] : [],
+      prerequisites: ["Stay in Data Mode for read-only summary questions.", "Open the relevant report before making corrections."],
+      commonBlockers: dataAnswer.limitation ? [dataAnswer.limitation] : ["Live transactional drilldown must be done from the actual module screen."],
+      whatToCheckNext: ["Compare the summary with the related report, ledger or ageing view."],
       relatedTopics: [],
       safetyNote: "Read-only foundation: this assistant does not run SQL, write records, post, import, restore, delete or alter ERP data."
-    };
+    }, {
+      query: submittedQuestion,
+      extractedEntities,
+      intent,
+      relatedQuestions: buildRelatedQuestions(dataAnswer, intent)
+    });
   }
 
-  const normalizedQuery = normalizeText(query);
+  const normalizedQuery = normalizeText(effectiveQuery);
   const screenMode = mode === "screen" || intent === "screen" || (mode !== "help" && isScreenGuidanceQuestion(query));
-  const matches = screenMode ? [] : searchHelpTopics(topics, query, 6);
+  const matches = screenMode ? [] : searchHelpTopics(topics, effectiveQuery, 6);
+  const topConfidence = matches[0]?.confidence || 0;
+  if (!screenMode && normalizedQuery && topConfidence < LOW_CONFIDENCE_THRESHOLD) {
+    return buildNoMatchAnswer({
+      query: submittedQuestion,
+      matches,
+      topics,
+      extractedEntities
+    });
+  }
+
   const topic = screenMode
     ? buildCurrentScreenTopic(currentHelp)
-    : normalizedQuery ? (matches[0] || buildNoMatchTopic(query)) : buildHelpIntroTopic();
+    : normalizedQuery ? matches[0] : buildHelpIntroTopic();
   const related = screenMode ? searchHelpTopics(topics, topic.title, 5).filter((item) => item.id !== topic.id) : matches.slice(1, 6);
 
-  return {
+  return enrichAnswer({
     mode: screenMode ? "Screen Guidance Mode" : "Help Mode",
     title: topic.title,
     type: topic.type,
     summary: topic.summary,
+    directAnswer: screenMode
+      ? `You are on ${topic.title}. Use this screen guidance to verify visible fields, warnings and the next safe action.`
+      : topic.summary,
     menuPath: topic.menuPath,
     viewKey: topic.viewKey,
     purpose: topic.purpose,
     fieldsToCheck: normalizeList(topic.fieldsToCheck),
+    keyFields: normalizeList(topic.keyFields),
+    requiredFields: normalizeList(topic.requiredFields),
+    accountingImpact: normalizeList(topic.accountingImpact),
+    inventoryImpact: normalizeList(topic.inventoryImpact),
+    gstImpact: normalizeList(topic.gstImpact),
+    relatedActions: normalizeList(topic.relatedActions),
+    relatedReports: normalizeList(topic.relatedReports),
+    relatedShortcuts: normalizeList(topic.relatedShortcuts),
     recommendedNextStep: topic.recommendedNextStep,
     steps: normalizeList(topic.steps),
     commonMistakes: normalizeList(topic.commonMistakes),
+    prerequisites: buildPrerequisites(topic, screenMode),
+    commonBlockers: buildCommonBlockers(topic),
+    whatToCheckNext: buildWhatToCheckNext(topic, screenMode),
+    suggestedNextAction: topic.viewKey ? `Open ${topic.title} and review the linked records before taking action.` : "Use the related help and screen links to continue safely.",
     relatedTopics: related.map((item) => ({ id: item.id, title: item.title, type: item.type, menuPath: item.menuPath, viewKey: item.viewKey })),
     sourceLabel: topic.type || "Help knowledge base",
+    confidence: topConfidence || undefined,
     safetyNote: "Guidance only: this assistant does not save, post, reverse, import, restore, delete or alter ERP records."
-  };
+  }, {
+    query: submittedQuestion,
+    extractedEntities,
+    intent,
+    relatedQuestions: buildRelatedQuestions(topic, intent)
+  });
 }
 
+/**
+ * Returns the default Help Mode landing answer.
+ */
 function buildHelpIntroTopic() {
   return {
     id: "help-mode-intro",
@@ -128,114 +166,132 @@ function buildHelpIntroTopic() {
   };
 }
 
-function buildCurrentScreenTopic(currentHelp) {
-  const title = currentHelp?.title || "Current Screen Guidance";
-  const purpose = currentHelp?.description || "Use this screen according to its purpose, required fields and report controls.";
-  const steps = normalizeList(currentHelp?.howToUse, [
-    "Review the screen title and purpose.",
-    "Check Current Company before entering company-specific records.",
-    "Use required fields, filters and report buttons shown on the screen.",
-    "Open the related report or ledger before making corrections."
-  ]);
+/**
+ * Builds a safe fallback answer when confidence is too low for a direct answer.
+ */
+function buildNoMatchAnswer({ query, matches, topics, extractedEntities }) {
+  const alternativeKeywords = buildAlternativeKeywords(query);
+  const closeMatches = matches.slice(0, 5).map((item) => ({
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    menuPath: item.menuPath,
+    viewKey: item.viewKey,
+    confidence: item.confidence
+  }));
+  const relatedScreens = searchHelpTopics(topics, alternativeKeywords.join(" "), 4)
+    .filter((item) => item.viewKey)
+    .map((item) => ({ id: item.id, title: item.title, type: item.type, menuPath: item.menuPath, viewKey: item.viewKey }));
 
   return {
-    id: "current-screen-answer",
-    type: "Screen Guidance",
-    title,
-    summary: `You are currently on ${title}. Use this mode to understand this exact screen before entering, saving, posting or correcting records.`,
-    menuPath: currentHelp?.menuPath || "",
-    viewKey: currentHelp?.viewKey,
-    purpose,
-    fieldsToCheck: buildScreenFieldsToCheck(title, currentHelp),
-    recommendedNextStep: buildScreenRecommendedNextStep(title, steps),
-    steps,
-    commonMistakes: normalizeList(currentHelp?.commonMistakes, [
-      "Saving records under the wrong company.",
-      "Treating draft operational records as posted accounting impact.",
-      "Ignoring posting, approval or locked-year warnings."
-    ])
-  };
-}
-
-function buildScreenFieldsToCheck(title, currentHelp) {
-  const haystack = normalizeText([title, currentHelp?.description, currentHelp?.menuPath].join(" "));
-  if (haystack.includes("billing") || haystack.includes("invoice")) {
-    return [
-      "Order number, department, invoice date and Current Company.",
-      "Item rows with item, HSN, quantity, rate, GST rate and gross value.",
-      "Receivable summary, posting status and linked document readiness."
-    ];
-  }
-  if (haystack.includes("supply order") || haystack.includes("order")) {
-    return [
-      "Order number, department, order date, employee assigned and supply type.",
-      "At least one order item row with quantity, rate, GST and gross value.",
-      "Buyer, consignee, delivery, document readiness and operational readiness."
-    ];
-  }
-  if (haystack.includes("procurement") || haystack.includes("purchase")) {
-    return [
-      "Linked order, supplier, purchase date, warehouse and purchase invoice.",
-      "Procurement item rows with quantity, rate, GST and freight/loading allocation.",
-      "Balance procurement quantity and GRN or stock receipt status."
-    ];
-  }
-  if (haystack.includes("payment") || haystack.includes("receipt") || haystack.includes("receivable") || haystack.includes("payable")) {
-    return [
-      "Party type, party name, linked invoice or supplier bill and bank account.",
-      "Payment amount, TDS, GST TDS, other deductions and UTR/reference.",
-      "Outstanding before payment and remaining outstanding after allocation."
-    ];
-  }
-  if (haystack.includes("inventory") || haystack.includes("stock") || haystack.includes("warehouse")) {
-    return [
-      "Current Company, warehouse, item, quantity and movement type.",
-      "Stock availability, reservation status and source document reference.",
-      "Whether the screen is a report, draft transaction or posted movement."
-    ];
-  }
-  if (haystack.includes("voucher") || haystack.includes("ledger") || haystack.includes("trial") || haystack.includes("balance")) {
-    return [
-      "Voucher date, financial year, company and posting status.",
-      "Debit and credit lines, party linkage and source reference.",
-      "Approval status, reversal status and locked-year warnings."
-    ];
-  }
-  if (haystack.includes("import") || haystack.includes("tally")) {
-    return [
-      "Selected company, file name, duplicate action and validation status.",
-      "Failed rows, warning rows, mapping rows and reference-only rows.",
-      "Import locked reason before confirming any controlled import."
-    ];
-  }
-  return [
-    "Current Company is correct.",
-    "Required fields, filters and visible warnings are reviewed.",
-    "Save, post, import, restore or delete actions are only used after confirmation."
-  ];
-}
-
-function buildScreenRecommendedNextStep(title, steps) {
-  const firstStep = Array.isArray(steps) ? steps.find(Boolean) : "";
-  if (firstStep) return firstStep;
-  return `Review ${title || "this screen"} inputs, warnings and linked records before taking the next action.`;
-}
-
-function buildNoMatchTopic(query) {
-  return {
-    id: "no-match",
-    type: "Search",
+    mode: "Help Mode",
     title: "No exact help topic found",
+    type: "Search Guidance",
     summary: `I could not find an exact match for "${query}". Try a shorter keyword such as voucher, GST, stock, payment, backup, import, ledger or billing.`,
+    directAnswer: "I do not have enough confidence to answer this safely. I am showing safer keywords, close matches and related screens instead of guessing.",
+    question: query,
+    extractedEntities,
+    noMatch: true,
+    alternativeKeywords,
+    closeMatches,
+    relatedScreens,
+    exampleQuestions: [
+      "Why is my voucher not posting?",
+      "How do I import stock items?",
+      "Where can I check receivable outstanding?",
+      "What should I do on this screen?"
+    ],
     steps: [
       "Use one or two business keywords.",
       "Search by module name, report name, shortcut or error message.",
       "Open Help & Training for the full manual if needed."
     ],
-    commonMistakes: []
+    commonMistakes: ["Avoid using an unrelated result when the assistant says confidence is low."],
+    relatedQuestions: [
+      "Why is my voucher not posting?",
+      "How do I review stock?",
+      "How do I use Tally import safely?"
+    ],
+    safetyNote: "Guidance only: this assistant does not save, post, reverse, import, restore, delete or alter ERP records."
   };
 }
 
+/**
+ * Adds optional intelligence metadata while preserving the existing answer shape.
+ */
+function enrichAnswer(answer, additions) {
+  return {
+    ...answer,
+    question: additions.query,
+    extractedEntities: additions.extractedEntities || [],
+    relatedQuestions: additions.relatedQuestions || [],
+    intent: additions.intent
+  };
+}
+
+/**
+ * Creates practical prerequisites for the selected help topic.
+ */
+function buildPrerequisites(topic, screenMode) {
+  if (screenMode) return ["Confirm Current Company.", "Review required fields and visible warnings.", "Use the module screen for actual save, post or correction actions."];
+  const haystack = normalizeText(topicHaystack(topic));
+  if (haystack.includes("voucher") || haystack.includes("ledger")) return ["Current Company is selected.", "Financial year is open.", "Source record or approval status is clear."];
+  if (haystack.includes("stock") || haystack.includes("warehouse") || haystack.includes("inventory")) return ["Item and warehouse exist.", "Stock movement is posted or visible in the relevant inventory report."];
+  if (haystack.includes("import") || haystack.includes("tally")) return ["Correct company is selected.", "Preview and validation have been run.", "Mapping and duplicate decisions are reviewed."];
+  return ["Current Company is selected.", "Relevant master records exist.", "Use posted reports for accounting conclusions."];
+}
+
+/**
+ * Creates blocker guidance based on the topic's ERP area.
+ */
+function buildCommonBlockers(topic) {
+  const haystack = normalizeText(topicHaystack(topic));
+  if (haystack.includes("voucher") || haystack.includes("posting")) return ["Unbalanced debit and credit lines.", "Closed financial year.", "Missing approval or source reference."];
+  if (haystack.includes("payment") || haystack.includes("receipt")) return ["Missing party or invoice allocation.", "Incorrect bank account or UTR/reference.", "Outstanding already cleared."];
+  if (haystack.includes("stock") || haystack.includes("warehouse")) return ["No confirmed stock movement.", "Wrong warehouse selected.", "Never-stocked items included in a report filter."];
+  if (haystack.includes("import") || haystack.includes("tally")) return ["Import locked because validation has not passed.", "Ledger rows need review.", "Duplicate action or company mapping is incomplete."];
+  return ["Wrong company context.", "Draft record mistaken for posted impact.", "Missing linked record or document."];
+}
+
+/**
+ * Suggests the next report or screen a user should verify.
+ */
+function buildWhatToCheckNext(topic, screenMode) {
+  if (screenMode) return ["Check the current screen's visible warnings.", "Use related reports or drilldown before correcting data."];
+  const haystack = normalizeText(topicHaystack(topic));
+  if (haystack.includes("voucher") || haystack.includes("ledger")) return ["Voucher Register", "General Ledger", "Trial Balance"];
+  if (haystack.includes("stock") || haystack.includes("inventory")) return ["Stock Summary", "Stock Ledger", "Low Stock filter"];
+  if (haystack.includes("payment") || haystack.includes("receipt")) return ["Party Ledger", "Bill-wise Outstanding", "Cash/Bank Book"];
+  if (haystack.includes("gst")) return ["GST Register", "GST Summary", "Invoice details"];
+  return ["Related module screen", "Relevant report", "Audit Log if action history matters"];
+}
+
+/**
+ * Suggests safer search keywords when a user query is unclear.
+ */
+function buildAlternativeKeywords(query) {
+  const expanded = expandQueryTerms(query);
+  const queryTokens = new Set(expanded.normalized.split(/\s+/).filter(Boolean));
+  return SUGGESTED_KEYWORDS
+    .filter((keyword) => !queryTokens.has(normalizeText(keyword)))
+    .slice(0, 8);
+}
+
+/**
+ * Produces follow-up questions that fit the active answer context.
+ */
+function buildRelatedQuestions(topic, intent) {
+  const haystack = normalizeText([topic?.title, topic?.summary, intent].join(" "));
+  if (haystack.includes("screen")) return ["What fields should I check here?", "What can go wrong on this screen?", "Which report verifies this screen?"];
+  if (haystack.includes("voucher") || haystack.includes("ledger")) return ["Why is a voucher not posting?", "Where do I check ledger impact?", "How do I reverse a wrong voucher?"];
+  if (haystack.includes("stock") || haystack.includes("inventory")) return ["Where can I check stock value?", "Why is low stock showing?", "How do I verify warehouse stock?"];
+  if (haystack.includes("import") || haystack.includes("tally")) return ["Why is import locked?", "How do I resolve duplicate rows?", "What should I validate before import?"];
+  return ["What should I do next?", "Which report should I open?", "What are common mistakes here?"];
+}
+
+/**
+ * Normalizes optional list-like answer fields.
+ */
 function normalizeList(value, fallback = []) {
   if (Array.isArray(value) && value.length) return value.filter(Boolean);
   if (typeof value === "string" && value.trim()) return [value.trim()];

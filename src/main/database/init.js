@@ -616,6 +616,59 @@ export function migrate(db) {
   runMigration(db, "025_phase15h_department_remarks_column", () => {
     addColumnIfMissing(db, "government_departments", "remarks", "TEXT");
   });
+
+  runMigration(db, "026_phase15i_crac_management", () => {
+    addPhase15iCracTables(db);
+  });
+}
+
+function addPhase15iCracTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crac_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      supply_order_id INTEGER NOT NULL,
+      department_id INTEGER,
+      invoice_id INTEGER,
+      crac_number TEXT,
+      crac_date TEXT,
+      crac_amount REAL NOT NULL DEFAULT 0,
+      crac_status TEXT NOT NULL DEFAULT 'Pending',
+      issued_by TEXT,
+      issuing_designation TEXT,
+      department TEXT,
+      remarks TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_by INTEGER,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (supply_order_id) REFERENCES supply_orders(id),
+      FOREIGN KEY (department_id) REFERENCES government_departments(id),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+    );
+  `);
+
+  [
+    ["crac_status", "TEXT NOT NULL DEFAULT 'Not Required'"],
+    ["crac_number", "TEXT"],
+    ["crac_date", "TEXT"],
+    ["crac_amount", "REAL NOT NULL DEFAULT 0"],
+    ["crac_issued_by", "TEXT"],
+    ["crac_issuing_designation", "TEXT"],
+    ["crac_department", "TEXT"],
+    ["crac_remarks", "TEXT"],
+    ["supply_completed_at", "TEXT"],
+    ["installation_completed_at", "TEXT"],
+    ["is_supply_completed", "INTEGER NOT NULL DEFAULT 0"],
+    ["is_installation_completed", "INTEGER NOT NULL DEFAULT 0"],
+    ["closure_checklist", "TEXT"],
+    ["closure_percentage", "REAL NOT NULL DEFAULT 0"],
+    ["operationally_closed", "INTEGER NOT NULL DEFAULT 0"],
+    ["operationally_closed_at", "TEXT"]
+  ].forEach(([column, definition]) => addColumnIfMissing(db, "supply_orders", column, definition));
 }
 
 function runMigration(db, migrationName, callback) {
@@ -4379,6 +4432,18 @@ export function dashboardCounts(db, filters = {}) {
   const amountReceived = db.prepare(`SELECT COALESCE(SUM(payment_amount), 0) AS value FROM payments WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value;
   const totalProfit = orderProfitability(db, companyId ? { company_id: companyId } : {}).reduce((sum, order) => sum + order.netCompanyProfit, 0);
   const inventorySummary = dashboardInventorySummary(db, companyId);
+  const cracWhere = companyId ? "WHERE cr.company_id = @company_id AND cr.is_deleted = 0" : "WHERE cr.is_deleted = 0";
+  const cracParams = companyId ? { company_id: companyId } : {};
+  const cracPending = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Pending'`).get(cracParams).count;
+  const cracGenerated = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Generated'`).get(cracParams).count;
+  const ordersWithGeneratedCrac = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Generated'`).get(cracParams).count;
+  const ordersWithInvoiceAndCrac = db.prepare(`
+    SELECT COUNT(*) AS count FROM supply_orders so
+    WHERE ${companyId ? "so.company_id = @company_id AND" : ""} so.is_deleted = 0
+      AND so.crac_status = 'Generated'
+      AND EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = so.id AND i.is_deleted = 0)
+      AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id = so.id AND p.is_deleted = 0)
+  `).get(companyId ? { company_id: companyId } : {}).count;
   return {
     totalOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`),
     activeOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND order_status NOT IN ('Closed', 'Fully Received')`),
@@ -4397,7 +4462,11 @@ export function dashboardCounts(db, filters = {}) {
     lowStockItems: inventorySummary.lowStockItems,
     itemsInStock: inventorySummary.itemsInStock,
     itemsIssued: db.prepare(`SELECT COALESCE(SUM(outward_quantity), 0) AS value FROM stock_ledger WHERE ${companyWhere} AND transaction_type IN ('Outward','Supplier Return','Adjustment Decrease')`).get(params).value,
-    returnedItems: db.prepare(`SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_returns WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value
+    returnedItems: db.prepare(`SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_returns WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value,
+    cracPending,
+    cracGenerated,
+    paymentReadyOrders: ordersWithInvoiceAndCrac,
+    readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`)
   };
 }
 

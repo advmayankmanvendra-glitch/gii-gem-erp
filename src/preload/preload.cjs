@@ -110,7 +110,19 @@ const api = {
     const listener = (_event, command) => callback(command);
     ipcRenderer.on("app:desktop-shortcut", listener);
     return () => ipcRenderer.removeListener("app:desktop-shortcut", listener);
-  }
+  },
+  listCracRecords: (filters) => ipcRenderer.invoke("crac:list", filters),
+  getCracRecord: (id) => ipcRenderer.invoke("crac:get", id),
+  createCracRecord: (payload) => ipcRenderer.invoke("crac:create", payload),
+  updateCracRecord: (id, payload) => ipcRenderer.invoke("crac:update", id, payload),
+  deleteCracRecord: (id, deletedBy) => ipcRenderer.invoke("crac:delete", id, deletedBy),
+  getCracStats: (filters) => ipcRenderer.invoke("crac:stats", filters),
+  getPaymentReadinessReport: (filters) => ipcRenderer.invoke("crac:payment-readiness", filters),
+  getOrdersBilledWithoutCrac: (filters) => ipcRenderer.invoke("crac:billed-without-crac", filters),
+  getPaymentDelayedOrders: (filters) => ipcRenderer.invoke("crac:payment-delayed", filters),
+  computeOrderClosure: (orderId) => ipcRenderer.invoke("crac:closure-compute", orderId),
+  markOrderOperationallyClosed: (orderId) => ipcRenderer.invoke("crac:closure-mark", orderId),
+  getClosurePendingOrders: (filters) => ipcRenderer.invoke("crac:closure-pending", filters)
 };
 
 contextBridge.exposeInMainWorld("giiGemErp", api);

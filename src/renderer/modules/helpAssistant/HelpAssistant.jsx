@@ -7,28 +7,33 @@ import { HelpAssistantDataMode } from "./HelpAssistantDataMode.jsx";
 import { HelpAssistantOnboarding } from "./HelpAssistantOnboarding.jsx";
 import { HelpAssistantSearch } from "./HelpAssistantSearch.jsx";
 import { HelpAssistantSuggestions } from "./HelpAssistantSuggestions.jsx";
+import { rememberConversation } from "./helpAssistantConversation.js";
 import { buildCoachPriorities, buildOnboardingReadiness } from "./helpAssistantReadiness.js";
 
-function HelpAssistant({ companies = [], companyContext = {}, currentHelp, currentView, onBack, onNavigate, session, stats }) {
+function HelpAssistant({ companies = [], companyContext = {}, currentHelp, currentView, initialMode = "screen", onBack, onNavigate, session, stats }) {
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState("screen");
+  const [mode, setMode] = useState(initialMode);
+  const [conversationHistory, setConversationHistory] = useState([]);
   const topics = useMemo(() => buildHelpAssistantKnowledge(currentHelp), [currentHelp]);
   const readiness = useMemo(() => buildOnboardingReadiness({ companies, companyContext, stats }), [companies, companyContext, stats]);
   const coach = useMemo(() => buildCoachPriorities({ readiness, stats, companyContext }), [readiness, stats, companyContext]);
   const answerContext = useMemo(() => ({ topics, currentHelp, readiness, coach, stats }), [topics, currentHelp, readiness, coach, stats]);
-  const [answer, setAnswer] = useState(() => buildHelpAssistantAnswer({ query: "", mode: "screen", ...answerContext }));
+  const [answer, setAnswer] = useState(() => buildHelpAssistantAnswer({ query: "", mode: initialMode, ...answerContext }));
   const results = useMemo(() => searchHelpTopics(topics, query, 8), [topics, query]);
+  const guidanceContextKey = `${currentView || ""}|${currentHelp?.key || currentHelp?.title || ""}|${initialMode}`;
 
   function ask(nextQuery = query, nextMode = mode) {
     const asked = String(nextQuery || "").trim();
+    const nextAnswer = buildHelpAssistantAnswer({ query: asked, mode: nextMode, conversationHistory, ...answerContext });
     setQuery(asked);
     setMode(nextMode);
-    setAnswer(buildHelpAssistantAnswer({ query: asked, mode: nextMode, ...answerContext }));
+    setAnswer(nextAnswer);
+    setConversationHistory((history) => rememberConversation(history, asked, nextAnswer));
   }
 
   function changeMode(nextMode) {
     setMode(nextMode);
-    setAnswer(buildHelpAssistantAnswer({ query, mode: nextMode, ...answerContext }));
+    setAnswer(buildHelpAssistantAnswer({ query, mode: nextMode, conversationHistory, ...answerContext }));
   }
 
   function askRelated(title) {
@@ -49,8 +54,15 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
   }
 
   useEffect(() => {
-    setAnswer(buildHelpAssistantAnswer({ query, mode, ...answerContext }));
-  }, [answerContext, currentView]);
+    setAnswer(buildHelpAssistantAnswer({ query, mode, conversationHistory, ...answerContext }));
+  }, [answerContext, conversationHistory, currentView, mode, query]);
+
+  useEffect(() => {
+    setQuery("");
+    setMode(initialMode);
+    setConversationHistory([]);
+    setAnswer(buildHelpAssistantAnswer({ query: "", mode: initialMode, conversationHistory: [], ...answerContext }));
+  }, [guidanceContextKey]);
 
   return (
     <section className="help-assistant-screen">
@@ -62,6 +74,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
         </div>
         <div className="help-assistant-hero-actions">
           <button type="button" className="ghost-btn" onClick={goBack}>Back</button>
+          <button type="button" className="ghost-btn" onClick={() => changeMode("help")}>Open Full Help Assistant</button>
           <div className="help-assistant-current">
             <small>Current guidance context</small>
             <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>

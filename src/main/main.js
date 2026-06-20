@@ -101,6 +101,16 @@ import {
 } from "./services/masterDataToolsService.js";
 import { createSupportBundle } from "./services/supportBundleService.js";
 import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
+import {
+  listCracRecords,
+  getCracRecord,
+  createCracRecord,
+  updateCracRecord,
+  deleteCracRecord,
+  getCracStats
+} from "./services/cracService.js";
+import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
+import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -764,6 +774,19 @@ function registerIpc() {
     if (failureReason) throw new Error(failureReason);
     return { success: true, installerPath: selectedInstaller };
   });
+
+  ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));
+  ipcMain.handle("crac:get", (_event, id) => getCracRecord(db, id));
+  ipcMain.handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
+  ipcMain.handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
+  ipcMain.handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
+  ipcMain.handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
+  ipcMain.handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
+  ipcMain.handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
+  ipcMain.handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
+  ipcMain.handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
+  ipcMain.handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
+  ipcMain.handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 }
 
 app.whenReady().then(() => {

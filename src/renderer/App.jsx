@@ -41,6 +41,7 @@ import { MasterDataToolsScreen } from "./screens/MasterDataTools/index.js";
 import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
 import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
 import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "./screens/ReadOnlyReportFamilyScreen.jsx";
+import { CRACManagementScreen, CRACEntryScreen, CRACTrackerScreen, PaymentReadinessScreen, OrderClosureScreen } from "./screens/CRAC/index.js";
 import { AccountingReportsIndex, CashFlowSummary, EmployeePerformanceSummary, GstSummary } from "./screens/ReadOnlySummaryReports.jsx";
 import { SettingsScreen } from "./screens/SettingsScreen.jsx";
 import { SafeModeRecoveryScreen } from "./screens/SafeMode/index.js";
@@ -257,6 +258,7 @@ function App() {
   const [userPreferencesOpen, setUserPreferencesOpen] = useState(false);
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
   const [helpAssistantSourceView, setHelpAssistantSourceView] = useState("dashboard");
+  const [helpAssistantInitialMode, setHelpAssistantInitialMode] = useState("screen");
   const [firstTourOpen, setFirstTourOpen] = useState(false);
   const [trainingMode, setTrainingMode] = useState(false);
   const [shortcutPanelCollapsed, setShortcutPanelCollapsed] = useState(() => window.localStorage?.getItem("gii-gem-shortcut-panel-collapsed") !== "no");
@@ -1148,12 +1150,18 @@ function App() {
             {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
             {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
             {effectiveView === "tally_xml_import" && <TallyXmlImportScreen notify={notify} session={session} companyContext={companyContext} />}
+            {effectiveView === "crac_management" && <CRACManagementScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
+            {effectiveView === "crac_entry" && <CRACEntryScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
+            {effectiveView === "crac_tracker" && <CRACTrackerScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
+            {effectiveView === "payment_readiness" && <PaymentReadinessScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
+            {effectiveView === "order_closure_tracking" && <OrderClosureScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
             {effectiveView === "help_assistant" && (
               <HelpAssistant
                 companies={safeCompanies}
                 companyContext={companyContext}
                 currentView={helpAssistantSourceView || view}
                 currentHelp={helpForView(helpAssistantSourceView || view)}
+                initialMode={helpAssistantInitialMode}
                 onBack={exitCurrentScreen}
                 onNavigate={navigate}
                 session={session}
@@ -1189,9 +1197,14 @@ function App() {
           onToggle={toggleRightUtilitySidebar}
           session={session}
           trainingMode={trainingMode}
-          onHelp={() => setContextHelpOpen(true)}
+          onHelp={() => {
+            setHelpAssistantSourceView(effectiveView);
+            setHelpAssistantInitialMode("screen");
+            navigate("help_assistant");
+          }}
           onHelpAssistant={() => {
             setHelpAssistantSourceView(effectiveView);
+            setHelpAssistantInitialMode("help");
             navigate("help_assistant");
           }}
           onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}

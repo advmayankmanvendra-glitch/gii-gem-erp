@@ -1,3 +1,5 @@
+import { INTENT_WEIGHTS, normalizeHelpText } from "./helpAssistantIntentMap.js";
+
 const ONBOARDING_SEQUENCE = [
   "Confirm Current Company in the right utility sidebar.",
   "Create or verify Company Master, Bank Master and Warehouse Master.",
@@ -12,43 +14,52 @@ const ONBOARDING_SEQUENCE = [
   "Allocate receipt, pay supplier, post expenses and review profitability."
 ];
 
-function normalizeIntentText(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+/**
+ * Checks exact phrase or token matches inside the expanded intent text.
+ */
+function phraseMatches(text, phrase) {
+  const normalizedPhrase = normalizeHelpText(phrase);
+  if (!normalizedPhrase) return false;
+  if (normalizedPhrase.includes(" ")) return text.includes(normalizedPhrase);
+  return new RegExp(`(^|\\s)${escapeRegex(normalizedPhrase)}(\\s|$)`).test(text);
 }
 
-function includesAny(text, words) {
-  return words.some((word) => text.includes(word));
+/**
+ * Escapes a token before building a strict word-boundary regular expression.
+ */
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function detectHelpAssistantIntent(query, mode) {
-  const normalized = normalizeIntentText(query);
+/**
+ * Scores available guidance intents and returns the strongest match.
+ */
+function detectHelpAssistantIntent(query, mode, history = []) {
   if (mode === "onboarding") return "onboarding";
   if (mode === "coach") return "coach";
   if (mode === "data") return "data";
+  if (mode === "screen") return "screen";
+
+  const historyText = history.map((entry) => `${entry.query || ""} ${entry.answerTitle || ""}`).join(" ");
+  const normalized = normalizeHelpText(`${query || ""} ${historyText}`);
   if (!normalized) return mode === "screen" ? "screen" : "general";
-
-  if (
-    includesAny(normalized, ["made the company", "created company", "where do i start", "how do i start", "new employee", "first time", "onboard", "setup erp"]) ||
-    (normalized.includes("company") && includesAny(normalized, ["start", "next", "after"]))
-  ) {
-    return "onboarding";
+  if (["this screen", "current screen", "where am i", "help here", "on this page", "this page"].some((phrase) => phraseMatches(normalized, phrase))) {
+    return "screen";
   }
 
-  if (includesAny(normalized, ["what should i do today", "today", "priority", "pending", "stuck", "next action", "attention"])) {
-    return "coach";
-  }
+  const ranked = INTENT_WEIGHTS
+    .map((definition) => {
+      const matched = definition.words.filter((word) => phraseMatches(normalized, word));
+      return {
+        intent: definition.intent,
+        score: matched.length * definition.weight,
+        matched
+      };
+    })
+    .filter((row) => row.score > 0)
+    .sort((left, right) => right.score - left.score);
 
-  if (includesAny(normalized, ["how much", "show me", "which", "list", "count", "outstanding", "payable", "receivable", "gst payable", "low stock", "unpaid"])) {
-    return "data";
-  }
-
-  if (includesAny(normalized, ["this screen", "current screen", "where am i", "help here"])) return "screen";
-  if (includesAny(normalized, ["voucher", "posting", "ledger", "trial balance"])) return "accounting";
-  if (includesAny(normalized, ["gst", "tds", "invoice"])) return "gst";
-  if (includesAny(normalized, ["stock", "inventory", "warehouse", "grn"])) return "inventory";
-  if (includesAny(normalized, ["backup", "restore", "runtime", "health"])) return "recovery";
-  if (includesAny(normalized, ["import", "tally", "xml", "template"])) return "import";
-  return "general";
+  return ranked[0]?.intent || "general";
 }
 
 function buildIntentAnswer({ intent, readiness, coach }) {

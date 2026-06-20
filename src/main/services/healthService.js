@@ -204,6 +204,24 @@ function tableCheck(db) {
   return check("schema_core_tables", "Core Schema Tables", "pass", "normal", `Required and optional module tables are present. ${tables.length} table(s) detected.`, "No action required.", { tableCount: tables.length });
 }
 
+function cracHealthCheck(db) {
+  if (!hasTable(db, "crac_records")) {
+    return check("crac_status", "CRAC Records Status", "warn", "warning", "crac_records table does not exist. CRAC module may not be initialized.", "Run database initialization to create CRAC tables.");
+  }
+  const total = safeGet(db, "SELECT COUNT(*) AS count FROM crac_records WHERE is_deleted = 0");
+  const pending = safeGet(db, "SELECT COUNT(*) AS count FROM crac_records WHERE is_deleted = 0 AND crac_status = 'Pending'");
+  const generated = safeGet(db, "SELECT COUNT(*) AS count FROM crac_records WHERE is_deleted = 0 AND crac_status = 'Generated'");
+  const pendingCount = Number(pending.row?.count || 0);
+  const generatedCount = Number(generated.row?.count || 0);
+  const totalCount = Number(total.row?.count || 0);
+  const severity = pendingCount > 10 ? "warning" : "normal";
+  return check("crac_status", "CRAC Records Status", totalCount > 0 ? "pass" : "warn", severity,
+    `${totalCount} CRAC record(s): ${pendingCount} pending, ${generatedCount} generated.`,
+    pendingCount > 10 ? "Review CRAC pending queue for bottlenecks." : "No action required.",
+    { total: totalCount, pending: pendingCount, generated: generatedCount }
+  );
+}
+
 function auditLogCheck(db) {
   if (!hasTable(db, "audit_log")) {
     return check("audit_log", "Audit Log", "fail", "critical", "audit_log table is missing.", "Restore a valid database backup.");
@@ -281,6 +299,7 @@ export function runHealthChecks(db, runtimeDataRoot, context = {}) {
     checks.push(tableCheck(db));
     checks.push(accountingBalanceCheck(db));
     checks.push(auditLogCheck(db));
+    checks.push(cracHealthCheck(db));
     const company = resolveCompanyStatus(db, context);
     checks.push(check(
       "company_context",

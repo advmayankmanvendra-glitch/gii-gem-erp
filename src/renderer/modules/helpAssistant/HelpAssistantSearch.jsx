@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const HELP_ASSISTANT_MODES = [
   ["help", "Help Mode"],
@@ -17,14 +17,31 @@ const MODE_PLACEHOLDERS = {
 };
 
 const MODE_DESCRIPTIONS = {
-  help: "Searches the full help library: modules, reports, workflows, FAQ, troubleshooting and shortcuts.",
-  screen: "Uses only the current screen context and explains what this exact screen is for.",
+  help: "Knowledge-driven answers for how-to, why, workflow, error and report questions across the ERP.",
+  screen: "Screen-driven guidance for the current page: purpose, missing checks, blockers and next safe action.",
   onboarding: "Guides a new user through first setup and the order-to-cash workflow.",
   coach: "Highlights practical next actions based on safe dashboard and readiness signals.",
   data: "Answers read-only summary questions without changing ERP records."
 };
 
 function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }) {
+  const [submitted, setSubmitted] = useState(false);
+  const resetTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
+  }, []);
+
+  /**
+   * Submits the current question and gives short visual feedback to the operator.
+   */
+  function handleSubmit() {
+    if (submitted) return;
+    setSubmitted(true);
+    onAsk();
+    resetTimerRef.current = window.setTimeout(() => setSubmitted(false), 1500);
+  }
+
   return (
     <section className="panel help-assistant-search">
       <div>
@@ -36,16 +53,17 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
           <span>Question</span>
           <textarea
             value={query}
+            rows={5}
             onChange={(event) => onQueryChange(event.target.value)}
             onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                onAsk();
+                handleSubmit();
               }
             }}
             placeholder={MODE_PLACEHOLDERS[mode] || MODE_PLACEHOLDERS.help}
           />
-          <small>Use multiple lines for long questions. Press Ctrl+Enter to submit.</small>
+          <small>Press Enter to submit. Press Shift+Enter for a new line.</small>
         </label>
         <div className="help-assistant-control-actions">
           <div className="help-assistant-mode-wrap">
@@ -58,7 +76,14 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
             </div>
             <p className="help-assistant-mode-help">{MODE_DESCRIPTIONS[mode] || MODE_DESCRIPTIONS.help}</p>
           </div>
-          <button type="button" className="primary-btn help-assistant-submit-btn" onClick={onAsk}>Submit</button>
+          <button
+            type="button"
+            className={`primary-btn help-assistant-submit-btn${submitted ? " submitted" : ""}`}
+            onClick={handleSubmit}
+            disabled={submitted}
+          >
+            {submitted ? "Sent" : "Submit"}
+          </button>
         </div>
       </div>
     </section>

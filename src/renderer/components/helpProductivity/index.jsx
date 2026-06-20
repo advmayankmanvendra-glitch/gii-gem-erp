@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { keyboardGuideSections } from "../../config/helpContent.js";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
+import { buildScreenHelpProfile } from "../../modules/helpAssistant/screenHelpCatalog.js";
 import { safeArray, safeObject } from "../../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../../utils/formatters.js";
 import { HelpList } from "../helpTraining/index.jsx";
@@ -495,6 +496,7 @@ export function helpForView(view) {
   const group = meta.groupId || "general";
   const base = {
     key: view,
+    viewKey: view,
     title,
     description,
     howToUse: [
@@ -586,5 +588,5 @@ export function helpForView(view) {
     base.bestPractices = ["Use role-specific help.", "Read common mistakes before posting.", "Export manual for onboarding."];
     base.relatedReports = ["ERP User Manual", "Keyboard Guide", "Knowledge Base"];
   }
-  return base;
+  return buildScreenHelpProfile(view, base, meta);
 }

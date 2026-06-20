@@ -288,6 +288,16 @@ function buildOperationsDrilldownActions(drilldown) {
     });
   }
 
+  if (recommendation.includes("crac") || recommendation.includes("certificate")) {
+    actions.push({ group: "Next Action", label: "Upload CRAC", view: "crac_entry", description: "Create CRAC record for this order." });
+    actions.push({ group: "Next Action", label: "View CRAC Tracker", view: "crac_tracker", description: "Open CRAC tracking screen." });
+  }
+  if (recommendation.includes("closure") || recommendation.includes("close")) {
+    actions.push({ group: "Next Action", label: "Review Order Closure", view: "order_closure_tracking", description: "Open closure checklist for this order." });
+  }
+  if (recommendation.includes("payment") && !recommendation.includes("receipt")) {
+    actions.push({ group: "Next Action", label: "Payment Readiness", view: "payment_readiness", description: "Review payment readiness for this order." });
+  }
   if (recommendation.includes("procurement")) {
     actions.push({ group: "Next Action", label: "Create Procurement", view: "procurements", description: "Open procurement workflow for pending order items." });
   }
