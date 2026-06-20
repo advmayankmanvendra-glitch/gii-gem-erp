@@ -6022,7 +6022,7 @@ function normalizeStatusClass(status) {
 }
 
 function isRecordLocked(record = {}) {
-  return ["Posted", "Reversed"].includes(record.posting_status) || ["Posted", "Reversed"].includes(record.status);
+  return ["Posted", "Reversed", "Locked"].includes(record.posting_status) || ["Posted", "Reversed"].includes(record.status) || Number(record.order_locked) === 1;
 }
 
 function referenceOptions(type, refs) {

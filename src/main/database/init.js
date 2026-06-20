@@ -620,6 +620,10 @@ export function migrate(db) {
   runMigration(db, "026_phase15i_crac_management", () => {
     addPhase15iCracTables(db);
   });
+
+  runMigration(db, "027_audit_and_posting_control_fixes", () => {
+    addAuditAndPostingFixes(db);
+  });
 }
 
 function addPhase15iCracTables(db) {
@@ -669,6 +673,32 @@ function addPhase15iCracTables(db) {
     ["operationally_closed", "INTEGER NOT NULL DEFAULT 0"],
     ["operationally_closed_at", "TEXT"]
   ].forEach(([column, definition]) => addColumnIfMissing(db, "supply_orders", column, definition));
+}
+
+function addAuditAndPostingFixes(db) {
+  ["employees", "government_departments", "suppliers", "expense_heads", "banks"].forEach((table) => {
+    if (!tableExists(db, table)) return;
+    addColumnIfMissing(db, table, "is_deleted", "INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing(db, table, "deleted_at", "TEXT");
+    addColumnIfMissing(db, table, "deleted_by", "INTEGER REFERENCES users(id)");
+  });
+  addColumnIfMissing(db, "supply_orders", "posting_status", "TEXT NOT NULL DEFAULT 'Draft'");
+  const linked = db.prepare(`
+    SELECT DISTINCT so.id FROM supply_orders so
+    WHERE COALESCE(so.is_deleted, 0) = 0 AND COALESCE(so.posting_status, 'Draft') = 'Draft'
+    AND (
+      EXISTS (SELECT 1 FROM procurements p WHERE p.order_id = so.id AND COALESCE(p.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = so.id AND COALESCE(i.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM payments pm WHERE pm.order_id = so.id AND COALESCE(pm.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM expense_entries ee WHERE ee.order_id = so.id AND COALESCE(ee.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM stock_inwards si WHERE si.order_id = so.id AND COALESCE(si.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM stock_outwards so2 WHERE so2.order_id = so.id AND COALESCE(so2.is_deleted, 0) = 0)
+      OR EXISTS (SELECT 1 FROM stock_returns sr WHERE sr.order_id = so.id AND COALESCE(sr.is_deleted, 0) = 0)
+    )
+  `).all();
+  for (const row of linked) {
+    db.prepare("UPDATE supply_orders SET posting_status = 'Locked' WHERE id = ?").run(row.id);
+  }
 }
 
 function runMigration(db, migrationName, callback) {
@@ -2854,6 +2884,7 @@ function createSupplyOrderRecord(db, payload = {}) {
     const itemLines = extractSupplyOrderItems(payload);
     const data = cleanPayload("supply_orders", payload);
     if (!data.company_id) throw new Error("Company context is required. Select Current Company before saving this record.");
+    data.posting_status = data.posting_status || "Draft";
     const prepared = prepareSupplyOrderItems(db, data.company_id, null, itemLines || [], data.order_status);
     Object.assign(data, prepared.totals);
     const columns = Object.keys(data);
@@ -2954,6 +2985,7 @@ function updateSupplyOrderRecord(db, id, payload = {}) {
   const transaction = db.transaction(() => {
     const oldRecord = getRecord(db, "supply_orders", id);
     assertRecordEditable("supply_orders", oldRecord);
+    assertSupplyOrderNotLinked(db, id);
     const itemLines = extractSupplyOrderItems(payload);
     const data = cleanPayload("supply_orders", payload);
     data.company_id = data.company_id || oldRecord?.company_id || null;
@@ -2976,16 +3008,20 @@ export function deleteRecord(db, table, id) {
   assertWriteAllowed(table, "delete");
   const record = getRecord(db, table, id);
   assertRecordEditable(table, record);
+  if (table === "supply_orders") {
+    assertSupplyOrderNotLinked(db, id);
+  }
   if (MASTER_TABLES[table] && masterRecordIsReferenced(db, table, id)) {
     const changes = db.prepare(`UPDATE ${table} SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id).changes;
     auditLog(db, { action: "deactivate", table_name: table, record_id: id, old_value: JSON.stringify(record), new_value: "inactive_linked_master" });
     return changes > 0;
   }
-  if (ACCOUNTING_TABLES.has(table)) {
+  if (columnExists(db, table, "is_deleted")) {
     const changes = db.prepare(`UPDATE ${table} SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id).changes;
     auditLog(db, { action: "delete", table_name: table, record_id: id, old_value: "", new_value: "soft_delete" });
     return changes > 0;
   }
+  auditLog(db, { action: "hard_delete", table_name: table, record_id: id, old_value: JSON.stringify(record), new_value: "hard_delete" });
   return db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id).changes > 0;
 }
 
@@ -3015,8 +3051,31 @@ function assertRecordEditable(table, record) {
   if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table) && ["Posted", "Reversed"].includes(record.posting_status)) {
     throw new Error("Posted transactions are locked. Use reversal or correction voucher.");
   }
+  if (table === "supply_orders" && ["Locked", "Posted", "Reversed"].includes(record.posting_status)) {
+    throw new Error("Supply order is locked and cannot be modified.");
+  }
   if (table === "vouchers" && ["Posted", "Reversed"].includes(record.status)) {
     throw new Error("Posted vouchers cannot be edited or deleted. Use reversal.");
+  }
+}
+
+function assertSupplyOrderNotLinked(db, id) {
+  const linkedTables = [
+    ["procurements", "order_id"],
+    ["invoices", "order_id"],
+    ["payments", "order_id"],
+    ["expense_entries", "order_id"],
+    ["stock_inwards", "order_id"],
+    ["stock_outwards", "order_id"],
+    ["stock_returns", "order_id"]
+  ];
+  for (const [refTable, column] of linkedTables) {
+    if (!tableExists(db, refTable) || !columnExists(db, refTable, column)) continue;
+    const deletedFilter = columnExists(db, refTable, "is_deleted") ? "AND COALESCE(is_deleted, 0) = 0" : "";
+    const found = db.prepare(`SELECT 1 FROM ${refTable} WHERE ${column} = ? ${deletedFilter} LIMIT 1`).get(id);
+    if (found) {
+      throw new Error("Supply order has linked transactions and cannot be modified or deleted.");
+    }
   }
 }
 
@@ -3049,13 +3108,22 @@ export function listRecords(db, table, filters = {}) {
     params.company_id = companyId;
   }
 
-  if (ACCOUNTING_TABLES.has(table)) {
+  if (ACCOUNTING_TABLES.has(table) || MASTER_TABLES[table]) {
     where.push("COALESCE(is_deleted, 0) = 0");
   }
   const finalClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   if (table === "supply_orders") {
     return db.prepare(`
       SELECT supply_orders.*,
+        CASE WHEN (
+          EXISTS (SELECT 1 FROM procurements p WHERE p.order_id = supply_orders.id AND COALESCE(p.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = supply_orders.id AND COALESCE(i.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM payments pm WHERE pm.order_id = supply_orders.id AND COALESCE(pm.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM expense_entries ee WHERE ee.order_id = supply_orders.id AND COALESCE(ee.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM stock_inwards si WHERE si.order_id = supply_orders.id AND COALESCE(si.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM stock_outwards so2 WHERE so2.order_id = supply_orders.id AND COALESCE(so2.is_deleted, 0) = 0)
+          OR EXISTS (SELECT 1 FROM stock_returns sr WHERE sr.order_id = supply_orders.id AND COALESCE(sr.is_deleted, 0) = 0)
+        ) THEN 1 ELSE 0 END AS order_locked,
         COALESCE((SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_total_quantity,
         COALESCE((SELECT SUM(oi.taxable_value) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_order_taxable_value,
         COALESCE((SELECT SUM(oi.gst_amount) FROM order_items oi WHERE oi.order_id = supply_orders.id AND COALESCE(oi.is_deleted, 0) = 0), 0) computed_order_gst_amount,
