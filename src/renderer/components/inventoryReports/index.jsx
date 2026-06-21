@@ -3,6 +3,8 @@ import { EmptyState } from "../common.jsx";
 import { MetricLine, ReportActionButtons, ReportDateFilters, ReportSelectFilter, ReportToolbar } from "../forms/index.jsx";
 import { formatCurrency } from "../../utils/formatters.js";
 
+export { InventoryDashboardPanel } from "./InventoryDashboardPanel.jsx";
+
 export function InventoryReportToolbar({
   mode,
   title,

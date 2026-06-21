@@ -5,6 +5,8 @@ function DocumentTemplate({ title, purpose, preview, data, fieldHints = [], tabl
   const highlightedFields = fieldHints.length ? pickFields(data, fieldHints) : [];
   const fields = highlightedFields.length ? highlightedFields : (data.fields || []).slice(0, 18);
   const table = firstTable(data);
+  const now = new Date();
+  const certId = `CERT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
   return (
     <section className="certified-print-template">
       <div className="certified-print-banner">
@@ -26,13 +28,37 @@ function DocumentTemplate({ title, purpose, preview, data, fieldHints = [], tabl
           <span>Navigation</span>
           <strong>{preview.breadcrumb || "-"}</strong>
         </div>
+        <div>
+          <span>Certification ID</span>
+          <strong>{certId}</strong>
+        </div>
       </section>
       <FieldGrid title="Document Details" fields={fields} />
       {table ? <DataTable title={table.heading || tableTitle} table={table} /> : <MissingData warnings={["No line-item or report table was loaded for this template."]} />}
       {(data.tables || []).slice(1, 3).map((extraTable) => <DataTable key={extraTable.heading} title={extraTable.heading} table={extraTable} compact />)}
-      <section className="certified-print-note">
-        <strong>Certification note</strong>
-        <p>This print is generated from currently loaded ERP data. Re-open the source record/report and refresh before printing final statutory or operational documents.</p>
+      <section className="certified-print-footer">
+        <div className="certified-print-footer-row">
+          <div>
+            <strong>Certification</strong>
+            <p>This document is a system-generated certified print from GII GeM ERP.</p>
+          </div>
+          <div>
+            <strong>Certification ID</strong>
+            <p>{certId}</p>
+          </div>
+          <div>
+            <strong>Generated At</strong>
+            <p>{preview.generatedAt || "-"}</p>
+          </div>
+          <div>
+            <strong>Verification</strong>
+            <p>Re-open the source record and refresh before using for statutory or official purposes. This print reflects data loaded at the time of generation.</p>
+          </div>
+        </div>
+        <div className="certified-print-footer-bar">
+          <span>GII GeM ERP | Certified Print Output</span>
+          <span>Page 1 of 1</span>
+        </div>
       </section>
     </section>
   );

@@ -1,4 +1,6 @@
 import React from "react";
+import { CreditNotePrint } from "./templates/CreditNotePrint.jsx";
+import { DebitNotePrint } from "./templates/DebitNotePrint.jsx";
 import { DeliveryChallanPrint } from "./templates/DeliveryChallanPrint.jsx";
 import { GstReportPrint } from "./templates/GstReportPrint.jsx";
 import { JournalVoucherPrint } from "./templates/JournalVoucherPrint.jsx";
@@ -10,6 +12,8 @@ import { StockReportPrint } from "./templates/StockReportPrint.jsx";
 
 const TEMPLATE_COMPONENTS = {
   sales_invoice: SalesInvoicePrint,
+  credit_note: CreditNotePrint,
+  debit_note: DebitNotePrint,
   delivery_challan: DeliveryChallanPrint,
   receipt_voucher: ReceiptVoucherPrint,
   payment_voucher: PaymentVoucherPrint,

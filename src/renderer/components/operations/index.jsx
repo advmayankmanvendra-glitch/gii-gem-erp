@@ -40,14 +40,74 @@ export function OperationsAttentionQueueTable({ title, rows, columns, onNavigate
   );
 }
 
-export function OperationsDrilldownContent({ drilldown, onClose, onNavigate }) {
+export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onInlineAction }) {
   const summary = drilldown.summary;
   const actions = buildOperationsDrilldownActions(drilldown);
+  const [inlineAction, setInlineAction] = React.useState(null);
+  const [inlineReason, setInlineReason] = React.useState("");
+  const [inlineLoading, setInlineLoading] = React.useState(false);
+
   function openAction(action) {
-    if (action.disabled || !action.view || !onNavigate) return;
+    if (action.disabled) return;
+    if (action.inlineAction) {
+      setInlineAction(action);
+      setInlineReason("");
+      return;
+    }
+    if (!action.view || !onNavigate) return;
     onNavigate(action.view);
     onClose?.();
   }
+
+  async function submitInlineAction() {
+    if (!inlineAction) return;
+    const reason = inlineReason.trim();
+    if (!reason) {
+      if (typeof notify === "function") notify("Reason is required", "error");
+      return;
+    }
+    setInlineLoading(true);
+    try {
+      if (onInlineAction) {
+        await onInlineAction(inlineAction, reason);
+      }
+      setInlineAction(null);
+      setInlineReason("");
+    } catch (error) {
+      if (typeof notify === "function") notify(error.message, "error");
+    } finally {
+      setInlineLoading(false);
+    }
+  }
+
+  function cancelInlineAction() {
+    setInlineAction(null);
+    setInlineReason("");
+  }
+
+  const inlineForm = inlineAction ? (
+    <div className="source-box" style={{ border: "2px solid #d9534f", background: "#fff5f5" }}>
+      <h3>{inlineAction.actionType === "reverse" ? "Reverse Voucher" : "Inline Correction"}</h3>
+      <p>{inlineAction.description}</p>
+      <div className="field-row">
+        <label>Reason for correction</label>
+        <textarea
+          value={inlineReason}
+          onChange={(e) => setInlineReason(e.target.value)}
+          placeholder="Enter the reason for this correction action"
+          rows={2}
+          disabled={inlineLoading}
+        />
+      </div>
+      <div className="button-row">
+        <button type="button" className="danger-btn" onClick={submitInlineAction} disabled={inlineLoading}>
+          {inlineLoading ? "Processing..." : "Confirm Correction"}
+        </button>
+        <button type="button" className="ghost-btn" onClick={cancelInlineAction} disabled={inlineLoading}>Cancel</button>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <section className="panel operations-drilldown-panel">
       <div className="panel-head">
@@ -64,10 +124,38 @@ export function OperationsDrilldownContent({ drilldown, onClose, onNavigate }) {
       <OperationsRecommendations action={drilldown.recommendedAction} closure={drilldown.closure} />
       <OperationsClosureReadiness closure={drilldown.closure} />
       <OperationsActionCenter actions={actions} onAction={openAction} />
+      {inlineForm}
+      <OperationsEvidenceJumpBar sections={drilldown.sections} />
       <OperationsEvidenceSections sections={drilldown.sections} />
       <div className="button-row">
         {summary.target_view && <button type="button" className="ghost-btn" onClick={() => onNavigate(summary.target_view)}>Open Source Screen</button>}
         <button type="button" className="primary-btn" onClick={onClose}>Done</button>
+      </div>
+    </section>
+  );
+}
+
+/** Render same-page jump actions for long operational drilldown evidence panels. */
+export function OperationsEvidenceJumpBar({ sections }) {
+  const availableSections = (sections || []).filter((section) => section?.title);
+  if (!availableSections.length) return null;
+  return (
+    <section className="operations-evidence-card operations-evidence-jump-card">
+      <div>
+        <h3>Evidence Navigation</h3>
+        <span>Jump directly to the linked evidence section.</span>
+      </div>
+      <div className="operations-evidence-jump-list">
+        {availableSections.map((section) => (
+          <button
+            key={section.title}
+            type="button"
+            className="ghost-btn"
+            onClick={() => jumpToEvidenceSection(section.title)}
+          >
+            {section.title}
+          </button>
+        ))}
       </div>
     </section>
   );
@@ -84,7 +172,7 @@ export function OperationsActionCenter({ actions, onAction }) {
     <section className="operations-evidence-card operations-action-center">
       <div>
         <h3>Action Center</h3>
-        <span>Open the next safe operational workflow without changing posted records directly.</span>
+        <span>Perform inline corrections or open the next safe operational workflow.</span>
       </div>
       <div className="operations-action-groups">
         {Object.entries(grouped).map(([group, groupActions]) => (
@@ -99,7 +187,7 @@ export function OperationsActionCenter({ actions, onAction }) {
                   disabled={action.disabled}
                   onClick={() => onAction(action)}
                 >
-                  <span>{action.label}</span>
+                  <span>{action.label}{action.inlineAction ? " (Inline)" : ""}</span>
                   <small>{action.reason || action.description}</small>
                 </button>
               ))}
@@ -231,7 +319,7 @@ export function OperationsEvidenceSections({ sections }) {
 
 export function OperationsEvidenceTable({ title, rows, columns }) {
   return (
-    <section className="operations-evidence-card">
+    <section id={operationsEvidenceSectionId(title)} className="operations-evidence-card">
       <div>
         <h3>{title}</h3>
         <span>{rows.length} linked row(s)</span>
@@ -254,6 +342,20 @@ export function OperationsEvidenceTable({ title, rows, columns }) {
       ) : <EmptyState title="Unlinked" note="No linked evidence is available for this section yet." />}
     </section>
   );
+}
+
+/** Build a stable DOM id for an operational evidence section. */
+function operationsEvidenceSectionId(title) {
+  const slug = String(title || "section")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `operations-evidence-${slug || "section"}`;
+}
+
+/** Move the current viewport to a selected operational evidence section. */
+function jumpToEvidenceSection(title) {
+  window.__giiGemScrollToSection?.(`#${operationsEvidenceSectionId(title)}`, false);
 }
 
 function renderOperationCell(value, key) {

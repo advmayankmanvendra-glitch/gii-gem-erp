@@ -41,11 +41,26 @@ function collectFields(root) {
   const controls = Array.from(root.querySelectorAll("input, textarea, select"))
     .filter((field) => field.type !== "hidden" && field.type !== "file");
   const fields = [];
+  const seenKeys = new Set();
   controls.forEach((field) => {
     const label = normalizeLabel(findControlLabel(field));
     const value = readControlValue(field);
     if (!label || !value || value === "-") return;
-    if (fields.some((entry) => entry.label === label && entry.value === value)) return;
+    const key = `${label}::${value}`;
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    fields.push({ label, value });
+  });
+  Array.from(root.querySelectorAll(".field-row, .metric-line, .display-row")).forEach((row) => {
+    const labelEl = row.querySelector("label, strong, .label, .field-label");
+    const valueEl = row.querySelector("span:not(.label):not(.field-label), .value, .field-value");
+    if (!labelEl || !valueEl) return;
+    const label = normalizeLabel(labelEl.textContent);
+    const value = normalizeLabel(valueEl.textContent);
+    if (!label || !value || value === "-") return;
+    const key = `${label}::${value}`;
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
     fields.push({ label, value });
   });
   return fields.slice(0, 80);

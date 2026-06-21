@@ -8,7 +8,7 @@ function SalesInvoicePrint({ preview, data }) {
       purpose="Government supply tax invoice print from loaded billing data."
       preview={preview}
       data={data}
-      fieldHints={["company", "invoice", "date", "order", "department", "institution", "consignee", "place", "gst", "status"]}
+      fieldHints={["company", "gstin", "invoice", "date", "order", "department", "institution", "consignee", "place", "gst", "hsn", "status", "value", "taxable", "cgst", "sgst", "igst", "total", "amount"]}
       tableTitle="Invoice Item Details"
     />
   );

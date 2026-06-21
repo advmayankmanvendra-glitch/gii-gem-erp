@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { isDesktopRuntime, resolveApi } from "./api/client.js";
 import { downloadText, exportRows, formatCurrency } from "./utils/formatters.js";
+import { resetWorkspaceScroll, scrollToSection } from "./utils/navigationScroll.js";
 import { isAdminUser, requestPrintPreview } from "./utils/uiHelpers.js";
 import { COMPANY_CONTEXT_KEY, COMPANY_SCOPE_KEY, RIGHT_UTILITY_SIDEBAR_KEY } from "./config/storageKeys.js";
 import { masterViews, transactionViews } from "./config/viewDefinitions.js";
@@ -27,7 +28,7 @@ import {
 import { NavigationSidebar, RightUtilitySidebar, WorkspaceFrame } from "./components/layout/index.jsx";
 import { ConfirmDialog, GlobalSearchOverlay, PrintPreviewDialog } from "./components/overlays/index.jsx";
 import { OperationsAttentionQueueTable } from "./components/operations/index.jsx";
-import { InventoryReadOnlyReportPanel } from "./components/inventoryReports/index.jsx";
+import { InventoryDashboardPanel, InventoryReadOnlyReportPanel } from "./components/inventoryReports/index.jsx";
 import { AccountingControlReportTable, FinancialControlOverview, LockedYearControlNotice } from "./components/accountingControls/index.jsx";
 import { StockAdjustmentControlPanel, validateStockAdjustmentDraft } from "./features/inventory/StockAdjustmentControlPanel.jsx";
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
@@ -379,6 +380,15 @@ function App() {
     }
   }, [session]);
 
+  useEffect(() => {
+    window.__giiGemScrollToSection = scrollToSection;
+    window.__giiGemResetScroll = resetWorkspaceScroll;
+    return () => {
+      window.__giiGemScrollToSection = null;
+      window.__giiGemResetScroll = null;
+    };
+  }, []);
+
   function navigate(nextView) {
     if (nextView === view) {
       const preferredKind = businessVoucherRouteKinds[nextView];
@@ -394,6 +404,7 @@ function App() {
     const groupId = flatNavItems.find((item) => item.key === nextView)?.groupId || "dashboard";
     setExpandedGroups(groupId === "dashboard" ? {} : { [groupId]: true });
     setMobileSidebarOpen(false);
+    setTimeout(resetWorkspaceScroll, 50);
   }
 
   function exitCurrentScreen() {
@@ -1136,7 +1147,7 @@ function App() {
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
             {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
-            {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "voucher_dashboard" && <BusinessVoucherScreen notify={notify} onNavigate={navigate} role={session.role} requestedVoucherKind={businessVoucherRouteKinds[view]} companyContext={companyContext} />}
             {effectiveView === "manual_voucher" && <VoucherEntryScreen notify={notify} companyContext={companyContext} />}
@@ -3952,19 +3963,36 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
       billing_rate: line.billing_rate || 0,
       gst_rate: line.gst_rate || 0
     })) : [{ ...blankLine, billing_rate: invoice.billing_value || 0, gst_rate: invoice.gst_rate || 18 }]);
+    scrollToSection("#billing-voucher-form");
   }
 
   async function submit(event) {
     event.preventDefault();
     try {
-      if (!header.order_id) throw new Error("Order is required");
+      if (!header.order_id) {
+        scrollToSection("#billing-voucher-form");
+        throw new Error("Order is required");
+      }
       if (!companyContext?.company_id) throw new Error("Select Current Company before saving an invoice.");
       if (header.company_id && String(header.company_id) !== String(companyContext.company_id)) throw new Error("Selected company and invoice company do not match.");
-      if (!selectedDepartmentId) throw new Error("Department is required before billing");
-      if (!header.invoice_number.trim() && !invoiceNumberSuggestion) throw new Error("Invoice number is required");
-      if (totals.gross <= 0) throw new Error("Invoice amount must be positive");
-      if (orderValidation.duplicate) throw new Error("Duplicate billing warning: this order already has this invoice number");
+      if (!selectedDepartmentId) {
+        scrollToSection("#billing-voucher-form");
+        throw new Error("Department is required before billing");
+      }
+      if (!header.invoice_number.trim() && !invoiceNumberSuggestion) {
+        scrollToSection("#billing-voucher-form");
+        throw new Error("Invoice number is required");
+      }
+      if (totals.gross <= 0) {
+        scrollToSection("#billing-items-section");
+        throw new Error("Invoice amount must be positive");
+      }
+      if (orderValidation.duplicate) {
+        scrollToSection("#billing-order-validation");
+        throw new Error("Duplicate billing warning: this order already has this invoice number");
+      }
       if ((orderValidation.overBilling || orderValidation.excessQuantity || orderValidation.excessLineQuantity) && !allowExcessBilling) {
+        scrollToSection("#billing-order-validation");
         throw new Error("Excess billing is blocked. Tick explicit authorization to proceed.");
       }
       const saved = await api.saveBillingVoucher({
@@ -3982,6 +4010,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
   async function postInvoice(action) {
     if (!editing) {
       notify("Select an invoice before posting", "error");
+      scrollToSection("#billing-invoice-list");
       return;
     }
     try {
@@ -4174,7 +4203,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
 
   return (
     <section className={`billing-workspace ${gridExpanded ? "grid-expanded" : ""}`}>
-      <form className={`panel billing-form ${gridExpanded ? "grid-mode" : ""}`} data-entry-form="true" onSubmit={submit}>
+      <form id="billing-voucher-form" className={`panel billing-form ${gridExpanded ? "grid-mode" : ""}`} data-entry-form="true" onSubmit={submit}>
         <div className="panel-head">
           <div>
             <h2>Billing Voucher</h2>
@@ -4218,7 +4247,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
             {gridExpanded ? "Exit Grid Mode" : "Expand Grid"}
           </button>
         </div>
-        <div className="invoice-grid-wrap">
+        <div id="billing-items-section" className="invoice-grid-wrap">
           <table className="invoice-grid">
             <thead>
               <tr>
@@ -4460,9 +4489,29 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
       )}
 
       {!gridExpanded && <aside className="billing-side">
-        <section className="panel billing-control-panel">
-          <h2>Posting Control</h2>
+        <section id="billing-posting-control" className="panel billing-control-panel">
+          <h2>GST Invoice Finalization</h2>
+          <div className="workflow-note" style={{ marginBottom: 10 }}>
+            <strong>{selectedInvoice?.posting_status || editing?.posting_status || "Draft"}</strong>
+            <span>{
+              selectedInvoice?.posting_status === "Posted" ? "Invoice is posted to books. Ready for receivable tracking."
+              : selectedInvoice?.posting_status === "Reversed" ? "Invoice has been reversed. No further actions apply."
+              : selectedInvoice?.posting_status === "Error" ? "Posting encountered an error. Review and retry."
+              : selectedInvoice?.invoice_status === "Approved" ? "Approved and awaiting posting."
+              : selectedInvoice?.invoice_status === "Pending Approval" ? "Pending approval before posting."
+              : "Invoice is in draft state. Complete item details and post."
+            }</span>
+            <small>{
+              selectedInvoice?.posting_status === "Posted" ? "Next: Track receivable and receipt allocation."
+              : selectedInvoice?.posting_status === "Reversed" ? "Next: Create a corrected invoice if needed."
+              : selectedInvoice?.posting_status === "Error" ? "Next: Review error details and repost."
+              : selectedInvoice?.invoice_status === "Approved" ? "Next: Post the invoice to create the sales voucher."
+              : selectedInvoice?.invoice_status === "Pending Approval" ? "Next: Approve from the approval queue or update status."
+              : "Next: Add invoice line items and save before posting."
+            }</small>
+          </div>
           <ReadOnlyBox label="Voucher Number" value={selectedInvoice?.voucher_number || "-"} />
+          <ReadOnlyBox label="Invoice Status" value={selectedInvoice?.invoice_status || editing?.invoice_status || "Draft"} />
           <ReadOnlyBox label="Posting Status" value={selectedInvoice?.posting_status || editing?.posting_status || "Draft"} />
           <ReadOnlyBox label="Posting Date" value={selectedInvoice?.posted_at || selectedInvoice?.voucher_date || "-"} />
           <ReadOnlyBox label="Posted By" value={selectedInvoice?.posted_by || "-"} />
@@ -4473,7 +4522,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           </div>
         </section>
 
-        <section className="panel warning-panel">
+        <section id="billing-order-validation" className="panel warning-panel">
           <h2>Billing vs Order</h2>
           <MetricLine label="Ordered Quantity" value={orderValidation.orderedQuantity || "-"} />
           <MetricLine label="Billed Quantity" value={orderValidation.billedQuantity} />
@@ -4481,7 +4530,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           {orderValidation.messages.length ? orderValidation.messages.map((message) => <span className="warning-line" key={message}>{message}</span>) : <span className="ok-line">No duplicate or excess billing warning.</span>}
         </section>
 
-        <section className="panel compact-summary">
+        <section id="billing-receivable-summary" className="panel compact-summary">
           <h2>Receivable Summary</h2>
           <MetricLine label="Invoice Value" value={formatCurrency(selectedInvoice?.invoice_value || totals.gross)} />
           <MetricLine label="Amount Received" value={formatCurrency(selectedInvoice?.amount_received || 0)} />
@@ -4491,7 +4540,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           <MetricLine label="Outstanding" value={formatCurrency(selectedInvoice?.balance_outstanding || totals.gross)} />
         </section>
 
-        <section className="panel compact-summary">
+        <section id="billing-profitability-preview" className="panel compact-summary">
           <h2>Profitability Preview</h2>
           <MetricLine label="Purchase Cost" value={formatCurrency(profitability.purchaseValue)} />
           <MetricLine label="Billing Value" value={formatCurrency(totals.taxable || profitability.billingValue)} />
@@ -4502,7 +4551,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           <MetricLine label="ROI" value={`${formatNumber(profitability.roi)}%`} />
         </section>
 
-        <section className="panel compact-summary">
+        <section id="billing-documents" className="panel compact-summary">
           <h2>Documents</h2>
           <div className="document-checklist">
             {requiredBillingDocuments.map((type) => {
@@ -4521,13 +4570,19 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           {documents.length ? documents.map((doc) => <span className="document-chip" key={doc.id}>{doc.document_type}: {doc.original_file_name}</span>) : <small>No invoice attachments yet.</small>}
         </section>
 
-        <section className="panel compact-summary">
-          <h2>Invoice Timeline</h2>
-          {invoiceTimeline(selectedInvoice).map((item) => <span className={`timeline-row ${item.done ? "done" : ""}`} key={item.label}>{item.label}<small>{item.value}</small></span>)}
+        <section id="billing-lifecycle" className="panel compact-summary">
+          <h2>Invoice Lifecycle</h2>
+          {invoiceTimeline(selectedInvoice).map((item) => (
+            <span className={`timeline-row ${item.done ? "done" : "pending"}`} key={item.label}>
+              <span>{item.label}</span>
+              <small>{item.value}</small>
+              {item.done ? <span className="timeline-check">&#10003;</span> : item.blocked ? <span className="timeline-blocked">&#9888;</span> : null}
+            </span>
+          ))}
         </section>
       </aside>}
 
-      <section className="panel billing-list">
+      <section id="billing-invoice-list" className="panel billing-list">
         <div className="panel-head">
           <div>
             <h2>Invoices</h2>
@@ -4545,7 +4600,10 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
                     <td>{invoice.order_number}</td>
                     <td>{invoice.department_name}</td>
                     <td>{formatCurrency(invoice.billing_value)}</td>
-                    <td><span className={`status ${normalizeStatusClass(invoice.posting_status || invoice.invoice_status)}`}>{invoice.posting_status || invoice.invoice_status}</span></td>
+                    <td>
+                      <span className={`status ${normalizeStatusClass(invoice.posting_status || invoice.invoice_status)}`}>{invoice.posting_status || invoice.invoice_status}</span>
+                      {invoice.invoice_status && invoice.invoice_status !== (invoice.posting_status || invoice.invoice_status) ? <small className="status-sub">{invoice.invoice_status}</small> : null}
+                    </td>
                     <td>{invoice.voucher_number || "-"}</td>
                     <td><span className="drill-path">Invoice / Voucher / Ledger / Receivable / Allocation / Payment</span></td>
                     <td><button type="button" className="ghost-btn" onClick={() => editInvoice(invoice)}>{isRecordLocked(invoice) ? "View" : "Open"}</button></td>
@@ -4702,6 +4760,7 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate }
     setOrderItems(isSupplyOrder ? supplyOrderItemsFromRecord(record) : [blankSupplyOrderItem()]);
     setValidationErrors([]);
     if (isSupplyOrder) setShowSupplyOrderEntry(true);
+    scrollToSection(isSupplyOrder ? "#supply-order-entry-form" : "#transaction-entry-form");
   }
 
   async function postStockRecord(record) {
@@ -4750,9 +4809,9 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate }
           </div>
           <div className="button-row">
             {showSupplyOrderEntry ? (
-              <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(false); }}>Back to List</button>
+              <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(false); scrollToSection("#supply-order-list-panel", false); }}>Back to List</button>
             ) : (
-              <button type="button" className="primary-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(true); }}>New Supply Order</button>
+              <button type="button" className="primary-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); setShowSupplyOrderEntry(true); scrollToSection("#supply-order-entry-form"); }}>New Supply Order</button>
             )}
           </div>
         </div>
@@ -4796,7 +4855,7 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate }
   return (
     <section className="transaction-layout">
       <AddRecordPanel table={table} title={config.title} notify={notify} onImported={load} records={records}>
-        <form className="entry-form-inner" data-entry-form="true" onSubmit={submit}>
+        <form id="transaction-entry-form" className="entry-form-inner" data-entry-form="true" onSubmit={submit}>
           <div className="panel-head">
             <h2>{editing ? "Edit Entry" : "Add Entry"}</h2>
             {editing && <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(blank); setOrderItems([blankSupplyOrderItem()]); }}>Clear</button>}
@@ -4919,7 +4978,7 @@ function SupplyOrderEntryForm({ config, form, orderItems, setOrderItems, referen
   };
 
   return (
-    <form className="entry-form-inner supply-order-entry-form" data-entry-form="true" onSubmit={onSubmit}>
+    <form id="supply-order-entry-form" className="entry-form-inner supply-order-entry-form" data-entry-form="true" onSubmit={onSubmit}>
       <div className="panel-head">
         <div>
           <h2>{editing ? "Edit Supply Order" : "Add Supply Order"}</h2>
@@ -5122,7 +5181,7 @@ function supplyOrderOperationalReadiness(form, orderItems, references, editing) 
 
 function SupplyOrderRecordsPanel({ config, records, references, filters, setFilters, loading, edit, remove }) {
   return (
-    <section className="panel records-panel supply-order-list-panel">
+    <section id="supply-order-list-panel" className="panel records-panel supply-order-list-panel">
       <div className="records-toolbar">
         <div>
           <h2>{config.title}</h2>
@@ -6207,15 +6266,15 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
     return (
       <section className="page operations-command-center">
         <div className="metric-grid profit-grid">
-          <Metric label="Orders Received" value={data.orders.length} note="All active orders" icon="clipboard" />
-          <Metric label="Pending Procurement" value={data.pendingProcurement.length} note="Shortage or procurement pending" icon="cart" />
-          <Metric label="Pending Supply" value={data.pendingSupply.length} note="Not fully issued/supplied" icon="truck" />
-          <Metric label="Pending Billing" value={data.pendingBilling.length} note="Billed quantity/value pending" icon="file" />
-          <Metric label="Pending Collection" value={data.pendingPayment.length} note="Outstanding receivables" icon="wallet" />
-          <Metric label="Pending GRNs" value={data.grnPending.length} note="Receipt completion pending" icon="box" />
-          <Metric label="Missing Documents" value={data.missingDocuments.length} note="Checklist gaps" icon="file" />
-          <Metric label="Profitability Issues" value={data.profitabilityExceptions.length} note="Loss or missing basis" icon="trend" />
-          <Metric label="Posting Errors" value={data.postingErrors.length} note="Operational posting issues" icon="shield" />
+          <Metric label="Orders Received" value={data.orders.length} note="All active orders" icon="clipboard" onClick={() => onNavigate("supply_orders")} />
+          <Metric label="Pending Procurement" value={data.pendingProcurement.length} note="Shortage or procurement pending" icon="cart" onClick={() => onNavigate("procurements")} />
+          <Metric label="Pending Supply" value={data.pendingSupply.length} note="Not fully issued/supplied" icon="truck" onClick={() => onNavigate("order_lifecycle")} />
+          <Metric label="Pending Billing" value={data.pendingBilling.length} note="Billed quantity/value pending" icon="file" onClick={() => onNavigate("invoices")} />
+          <Metric label="Pending Collection" value={data.pendingPayment.length} note="Outstanding receivables" icon="wallet" onClick={() => onNavigate("payments")} />
+          <Metric label="Pending GRNs" value={data.grnPending.length} note="Receipt completion pending" icon="box" onClick={() => onNavigate("grn_status")} />
+          <Metric label="Missing Documents" value={data.missingDocuments.length} note="Checklist gaps" icon="file" onClick={() => onNavigate("missing_documents")} />
+          <Metric label="Profitability Issues" value={data.profitabilityExceptions.length} note="Loss or missing basis" icon="trend" onClick={() => onNavigate("order_profitability_exceptions")} />
+          <Metric label="Posting Errors" value={data.postingErrors.length} note="Operational posting issues" icon="shield" onClick={() => onNavigate("posting_control")} />
         </div>
         <div className="operations-insight-grid">
           {insightCards.map((card) => (
@@ -6251,11 +6310,11 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
             ["recommended_action", "Next Recommended Action"]
           ]}
           onNavigate={onNavigate}
-          onDrilldown={(row) => setDrilldown(buildOperationsDrilldown(row, data))}
+          onDrilldown={(row) => { setDrilldown(buildOperationsDrilldown(row, data)); scrollToSection(".operations-drilldown-panel"); }}
           onExport={() => exportRows(queueFilter === "all" ? "Operations Attention Queue" : `Operations Attention Queue - ${activeFilter?.label || "Filtered"}`, attentionRows)}
           onPrint={requestPrintPreview}
         />
-        {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
+        {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} />}
       </section>
     );
   }
@@ -6393,11 +6452,11 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
         rows={rows}
         columns={columns}
         onNavigate={onNavigate}
-        onDrilldown={(row) => setDrilldown(buildOperationsDrilldown(row, data))}
+        onDrilldown={(row) => { setDrilldown(buildOperationsDrilldown(row, data)); scrollToSection(".operations-drilldown-panel"); }}
         onExport={() => exportRows(title, rows)}
         onPrint={requestPrintPreview}
       />
-      {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
+      {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} />}
     </>
   );
 }
@@ -7106,6 +7165,15 @@ function documentMatchesOrder(document, order, type, invoices = []) {
   return false;
 }
 
+const expectedDocumentTypes = {
+  supply_orders: ["Supply Order", "OEM Authorization", "Delivery Challan", "Installation Report"],
+  invoices: ["Invoice Copy", "Delivery Challan", "GST E-Invoice", "E-Way Bill"],
+  procurements: ["Purchase Order", "Delivery Challan", "Supplier Invoice", "GRN"],
+  payments: ["Payment Proof", "Bank Statement", "TDS Certificate"],
+  stock_inwards: ["Stock Receipt Note", "Supplier Invoice", "Inspection Report"],
+  stock_outwards: ["Delivery Challan", "Stock Transfer Note", "Gate Pass"]
+};
+
 function DocumentsScreen({ notify, companyContext }) {
   const [documents, setDocuments] = useState([]);
   const [moduleFilter, setModuleFilter] = useState("");
@@ -7122,9 +7190,13 @@ function DocumentsScreen({ notify, companyContext }) {
     load();
   }, [moduleFilter, companyContext?.company_id, companyContext?.company_scope]);
 
+  const expectedDocs = moduleFilter ? (expectedDocumentTypes[moduleFilter] || []) : [];
+  const uploadedTypes = new Set(documents.map((d) => d.document_type));
+  const missingDocs = expectedDocs.filter((type) => !uploadedTypes.has(type));
+
   return (
     <section className="panel settings-panel report-panel">
-      <ReportToolbar title="Document Management" note={`${companyContext?.company_name || "No company selected"} - ${documents.length} uploaded document(s)`}>
+      <ReportToolbar title="Document Center" note={`${companyContext?.company_name || "No company selected"} - ${documents.length} uploaded document(s)`}>
         <ReportSelectFilter
           value={moduleFilter}
           onChange={setModuleFilter}
@@ -7132,8 +7204,26 @@ function DocumentsScreen({ notify, companyContext }) {
           options={Object.keys(importTemplates).map((module) => [module, module.replaceAll("_", " ")])}
         />
       </ReportToolbar>
+      <div className="workflow-note" style={{ margin: "0 16px 8px" }}>
+        <strong>Document Lifecycle</strong>
+        <span>Documents prove business events - orders, invoices, payments, receipts. They support audit trail, payment readiness, and closure readiness without posting accounting directly.</span>
+        <small>Upload documents from the Add Record screen for each module. Use the filter above to narrow by module. Click a file link to open the uploaded document.</small>
+      </div>
+      {moduleFilter && expectedDocs.length > 0 && (
+        <div className="intelligence-card" style={{ margin: "0 16px 12px" }}>
+          <div className="intel-title">Document Checklist - {moduleFilter.replaceAll("_", " ")}</div>
+          <div className="metric-rows">
+            {expectedDocs.map((type) => (
+              <div key={type} className={`metric-line ${uploadedTypes.has(type) ? "ok-line" : "warning-line"}`}>
+                <span>{type}</span>
+                <span>{uploadedTypes.has(type) ? "Uploaded" : missingDocs.includes(type) ? "Missing" : "Optional"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {documents.length ? (
-        <div className="table-wrap">
+        <div className="table-wrap" style={{ margin: "0 16px" }}>
           <table>
             <thead>
               <tr>
@@ -7143,23 +7233,25 @@ function DocumentsScreen({ notify, companyContext }) {
                 <th>File</th>
                 <th>Size</th>
                 <th>Uploaded</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {documents.map((document) => (
                 <tr key={document.id}>
                   <td>{document.linked_module}</td>
-                  <td>{document.linked_record_id || "Module"}</td>
+                  <td>{document.linked_record_id || "-"}</td>
                   <td>{document.document_type}</td>
                   <td><strong>{document.original_file_name}</strong><br /><span>{document.file_extension}</span></td>
                   <td>{Math.round(Number(document.file_size || 0) / 1024)} KB</td>
                   <td>{new Date(document.uploaded_at).toLocaleString("en-IN")}</td>
+                  <td><span className={`badge ${expectedDocs.includes(document.document_type) ? "badge-ok" : "badge-muted"}`}>{expectedDocs.includes(document.document_type) ? "Required" : "Supporting"}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      ) : <EmptyState title="No documents uploaded" note="Use Upload PDF/Document from any Add Record screen." />}
+      ) : <EmptyState title="No documents uploaded" note="Use Upload PDF/Document from any Add Record screen. Select a module filter above to see the expected document checklist." />}
     </section>
   );
 }
@@ -7841,9 +7933,49 @@ function BusinessVoucherIntelligencePanel({
         ))}
       </div>
 
-      {["receipt", "credit_note"].includes(kind) && (
+      {kind === "credit_note" && (
+        <>
+          <div className="workflow-note" style={{ marginBottom: 8 }}>
+            <strong>Credit Note Lifecycle</strong>
+            <span>Draft {">"} Submitted {">"} Approved {">"} Posted. A credit note reduces the original invoice value, sales and output GST.</span>
+            <small>Use for correcting billing errors, rate differences, quantity differences or returns. The credit note is a controlled reversal of a posted sales invoice.</small>
+          </div>
+          <div className="intelligence-grid">
+            <IntelligenceCard title="Invoices Available for Credit Note" note={form.department_id ? "Select the invoice being adjusted." : "Select a department to narrow this list."}>
+              <MiniDataTable
+                emptyTitle="No outstanding invoices"
+                columns={["Invoice", "Date", "Value", "Received", "TDS", "GST TDS", "Balance", "Days", "Action"]}
+                rows={departmentInvoices.map((row) => [
+                  row.invoice_number || "-",
+                  row.invoice_date || "-",
+                  formatCurrency(row.invoice_amount || 0),
+                  formatCurrency(row.amount_received || 0),
+                  formatCurrency(row.tds_deducted || 0),
+                  formatCurrency(row.gst_tds_deducted || 0),
+                  formatCurrency(row.balance_outstanding || 0),
+                  row.days_outstanding ?? 0,
+                  <button type="button" className="ghost-btn" onClick={() => onApplyInvoice(row, "full")}>Use for note</button>
+                ])}
+              />
+            </IntelligenceCard>
+            <IntelligenceCard title="Credit Note Control">
+              <MetricRows rows={[
+                ["Original invoice", selectedInvoice?.invoice_number || "-"],
+                ["Earlier credit notes", selectedInvoice ? formatCurrency(selectedInvoice.credit_note_adjusted || 0) : "-"],
+                ["Invoice balance", selectedInvoice ? formatCurrency(invoiceBalance) : "-"],
+                ["Proposed reduction", formatCurrency(proposedNoteAmount)],
+                ["Balance after note", selectedInvoice ? formatCurrency(invoiceBalance - proposedNoteAmount) : "-"],
+                ["Reason", form.reason_code || "-"],
+                ["Lifecycle", selectedWorkflow?.status || "Draft"]
+              ]} />
+            </IntelligenceCard>
+          </div>
+        </>
+      )}
+
+      {kind === "receipt" && (
         <div className="intelligence-grid">
-          <IntelligenceCard title={kind === "receipt" ? "Outstanding Invoices" : "Invoices Available for Credit Note"} note={form.department_id ? "Select the invoice being adjusted." : "Select a department to narrow this list."}>
+          <IntelligenceCard title="Outstanding Invoices" note={form.department_id ? "Select the invoice being allocated." : "Select a department to narrow this list."}>
             <MiniDataTable
               emptyTitle="No outstanding invoices"
               columns={["Invoice", "Date", "Value", "Received", "TDS", "GST TDS", "Balance", "Days", "Action"]}
@@ -7856,31 +7988,62 @@ function BusinessVoucherIntelligencePanel({
                 formatCurrency(row.gst_tds_deducted || 0),
                 formatCurrency(row.balance_outstanding || 0),
                 row.days_outstanding ?? 0,
-                <button type="button" className="ghost-btn" onClick={() => onApplyInvoice(row, "full")}>{kind === "credit_note" ? "Use for note" : "Use full"}</button>
+                <button type="button" className="ghost-btn" onClick={() => onApplyInvoice(row, "full")}>Use full</button>
               ])}
             />
           </IntelligenceCard>
-          <IntelligenceCard title={kind === "receipt" ? "Receipt Allocation" : "Credit Note Control"}>
-            <MetricRows rows={kind === "receipt" ? [
+          <IntelligenceCard title="Receipt Allocation">
+            <MetricRows rows={[
               ["Bank amount received", formatCurrency(amount)],
               ["Total deductions", formatCurrency(tds + gstTds + other)],
               ["Receivable reduction", formatCurrency(receivableReduction)],
               ["Remaining invoice outstanding", selectedInvoice ? formatCurrency(invoiceBalance - receivableReduction) : "-"]
-            ] : [
-              ["Original invoice", selectedInvoice?.invoice_number || "-"],
-              ["Earlier credit notes", selectedInvoice ? formatCurrency(selectedInvoice.credit_note_adjusted || 0) : "-"],
-              ["Invoice balance", selectedInvoice ? formatCurrency(invoiceBalance) : "-"],
-              ["Proposed reduction", formatCurrency(proposedNoteAmount)],
-              ["Balance after note", selectedInvoice ? formatCurrency(invoiceBalance - proposedNoteAmount) : "-"],
-              ["Reason", form.reason_code || "-"]
             ]} />
           </IntelligenceCard>
         </div>
       )}
 
-      {["supplier_payment", "debit_note"].includes(kind) && (
+      {kind === "debit_note" && (
+        <>
+          <div className="workflow-note" style={{ marginBottom: 8 }}>
+            <strong>Debit Note Lifecycle</strong>
+            <span>Draft {">"} Submitted {">"} Approved {">"} Posted. A debit note reduces the original purchase bill value, purchase and input GST.</span>
+            <small>Use for correcting purchase errors, rate differences, quantity differences or supplier returns. The debit note is a controlled reversal of a posted purchase bill.</small>
+          </div>
+          <div className="intelligence-grid">
+            <IntelligenceCard title="Purchase Bills Available for Debit Note" note={form.supplier_id ? "Select the supplier bill being adjusted." : "Select a supplier to narrow this list."}>
+              <MiniDataTable
+                emptyTitle="No outstanding supplier bills"
+                columns={["Purchase Bill", "Date", "Value", "Paid", "Balance", "Days", "Action"]}
+                rows={supplierBills.map((row) => [
+                  row.purchase_invoice_number || "-",
+                  row.invoice_date || row.purchase_date || "-",
+                  formatCurrency(row.invoice_amount || row.purchase_value || 0),
+                  formatCurrency(row.amount_paid || 0),
+                  formatCurrency(row.balance_due || row.balance_outstanding || 0),
+                  row.days_outstanding ?? 0,
+                  <button type="button" className="ghost-btn" onClick={() => onApplyPurchaseBill(row, "full")}>Use for note</button>
+                ])}
+              />
+            </IntelligenceCard>
+            <IntelligenceCard title="Debit Note Control">
+              <MetricRows rows={[
+                ["Original purchase bill", selectedPurchaseBill?.purchase_invoice_number || "-"],
+                ["Earlier debit notes", selectedPurchaseBill ? formatCurrency(selectedPurchaseBill.debit_note_adjusted || 0) : "-"],
+                ["Purchase bill balance", selectedPurchaseBill ? formatCurrency(purchaseBalance) : "-"],
+                ["Proposed adjustment", formatCurrency(proposedNoteAmount)],
+                ["Balance after note", selectedPurchaseBill ? formatCurrency(purchaseBalance - proposedNoteAmount) : "-"],
+                ["Reason", form.reason_code || "-"],
+                ["Lifecycle", selectedWorkflow?.status || "Draft"]
+              ]} />
+            </IntelligenceCard>
+          </div>
+        </>
+      )}
+
+      {kind === "supplier_payment" && (
         <div className="intelligence-grid">
-          <IntelligenceCard title={kind === "supplier_payment" ? "Outstanding Purchase Bills" : "Purchase Bills Available for Debit Note"} note={form.supplier_id ? "Select the supplier bill being adjusted." : "Select a supplier to narrow this list."}>
+          <IntelligenceCard title="Outstanding Purchase Bills" note={form.supplier_id ? "Select the supplier bill being paid." : "Select a supplier to narrow this list."}>
             <MiniDataTable
               emptyTitle="No outstanding supplier bills"
               columns={["Purchase Bill", "Date", "Value", "Paid", "Balance", "Days", "Action"]}
@@ -7891,53 +8054,92 @@ function BusinessVoucherIntelligencePanel({
                 formatCurrency(row.amount_paid || 0),
                 formatCurrency(row.balance_due || row.balance_outstanding || 0),
                 row.days_outstanding ?? 0,
-                <button type="button" className="ghost-btn" onClick={() => onApplyPurchaseBill(row, "full")}>{kind === "debit_note" ? "Use for note" : "Use full"}</button>
+                <button type="button" className="ghost-btn" onClick={() => onApplyPurchaseBill(row, "full")}>Use full</button>
               ])}
             />
           </IntelligenceCard>
-          <IntelligenceCard title={kind === "supplier_payment" ? "Supplier Payment Allocation" : "Debit Note Control"}>
-            <MetricRows rows={kind === "supplier_payment" ? [
+          <IntelligenceCard title="Supplier Payment Allocation">
+            <MetricRows rows={[
               ["Payment amount", formatCurrency(amount)],
               ["Allocated amount", formatCurrency(Number(form.allocation_amount || amount || 0))],
               ["Remaining payable", selectedPurchaseBill ? formatCurrency(purchaseBalance - Number(form.allocation_amount || amount || 0)) : "-"]
-            ] : [
-              ["Original purchase bill", selectedPurchaseBill?.purchase_invoice_number || "-"],
-              ["Earlier debit notes", selectedPurchaseBill ? formatCurrency(selectedPurchaseBill.debit_note_adjusted || 0) : "-"],
-              ["Purchase bill balance", selectedPurchaseBill ? formatCurrency(purchaseBalance) : "-"],
-              ["Proposed adjustment", formatCurrency(proposedNoteAmount)],
-              ["Balance after note", selectedPurchaseBill ? formatCurrency(purchaseBalance - proposedNoteAmount) : "-"],
-              ["Reason", form.reason_code || "-"]
             ]} />
           </IntelligenceCard>
         </div>
       )}
 
-      {["sales", "purchase"].includes(kind) && (
-        <div className="intelligence-grid">
-          <IntelligenceCard title="Order Context" note={selectedOrder ? "Order-linked fields are shown for review before voucher save." : "Select an order number to see linked business context."}>
-            <MetricRows rows={[
-              ["Order number", selectedOrder?.order_number || "-"],
-              ["Department", selectedOrder?.department_name || "-"],
-              ["Institution", selectedOrder?.institution_name || "-"],
-              ["Location / place of supply", selectedOrder?.location || "-"],
-              ["Linked billed value", formatCurrency(orderBillingValue)],
-              ["Linked purchase value", formatCurrency(orderPurchaseValue)]
-            ]} />
-          </IntelligenceCard>
-          <IntelligenceCard title={kind === "sales" ? "Billing Control" : "Procurement Control"}>
-            <MetricRows rows={kind === "sales" ? [
-              ["Ordered quantity", orderQuantity || "-"],
-              ["Already billed", orderInvoices.length ? orderInvoices.length : 0],
-              ["Balance quantity", orderQuantity ? orderQuantity - Number(form.quantity || 0) : "-"],
-              ["GST rate", `${form.gst_rate || 0}%`]
-            ] : [
-              ["Item", selectedItem?.item_name || "-"],
-              ["HSN", selectedItem?.hsn_code || "-"],
-              ["Unit", selectedItem?.unit || "-"],
-              ["Procurement bills linked", orderPurchases.length]
-            ]} />
-          </IntelligenceCard>
-        </div>
+      {kind === "sales" && (
+        <>
+          <div className="workflow-note" style={{ marginBottom: 8 }}>
+            <strong>Sales-Inventory Dependency</strong>
+            <span>Supply Order {">"} Delivery / Stock Issue {">"} Billing / Invoice {">"} Receivable</span>
+            <small>Stock should be issued before (or concurrent with) billing to keep COGS and inventory synchronized. When Inventory Posting is enabled, a stock outward entry is created on voucher posting.</small>
+          </div>
+          <div className="intelligence-grid">
+            <IntelligenceCard title="Order Context" note={selectedOrder ? "Order-linked fields are shown for review before voucher save." : "Select an order number to see linked business context."}>
+              <MetricRows rows={[
+                ["Order number", selectedOrder?.order_number || "-"],
+                ["Department", selectedOrder?.department_name || "-"],
+                ["Institution", selectedOrder?.institution_name || "-"],
+                ["Location / place of supply", selectedOrder?.location || "-"],
+                ["Linked billed value", formatCurrency(orderBillingValue)],
+                ["Linked purchase value", formatCurrency(orderPurchaseValue)]
+              ]} />
+            </IntelligenceCard>
+            <IntelligenceCard title="Billing Control">
+              <MetricRows rows={[
+                ["Ordered quantity", orderQuantity || "-"],
+                ["Already billed", orderInvoices.length ? orderInvoices.length : 0],
+                ["Balance quantity", orderQuantity ? orderQuantity - Number(form.quantity || 0) : "-"],
+                ["GST rate", `${form.gst_rate || 0}%`]
+              ]} />
+            </IntelligenceCard>
+            <IntelligenceCard title="Inventory Dependency">
+              <MetricRows rows={[
+                ["Inventory Posting", form.inventory_enabled === "1" ? "Enabled" : "Disabled"],
+                ["Posting effect", form.inventory_enabled === "1" ? "Dr Receivable, Cr Sales, Cr Output GST + Stock Outward" : "Dr Receivable, Cr Sales, Cr Output GST (no stock impact)"],
+                ["COGS tracking", form.inventory_enabled === "1" ? "Automatic on stock issue" : "Manual entry required"]
+              ]} />
+            </IntelligenceCard>
+          </div>
+        </>
+      )}
+
+      {kind === "purchase" && (
+        <>
+          <div className="workflow-note" style={{ marginBottom: 8 }}>
+            <strong>Purchase-Inventory Dependency</strong>
+            <span>Procurement {">"} GRN / Stock Receipt {">"} Purchase Bill {">"} Payable</span>
+            <small>GRN should precede or accompany purchase billing to confirm stock receipt. When Inventory Posting is enabled, a stock inward entry is created on voucher posting.</small>
+          </div>
+          <div className="intelligence-grid">
+            <IntelligenceCard title="Order Context" note={selectedOrder ? "Order-linked fields are shown for review before voucher save." : "Select an order number to see linked business context."}>
+              <MetricRows rows={[
+                ["Order number", selectedOrder?.order_number || "-"],
+                ["Department", selectedOrder?.department_name || "-"],
+                ["Institution", selectedOrder?.institution_name || "-"],
+                ["Location / place of supply", selectedOrder?.location || "-"],
+                ["Linked billed value", formatCurrency(orderBillingValue)],
+                ["Linked purchase value", formatCurrency(orderPurchaseValue)]
+              ]} />
+            </IntelligenceCard>
+            <IntelligenceCard title="Procurement Control">
+              <MetricRows rows={[
+                ["Item", selectedItem?.item_name || "-"],
+                ["HSN", selectedItem?.hsn_code || "-"],
+                ["Unit", selectedItem?.unit || "-"],
+                ["Procurement bills linked", orderPurchases.length]
+              ]} />
+            </IntelligenceCard>
+            <IntelligenceCard title="Inventory Dependency">
+              <MetricRows rows={[
+                ["Inventory Posting", form.inventory_enabled === "1" ? "Enabled" : "Disabled"],
+                ["Posting effect", form.inventory_enabled === "1" ? "Dr Inventory, Dr Input GST, Cr Payable + Stock Inward" : "Dr Purchase, Dr Input GST, Cr Payable (no stock impact)"],
+                ["GRN requirement", form.inventory_enabled === "1" ? "GRN auto-created on posting" : "GRN not required"]
+              ]} />
+            </IntelligenceCard>
+          </div>
+        </>
       )}
 
       {kind === "expense" && (
@@ -8602,6 +8804,11 @@ function AllocationWorkflowScreen({ view, notify, role, companyContext }) {
   if (view === "receipt_allocation_workflow") {
     return (
       <section className="workflow-layout">
+        <div className="workflow-note" style={{ marginBottom: 8 }}>
+          <strong>Receipt Allocation Lifecycle</strong>
+          <span>Bank Receipt {">"} Allocate to Invoice {">"} Adjust Receivable Balance {">"} Update Ledger</span>
+          <small>After allocation the invoice receivable is partially or fully settled. Use the Unallocate / Reallocate panel under reports to correct misallocations without editing posted entries.</small>
+        </div>
         <form className="panel entry-form workflow-form" onSubmit={submitReceipt}>
           <div className="panel-head"><div><h2>Receipt Allocation</h2><p>Allocate receipt amount, TDS and GST TDS against open invoices.</p></div></div>
           <div className="form-grid">
@@ -8626,6 +8833,11 @@ function AllocationWorkflowScreen({ view, notify, role, companyContext }) {
   if (view === "supplier_allocation_workflow") {
     return (
       <section className="workflow-layout">
+        <div className="workflow-note" style={{ marginBottom: 8 }}>
+          <strong>Supplier Payment Allocation Lifecycle</strong>
+          <span>Supplier Payment {">"} Allocate to Purchase Bill {">"} Adjust Payable Balance {">"} Update Ledger</span>
+          <small>After allocation the purchase bill payable is partially or fully settled. Use the Unallocate / Reallocate panel under reports to correct misallocations without editing posted entries.</small>
+        </div>
         <form className="panel entry-form workflow-form" onSubmit={submitSupplier}>
           <div className="panel-head"><div><h2>Supplier Payment Allocation</h2><p>Allocate supplier payments against open purchase bills.</p></div></div>
           <div className="form-grid">
@@ -8746,7 +8958,7 @@ function AllocationWorkflowScreen({ view, notify, role, companyContext }) {
   );
 }
 
-function InventoryReportScreen({ view, notify, companyContext }) {
+function InventoryReportScreen({ view, notify, companyContext, onNavigate }) {
   const today = new Date().toISOString().slice(0, 10);
   const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: "2026-01-01", date_to: today, low_stock_mode: "stocked" });
   const [data, setData] = useState(null);
@@ -8771,6 +8983,20 @@ function InventoryReportScreen({ view, notify, companyContext }) {
 
   const config = inventoryTableConfig(view, data || {});
   const rows = config.rows || [];
+  if (view === "inventory_dashboard") {
+    return (
+      <InventoryDashboardPanel
+        data={data || {}}
+        rows={rows}
+        filters={filters}
+        setFilters={setFilters}
+        companies={data?.companies || []}
+        onNavigate={onNavigate}
+        onExport={() => exportRows(config.title, rows)}
+        onPrint={requestPrintPreview}
+      />
+    );
+  }
   if (view === "stock_summary") {
     return (
       <InteractiveStockSummaryReport
@@ -9530,6 +9756,42 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
     notify("Control drilldown opened");
   }
 
+  async function handleDrilldownInlineAction(action, reason) {
+    try {
+      if (action.actionType === "reverse") {
+        const voucherId = action.voucherId;
+        if (!voucherId) throw new Error("No voucher ID available for reversal");
+        await api.reverseVoucher(voucherId, reason);
+        notify("Voucher reversed successfully. A reversal voucher was created.");
+        setDrilldown(null);
+        load();
+      } else if (action.actionType === "unallocate_receipt") {
+        const allocationId = action.allocationId;
+        if (!allocationId) throw new Error("No allocation ID available");
+        await api.unallocateReceiptAllocation(allocationId, reason);
+        notify("Receipt allocation removed. Outstanding balance updated.");
+        setDrilldown(null);
+        load();
+      } else if (action.actionType === "unallocate_supplier") {
+        const allocationId = action.allocationId;
+        if (!allocationId) throw new Error("No allocation ID available");
+        await api.unallocateSupplierPaymentAllocation(allocationId, reason);
+        notify("Supplier payment allocation removed. Balance due updated.");
+        setDrilldown(null);
+        load();
+      } else if (action.actionType === "reverse_advance") {
+        const adjustmentId = action.adjustmentId;
+        if (!adjustmentId) throw new Error("No adjustment ID available");
+        await api.reverseAdvanceAdjustment(adjustmentId, reason, null);
+        notify("Advance adjustment reversed.");
+        setDrilldown(null);
+        load();
+      }
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
   async function closeYearFromPrompt() {
     if (!companyContext?.company_id) {
       notify("Select Current Company before closing a financial year", "error");
@@ -9737,8 +9999,9 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
             <span>
               Current allocation: {formatCurrency(Number(allocationCorrection.row.allocated_amount || 0))}
               {allocationCorrection.kind === "receipt" ? ` | TDS ${formatCurrency(Number(allocationCorrection.row.tds_deducted || 0))} | GST TDS ${formatCurrency(Number(allocationCorrection.row.gst_tds_deducted || 0))}` : ""}
+              {allocationCorrection.row.allocation_status ? <span className="badge" style={{ marginLeft: 8 }}>{allocationCorrection.row.allocation_status}</span> : null}
             </span>
-            <small>Reason is mandatory and the action is written to allocation audit.</small>
+            <small>Reason is mandatory and the action is written to allocation audit. {allocationCorrection.kind === "receipt" ? "Unallocation restores the invoice balance and removes the receipt-invoice link." : "Unallocation restores the purchase bill balance and removes the payment-bill link."}</small>
           </div>
           <form className="form-grid" onSubmit={submitAllocationCorrection}>
             <SelectBox
@@ -9841,20 +10104,111 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
           </div>
         </div>
       )}
-      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} />}
+      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} />}
     </section>
   );
 }
 
-function DrilldownPanel({ drilldown, onClose, onNavigate }) {
+function DrilldownPanel({ drilldown, onClose, onNavigate, onInlineAction, notify }) {
   const voucher = drilldown.voucher;
   const source = drilldown.source;
   const actions = buildDrilldownActions(drilldown);
+  const [inlineAction, setInlineAction] = useState(null);
+  const [inlineReason, setInlineReason] = useState("");
+  const [inlineLoading, setInlineLoading] = useState(false);
+
   function openAction(action) {
-    if (action.disabled || !action.view || !onNavigate) return;
+    if (action.disabled) return;
+    if (action.inlineAction) {
+      setInlineAction(action);
+      setInlineReason("");
+      return;
+    }
+    if (!action.view || !onNavigate) return;
     onNavigate(action.view);
     onClose?.();
   }
+
+  async function submitInlineAction() {
+    if (!inlineAction) return;
+    const action = inlineAction;
+    const reason = inlineReason.trim();
+    if (["reverse", "unallocate_receipt", "unallocate_supplier"].includes(action.actionType) && !reason) {
+      if (typeof notify === "function") notify("Reason is required for this correction action", "error");
+      return;
+    }
+    setInlineLoading(true);
+    try {
+      if (onInlineAction) {
+        await onInlineAction(action, reason);
+      }
+      setInlineAction(null);
+      setInlineReason("");
+    } catch (error) {
+      if (typeof notify === "function") notify(error.message, "error");
+    } finally {
+      setInlineLoading(false);
+    }
+  }
+
+  function cancelInlineAction() {
+    setInlineAction(null);
+    setInlineReason("");
+  }
+
+  function workflowNoteForMode(mode) {
+    const row = drilldown.sourceRow || {};
+    if (mode === "control_evidence") {
+      return {
+        status: row.status || "Review",
+        message: row.blocking_reason || "Review linked source, voucher, ledger and audit evidence.",
+        action: row.recommended_action || ""
+      };
+    }
+    if (mode === "party_reconciliation") {
+      return {
+        status: row.status || "Review",
+        message: row.possible_issue || "Check linked entries and allocations.",
+        action: row.recommended_action || ""
+      };
+    }
+    if (drilldown.ledger?.length) {
+      const statusText = (voucher?.header?.status || "").toLowerCase();
+      if (statusText === "posted") {
+        return { status: "Posted (Locked)", message: "This voucher is posted and locked from direct editing.", action: "Use reversal workflow or create a correction voucher to adjust." };
+      }
+      if (statusText === "reversed") {
+        return { status: "Reversed", message: "This voucher has been reversed. No further corrections are possible on this record.", action: "Review the reversal voucher or source records for context." };
+      }
+    }
+    return { status: "Review", message: "Review ledger, voucher and source transaction below.", action: "Use Action Center to inspect, correct or allocate." };
+  }
+
+  const note = workflowNoteForMode(drilldown.mode);
+
+  const inlineForm = inlineAction ? (
+    <div className="source-box" style={{ border: "2px solid #d9534f", background: "#fff5f5" }}>
+      <h3>{inlineAction.actionType === "reverse" ? "Reverse Voucher" : "Unallocation Confirmation"}</h3>
+      <p>{inlineAction.description}</p>
+      <div className="field-row">
+        <label>Reason for {inlineAction.actionType === "reverse" ? "reversal" : "unallocation"}</label>
+        <textarea
+          value={inlineReason}
+          onChange={(e) => setInlineReason(e.target.value)}
+          placeholder={inlineAction.actionType === "reverse" ? "Enter the reason for reversing this posted voucher" : "Enter the reason for removing this allocation"}
+          rows={2}
+          disabled={inlineLoading}
+        />
+      </div>
+      <div className="button-row">
+        <button type="button" className="danger-btn" onClick={submitInlineAction} disabled={inlineLoading}>
+          {inlineLoading ? "Processing..." : inlineAction.actionType === "reverse" ? "Yes, Reverse Voucher" : "Yes, Unallocate"}
+        </button>
+        <button type="button" className="ghost-btn" onClick={cancelInlineAction} disabled={inlineLoading}>Cancel</button>
+      </div>
+    </div>
+  ) : null;
+
   if (drilldown.mode === "control_evidence") {
     return (
       <div className="voucher-detail-panel reconciliation-drill-panel">
@@ -9866,11 +10220,12 @@ function DrilldownPanel({ drilldown, onClose, onNavigate }) {
           <button className="ghost-btn" type="button" onClick={onClose}>Close</button>
         </div>
         <div className="workflow-note">
-          <strong>{drilldown.sourceRow?.status || "Review"}</strong>
-          <span>{drilldown.sourceRow?.blocking_reason || "Review linked source, voucher, ledger and audit evidence."}</span>
-          <small>{drilldown.sourceRow?.recommended_action || ""}</small>
+          <strong>{note.status}</strong>
+          <span>{note.message}</span>
+          {note.action ? <small>{note.action}</small> : null}
         </div>
         <DrilldownActionCenter actions={actions} onAction={openAction} />
+        {inlineForm}
         <ReconciliationDrillTable title={drilldown.sourceTitle} rows={drilldown.sourceRows} />
         <ReconciliationDrillTable title={drilldown.voucherTitle} rows={drilldown.voucherRows} />
         <ReconciliationDrillTable title={drilldown.ledgerTitle} rows={drilldown.ledgerRows} />
@@ -9889,11 +10244,12 @@ function DrilldownPanel({ drilldown, onClose, onNavigate }) {
           <button className="ghost-btn" type="button" onClick={onClose}>Close</button>
         </div>
         <div className="workflow-note">
-          <strong>{drilldown.sourceRow?.status || "Review"}</strong>
-          <span>{drilldown.sourceRow?.possible_issue || "Check linked entries and allocations."}</span>
-          <small>{drilldown.sourceRow?.recommended_action || ""}</small>
+          <strong>{note.status}</strong>
+          <span>{note.message}</span>
+          {note.action ? <small>{note.action}</small> : null}
         </div>
         <DrilldownActionCenter actions={actions} onAction={openAction} />
+        {inlineForm}
         <ReconciliationDrillTable title={drilldown.ledgerTitle} rows={drilldown.ledgerRows} />
         <ReconciliationDrillTable title={drilldown.subledgerTitle} rows={drilldown.subledgerRows} />
         <ReconciliationDrillTable title={drilldown.relatedTitle} rows={drilldown.relatedRows} />
@@ -9909,7 +10265,13 @@ function DrilldownPanel({ drilldown, onClose, onNavigate }) {
         </div>
         <button className="ghost-btn" type="button" onClick={onClose}>Close</button>
       </div>
+      <div className="workflow-note">
+        <strong>{note.status}</strong>
+        <span>{note.message}</span>
+        {note.action ? <small>{note.action}</small> : null}
+      </div>
       <DrilldownActionCenter actions={actions} onAction={openAction} />
+      {inlineForm}
       {drilldown.ledger?.length ? (
         <div className="table-wrap compact-table">
           <table>
@@ -10003,7 +10365,7 @@ function DrilldownActionCenter({ actions, onAction }) {
     <section className="drilldown-action-center">
       <div>
         <h3>Action Center</h3>
-        <span>Use existing workflows to inspect, correct, reverse, allocate or attach evidence.</span>
+        <span>Perform inline corrections or navigate to the appropriate workflow.</span>
       </div>
       <div className="drilldown-action-groups">
         {Object.entries(grouped).map(([group, groupActions]) => (
@@ -10018,7 +10380,7 @@ function DrilldownActionCenter({ actions, onAction }) {
                   disabled={action.disabled}
                   onClick={() => onAction(action)}
                 >
-                  <span>{action.label}</span>
+                  <span>{action.label}{action.inlineAction ? " (Inline)" : ""}</span>
                   <small>{action.reason || action.description}</small>
                 </button>
               ))}
@@ -10037,6 +10399,10 @@ function buildDrilldownActions(drilldown) {
   const sourceModule = source.source_module || record.source_module || record.module || record.module_name || "";
   const sourceView = viewForSourceModule(sourceModule);
   const statusInfo = drilldownStatusInfo(voucher, record);
+  const voucherExists = Boolean(voucher?.voucher_number || voucher?.id || record?.voucher_number || record?.voucher_id);
+  const isPosted = (String(voucher?.status || record?.posting_status || "").toLowerCase().includes("posted"));
+  const isReversed = (String(voucher?.status || record?.status || "").toLowerCase().includes("reversed"));
+  const voucherId = voucher?.id || record?.voucher_id;
   const actions = [];
 
   if (sourceView) {
@@ -10052,12 +10418,12 @@ function buildDrilldownActions(drilldown) {
       view: sourceView,
       tone: statusInfo.locked ? "blocked" : "warning",
       disabled: statusInfo.locked,
-      description: "Allowed only for draft or unposted records.",
-      reason: statusInfo.locked ? statusInfo.reason : "Open source screen and use permitted edit controls."
+      description: statusInfo.locked ? "Locked after posting" : "Open source screen and use permitted edit controls.",
+      reason: statusInfo.locked ? statusInfo.reason : ""
     });
   }
 
-  if (voucher?.voucher_number || voucher?.id || record?.voucher_number || record?.voucher_id) {
+  if (voucherExists) {
     actions.push({
       group: "Voucher Correction",
       label: "Open Voucher Register",
@@ -10071,6 +10437,18 @@ function buildDrilldownActions(drilldown) {
       tone: "danger",
       description: "Use reversal for posted vouchers; reason is required inside the workflow."
     });
+    if (isPosted && !isReversed && voucherId) {
+      actions.push({
+        group: "Voucher Correction",
+        label: "Reverse Voucher (Inline)",
+        view: "",
+        inlineAction: true,
+        actionType: "reverse",
+        voucherId,
+        tone: "danger",
+        description: "Reverse this posted voucher directly. A reason is required."
+      });
+    }
   } else {
     actions.push({
       group: "Voucher Correction",
@@ -10082,7 +10460,10 @@ function buildDrilldownActions(drilldown) {
   }
 
   const moduleText = String(sourceModule || voucher.source_module || voucher.voucher_type || drilldown.title || "").toLowerCase();
-  if (moduleText.includes("sale") || moduleText.includes("billing") || moduleText.includes("invoice") || moduleText.includes("receivable")) {
+  const isSalesContext = moduleText.includes("sale") || moduleText.includes("billing") || moduleText.includes("invoice") || moduleText.includes("receivable");
+  const isPurchaseContext = moduleText.includes("purchase") || moduleText.includes("supplier") || moduleText.includes("payable") || moduleText.includes("procurement");
+
+  if (isSalesContext) {
     actions.push({
       group: "Commercial Correction",
       label: "Open Credit Note",
@@ -10097,7 +10478,7 @@ function buildDrilldownActions(drilldown) {
       description: "Check receipt application against invoices."
     });
   }
-  if (moduleText.includes("purchase") || moduleText.includes("supplier") || moduleText.includes("payable") || moduleText.includes("procurement")) {
+  if (isPurchaseContext) {
     actions.push({
       group: "Commercial Correction",
       label: "Open Debit Note",
@@ -10144,12 +10525,21 @@ function drilldownStatusInfo(voucher, record) {
     .join(" ")
     .toLowerCase();
   if (statusText.includes("reversed")) {
-    return { locked: true, reason: "Reversed records cannot be edited directly. Use correction workflow." };
+    return { locked: true, reason: "Reversed records cannot be edited directly. Use correction workflow.", nextAction: "Open Reversal Workflow or create a correction voucher to adjust balances." };
   }
   if (statusText.includes("posted")) {
-    return { locked: true, reason: "Posted records cannot be edited directly. Use reversal or correction workflow." };
+    return { locked: true, reason: "Posted records cannot be edited directly. Use reversal or correction workflow.", nextAction: "Reverse the posted voucher, or create a credit/debit note for commercial corrections." };
   }
-  return { locked: false, reason: "" };
+  if (statusText.includes("closed") || statusText.includes("locked")) {
+    return { locked: true, reason: "Financial year is closed or locked. Posting and editing are restricted.", nextAction: "Open a new financial year or unlock current year from Financial Control if permitted." };
+  }
+  if (statusText.includes("draft")) {
+    return { locked: false, reason: "Record is in draft state. Review and post when ready.", nextAction: "Review entries and post the transaction when complete." };
+  }
+  if (statusText.includes("approved")) {
+    return { locked: true, reason: "Approved records are locked from direct editing pending posting.", nextAction: "Post the approved transaction, or use approval queue to reverse if needed." };
+  }
+  return { locked: false, reason: "", nextAction: "" };
 }
 
 function viewForSourceModule(sourceModule) {

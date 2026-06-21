@@ -2297,7 +2297,8 @@ svg {
   font-weight: 800;
 }
 
-.metric-card-link {
+.metric-card-link,
+.metric-card-clickable {
   width: 100%;
   color: inherit;
   cursor: pointer;
@@ -2306,7 +2307,8 @@ svg {
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.metric-card-link:hover {
+.metric-card-link:hover,
+.metric-card-clickable:hover {
   border-color: var(--accent);
   box-shadow: 0 10px 24px rgba(7, 68, 99, 0.12);
   transform: translateY(-1px);
@@ -2323,7 +2325,8 @@ svg {
   outline-offset: 2px;
 }
 
-.metric-card-link:focus-visible {
+.metric-card-link:focus-visible,
+.metric-card-clickable:focus-visible {
   outline: 3px solid rgba(245, 148, 33, 0.35);
   outline-offset: 2px;
 }
@@ -4510,6 +4513,16 @@ th {
   gap: 12px;
 }
 
+.operations-evidence-jump-card {
+  background: #fff;
+}
+
+.operations-evidence-jump-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
 .operations-evidence-card {
   display: grid;
   gap: 10px;
@@ -5278,6 +5291,46 @@ th {
   background: #f8fbfd;
   color: var(--muted);
   font-size: 12px;
+}
+
+.certified-print-footer {
+  margin-top: 18px;
+  border-top: 2px solid #1e3a5f;
+  padding-top: 12px;
+}
+
+.certified-print-footer-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.certified-print-footer-row div {
+  font-size: 11px;
+  color: #4a5568;
+}
+
+.certified-print-footer-row strong {
+  display: block;
+  font-size: 11px;
+  color: #1e3a5f;
+  margin-bottom: 2px;
+}
+
+.certified-print-footer-row p {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.certified-print-footer-bar {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #d7e2ea;
+  font-size: 10px;
+  color: #718096;
 }
 
 .print-page-content .panel,

@@ -76,16 +76,17 @@ export function SummaryTable({ title, rows, columns }) {
   );
 }
 
-export function Metric({ label, value, note, icon }) {
+export function Metric({ label, value, note, icon, onClick }) {
+  const Component = onClick ? "button" : "article";
   return (
-    <article className="metric-card">
+    <Component className={`metric-card${onClick ? " metric-card-clickable" : ""}`} type={onClick ? "button" : undefined} onClick={onClick} title={onClick ? `Open ${label}` : undefined}>
       <div>
         <span>{label}</span>
         <strong>{value}</strong>
         <small>{note}</small>
       </div>
       <Icon name={icon} />
-    </article>
+    </Component>
   );
 }
 
