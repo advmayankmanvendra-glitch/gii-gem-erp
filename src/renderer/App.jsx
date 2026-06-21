@@ -9904,6 +9904,7 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
           onDrillVoucher={(row) => openDrilldown(row, "voucher")}
           onDrillSource={(row) => openDrilldown(row, "source")}
           onPartyReconciliationDrill={openPartyReconciliationDrill}
+          onNavigate={onNavigate}
         />
       ) : isAccountingControlPanelView ? (
         <AccountingControlReportTable

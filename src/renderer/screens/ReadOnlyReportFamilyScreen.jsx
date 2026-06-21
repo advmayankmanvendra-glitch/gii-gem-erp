@@ -2,6 +2,16 @@ import React from "react";
 import { EmptyState, Icon } from "../components/common.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
+const actionTargets = {
+  invoices: { view: "invoices", label: "Invoice" },
+  payments: { view: "payments", label: "Payment" },
+  procurements: { view: "procurements", label: "Purchase" },
+  receipt_allocation_workflow: { view: "receipt_allocation_workflow", label: "Allocate Receipt" },
+  supplier_allocation_workflow: { view: "supplier_allocation_workflow", label: "Allocate Payment" },
+  party_ledger: { view: "party_ledger", label: "Party Ledger" },
+  gst_register: { view: "gst_register", label: "GST Register" }
+};
+
 const readOnlyReportFamilyViews = new Set([
   "trial_balance",
   "profit_loss",
@@ -115,7 +125,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "due_date", label: "Due Date" },
         { key: "days_outstanding", label: "Days" },
         { key: "allocation_status", label: "Allocation" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "receipt_allocation_workflow", actionLabel: "Allocate" }
       ]
     };
   }
@@ -135,7 +146,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "due_date", label: "Due Date" },
         { key: "days_outstanding", label: "Days" },
         { key: "allocation_status", label: "Allocation" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "supplier_allocation_workflow", actionLabel: "Allocate Payment" }
       ]
     };
   }
@@ -148,7 +160,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "invoice_number", label: "Invoice" },
         { key: "outstanding", label: "Outstanding", type: "money" },
         { key: "days_outstanding", label: "Days" },
-        { key: "age_bucket", label: "Age Bucket" }
+        { key: "age_bucket", label: "Age Bucket" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "receipt_allocation_workflow", actionLabel: "Allocate" }
       ]
     };
   }
@@ -161,7 +174,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "purchase_invoice_number", label: "Invoice" },
         { key: "outstanding", label: "Outstanding", type: "money" },
         { key: "days_outstanding", label: "Days" },
-        { key: "age_bucket", label: "Age Bucket" }
+        { key: "age_bucket", label: "Age Bucket" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "supplier_allocation_workflow", actionLabel: "Allocate Payment" }
       ]
     };
   }
@@ -176,7 +190,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "tds_deducted", label: "TDS Deducted", type: "money" },
         { key: "gst_tds_deducted", label: "GST TDS Deducted", type: "money" },
         { key: "net_payment_received", label: "Net Payment Received", type: "money" },
-        { key: "outstanding", label: "Outstanding", type: "money" }
+        { key: "outstanding", label: "Outstanding", type: "money" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "receipt_allocation_workflow", actionLabel: "Allocate" }
       ]
     };
   }
@@ -190,7 +205,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "invoice_value", label: "Invoice Value", type: "money" },
         { key: "gst_tds_deducted", label: "GST TDS Deducted", type: "money" },
         { key: "net_payment_received", label: "Net Payment Received", type: "money" },
-        { key: "outstanding", label: "Outstanding", type: "money" }
+        { key: "outstanding", label: "Outstanding", type: "money" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "receipt_allocation_workflow", actionLabel: "Allocate" }
       ]
     };
   }
@@ -213,7 +229,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "metric", label: "Metric" },
         { key: "party", label: "Party" },
         { key: "amount", label: "Amount", type: "money" },
-        { key: "reference", label: "Reference" }
+        { key: "reference", label: "Reference" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "party_ledger", actionLabel: "Ledger" }
       ]
     };
   }
@@ -246,7 +263,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "allocated", label: "Allocated", type: "money" },
         { key: "unallocated", label: "Unallocated", type: "money" },
         { key: "outstanding", label: "Outstanding", type: "money" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "payment_allocations", actionLabel: "Allocations" }
       ]
     };
   }
@@ -264,7 +282,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "taxable", label: "Taxable", type: "money" },
         { key: "gst_rate", label: "GST %" },
         { key: "gst_amount", label: "GST", type: "money" },
-        { key: "posting_status", label: "Posting" }
+        { key: "posting_status", label: "Posting" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "gst_register", actionLabel: "Drill" }
       ]
     };
   }
@@ -278,7 +297,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "date", label: "Date" },
         { key: "allocated_amount", label: "Receipt", type: "money" },
         { key: "tds_deducted", label: "TDS", type: "money" },
-        { key: "gst_tds_deducted", label: "GST TDS", type: "money" }
+        { key: "gst_tds_deducted", label: "GST TDS", type: "money" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "invoices", actionLabel: "Invoice" }
       ]
     };
   }
@@ -297,7 +317,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "amount_paid", label: "Paid", type: "money" },
         { key: "tds_deducted", label: "TDS", type: "money" },
         { key: "gst_tds_deducted", label: "GST TDS", type: "money" },
-        { key: "balance_outstanding", label: "Balance", type: "money" }
+        { key: "balance_outstanding", label: "Balance", type: "money" },
+        { key: "actions", label: "Actions", type: "nav_action", actionView: "party_ledger", actionLabel: "Ledger" }
       ]
     };
   }
@@ -354,7 +375,8 @@ export function ReadOnlyReportFamilyTable({
   onDrillAccount,
   onDrillVoucher,
   onDrillSource,
-  onPartyReconciliationDrill
+  onPartyReconciliationDrill,
+  onNavigate
 }) {
   if (!rows.length) {
     return <EmptyState title="No accounting data" note="Post vouchers or run seed data to populate this view." />;
@@ -370,7 +392,7 @@ export function ReadOnlyReportFamilyTable({
             <tr key={row.id || row.account_code || row.voucher_line_id || index}>
               {config.columns.map((column) => (
                 <td key={column.key}>
-                  {renderReadOnlyReportCell(row, column, { onDrillAccount, onDrillVoucher, onDrillSource, onPartyReconciliationDrill })}
+                  {renderReadOnlyReportCell(row, column, { onDrillAccount, onDrillVoucher, onDrillSource, onPartyReconciliationDrill, onNavigate })}
                 </td>
               ))}
             </tr>
@@ -410,6 +432,13 @@ function renderReadOnlyReportCell(row, column, handlers) {
           <Icon name="file" />
         </button>
       </div>
+    );
+  }
+  if (column.type === "nav_action" && column.actionView && handlers.onNavigate) {
+    return (
+      <button className="ghost-btn small-btn" type="button" onClick={() => handlers.onNavigate(column.actionView)}>
+        {column.actionLabel || "Open"}
+      </button>
     );
   }
   return formatReadOnlyReportCell(row[column.key], column.type);
