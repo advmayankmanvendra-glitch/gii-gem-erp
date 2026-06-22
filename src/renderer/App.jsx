@@ -10641,7 +10641,8 @@ function accountingTableConfig(view, data = {}) {
         { key: "account_name", label: "Account" },
         { key: "account_type", label: "Type" },
         { key: "normal_balance", label: "Normal Balance" },
-        { key: "opening_balance", label: "Opening", type: "money" }
+        { key: "opening_balance", label: "Opening", type: "money" },
+        { key: "drill", label: "Ledger", type: "drill_account" }
       ]
     };
   }
@@ -10959,7 +10960,9 @@ function accountingTableConfig(view, data = {}) {
         { key: "utr_number", label: "UTR" },
         { key: "debit", label: "Receipt", type: "money" },
         { key: "credit", label: "Payment", type: "money" },
-        { key: "balance", label: "Balance", type: "money" }
+        { key: "balance", label: "Balance", type: "money" },
+        { key: "voucher_drill", label: "Voucher", type: "drill_voucher" },
+        { key: "source_drill", label: "Source", type: "drill_source" }
       ]
     };
   }
@@ -10973,7 +10976,8 @@ function accountingTableConfig(view, data = {}) {
         { key: "utr_number", label: "Reference" },
         { key: "debit", label: "Receipt", type: "money" },
         { key: "credit", label: "Payment", type: "money" },
-        { key: "balance", label: "Balance", type: "money" }
+        { key: "balance", label: "Balance", type: "money" },
+        { key: "voucher_drill", label: "Voucher", type: "drill_voucher" }
       ]
     };
   }
@@ -10988,7 +10992,8 @@ function accountingTableConfig(view, data = {}) {
         { key: "utr_number", label: "UTR" },
         { key: "debit", label: "Receipt", type: "money" },
         { key: "credit", label: "Payment", type: "money" },
-        { key: "balance", label: "Balance", type: "money" }
+        { key: "balance", label: "Balance", type: "money" },
+        { key: "voucher_drill", label: "Voucher", type: "drill_voucher" }
       ]
     };
   }
