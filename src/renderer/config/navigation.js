@@ -149,6 +149,7 @@ const viewTitles = {
   order_closure_tracking: ["Order Closure Tracking", "Checklist-driven operational closure certification."],
   health_center: ["ERP Health Center", "Runtime diagnostics, recovery guidance, support bundles and verification checklist."],
   safe_mode: ["Safe Mode Recovery", "Renderer crash recovery, diagnostics and support options."],
+  help_keyboard: ["Keyboard Shortcuts", "Complete keyboard guide with Smart Enter flow and module-specific shortcuts."],
   help_training: ["Help & Training", "Guided ERP learning, workflows, FAQ, troubleshooting and knowledge base."],
   help_assistant: ["GII ERP Help Assistant", "Ask practical ERP guidance questions without changing records."]
 };
@@ -255,7 +256,7 @@ const navGroups = [
     ],
     items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
   },
-  { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
+  { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_keyboard", "Keyboard Shortcuts"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
   { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }
 ];
 

@@ -273,6 +273,10 @@ export function ReportSelectFilter({ value, onChange, options = [], placeholderL
   );
 }
 
+export function ShortcutHint({ shortcut }) {
+  return shortcut ? <kbd className="btn-kbd">{shortcut}</kbd> : null;
+}
+
 export function ReportActionButtons({ onExport, onPrint, exportLabel = "Export", printLabel = "Print" }) {
   return (
     <>

@@ -15,6 +15,7 @@ import { Field, MetricLine, ReadOnlyBox, ReportActionButtons, ReportDateFilters,
 import { MasterRecordsPanel } from "./components/tables/MasterRecordsPanel.jsx";
 import {
   ContextHelpDialog,
+  ContextShortcutOverlay,
   ContextShortcutPanel,
   FirstTimeTour,
   ProductivityLearnDialog,
@@ -36,6 +37,7 @@ import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
+import { KeyboardShortcutScreen } from "./screens/KeyboardShortcutScreen.jsx";
 import { HelpAssistant } from "./modules/helpAssistant/HelpAssistant.jsx";
 import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryReport.jsx";
 import { MasterDataToolsScreen } from "./screens/MasterDataTools/index.js";
@@ -256,6 +258,7 @@ function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchData, setGlobalSearchData] = useState(null);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  const [contextShortcutOpen, setContextShortcutOpen] = useState(false);
   const [userPreferencesOpen, setUserPreferencesOpen] = useState(false);
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
   const [helpAssistantSourceView, setHelpAssistantSourceView] = useState("dashboard");
@@ -286,7 +289,7 @@ function App() {
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_assistant", "health_center", "master_data_tools", "safe_mode"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_keyboard", "help_assistant", "health_center", "master_data_tools", "safe_mode"].includes(effectiveView);
   const rendererCrashContext = useMemo(() => ({
     view: effectiveView,
     routeView: view,
@@ -483,6 +486,10 @@ function App() {
       }
       if (shortcutHelpOpen) {
         setShortcutHelpOpen(false);
+        return;
+      }
+      if (contextShortcutOpen) {
+        setContextShortcutOpen(false);
         return;
       }
       if (userPreferencesOpen) {
@@ -1023,6 +1030,11 @@ function App() {
         setShortcutHelpOpen(true);
         return;
       }
+      if (event.key === "/" && !event.ctrlKey && !event.altKey && !isTextEntryElement(document.activeElement)) {
+        event.preventDefault();
+        setContextShortcutOpen((prev) => !prev);
+        return;
+      }
       if (event.key === "F2") {
         event.preventDefault();
         openRecordAction("supply_orders");
@@ -1180,6 +1192,7 @@ function App() {
                 stats={productivityStats}
               />
             )}
+            {effectiveView === "help_keyboard" && <KeyboardShortcutScreen onNavigate={navigate} />}
             {effectiveView === "help_training" && (
               <HelpTrainingScreen
                 currentView={view}
@@ -1248,6 +1261,7 @@ function App() {
       {confirmDialog && <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />}
       {globalSearchOpen && <GlobalSearchOverlay query={globalSearchQuery} setQuery={setGlobalSearchQuery} results={globalSearchResults} onNavigate={(key) => { setGlobalSearchOpen(false); setGlobalSearchQuery(""); navigate(key); }} onClose={() => setGlobalSearchOpen(false)} />}
       {shortcutHelpOpen && <ShortcutHelpDialog onClose={() => setShortcutHelpOpen(false)} />}
+      {contextShortcutOpen && <ContextShortcutOverlay view={effectiveView} onClose={() => setContextShortcutOpen(false)} />}
       {userPreferencesOpen && <UserPreferencesDialog onClose={() => setUserPreferencesOpen(false)} compactSidebar={compactSidebar} />}
       {contextHelpOpen && <ContextHelpDialog view={effectiveView} onClose={() => setContextHelpOpen(false)} onOpenTraining={() => { setContextHelpOpen(false); navigate("help_training"); }} />}
       {productivityLearnOpen && <ProductivityLearnDialog view={effectiveView} onClose={() => setProductivityLearnOpen(false)} onOpenTraining={() => { setProductivityLearnOpen(false); navigate("help_training"); }} />}
@@ -1341,11 +1355,15 @@ async function moveFormFocus(element, direction) {
   if (index < 0) return;
   const next = fields[index + direction];
   if (next) {
+    document.querySelectorAll(".smart-enter-next").forEach((el) => el.classList.remove("smart-enter-next"));
+    next.classList.add("smart-enter-next");
     next.focus();
     next.select?.();
+    setTimeout(() => next.classList.remove("smart-enter-next"), 600);
     return;
   }
   if (direction > 0) {
+    document.querySelectorAll(".smart-enter-next").forEach((el) => el.classList.remove("smart-enter-next"));
     const confirmed = await confirmAction({
       mode: "normal",
       title: "Save Record",

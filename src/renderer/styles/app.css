@@ -1884,6 +1884,37 @@ svg {
   border-color: var(--accent);
 }
 
+.btn-kbd {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #f5f5f5;
+  margin-left: 6px;
+  line-height: 1.4;
+}
+
+.smart-enter-next {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  transition: outline-color 0.2s;
+}
+
+.context-shortcut-overlay {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 520px;
+  max-width: 90vw;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  z-index: 1100;
+}
+
 .page,
 .master-layout,
 .settings-panel {

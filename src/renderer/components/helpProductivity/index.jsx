@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { keyboardGuideSections } from "../../config/helpContent.js";
+import { keyboardGuideSections, shortcutsForScope } from "../../config/keyboardShortcuts.js";
+import { FocusTrap } from "../FocusTrap.jsx";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
 import { buildScreenHelpProfile } from "../../modules/helpAssistant/screenHelpCatalog.js";
@@ -339,36 +340,35 @@ function todayIso() {
 }
 
 export function ShortcutHelpDialog({ onClose }) {
-  useEffect(() => {
-    function onKeyDown(event) {
-      if (event.key === "Escape" || event.key === "F1") {
-        event.preventDefault();
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  const [search, setSearch] = useState("");
   const groups = keyboardGuideSections;
+  const filtered = groups
+    .map(([title, rows]) => [title, !search ? rows : rows.filter(([keys, action]) => keys.toLowerCase().includes(search.toLowerCase()) || action.toLowerCase().includes(search.toLowerCase()))])
+    .filter(([, rows]) => rows.length);
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="shortcut-help-dialog" role="dialog" aria-modal="true">
-        <div className="panel-head">
-          <div>
-            <h2>Keyboard Shortcuts</h2>
-            <p>Complete keyboard guide for desktop ERP operation, Smart Enter flow and module-specific shortcuts.</p>
-          </div>
-          <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
-        </div>
-        <div className="shortcut-grid">
-          {groups.map(([title, rows]) => (
-            <div className="shortcut-group" key={title}>
-              <h3>{title}</h3>
-              {rows.map(([keys, action]) => <div className="shortcut-row" key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}
+      <FocusTrap active onEscape={onClose}>
+        <section className="shortcut-help-dialog" role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
+          <div className="panel-head">
+            <div>
+              <h2>Keyboard Shortcuts</h2>
+              <p>Complete keyboard guide for desktop ERP operation.</p>
             </div>
-          ))}
-        </div>
-      </section>
+            <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
+          </div>
+          <div style={{ padding: "0 16px" }}>
+            <input type="search" placeholder="Filter shortcuts..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", marginBottom: 8 }} autoFocus />
+          </div>
+          <div className="shortcut-grid">
+            {filtered.map(([title, rows]) => (
+              <div className="shortcut-group" key={title}>
+                <h3>{title}</h3>
+                {rows.map(([keys, action]) => <div className="shortcut-row" key={keys}><kbd>{keys}</kbd><span>{action}</span></div>)}
+              </div>
+            ))}
+          </div>
+        </section>
+      </FocusTrap>
     </div>
   );
 }
@@ -386,6 +386,7 @@ export function UserPreferencesDialog({ onClose, compactSidebar }) {
   }, [onClose]);
   return (
     <div className="modal-backdrop" role="presentation">
+      <FocusTrap active onEscape={onClose}>
       <section className="shortcut-help-dialog" role="dialog" aria-modal="true">
         <div className="panel-head">
           <div>
@@ -407,6 +408,7 @@ export function UserPreferencesDialog({ onClose, compactSidebar }) {
           </div>
         </div>
       </section>
+      </FocusTrap>
     </div>
   );
 }
@@ -589,4 +591,34 @@ export function helpForView(view) {
     base.relatedReports = ["ERP User Manual", "Keyboard Guide", "Knowledge Base"];
   }
   return buildScreenHelpProfile(view, base, meta);
+}
+
+export function ContextShortcutOverlay({ view, onClose }) {
+  const scope = productivityScopeForView(view);
+  const items = shortcutsForScope(scope).slice(0, 12);
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <FocusTrap active onEscape={onClose}>
+        <section className="context-shortcut-overlay" role="dialog" aria-modal="true" aria-label="Context shortcuts" onClick={(e) => e.stopPropagation()}>
+          <div className="panel-head">
+            <div>
+              <h3>Shortcuts for this Screen</h3>
+              <p>{items.length} shortcut(s) available</p>
+            </div>
+            <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
+          </div>
+          <div className="shortcut-grid" style={{ maxHeight: 400, overflowY: "auto" }}>
+            <div className="shortcut-group">
+              {items.map((s) => (
+                <div className="shortcut-row" key={s.keys + s.action}>
+                  <kbd>{s.keys}</kbd>
+                  <span>{s.action}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </FocusTrap>
+    </div>
+  );
 }
