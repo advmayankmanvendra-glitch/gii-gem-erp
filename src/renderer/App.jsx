@@ -10063,6 +10063,8 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
       {["financial_years", "year_end_closing", "carry_forward", "opening_balances"].includes(view) && <LockedYearControlNotice data={data || {}} />}
       {readOnlyReportFamily ? (
         <ReadOnlyReportFamilyTable
+          view={view}
+          data={data || {}}
           config={config}
           rows={rows}
           onDrillAccount={(row) => openDrilldown(row, "account")}

@@ -4922,6 +4922,79 @@ th {
   padding: 10px;
 }
 
+.accounting-intelligence-panel {
+  display: grid;
+  gap: var(--spacing-md);
+  margin: 0 0 var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-soft-panel);
+}
+
+.accounting-intelligence-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.accounting-intelligence-header > div {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.accounting-intelligence-header span,
+.accounting-intelligence-header small,
+.accounting-evidence-path small {
+  color: var(--color-muted);
+}
+
+.accounting-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.accounting-evidence-path {
+  display: grid;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-line);
+}
+
+.accounting-evidence-path > div,
+.government-supply-map > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.accounting-evidence-step,
+.government-supply-map span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 12px;
+}
+
+.government-supply-map {
+  display: grid;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-line);
+}
+
+.stock-intelligence-panel {
+  margin-top: var(--spacing-sm);
+}
+
 .stock-report-table-wrap {
   min-height: 420px;
   max-height: calc(100vh - 360px);

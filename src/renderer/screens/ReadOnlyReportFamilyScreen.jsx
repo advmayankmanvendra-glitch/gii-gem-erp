@@ -1,5 +1,6 @@
 import React from "react";
 import { EmptyState, Icon } from "../components/common.jsx";
+import { AccountingStructureSummary, enrichAccountingRows } from "../features/reports/accountingIntelligence.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
 const actionTargets = {
@@ -326,14 +327,16 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
     const summary = data.profitLoss || {};
     return {
       title: `Profit & Loss - Net ${formatCurrency(summary.netProfit || 0)}`,
-      rows: summary.rows || [],
+      rows: enrichAccountingRows(summary.rows || []),
       columns: [
         { key: "account_code", label: "Code" },
         { key: "account_name", label: "Account" },
         { key: "account_type", label: "Type" },
+        { key: "structure_group", label: "Group" },
         { key: "debit", label: "Debit", type: "money" },
         { key: "credit", label: "Credit", type: "money" },
         { key: "amount", label: "Amount", type: "money" },
+        { key: "closing_side", label: "Dr/Cr" },
         { key: "drill", label: "Drill", type: "drill_account" }
       ]
     };
@@ -342,34 +345,40 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
     const summary = data.balanceSheet || {};
     return {
       title: `Balance Sheet - Assets ${formatCurrency(summary.assets || 0)} / Liabilities+Equity ${formatCurrency(summary.liabilitiesAndEquity || 0)}`,
-      rows: summary.rows || [],
+      rows: enrichAccountingRows(summary.rows || []),
       columns: [
         { key: "account_code", label: "Code" },
         { key: "account_name", label: "Account" },
         { key: "account_type", label: "Type" },
+        { key: "structure_group", label: "Group" },
         { key: "debit", label: "Debit", type: "money" },
         { key: "credit", label: "Credit", type: "money" },
         { key: "amount", label: "Amount", type: "money" },
+        { key: "closing_side", label: "Dr/Cr" },
         { key: "drill", label: "Drill", type: "drill_account" }
       ]
     };
   }
   return {
     title: "Trial Balance",
-    rows: data.trialBalance || [],
+    rows: enrichAccountingRows(data.trialBalance || []),
     columns: [
       { key: "account_code", label: "Code" },
       { key: "account_name", label: "Account" },
       { key: "account_type", label: "Type" },
+      { key: "structure_group", label: "Group" },
       { key: "debit", label: "Debit", type: "money" },
       { key: "credit", label: "Credit", type: "money" },
       { key: "balance", label: "Balance", type: "money" },
+      { key: "closing_side", label: "Dr/Cr" },
       { key: "drill", label: "Drill", type: "drill_account" }
     ]
   };
 }
 
 export function ReadOnlyReportFamilyTable({
+  view,
+  data,
   config,
   rows,
   onDrillAccount,
@@ -379,27 +388,35 @@ export function ReadOnlyReportFamilyTable({
   onNavigate
 }) {
   if (!rows.length) {
-    return <EmptyState title="No accounting data" note="Post vouchers or run seed data to populate this view." />;
+    return (
+      <>
+        <AccountingStructureSummary view={view} data={data} rows={rows} config={config} />
+        <EmptyState title="No accounting data" note="Post vouchers or run seed data to populate this view." />
+      </>
+    );
   }
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>{config.columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.id || row.account_code || row.voucher_line_id || index}>
-              {config.columns.map((column) => (
-                <td key={column.key}>
-                  {renderReadOnlyReportCell(row, column, { onDrillAccount, onDrillVoucher, onDrillSource, onPartyReconciliationDrill, onNavigate })}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <AccountingStructureSummary view={view} data={data} rows={rows} config={config} />
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>{config.columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={row.id || row.account_code || row.voucher_line_id || index}>
+                {config.columns.map((column) => (
+                  <td key={column.key}>
+                    {renderReadOnlyReportCell(row, column, { onDrillAccount, onDrillVoucher, onDrillSource, onPartyReconciliationDrill, onNavigate })}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

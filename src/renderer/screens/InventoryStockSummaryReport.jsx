@@ -7,6 +7,7 @@ import {
   StockReportTotals,
   StockSummaryInteractiveTable
 } from "../components/inventoryReports/index.jsx";
+import { StockAccountingStructureSummary } from "../features/reports/accountingIntelligence.jsx";
 import { exportRows } from "../utils/formatters.js";
 import { requestPrintPreview } from "../utils/uiHelpers.js";
 
@@ -54,6 +55,8 @@ export function InteractiveStockSummaryReport({ data, filters, setFilters, rows,
         onExport={() => exportRows(exportTitle, currentRows)}
         onPrint={requestPrintPreview}
       />
+
+      <StockAccountingStructureSummary mode={mode} selectedItem={selectedItem} totals={totals} rows={currentRows} />
 
       <StockDrillNote selectedItem={selectedItem} mode={mode} onBack={() => setMode("summary")} />
 
