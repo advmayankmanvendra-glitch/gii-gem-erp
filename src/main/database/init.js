@@ -6001,6 +6001,13 @@ export function createFinancialYear(db, payload) {
   const companyId = Number(payload.company_id || 0);
   if (!companyId) throw new Error("Company is required");
   if (!payload.financial_year_name || !payload.start_date || !payload.end_date) throw new Error("Financial year name, start date and end date are required");
+  const startMMDD = String(payload.start_date).slice(5);
+  const endMMDD = String(payload.end_date).slice(5);
+  if (startMMDD !== "04-01") throw new Error("Financial year must start on April 1");
+  if (endMMDD !== "03-31") throw new Error("Financial year must end on March 31");
+  const startYear = parseInt(String(payload.start_date).slice(0, 4), 10);
+  const endYear = parseInt(String(payload.end_date).slice(0, 4), 10);
+  if (endYear !== startYear + 1) throw new Error("Financial year must span exactly 12 months (April 1 to March 31)");
   const result = db.prepare(`
     INSERT INTO financial_years (company_id, financial_year_name, start_date, end_date, status)
     VALUES (?, ?, ?, ?, ?)

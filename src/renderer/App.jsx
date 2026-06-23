@@ -13003,7 +13003,16 @@ function createBrowserFallbackApi() {
     reverseVoucher: async () => ({ id: Date.now(), voucher_number: "JOURNAL-PREVIEW", status: "Posted" }),
     postTransaction: async () => ({ id: Date.now(), voucher_number: "POST-PREVIEW" }),
     approveTransaction: async () => true,
-    createFinancialYear: async (payload) => ({ id: Date.now(), ...payload }),
+    createFinancialYear: async (payload) => {
+      const startMMDD = String(payload.start_date).slice(5);
+      const endMMDD = String(payload.end_date).slice(5);
+      if (startMMDD !== "04-01") throw new Error("Financial year must start on April 1");
+      if (endMMDD !== "03-31") throw new Error("Financial year must end on March 31");
+      const startYear = parseInt(String(payload.start_date).slice(0, 4), 10);
+      const endYear = parseInt(String(payload.end_date).slice(0, 4), 10);
+      if (endYear !== startYear + 1) throw new Error("Financial year must span exactly 12 months");
+      return { id: Date.now(), ...payload };
+    },
     updateFinancialYearStatus: async (id, status) => ({ id, status }),
     createOpeningBalance: async (payload) => ({ id: Date.now(), ...payload }),
     createReceiptAllocation: async (payload) => ({ id: Date.now(), ...payload, allocation_status: "Partially Allocated" }),
