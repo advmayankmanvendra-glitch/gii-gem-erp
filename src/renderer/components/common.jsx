@@ -40,7 +40,7 @@ export function MiniDataTable({ columns, rows, emptyTitle }) {
 }
 
 export function SummaryTable({ title, rows, columns }) {
-  const plainNumberColumns = new Set(["rows", "orders", "days", "total_rows", "valid_rows", "duplicate_rows", "error_rows", "available_reports"]);
+  const plainNumberColumns = new Set(["rows", "orders", "days", "total_rows", "valid_rows", "duplicate_rows", "error_rows", "available_reports", "default_credit_days", "grace_period"]);
   return (
     <section className="panel settings-panel report-panel">
       <div className="records-toolbar">
