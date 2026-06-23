@@ -110,6 +110,12 @@ const api = {
     ipcRenderer.on("app:print-shortcut", listener);
     return () => ipcRenderer.removeListener("app:print-shortcut", listener);
   },
+  onConfirmClose: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("app:confirm-close", listener);
+    return () => ipcRenderer.removeListener("app:confirm-close", listener);
+  },
+  forceClose: () => ipcRenderer.invoke("app:force-close"),
   onDesktopShortcut: (callback) => {
     const listener = (_event, command) => callback(command);
     ipcRenderer.on("app:desktop-shortcut", listener);

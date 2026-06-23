@@ -273,6 +273,7 @@ function App() {
   const [utilityExtension, setUtilityExtension] = useState(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const confirmResolverRef = useRef(null);
+  const exitConfirmResolverRef = useRef(null);
   const lastExitEscRef = useRef(0);
   const currentTitle = viewTitles[view] || [masterViews[view]?.title || transactionViews[view]?.title, masterViews[view]?.description || transactionViews[view]?.description];
   const effectiveView = routeAliases[view] || view;
@@ -465,8 +466,13 @@ function App() {
         }
       ].slice(-100);
     }
-    confirmResolverRef.current?.(result || { confirmed: false, reason: "" });
-    confirmResolverRef.current = null;
+    if (confirmDialog?.title === "Exit Application") {
+      exitConfirmResolverRef.current?.(result || { confirmed: false, reason: "" });
+      exitConfirmResolverRef.current = null;
+    } else {
+      confirmResolverRef.current?.(result || { confirmed: false, reason: "" });
+      confirmResolverRef.current = null;
+    }
     setConfirmDialog(null);
   }
 
@@ -477,6 +483,46 @@ function App() {
     readDirtyState();
     window.addEventListener("gii-gem-dirty-state", readDirtyState);
     return () => window.removeEventListener("gii-gem-dirty-state", readDirtyState);
+  }, []);
+
+  useEffect(() => {
+    window.__giiGemExitHandler = () => new Promise((resolve) => {
+      exitConfirmResolverRef.current = resolve;
+      setConfirmDialog({
+        mode: "normal",
+        title: "Exit Application",
+        message: "Are you sure you want to exit? Any unsaved changes will be lost.",
+        confirmLabel: "Exit",
+        cancelLabel: "Stay",
+        hideCancel: false
+      });
+    });
+    return () => {
+      window.__giiGemExitHandler = null;
+      exitConfirmResolverRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    function onBeforeUnload(event) {
+      if (window.__giiGemIsExiting) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  useEffect(() => {
+    if (!api.onConfirmClose) return;
+    const unsub = api.onConfirmClose(async () => {
+      const result = await window.__giiGemExitHandler?.();
+      if (result?.confirmed) {
+        window.__giiGemIsExiting = true;
+        api.forceClose?.();
+      }
+    });
+    return () => unsub?.();
   }, []);
 
   useEffect(() => {
@@ -7470,6 +7516,7 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
   const selectedWorkflow = workflows.find(([key]) => key === form.voucher_kind) || workflows[0];
   const accounts = (data?.accounts || []).map((account) => [account.id, `${account.account_code} - ${account.account_name}`]);
   const bankOptions = (data?.banks || []).map((bank) => [bank.id, `${bank.bank_account_name}${bank.bank_name ? ` / ${bank.bank_name}` : ""}`]);
+  const supplierOptions = (data?.suppliers || data?.references?.suppliers || []).map((row) => [row.id, row.supplier_name]);
   const previewLines = businessVoucherPreview(form, data || {});
   const orderOptions = (data?.references?.orders || []).map((row) => [row.id, row.order_number || `Order #${row.id}`, [row.department_name, row.institution_name, row.location].filter(Boolean).join(" / ")]);
   const selectedOrder = (data?.references?.orders || []).find((row) => String(row.id) === String(form.order_id) || String(row.order_number) === String(form.order_id));
@@ -7840,7 +7887,7 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
           {needsCashBank && <SearchableSelect label={form.voucher_kind === "receipt" ? "Receiving Bank / Cash Account" : "Paying Bank / Cash Account"} value={form.bank_account_id} onChange={(value) => setValue("bank_account_id", value)} options={bankOptions} onQuickCreate={() => openQuickCreate("bank", "bank_account_id")} />}
           {needsPaymentMode && <SelectField label="Payment Mode" value={form.payment_mode} onChange={(value) => setValue("payment_mode", value)} options={["Bank", "Cash"]} />}
           {customerKinds.includes(form.voucher_kind) && <SearchableSelect label="Customer / Government Department" value={form.department_id} onChange={(value) => setValue("department_id", value)} options={(data?.departments || []).map((row) => [row.id, row.department_name])} onQuickCreate={() => openQuickCreate("department", "department_id")} />}
-          {supplierKinds.includes(form.voucher_kind) && <SearchableSelect label="Supplier / Vendor" value={form.supplier_id} onChange={(value) => setValue("supplier_id", value)} options={(data?.suppliers || []).map((row) => [row.id, row.supplier_name])} onQuickCreate={() => openQuickCreate("supplier", "supplier_id")} />}
+          {supplierKinds.includes(form.voucher_kind) && <SearchableSelect label="Supplier / Vendor" value={form.supplier_id} onChange={(value) => setValue("supplier_id", value)} options={supplierOptions} onQuickCreate={() => openQuickCreate("supplier", "supplier_id")} />}
           {form.voucher_kind === "employee_incentive" && <SearchableSelect label="Employee" value={form.employee_id} onChange={(value) => setValue("employee_id", value)} options={(data?.employees || []).map((row) => [row.id, row.employee_name])} onQuickCreate={() => openQuickCreate("employee", "employee_id")} />}
           {form.voucher_kind === "contra" && <SearchableSelect label="From Cash/Bank Account" value={form.from_account_id} onChange={(value) => setValue("from_account_id", value)} options={accounts} onQuickCreate={() => openQuickCreate("ledger_account", "from_account_id", { account_type: "Asset", normal_balance: "Debit" })} />}
           {form.voucher_kind === "contra" && <SearchableSelect label="To Cash/Bank Account" value={form.to_account_id} onChange={(value) => setValue("to_account_id", value)} options={accounts} onQuickCreate={() => openQuickCreate("ledger_account", "to_account_id", { account_type: "Asset", normal_balance: "Debit" })} />}
@@ -7903,7 +7950,7 @@ function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind,
       {quickCreate && (
         <QuickCreateMasterDialog
           request={quickCreate}
-          records={quickCreateRecords(quickCreate.type, { references: data?.references || {}, accounts: data?.accounts || [], departments: data?.departments || [], suppliers: data?.suppliers || [], employees: data?.employees || [], banks: data?.banks || [] })}
+          records={quickCreateRecords(quickCreate.type, { references: data?.references || {}, accounts: data?.accounts || [], departments: data?.departments || [], suppliers: supplierOptions, employees: data?.employees || [], banks: data?.banks || [] })}
           context={{ company_id: form.company_id, source_module: "voucher_dashboard" }}
           role={role}
           notify={notify}
@@ -8743,9 +8790,9 @@ function AllocationWorkflowScreen({ view, notify, role, companyContext }) {
   const selectedInvoiceForAdjustment = (data?.billWiseReceivables || []).find((row) => String(row.billing_id) === String(form.billing_id));
   const selectedPurchaseForAdjustment = (data?.billWisePayables || []).find((row) => String(row.procurement_id) === String(form.procurement_id));
   const partyOptions = form.party_type === "supplier"
-    ? (data?.suppliers || []).map((row) => [row.id, row.supplier_name])
+    ? (data?.suppliers || data?.references?.suppliers || []).map((row) => [row.id, row.supplier_name])
     : form.party_type === "department"
-      ? (data?.departments || []).map((row) => [row.id, row.department_name])
+      ? (data?.departments || data?.references?.departments || []).map((row) => [row.id, row.department_name])
       : form.party_type === "employee"
         ? (data?.employees || []).map((row) => [row.id, row.employee_name])
         : [];
@@ -10223,12 +10270,12 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
           </div>
         </div>
       )}
-      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} />}
+      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} onDrillVoucher={(row) => openDrilldown(row, "voucher")} />}
     </section>
   );
 }
 
-function DrilldownPanel({ drilldown, onClose, onNavigate, onInlineAction, notify }) {
+function DrilldownPanel({ drilldown, onClose, onNavigate, onInlineAction, notify, onDrillVoucher }) {
   const voucher = drilldown.voucher;
   const source = drilldown.source;
   const actions = buildDrilldownActions(drilldown);
@@ -10404,6 +10451,7 @@ function DrilldownPanel({ drilldown, onClose, onNavigate, onInlineAction, notify
                 <th>Credit</th>
                 <th>Running</th>
                 <th>Source</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -10417,6 +10465,9 @@ function DrilldownPanel({ drilldown, onClose, onNavigate, onInlineAction, notify
                   <td>{formatCurrency(Number(row.credit || 0))}</td>
                   <td>{formatCurrency(Number(row.running_balance || 0))}</td>
                   <td>{row.source_module || "-"}</td>
+                  <td>
+                    <button className="ghost-btn small-btn" type="button" onClick={() => onDrillVoucher?.(row)} title="Open voucher drilldown">Voucher</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -64,7 +64,7 @@ export function NavigationSidebar({
                     return (
                       <div className={`nav-subgroup ${sectionExpanded ? "expanded" : ""}`} key={sectionKey}>
                         {section.label && (
-                          <button type="button" className={`nav-subgroup-trigger ${sectionActive ? "active-subgroup" : ""}`} title={`${group.label} > ${section.label}`} onClick={() => onSetExpandedGroups((current) => ({ [group.id]: true, [sectionKey]: !current[sectionKey] }))}>
+                          <button type="button" className={`nav-subgroup-trigger ${sectionActive ? "active-subgroup" : ""}`} title={`${group.label} > ${section.label}`} onClick={() => onSetExpandedGroups((current) => ({ ...Object.fromEntries(Object.entries(current).filter(([k]) => k === group.id || k.startsWith(`${group.id}:`))), [group.id]: true, [sectionKey]: !current[sectionKey] }))}>
                             <span>{section.label}</span>
                             <strong>{sectionExpanded ? "-" : "+"}</strong>
                           </button>

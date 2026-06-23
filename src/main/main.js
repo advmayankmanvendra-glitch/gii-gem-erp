@@ -436,7 +436,17 @@ function createWindow() {
       win.webContents.send("app:desktop-shortcut", command);
     }
   });
+
+  win.on("close", (event) => {
+    event.preventDefault();
+    win.webContents.send("app:confirm-close");
+  });
 }
+
+ipcMain.handle("app:force-close", () => {
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (win) win.destroy();
+});
 
 function desktopShortcutCommand(input = {}) {
   const key = String(input.key || "");
