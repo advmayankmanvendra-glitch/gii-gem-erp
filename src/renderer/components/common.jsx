@@ -127,6 +127,7 @@ export function Icon({ name }) {
     edit: <><path d="m12 20 9-9-8-8-9 9v8z"/><path d="M18 6 6 18"/></>,
     undo: <><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 1 1 0 12h-2"/></>,
     trash: <><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></>,
+    download: <><path d="M21 15v4H3v-4"/><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/></>,
     help: <><circle cx="12" cy="12" r="10"/><path d="M9.5 9a2.8 2.8 0 0 1 5.2 1.4c0 2-2.7 2.1-2.7 4"/><path d="M12 18h.01"/></>
   };
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name] || paths.grid}</svg>;

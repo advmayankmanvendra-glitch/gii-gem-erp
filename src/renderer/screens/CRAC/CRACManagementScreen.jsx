@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { CRACStatusCard } from "../../components/crac/CRACStatusCard.jsx";
 import { CRACTimeline } from "../../components/crac/CRACTimeline.jsx";
+import { CRACDocumentPanel } from "../../components/crac/CRACDocumentPanel.jsx";
 import { ReportToolbar, ReportActionButtons } from "../../components/forms/index.jsx";
 
 export function CRACManagementScreen({ notify, companyContext, apiClient, onNavigate }) {
   const [cracRecords, setCracRecords] = useState([]);
   const [selectedCrac, setSelectedCrac] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
     loadCracRecords();
@@ -24,8 +26,18 @@ export function CRACManagementScreen({ notify, companyContext, apiClient, onNavi
     }
   }
 
+  async function loadDocuments(cracRecord) {
+    try {
+      const data = await apiClient.listDocuments({ module: "crac", linked_record_id: cracRecord.id, company_id: cracRecord.company_id || companyContext.company_id });
+      setDocuments(Array.isArray(data) ? data : []);
+    } catch {
+      setDocuments([]);
+    }
+  }
+
   function viewCracDetails(record) {
     setSelectedCrac(record);
+    loadDocuments(record);
   }
 
   const timelineSteps = selectedCrac
@@ -70,6 +82,11 @@ export function CRACManagementScreen({ notify, companyContext, apiClient, onNavi
               <>
                 <CRACStatusCard crac={selectedCrac} onView={() => onNavigate && onNavigate("crac_entry")} />
                 <div style={{ marginTop: 12 }}><CRACTimeline steps={timelineSteps} /></div>
+                <CRACDocumentPanel
+                  documents={documents}
+                  onView={(doc) => apiClient.viewDocument(doc.id).catch((e) => notify(e.message, "error"))}
+                  onDownload={(doc) => apiClient.downloadDocument(doc.id).then((r) => { if (!r?.canceled) notify("Document downloaded"); }).catch((e) => notify(e.message, "error"))}
+                />
               </>
             ) : (
               <div className="empty-state compact"><strong>Select a CRAC Record</strong><span>Click a record on the left to view its details and timeline.</span></div>

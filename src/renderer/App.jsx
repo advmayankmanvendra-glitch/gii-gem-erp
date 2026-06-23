@@ -4568,7 +4568,11 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
             <input placeholder="Remarks" value={uploadForm.remarks} onChange={(event) => setUploadForm({ ...uploadForm, remarks: event.target.value })} />
             <button className="ghost-btn">Attach</button>
           </form>
-          {documents.length ? documents.map((doc) => <span className="document-chip" key={doc.id}>{doc.document_type}: {doc.original_file_name}</span>) : <small>No invoice attachments yet.</small>}
+          {documents.length ? documents.map((doc) => (
+            <span className="document-chip" key={doc.id}>
+              {doc.document_type}: <button className="ghost-btn small-btn" type="button" onClick={() => api.viewDocument(doc.id).catch((e) => notify(e.message, "error"))}>{doc.original_file_name}</button>
+            </span>
+          )) : <small>No invoice attachments yet.</small>}
         </section>
 
         <section id="billing-lifecycle" className="panel compact-summary">
@@ -7209,6 +7213,34 @@ function DocumentsScreen({ notify, companyContext }) {
     load();
   }, [moduleFilter, companyContext?.company_id, companyContext?.company_scope]);
 
+  async function handleView(doc) {
+    try {
+      await api.viewDocument(doc.id);
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
+  async function handleDownload(doc) {
+    try {
+      const result = await api.downloadDocument(doc.id);
+      if (result?.canceled) return;
+      notify("Document downloaded");
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
+  async function handleDelete(doc) {
+    try {
+      await api.deleteDocument({ id: doc.id });
+      notify("Document deleted");
+      load();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
   const expectedDocs = moduleFilter ? (expectedDocumentTypes[moduleFilter] || []) : [];
   const uploadedTypes = new Set(documents.map((d) => d.document_type));
   const missingDocs = expectedDocs.filter((type) => !uploadedTypes.has(type));
@@ -7226,7 +7258,7 @@ function DocumentsScreen({ notify, companyContext }) {
       <div className="workflow-note" style={{ margin: "0 16px 8px" }}>
         <strong>Document Lifecycle</strong>
         <span>Documents prove business events - orders, invoices, payments, receipts. They support audit trail, payment readiness, and closure readiness without posting accounting directly.</span>
-        <small>Upload documents from the Add Record screen for each module. Use the filter above to narrow by module. Click a file link to open the uploaded document.</small>
+        <small>Upload documents from the Add Record screen for each module. Use the filter above to narrow by module. Use the View/Download/Delete actions to manage documents.</small>
       </div>
       {moduleFilter && expectedDocs.length > 0 && (
         <div className="intelligence-card" style={{ margin: "0 16px 12px" }}>
@@ -7252,7 +7284,7 @@ function DocumentsScreen({ notify, companyContext }) {
                 <th>File</th>
                 <th>Size</th>
                 <th>Uploaded</th>
-                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -7261,10 +7293,16 @@ function DocumentsScreen({ notify, companyContext }) {
                   <td>{document.linked_module}</td>
                   <td>{document.linked_record_id || "-"}</td>
                   <td>{document.document_type}</td>
-                  <td><strong>{document.original_file_name}</strong><br /><span>{document.file_extension}</span></td>
+                  <td><button className="ghost-btn small-btn" type="button" onClick={() => handleView(document)} title="Open document">{document.original_file_name}</button></td>
                   <td>{Math.round(Number(document.file_size || 0) / 1024)} KB</td>
                   <td>{new Date(document.uploaded_at).toLocaleString("en-IN")}</td>
-                  <td><span className={`badge ${expectedDocs.includes(document.document_type) ? "badge-ok" : "badge-muted"}`}>{expectedDocs.includes(document.document_type) ? "Required" : "Supporting"}</span></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="icon-btn" type="button" title="View document" onClick={() => handleView(document)}><Icon name="file" /></button>
+                      <button className="icon-btn" type="button" title="Download document" onClick={() => handleDownload(document)}><Icon name="download" /></button>
+                      <button className="icon-btn danger" type="button" title="Delete document" onClick={() => handleDelete(document)}><Icon name="trash" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

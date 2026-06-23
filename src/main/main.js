@@ -33,6 +33,7 @@ import {
   createSupplierPaymentAllocation,
   createWarehouseTransfer,
   dashboardCounts,
+  deleteDocument,
   deleteItemImportBatch,
   deleteRecord,
   deleteUnusedImportedItems,
@@ -62,6 +63,7 @@ import {
   referenceData,
   reallocateReceiptAllocation,
   reallocateSupplierPaymentAllocation,
+  replaceDocument,
   reverseVoucher,
   rollbackImportBatch,
   rejectVoucherProposal,
@@ -662,6 +664,29 @@ function registerIpc() {
   });
   ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
   ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
+  ipcMain.handle("documents:view", async (_event, id) => {
+    const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
+    if (!doc) throw new Error("Document not found");
+    if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
+    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document view", table_name: "documents", record_id: id });
+    return shell.openPath(doc.file_path);
+  });
+  ipcMain.handle("documents:download", async (event, id) => {
+    const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
+    if (!doc) throw new Error("Document not found");
+    if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePath: savePath } = await dialog.showSaveDialog(win, {
+      defaultPath: doc.original_file_name,
+      filters: [{ name: "Documents", extensions: [doc.file_extension.replace(".", "")] }]
+    });
+    if (canceled || !savePath) return { canceled: true };
+    fs.copyFileSync(doc.file_path, savePath);
+    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document download", table_name: "documents", record_id: id });
+    return { canceled: false, savedPath: savePath };
+  });
+  ipcMain.handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
+  ipcMain.handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
   ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
 
   ipcMain.handle("print:html", async (event, preview) => {

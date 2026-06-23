@@ -3919,15 +3919,36 @@ export function uploadDocument(db, payload, root = projectRoot()) {
 
 export function listDocuments(db, filters = {}) {
   const companyId = Number(filters.company_id || 0);
+  const recordId = Number(filters.linked_record_id || 0);
   const rows = db.prepare(`
     SELECT *
     FROM documents
     WHERE status = 'active' AND deleted_at IS NULL
       AND (@module = '' OR linked_module = @module)
       AND (@company_id = 0 OR company_id = @company_id)
+      AND (@record_id = 0 OR linked_record_id = @record_id)
     ORDER BY uploaded_at DESC, id DESC
-  `).all({ module: filters.module || "", company_id: companyId });
+  `).all({ module: filters.module || "", company_id: companyId, record_id: recordId });
   return rows;
+}
+
+export function deleteDocument(db, id, context = {}) {
+  const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
+  if (!doc) throw new Error("Document not found or already deleted");
+  db.prepare("UPDATE documents SET is_deleted = 1, status = 'deleted', deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?").run(context.user_id || null, id);
+  auditLog(db, { company_id: doc.company_id, user_id: context.user_id || null, action: "document delete", table_name: "documents", record_id: id, old_value: JSON.stringify({ fileName: doc.original_file_name, filePath: doc.file_path }) });
+  return { id, status: "deleted" };
+}
+
+export function replaceDocument(db, payload, root = projectRoot(), context = {}) {
+  const oldId = payload.replace_document_id;
+  if (!oldId) throw new Error("replace_document_id is required");
+  const oldDoc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(oldId);
+  if (!oldDoc) throw new Error("Original document not found");
+  const newDoc = uploadDocument(db, { ...payload, company_id: oldDoc.company_id }, root);
+  db.prepare("UPDATE documents SET status = 'replaced' WHERE id = ?").run(oldId);
+  auditLog(db, { company_id: oldDoc.company_id, user_id: context.user_id || payload.uploaded_by || null, action: "document replace", table_name: "documents", record_id: oldId, old_value: JSON.stringify({ fileName: oldDoc.original_file_name }), new_value: JSON.stringify({ newId: newDoc.id, fileName: newDoc.original_file_name }) });
+  return { old: { id: oldId, status: "replaced" }, new: newDoc };
 }
 
 function assertSafeFileContent(extension, bytes) {

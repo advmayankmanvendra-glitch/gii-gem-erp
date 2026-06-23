@@ -172,7 +172,75 @@ export function FilterBar({ children, className = "" }) {
   return <div className={['toolbar-controls filter-bar', className].filter(Boolean).join(' ')}>{children}</div>;
 }
 
+const PERIOD_PRESETS = [
+  { key: "today", label: "Today" },
+  { key: "this_week", label: "This Week" },
+  { key: "this_month", label: "This Month" },
+  { key: "this_quarter", label: "This Quarter" },
+  { key: "this_fy", label: "This FY" },
+];
+
+function toISODate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getPresetDates(preset) {
+  const today = new Date();
+  const todayStr = toISODate(today);
+  switch (preset) {
+    case "today":
+      return { date_from: todayStr, date_to: todayStr };
+    case "this_week": {
+      const dayOfWeek = today.getDay();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { date_from: toISODate(monday), date_to: toISODate(sunday) };
+    }
+    case "this_month": {
+      const first = new Date(today.getFullYear(), today.getMonth(), 1);
+      const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      return { date_from: toISODate(first), date_to: toISODate(last) };
+    }
+    case "this_quarter": {
+      const calQ = Math.floor(today.getMonth() / 3);
+      const first = new Date(today.getFullYear(), calQ * 3, 1);
+      const last = new Date(today.getFullYear(), calQ * 3 + 3, 0);
+      return { date_from: toISODate(first), date_to: toISODate(last) };
+    }
+    case "this_fy": {
+      const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+      const first = new Date(fyStartYear, 3, 1);
+      const last = new Date(fyStartYear + 1, 3, 0);
+      return { date_from: toISODate(first), date_to: toISODate(last) };
+    }
+    default:
+      return null;
+  }
+}
+
 export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo, onCompanyChange, onDateFromChange, onDateToChange }) {
+  const [activePreset, setActivePreset] = useState("");
+
+  function handlePreset(preset) {
+    const dates = getPresetDates(preset);
+    if (!dates) return;
+    setActivePreset(preset);
+    if (onDateFromChange) onDateFromChange(dates.date_from);
+    if (onDateToChange) onDateToChange(dates.date_to);
+  }
+
+  function handleDateFromChange(value) {
+    setActivePreset("");
+    if (onDateFromChange) onDateFromChange(value);
+  }
+
+  function handleDateToChange(value) {
+    setActivePreset("");
+    if (onDateToChange) onDateToChange(value);
+  }
+
   return (
     <>
       {onCompanyChange && (
@@ -180,8 +248,15 @@ export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo,
           {companies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
         </select>
       )}
-      {onDateFromChange && <input type="date" value={dateFrom || ""} onChange={(event) => onDateFromChange(event.target.value)} />}
-      {onDateToChange && <input type="date" value={dateTo || ""} onChange={(event) => onDateToChange(event.target.value)} />}
+      <div className="period-presets">
+        {PERIOD_PRESETS.map(({ key, label }) => (
+          <button key={key} type="button" className={`ghost-btn${activePreset === key ? " active" : ""}`} onClick={() => handlePreset(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {onDateFromChange && <input type="date" value={dateFrom || ""} onChange={(event) => handleDateFromChange(event.target.value)} />}
+      {onDateToChange && <input type="date" value={dateTo || ""} onChange={(event) => handleDateToChange(event.target.value)} />}
     </>
   );
 }

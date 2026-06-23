@@ -1866,6 +1866,24 @@ svg {
   padding: 0 10px;
 }
 
+.period-presets {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.period-presets .ghost-btn {
+  font-size: 12px;
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.period-presets .ghost-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 .page,
 .master-layout,
 .settings-panel {
@@ -4168,6 +4186,24 @@ svg {
 
 .tally-migration-layout .preview-table tr.selected-review-row td {
   background: #fff8ed;
+}
+
+.icon-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 5px;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn.danger:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
 }
 
 .ghost-btn.danger {
