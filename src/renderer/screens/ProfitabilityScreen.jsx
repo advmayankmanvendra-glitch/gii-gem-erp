@@ -3,7 +3,7 @@ import { EmptyState, Metric } from "../components/common.jsx";
 import { ReportToolbar } from "../components/forms/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
-export function ProfitabilityScreen({ notify, companyContext, apiClient }) {
+export function ProfitabilityScreen({ notify, companyContext, apiClient, onNavigate }) {
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
@@ -47,6 +47,7 @@ export function ProfitabilityScreen({ notify, companyContext, apiClient }) {
                   <th>Incentive</th>
                   <th>Net Profit</th>
                   <th>ROI</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -61,6 +62,7 @@ export function ProfitabilityScreen({ notify, companyContext, apiClient }) {
                     <td>{formatCurrency(row.employeeIncentive)}</td>
                     <td><strong className={row.netCompanyProfit < 0 ? "loss" : "profit"}>{formatCurrency(row.netCompanyProfit)}</strong></td>
                     <td>{Number(row.roiPercentage || 0).toFixed(2)}%</td>
+                    <td><button className="ghost-btn small-btn" type="button" onClick={() => onNavigate && onNavigate("supply_orders", { recordId: row.id })} title="View order details">View</button></td>
                   </tr>
                 ))}
               </tbody>

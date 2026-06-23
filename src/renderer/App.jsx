@@ -389,7 +389,7 @@ function App() {
     };
   }, []);
 
-  function navigate(nextView) {
+  function navigate(nextView, context) {
     if (nextView === view) {
       const preferredKind = businessVoucherRouteKinds[nextView];
       if (preferredKind) window.dispatchEvent(new CustomEvent("gii-gem-voucher-kind", { detail: preferredKind }));
@@ -398,6 +398,7 @@ function App() {
     }
     const preferredKind = businessVoucherRouteKinds[nextView];
     if (preferredKind) window.__giiGemPreferredVoucherKind = preferredKind;
+    if (context?.recordId) window.__giiGemPrefillRecordId = context.recordId;
     setNavigationHistory((current) => [view, ...current.filter((item) => item !== view)].slice(0, 12));
     setView(nextView);
     setRecentScreens((current) => [nextView, ...current.filter((item) => item !== nextView)].slice(0, 2));
@@ -1148,7 +1149,7 @@ function App() {
             {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
             {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
-            {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} />}
+            {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}
             {effectiveView === "voucher_dashboard" && <BusinessVoucherScreen notify={notify} onNavigate={navigate} role={session.role} requestedVoucherKind={businessVoucherRouteKinds[view]} companyContext={companyContext} />}
             {effectiveView === "manual_voucher" && <VoucherEntryScreen notify={notify} companyContext={companyContext} />}
             {bankStatementViews.has(effectiveView) && <BankStatementScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
@@ -1156,7 +1157,7 @@ function App() {
             {["receipt_allocation_workflow", "supplier_allocation_workflow", "advance_adjustment_wizard", "supplier_advance_adjustment_wizard", "party_opening_balances", "credit_terms"].includes(effectiveView) && <AllocationWorkflowScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
             {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
-            {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} />}
+            {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "master_data_tools" && <MasterDataToolsScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
             {effectiveView === "tally_migration_assistant" && <TallyMasterMigrationAssistantScreen notify={notify} session={session} companyContext={companyContext} setUtilityExtension={setUtilityExtension} />}
@@ -4668,6 +4669,22 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate }
   }, [table]);
 
   useEffect(() => {
+    const prefillId = window.__giiGemPrefillRecordId;
+    if (prefillId && records.length && !editing) {
+      const record = records.find((r) => String(r.id) === String(prefillId));
+      if (record) {
+        setEditing(record);
+        setForm(record);
+        if (table === "supply_orders") {
+          setOrderItems(supplyOrderItemsFromRecord(record));
+          setShowSupplyOrderEntry(true);
+        }
+        window.__giiGemPrefillRecordId = null;
+      }
+    }
+  }, [records, editing, table]);
+
+  useEffect(() => {
     if (!isSupplyOrder || !references || editing) return;
     setForm((current) => {
       if (String(current.order_number || "").trim()) return current;
@@ -6180,7 +6197,7 @@ function validateTransaction(config, form) {
   });
 }
 
-function SummaryScreen({ view, notify, companyContext }) {
+function SummaryScreen({ view, notify, companyContext, onNavigate }) {
   const [rows, setRows] = useState([]);
   const [accounting, setAccounting] = useState(null);
 
@@ -6204,6 +6221,7 @@ function SummaryScreen({ view, notify, companyContext }) {
           <PhasePanel title="Receivables are generated from billing and payment allocation" note="Use Billing and Payments for accounting postings. Upload supporting documents here." />
         </AddRecordPanel>
         <SummaryTable title="Receivable Ledger" rows={(accounting?.receivables || []).map((row) => ({ name: row.invoice_number, invoice: row.invoice_amount, received: row.amount_received, tds: row.tds_deducted + row.gst_tds_deducted, outstanding: row.balance_outstanding, days: row.days_outstanding }))} columns={["invoice", "received", "tds", "outstanding", "days"]} />
+        <div className="workflow-note" style={{ marginTop: 8 }}><button className="ghost-btn" type="button" onClick={() => onNavigate && onNavigate("bill_wise_receivables")}>View Full Receivables Report</button></div>
       </section>
     );
   }
@@ -6215,19 +6233,20 @@ function SummaryScreen({ view, notify, companyContext }) {
           <PhasePanel title="Payables are generated from procurement and supplier payments" note="Use Procurement and supplier payment workflows for accounting postings. Upload supporting documents here." />
         </AddRecordPanel>
         <SummaryTable title="Supplier Payable Ledger" rows={(accounting?.payables || []).map((row) => ({ name: `${row.supplier_name} / ${row.purchase_invoice_number}`, purchase: row.purchase_value, paid: row.amount_paid, due: row.balance_due }))} columns={["purchase", "paid", "due"]} />
+        <div className="workflow-note" style={{ marginTop: 8 }}><button className="ghost-btn" type="button" onClick={() => onNavigate && onNavigate("bill_wise_payables")}>View Full Payables Report</button></div>
       </section>
     );
   }
 
   if (view === "cash_flow") {
-    return <CashFlowSummary accounting={accounting} />;
+    return <CashFlowSummary accounting={accounting} onNavigate={onNavigate} />;
   }
 
   if (view === "gst") {
-    return <GstSummary accounting={accounting} />;
+    return <GstSummary accounting={accounting} onNavigate={onNavigate} />;
   }
 
-  return <AccountingReportsIndex accounting={accounting} />;
+  return <AccountingReportsIndex accounting={accounting} onNavigate={onNavigate} />;
 }
 
 function OperationsScreen({ view, notify, onNavigate, companyContext }) {
@@ -9019,6 +9038,10 @@ function InventoryReportScreen({ view, notify, companyContext, onNavigate }) {
       formatValue={formatCell}
       onExport={() => exportRows(config.title, rows)}
       onPrint={requestPrintPreview}
+      onDrillVoucher={(row) => openDrilldown(row, "voucher")}
+      onDrillSource={(row) => openDrilldown(row, "source")}
+      onDrillAccount={(row) => openDrilldown(row, "account")}
+      onNavigate={onNavigate}
     >
       {view === "delivery_challans" && <DeliveryChallanQuickForm data={data || {}} notify={notify} onSaved={load} />}
       {view === "warehouse_transfers" && <WarehouseTransferQuickForm data={data || {}} notify={notify} onSaved={load} />}
@@ -9162,7 +9185,9 @@ function inventoryTableConfig(view, data = {}) {
         { key: "balance_quantity", label: "Balance" },
         { key: "rate", label: "Rate", type: money },
         { key: "value", label: "Value", type: money },
-        { key: "order_number", label: "Order" }
+        { key: "order_number", label: "Order" },
+        { key: "voucher_drill", label: "Vchr", type: "drill_voucher" },
+        { key: "source_drill", label: "Src", type: "drill_source" }
       ]
     },
     stock_movement: {
@@ -9189,7 +9214,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "issued_quantity", label: "Issued" },
         { key: "balance_reserved", label: "Balance" },
         { key: "status", label: "Status" },
-        { key: "updated_at", label: "Updated" }
+        { key: "updated_at", label: "Updated" },
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
       ]
     },
     procurement_requirements: {
@@ -9203,7 +9229,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "reserved_quantity", label: "Reserved" },
         { key: "short_quantity", label: "Short" },
         { key: "procurement_required_quantity", label: "Procurement Required" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
       ]
     },
     grn_report: {
@@ -9216,7 +9243,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "warehouse_name", label: "Warehouse" },
         { key: "accepted_quantity", label: "Accepted Qty" },
         { key: "receipt_value", label: "Value", type: money },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
       ]
     },
     delivery_challans: {
@@ -9229,7 +9257,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "department_name", label: "Department" },
         { key: "issued_quantity", label: "Quantity" },
         { key: "vehicle_details", label: "Vehicle" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
       ]
     },
     warehouse_transfers: {
@@ -9254,7 +9283,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "voucher_number", label: "Voucher" },
         { key: "source_module", label: "Source" },
         { key: "cogs_value", label: "COGS", type: money },
-        { key: "narration", label: "Narration" }
+        { key: "narration", label: "Narration" },
+        { key: "voucher_drill", label: "Vchr", type: "drill_voucher" }
       ]
     },
     reservation_ageing: {
@@ -9267,7 +9297,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "balance_reserved", label: "Balance Reserved" },
         { key: "short_quantity", label: "Short" },
         { key: "days_reserved", label: "Days" },
-        { key: "status", label: "Status" }
+        { key: "status", label: "Status" },
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
       ]
     },
     inventory_movements: {
@@ -9282,7 +9313,8 @@ function inventoryTableConfig(view, data = {}) {
         { key: "quantity", label: "Quantity" },
         { key: "value", label: "Value", type: money },
         { key: "source_module", label: "Source" },
-        { key: "voucher_number", label: "Voucher" }
+        { key: "voucher_number", label: "Voucher" },
+        { key: "voucher_drill", label: "Vchr", type: "drill_voucher" }
       ]
     },
     low_stock: {

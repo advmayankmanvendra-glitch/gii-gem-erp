@@ -233,8 +233,27 @@ export function InventoryReadOnlyReportPanel({
   formatValue,
   onExport,
   onPrint,
+  onDrillVoucher,
+  onDrillSource,
+  onDrillAccount,
+  onNavigate,
   children
 }) {
+  function renderCellValue(column, row) {
+    if (column.type === "drill_voucher") {
+      return <button className="ghost-btn small-btn" type="button" onClick={() => onDrillVoucher && onDrillVoucher(row)}>Voucher</button>;
+    }
+    if (column.type === "drill_source") {
+      return <button className="ghost-btn small-btn" type="button" onClick={() => onDrillSource && onDrillSource(row)} disabled={!row.source_module || !row.source_id}>Source</button>;
+    }
+    if (column.type === "drill_account") {
+      return <button className="ghost-btn small-btn" type="button" onClick={() => onDrillAccount && onDrillAccount(row)}>Ledger</button>;
+    }
+    if (column.type === "nav_action" && column.actionView) {
+      return <button className="ghost-btn small-btn" type="button" onClick={() => onNavigate && onNavigate(column.actionView)}>{column.actionLabel || "Open"}</button>;
+    }
+    return formatValue(row[column.key], column.type);
+  }
   return (
     <section className="panel settings-panel report-panel">
       {children}
@@ -270,7 +289,7 @@ export function InventoryReadOnlyReportPanel({
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id || `${view}-${index}`}>
-                  {config.columns.map((column) => <td key={column.key}>{formatValue(row[column.key], column.type)}</td>)}
+                  {config.columns.map((column) => <td key={column.key}>{renderCellValue(column, row)}</td>)}
                 </tr>
               ))}
             </tbody>

@@ -13,7 +13,7 @@ export function EmployeePerformanceSummary({ rows }) {
   return <SummaryTable title="Employee Ranking Dashboard" rows={byEmployee} columns={["orders", "billing", "collections", "profit", "incentive"]} />;
 }
 
-export function CashFlowSummary({ accounting }) {
+export function CashFlowSummary({ accounting, onNavigate }) {
   const rows = (accounting?.cashBank || []).map((row) => ({
     name: `${row.transaction_date} ${row.transaction_type}`,
     received: row.debit,
@@ -21,10 +21,15 @@ export function CashFlowSummary({ accounting }) {
     balance: row.balance
   }));
 
-  return <SummaryTable title="Cash/Bank Book" rows={rows} columns={["received", "paid", "balance"]} />;
+  return (
+    <>
+      <SummaryTable title="Cash/Bank Book" rows={rows} columns={["received", "paid", "balance"]} />
+      <div className="workflow-note" style={{ marginTop: 8 }}><button className="ghost-btn" type="button" onClick={() => onNavigate && onNavigate("cash_bank_ledger")}>View Full Cash/Bank Ledger Report</button></div>
+    </>
+  );
 }
 
-export function GstSummary({ accounting }) {
+export function GstSummary({ accounting, onNavigate }) {
   const gst = accounting?.gstSummary;
   const rows = gst ? [{
     name: "Current Period",
@@ -34,21 +39,35 @@ export function GstSummary({ accounting }) {
     gst_impact: gst.gstImpactOnProfitability
   }] : [];
 
-  return <SummaryTable title="GST Summary" rows={rows} columns={["input_gst", "output_gst", "net_gst_payable", "gst_impact"]} />;
+  return (
+    <>
+      <SummaryTable title="GST Summary" rows={rows} columns={["input_gst", "output_gst", "net_gst_payable", "gst_impact"]} />
+      <div className="workflow-note" style={{ marginTop: 8 }}><button className="ghost-btn" type="button" onClick={() => onNavigate && onNavigate("gst_register")}>View Full GST Register</button></div>
+    </>
+  );
 }
 
-export function AccountingReportsIndex({ accounting }) {
-  return <SummaryTable title="Accounting Reports Index" rows={[
-    { name: "Day Book", rows: accounting?.dayBook?.length || 0 },
-    { name: "Trial Balance", rows: accounting?.trialBalance?.length || 0 },
-    { name: "General Ledger", rows: accounting?.ledger?.length || 0 },
-    { name: "Cash/Bank Book", rows: accounting?.cashBank?.length || 0 },
-    { name: "Profit & Loss", rows: accounting?.profitLoss?.rows?.length || 0 },
-    { name: "Balance Sheet", rows: accounting?.balanceSheet?.rows?.length || 0 },
-    { name: "Receivable Ageing", rows: accounting?.receivables?.length || 0 },
-    { name: "Supplier Payable Ageing", rows: accounting?.payables?.length || 0 },
-    { name: "GST Summary", rows: accounting?.gstSummary ? 1 : 0 }
-  ]} columns={["rows"]} />;
+export function AccountingReportsIndex({ accounting, onNavigate }) {
+  return (
+    <>
+      <SummaryTable title="Accounting Reports Index" rows={[
+        { name: "Day Book", rows: accounting?.dayBook?.length || 0 },
+        { name: "Trial Balance", rows: accounting?.trialBalance?.length || 0 },
+        { name: "General Ledger", rows: accounting?.ledger?.length || 0 },
+        { name: "Cash/Bank Book", rows: accounting?.cashBank?.length || 0 },
+        { name: "Profit & Loss", rows: accounting?.profitLoss?.rows?.length || 0 },
+        { name: "Balance Sheet", rows: accounting?.balanceSheet?.rows?.length || 0 },
+        { name: "Receivable Ageing", rows: accounting?.receivables?.length || 0 },
+        { name: "Supplier Payable Ageing", rows: accounting?.payables?.length || 0 },
+        { name: "GST Summary", rows: accounting?.gstSummary ? 1 : 0 }
+      ]} columns={["rows"]} />
+      <div className="workflow-note" style={{ marginTop: 8 }}>
+        <button className="ghost-btn" type="button" onClick={() => onNavigate && onNavigate("day_book")}>Open Day Book</button>
+        <button className="ghost-btn" type="button" style={{ marginLeft: 8 }} onClick={() => onNavigate && onNavigate("trial_balance")}>Open Trial Balance</button>
+        <button className="ghost-btn" type="button" style={{ marginLeft: 8 }} onClick={() => onNavigate && onNavigate("ledger_view")}>Open General Ledger</button>
+      </div>
+    </>
+  );
 }
 
 function groupRows(rows, key, build) {
