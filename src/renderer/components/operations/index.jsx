@@ -119,8 +119,8 @@ export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onI
       </div>
       <OperationsDrilldownSummary summary={summary} />
       <OperationsIntelligenceSummary drilldown={drilldown} />
-      <OperationsStatusTimeline steps={drilldown.timeline} />
-      <OperationsExceptionSummary exceptions={drilldown.exceptions} />
+      <OperationsStatusTimeline steps={drilldown.timeline} onNavigate={onNavigate} />
+      <OperationsExceptionSummary exceptions={drilldown.exceptions} onNavigate={onNavigate} />
       <OperationsRecommendations action={drilldown.recommendedAction} closure={drilldown.closure} />
       <OperationsClosureReadiness closure={drilldown.closure} />
       <OperationsActionCenter actions={actions} onAction={openAction} />
@@ -226,7 +226,33 @@ export function OperationsIntelligenceSummary({ drilldown }) {
   );
 }
 
-export function OperationsStatusTimeline({ steps }) {
+const stepToView = {
+  order_created: "supply_orders",
+  procurement_completed: "purchase_bills",
+  grn_completed: "stock_inwards",
+  stock_receipt_completed: "stock_inwards",
+  stock_reserved: "inventory_dashboard",
+  stock_issued: "stock_outwards",
+  billing_completed: "invoices",
+  receipt_allocation_completed: "receipt_allocation_workflow",
+  supplier_payment_completed: "supplier_allocation_workflow",
+  profitability_calculated: "profitability",
+  order_closed: "order_closure_tracking"
+};
+
+const exceptionToView = {
+  missing_supply_order: "supply_orders",
+  missing_procurement: "purchase_bills",
+  missing_grn: "stock_inwards",
+  missing_stock_receipt: "stock_inwards",
+  missing_stock_issue: "stock_outwards",
+  missing_invoice: "invoices",
+  missing_receipt_allocation: "receipt_allocation_workflow",
+  missing_supplier_allocation: "supplier_allocation_workflow",
+  posting_error: "posting_control"
+};
+
+export function OperationsStatusTimeline({ steps, onNavigate }) {
   return (
     <section className="operations-evidence-card">
       <div>
@@ -235,7 +261,7 @@ export function OperationsStatusTimeline({ steps }) {
       </div>
       <div className="operations-timeline">
         {steps.map((step) => (
-          <div key={step.key} className={`operations-timeline-step ${normalizeStatusClass(step.status)}`}>
+          <div key={step.key} className={`operations-timeline-step ${normalizeStatusClass(step.status)}` + (onNavigate && stepToView[step.key] ? " clickable" : "")} onClick={() => { if (onNavigate && stepToView[step.key]) onNavigate(stepToView[step.key]); }}>
             <span className="timeline-icon">{step.icon}</span>
             <strong>{step.label}</strong>
             <small>{step.status}{step.note && step.note !== "Unlinked" ? ` - ${step.note}` : ""}</small>
@@ -246,7 +272,7 @@ export function OperationsStatusTimeline({ steps }) {
   );
 }
 
-export function OperationsExceptionSummary({ exceptions }) {
+export function OperationsExceptionSummary({ exceptions, onNavigate }) {
   return (
     <section className="operations-evidence-card">
       <div>
@@ -256,7 +282,7 @@ export function OperationsExceptionSummary({ exceptions }) {
       {exceptions.length ? (
         <div className="operations-exception-list">
           {exceptions.map((item) => (
-            <div key={item.code} className={`operations-exception ${item.severity.toLowerCase()}`}>
+            <div key={item.code} className={`operations-exception ${item.severity.toLowerCase()}` + (onNavigate && exceptionToView[item.code] ? " clickable" : "")} onClick={() => { if (onNavigate && exceptionToView[item.code]) onNavigate(exceptionToView[item.code]); }}>
               <span>{item.severity}</span>
               <strong>{item.title}</strong>
               <small>{item.details}</small>

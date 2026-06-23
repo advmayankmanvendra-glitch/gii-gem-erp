@@ -4673,6 +4673,15 @@ th {
   line-height: 1.35;
 }
 
+.operations-timeline-step.clickable {
+  cursor: pointer;
+}
+
+.operations-timeline-step.clickable:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
 .operations-exception-list,
 .operations-recommendation {
   display: grid;
@@ -4711,6 +4720,15 @@ th {
 .operations-exception.information span {
   background: #eaf4ff;
   color: var(--brand);
+}
+
+.operations-exception.clickable {
+  cursor: pointer;
+}
+
+.operations-exception.clickable:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .operations-exception strong,
