@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { isDesktopRuntime, resolveApi } from "./api/client.js";
 import { downloadText, exportRows, formatCurrency } from "./utils/formatters.js";
-import { resetWorkspaceScroll, scrollToSection } from "./utils/navigationScroll.js";
+import { resetWorkspaceScroll, scrollToNavigationTarget, scrollToSection } from "./utils/navigationScroll.js";
 import { isAdminUser, requestPrintPreview } from "./utils/uiHelpers.js";
 import { COMPANY_CONTEXT_KEY, COMPANY_SCOPE_KEY, RIGHT_UTILITY_SIDEBAR_KEY } from "./config/storageKeys.js";
 import { masterViews, transactionViews } from "./config/viewDefinitions.js";
@@ -397,6 +397,9 @@ function App() {
       const preferredKind = businessVoucherRouteKinds[nextView];
       if (preferredKind) window.dispatchEvent(new CustomEvent("gii-gem-voucher-kind", { detail: preferredKind }));
       setMobileSidebarOpen(false);
+      window.setTimeout(() => {
+        if (!scrollToNavigationTarget(nextView, context)) resetWorkspaceScroll();
+      }, 50);
       return;
     }
     const preferredKind = businessVoucherRouteKinds[nextView];
@@ -408,7 +411,9 @@ function App() {
     const groupId = flatNavItems.find((item) => item.key === nextView)?.groupId || "dashboard";
     setExpandedGroups(groupId === "dashboard" ? {} : { [groupId]: true });
     setMobileSidebarOpen(false);
-    setTimeout(resetWorkspaceScroll, 50);
+    setTimeout(() => {
+      if (!scrollToNavigationTarget(nextView, context)) resetWorkspaceScroll();
+    }, 50);
   }
 
   function exitCurrentScreen() {
@@ -419,6 +424,7 @@ function App() {
     setExpandedGroups(groupId === "dashboard" ? {} : { [groupId]: true });
     setRecentScreens((current) => [previous, ...current.filter((item) => item !== previous)].slice(0, 2));
     setMobileSidebarOpen(false);
+    setTimeout(resetWorkspaceScroll, 50);
   }
 
   useEffect(() => {
@@ -706,7 +712,7 @@ function App() {
 
   function openVoucherShortcut(voucherKind, targetView = "voucher_dashboard") {
     window.__giiGemPreferredVoucherKind = voucherKind;
-    navigate(targetView);
+    navigate(targetView, { section: "entry" });
     window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent("gii-gem-voucher-kind", { detail: voucherKind }));
       window.dispatchEvent(new CustomEvent("gii-gem-new-record"));
@@ -714,7 +720,7 @@ function App() {
   }
 
   function openRecordAction(viewKey) {
-    navigate(viewKey);
+    navigate(viewKey, { section: "entry" });
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("gii-gem-new-record")), 0);
   }
 
@@ -729,7 +735,7 @@ function App() {
       return;
     }
     if (action.type === "navigate") {
-      navigate(action.view);
+      navigate(action.view, action.navigationContext || (action.section ? { section: action.section } : undefined));
       return;
     }
     if (action.type === "refresh") {
@@ -761,7 +767,7 @@ function App() {
       notify("Selected order is locked or closed. Unsafe actions are disabled.", "warning");
       return;
     }
-    navigate(targetView);
+    navigate(targetView, { section: "entry", recordId: row.id });
     window.setTimeout(() => window.dispatchEvent(new CustomEvent("gii-gem-new-record")), 0);
     notify(`${actionName} opened for the selected order`);
   }
@@ -6925,6 +6931,7 @@ function buildOperationsData(billing, inventory, accounting) {
     amount_text: formatCurrency(row.amount || 0),
     order_number: findOrderByOperationalRecord(row, orders, invoices, accounting.procurements || [])?.order_number || "",
     target_view: operationalTarget(row.table_name),
+    target_section: operationalTargetSection(row.table_name),
     target_label: row.module,
     drill_path: `${row.module} / Voucher / Ledger / Audit Trail`
   }));
@@ -6980,6 +6987,7 @@ function buildOperationsData(billing, inventory, accounting) {
       gross_text: formatCurrency(item.gross_value || 0),
       billed_text: `${formatNumber(billed?.billed_quantity || 0)} billed`,
       target_view: "supply_orders",
+      target_section: "entry",
       target_label: "Order"
     };
   });
@@ -6997,6 +7005,7 @@ function buildOperationsData(billing, inventory, accounting) {
       billed_qty: formatNumber(totals.billed || 0),
       collected_text: formatCurrency(totals.collected || 0),
       target_view: "supply_orders",
+      target_section: "entry",
       target_label: "Order"
     };
   });
@@ -7005,6 +7014,7 @@ function buildOperationsData(billing, inventory, accounting) {
     ...row,
     purchase_text: formatCurrency(Number(row.purchase_value || 0) + Number(row.purchase_gst || 0)),
     target_view: "procurements",
+    target_section: "entry",
     target_label: "Procurement",
     drill_path: "Purchase Bill / Voucher / Payable / Ledger"
   }));
@@ -7024,6 +7034,7 @@ function buildOperationsData(billing, inventory, accounting) {
         warehouse_name: grn.warehouse_name,
         status: grn.status || "Draft",
         target_view: "grn_report",
+        target_section: "report",
         target_label: "GRN",
         drill_text: "GRN / Stock Receipt / Stock Ledger",
         drill_path: "GRN / Stock Receipt / Stock Ledger"
@@ -7041,6 +7052,7 @@ function buildOperationsData(billing, inventory, accounting) {
       warehouse_name: ledger.warehouse_name || grn.warehouse_name,
       status: grn.status || "Posted",
       target_view: "stock_ledger",
+      target_section: "ledger",
       target_label: "Stock Ledger",
       drill_text: "GRN / Stock Receipt / Stock Ledger",
       drill_path: "GRN / Stock Receipt / Stock Ledger"
@@ -7055,6 +7067,7 @@ function buildOperationsData(billing, inventory, accounting) {
       balance_qty: formatNumber(row.short_quantity || row.procurement_required_quantity || 0),
       status_text: "Procurement Required",
       target_view: "procurement_requirements",
+      target_section: "report",
       target_label: "Requirement"
     })),
     ...orders.filter((order) => /procurement pending/i.test(order.order_status || "")).map((order) => ({
@@ -7065,6 +7078,7 @@ function buildOperationsData(billing, inventory, accounting) {
       balance_qty: formatNumber(order.order_quantity || 0),
       status_text: order.order_status,
       target_view: "supply_orders",
+      target_section: "entry",
       target_label: "Order"
     }))
   ];
@@ -7072,7 +7086,7 @@ function buildOperationsData(billing, inventory, accounting) {
   const pendingSupply = lifecycle.filter((row) => Number(row.issued_qty || 0) < Number(row.ordered_qty || 0) && !/closed|fully received/i.test(row.order_status || ""));
   const pendingBilling = lifecycle
     .filter((row) => Number(row.billed_qty || 0) < Math.max(Number(row.ordered_qty || 0), Number(row.issued_qty || 0)) && !/closed/i.test(row.order_status || ""))
-    .map((row) => ({ ...row, balance_qty: formatNumber(Math.max(Number(row.ordered_qty || 0), Number(row.issued_qty || 0)) - Number(row.billed_qty || 0)), status_text: "Billing Pending", amount_text: formatCurrency(row.order_gross_value || 0), target_view: "invoices", target_label: "Billing" }));
+    .map((row) => ({ ...row, balance_qty: formatNumber(Math.max(Number(row.ordered_qty || 0), Number(row.issued_qty || 0)) - Number(row.billed_qty || 0)), status_text: "Billing Pending", amount_text: formatCurrency(row.order_gross_value || 0), target_view: "invoices", target_section: "entry", target_label: "Billing" }));
 
   const pendingPayment = receivables
     .filter((row) => Number(row.balance_outstanding || 0) > 0)
@@ -7084,6 +7098,7 @@ function buildOperationsData(billing, inventory, accounting) {
       amount_text: formatCurrency(row.balance_outstanding || 0),
       status_text: row.status || "Open",
       target_view: "receipt_allocation_workflow",
+      target_section: "entry",
       target_label: "Allocate"
     }));
 
@@ -7098,6 +7113,7 @@ function buildOperationsData(billing, inventory, accounting) {
       status: available ? "Available" : "Missing",
       warning: available ? "" : "Missing documents detected",
       target_view: "documents",
+      target_section: "documents",
       target_label: "Documents"
     };
   }));
@@ -7114,6 +7130,7 @@ function buildOperationsData(billing, inventory, accounting) {
       difference_qty: formatNumber(difference),
       status_text: difference === 0 ? "Matched" : difference > 0 ? "Issued Not Billed" : "Billed More Than Issued",
       target_view: difference > 0 ? "invoices" : "stock_outwards",
+      target_section: "entry",
       target_label: "Review"
     };
   }).filter((row) => Number(row.issued_qty || 0) || Number(row.billed_qty || 0));
@@ -7128,6 +7145,7 @@ function buildOperationsData(billing, inventory, accounting) {
       roi_text: `${Number(row.roiPercentage || 0).toFixed(2)}%`,
       status_text: Number(row.netCompanyProfit || 0) < 0 ? "Loss" : "Missing basis",
       target_view: "profitability",
+      target_section: "report",
       target_label: "Profitability"
     }));
 
@@ -7188,6 +7206,15 @@ function operationalTarget(tableName) {
     payments: "payments",
     expense_entries: "expense_entries"
   }[tableName] || "operations_dashboard";
+}
+
+function operationalTargetSection(tableName) {
+  return {
+    invoices: "entry",
+    procurements: "entry",
+    payments: "entry",
+    expense_entries: "entry"
+  }[tableName] || "report";
 }
 
 function documentMatchesOrder(document, order, type, invoices = []) {
@@ -9271,7 +9298,7 @@ function inventoryTableConfig(view, data = {}) {
         { key: "balance_reserved", label: "Balance" },
         { key: "status", label: "Status" },
         { key: "updated_at", label: "Updated" },
-        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionSection: "entry", actionLabel: "Order" }
       ]
     },
     procurement_requirements: {
@@ -9286,7 +9313,7 @@ function inventoryTableConfig(view, data = {}) {
         { key: "short_quantity", label: "Short" },
         { key: "procurement_required_quantity", label: "Procurement Required" },
         { key: "status", label: "Status" },
-        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionSection: "entry", actionLabel: "Order" }
       ]
     },
     grn_report: {
@@ -9300,7 +9327,7 @@ function inventoryTableConfig(view, data = {}) {
         { key: "accepted_quantity", label: "Accepted Qty" },
         { key: "receipt_value", label: "Value", type: money },
         { key: "status", label: "Status" },
-        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionSection: "entry", actionLabel: "Order" }
       ]
     },
     delivery_challans: {
@@ -9314,7 +9341,7 @@ function inventoryTableConfig(view, data = {}) {
         { key: "issued_quantity", label: "Quantity" },
         { key: "vehicle_details", label: "Vehicle" },
         { key: "status", label: "Status" },
-        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionSection: "entry", actionLabel: "Order" }
       ]
     },
     warehouse_transfers: {
@@ -9354,7 +9381,7 @@ function inventoryTableConfig(view, data = {}) {
         { key: "short_quantity", label: "Short" },
         { key: "days_reserved", label: "Days" },
         { key: "status", label: "Status" },
-        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionLabel: "Order" }
+        { key: "actions", label: "Order", type: "nav_action", actionView: "supply_orders", actionSection: "entry", actionLabel: "Order" }
       ]
     },
     inventory_movements: {
@@ -9688,6 +9715,7 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
       const result = await api.getDrilldownData(payload);
       setDrilldown({ mode, title: row.account_name || row.voucher_number || row.reference || "Drilldown", ...result });
       notify("Drilldown opened");
+      scrollToSection(".voucher-detail-panel", false);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -9736,6 +9764,7 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
     const drill = drillMap[id] || drillMap.receivable;
     setDrilldown({ mode: "party_reconciliation", sourceRow: row, ...drill });
     notify("Party reconciliation drilldown opened");
+    scrollToSection(".voucher-detail-panel", false);
   }
 
   function tableNameForControlRow(row) {
@@ -9842,6 +9871,7 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
       auditRows: auditRowsForControl(row)
     });
     notify("Control drilldown opened");
+    scrollToSection(".voucher-detail-panel", false);
   }
 
   async function handleDrilldownInlineAction(action, reason) {

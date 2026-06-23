@@ -33,7 +33,7 @@ export function PaymentReadinessTable({ rows, onNavigate }) {
                   <td>{formatCurrency(row.balance_outstanding || 0)}</td>
                   <td>
                     <div className="button-row">
-                      {onNavigate && <button type="button" className="ghost-btn" onClick={() => onNavigate("supply_orders")}>View Order</button>}
+                      {onNavigate && <button type="button" className="ghost-btn" onClick={() => onNavigate("supply_orders", { section: "entry" })}>View Order</button>}
                     </div>
                   </td>
                 </tr>

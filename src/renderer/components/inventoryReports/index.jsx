@@ -250,7 +250,7 @@ export function InventoryReadOnlyReportPanel({
       return <button className="ghost-btn small-btn" type="button" onClick={() => onDrillAccount && onDrillAccount(row)}>Ledger</button>;
     }
     if (column.type === "nav_action" && column.actionView) {
-      return <button className="ghost-btn small-btn" type="button" onClick={() => onNavigate && onNavigate(column.actionView)}>{column.actionLabel || "Open"}</button>;
+      return <button className="ghost-btn small-btn" type="button" onClick={() => onNavigate && onNavigate(column.actionView, { section: column.actionSection || "report" })}>{column.actionLabel || "Open"}</button>;
     }
     return formatValue(row[column.key], column.type);
   }

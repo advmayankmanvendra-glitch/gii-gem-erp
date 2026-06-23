@@ -27,7 +27,7 @@ export function OperationsAttentionQueueTable({ title, rows, columns, onNavigate
                   <td>
                     <div className="operations-row-actions">
                       {onDrilldown && <button type="button" className="ghost-btn" onClick={() => onDrilldown(row)}>View</button>}
-                      {row.target_view && <button type="button" className="ghost-btn subtle" onClick={() => onNavigate(row.target_view)}>{row.target_label || "Open Source"}</button>}
+                      {row.target_view && <button type="button" className="ghost-btn subtle" onClick={() => onNavigate(row.target_view, { section: row.target_section || "entry" })}>{row.target_label || "Open Source"}</button>}
                     </div>
                   </td>
                 </tr>
@@ -55,7 +55,7 @@ export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onI
       return;
     }
     if (!action.view || !onNavigate) return;
-    onNavigate(action.view);
+    onNavigate(action.view, action.navigationContext || { section: action.section || "entry" });
     onClose?.();
   }
 
@@ -128,7 +128,7 @@ export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onI
       <OperationsEvidenceJumpBar sections={drilldown.sections} />
       <OperationsEvidenceSections sections={drilldown.sections} />
       <div className="button-row">
-        {summary.target_view && <button type="button" className="ghost-btn" onClick={() => onNavigate(summary.target_view)}>Open Source Screen</button>}
+        {summary.target_view && <button type="button" className="ghost-btn" onClick={() => onNavigate(summary.target_view, { section: summary.target_section || "entry" })}>Open Source Screen</button>}
         <button type="button" className="primary-btn" onClick={onClose}>Done</button>
       </div>
     </section>
@@ -226,30 +226,30 @@ export function OperationsIntelligenceSummary({ drilldown }) {
   );
 }
 
-const stepToView = {
-  order_created: "supply_orders",
-  procurement_completed: "purchase_bills",
-  grn_completed: "stock_inwards",
-  stock_receipt_completed: "stock_inwards",
-  stock_reserved: "inventory_dashboard",
-  stock_issued: "stock_outwards",
-  billing_completed: "invoices",
-  receipt_allocation_completed: "receipt_allocation_workflow",
-  supplier_payment_completed: "supplier_allocation_workflow",
-  profitability_calculated: "profitability",
-  order_closed: "order_closure_tracking"
+const stepToTarget = {
+  order_created: { view: "supply_orders", section: "entry" },
+  procurement_completed: { view: "purchase_bills", section: "entry" },
+  grn_completed: { view: "stock_inwards", section: "entry" },
+  stock_receipt_completed: { view: "stock_inwards", section: "entry" },
+  stock_reserved: { view: "inventory_dashboard", section: "report" },
+  stock_issued: { view: "stock_outwards", section: "entry" },
+  billing_completed: { view: "invoices", section: "entry" },
+  receipt_allocation_completed: { view: "receipt_allocation_workflow", section: "entry" },
+  supplier_payment_completed: { view: "supplier_allocation_workflow", section: "entry" },
+  profitability_calculated: { view: "profitability", section: "report" },
+  order_closed: { view: "order_closure_tracking", section: "entry" }
 };
 
-const exceptionToView = {
-  missing_supply_order: "supply_orders",
-  missing_procurement: "purchase_bills",
-  missing_grn: "stock_inwards",
-  missing_stock_receipt: "stock_inwards",
-  missing_stock_issue: "stock_outwards",
-  missing_invoice: "invoices",
-  missing_receipt_allocation: "receipt_allocation_workflow",
-  missing_supplier_allocation: "supplier_allocation_workflow",
-  posting_error: "posting_control"
+const exceptionToTarget = {
+  missing_supply_order: { view: "supply_orders", section: "entry" },
+  missing_procurement: { view: "purchase_bills", section: "entry" },
+  missing_grn: { view: "stock_inwards", section: "entry" },
+  missing_stock_receipt: { view: "stock_inwards", section: "entry" },
+  missing_stock_issue: { view: "stock_outwards", section: "entry" },
+  missing_invoice: { view: "invoices", section: "entry" },
+  missing_receipt_allocation: { view: "receipt_allocation_workflow", section: "entry" },
+  missing_supplier_allocation: { view: "supplier_allocation_workflow", section: "entry" },
+  posting_error: { view: "posting_control", section: "report" }
 };
 
 export function OperationsStatusTimeline({ steps, onNavigate }) {
@@ -261,7 +261,7 @@ export function OperationsStatusTimeline({ steps, onNavigate }) {
       </div>
       <div className="operations-timeline">
         {steps.map((step) => (
-          <div key={step.key} className={`operations-timeline-step ${normalizeStatusClass(step.status)}` + (onNavigate && stepToView[step.key] ? " clickable" : "")} onClick={() => { if (onNavigate && stepToView[step.key]) onNavigate(stepToView[step.key]); }}>
+          <div key={step.key} className={`operations-timeline-step ${normalizeStatusClass(step.status)}` + (onNavigate && stepToTarget[step.key] ? " clickable" : "")} onClick={() => { const target = stepToTarget[step.key]; if (onNavigate && target) onNavigate(target.view, { section: target.section }); }}>
             <span className="timeline-icon">{step.icon}</span>
             <strong>{step.label}</strong>
             <small>{step.status}{step.note && step.note !== "Unlinked" ? ` - ${step.note}` : ""}</small>
@@ -282,7 +282,7 @@ export function OperationsExceptionSummary({ exceptions, onNavigate }) {
       {exceptions.length ? (
         <div className="operations-exception-list">
           {exceptions.map((item) => (
-            <div key={item.code} className={`operations-exception ${item.severity.toLowerCase()}` + (onNavigate && exceptionToView[item.code] ? " clickable" : "")} onClick={() => { if (onNavigate && exceptionToView[item.code]) onNavigate(exceptionToView[item.code]); }}>
+            <div key={item.code} className={`operations-exception ${item.severity.toLowerCase()}` + (onNavigate && exceptionToTarget[item.code] ? " clickable" : "")} onClick={() => { const target = exceptionToTarget[item.code]; if (onNavigate && target) onNavigate(target.view, { section: target.section }); }}>
               <span>{item.severity}</span>
               <strong>{item.title}</strong>
               <small>{item.details}</small>
@@ -412,48 +412,50 @@ function buildOperationsDrilldownActions(drilldown) {
       group: "Source",
       label: summary.target_label || "Open Source Screen",
       view: summary.target_view,
+      section: summary.target_section || "entry",
       description: "Review the linked source record."
     });
   }
 
   if (recommendation.includes("crac") || recommendation.includes("certificate")) {
-    actions.push({ group: "Next Action", label: "Upload CRAC", view: "crac_entry", description: "Create CRAC record for this order." });
-    actions.push({ group: "Next Action", label: "View CRAC Tracker", view: "crac_tracker", description: "Open CRAC tracking screen." });
+    actions.push({ group: "Next Action", label: "Upload CRAC", view: "crac_entry", section: "entry", description: "Create CRAC record for this order." });
+    actions.push({ group: "Next Action", label: "View CRAC Tracker", view: "crac_tracker", section: "report", description: "Open CRAC tracking screen." });
   }
   if (recommendation.includes("closure") || recommendation.includes("close")) {
-    actions.push({ group: "Next Action", label: "Review Order Closure", view: "order_closure_tracking", description: "Open closure checklist for this order." });
+    actions.push({ group: "Next Action", label: "Review Order Closure", view: "order_closure_tracking", section: "entry", description: "Open closure checklist for this order." });
   }
   if (recommendation.includes("payment") && !recommendation.includes("receipt")) {
-    actions.push({ group: "Next Action", label: "Payment Readiness", view: "payment_readiness", description: "Review payment readiness for this order." });
+    actions.push({ group: "Next Action", label: "Payment Readiness", view: "payment_readiness", section: "report", description: "Review payment readiness for this order." });
   }
   if (recommendation.includes("procurement")) {
-    actions.push({ group: "Next Action", label: "Create Procurement", view: "procurements", description: "Open procurement workflow for pending order items." });
+    actions.push({ group: "Next Action", label: "Create Procurement", view: "procurements", section: "entry", description: "Open procurement workflow for pending order items." });
   }
   if (recommendation.includes("grn") || recommendation.includes("receipt") || recommendation.includes("stock receipt")) {
-    actions.push({ group: "Next Action", label: "Open Stock Receipt", view: "stock_inwards", description: "Review or create goods receipt evidence." });
+    actions.push({ group: "Next Action", label: "Open Stock Receipt", view: "stock_inwards", section: "entry", description: "Review or create goods receipt evidence." });
   }
   if (recommendation.includes("issue") || recommendation.includes("supply")) {
-    actions.push({ group: "Next Action", label: "Issue Stock", view: "stock_outwards", description: "Open stock issue/delivery workflow." });
+    actions.push({ group: "Next Action", label: "Issue Stock", view: "stock_outwards", section: "entry", description: "Open stock issue/delivery workflow." });
   }
   if (recommendation.includes("bill") || recommendation.includes("invoice")) {
-    actions.push({ group: "Next Action", label: "Raise Invoice", view: "invoices", description: "Open billing workflow for this order." });
+    actions.push({ group: "Next Action", label: "Raise Invoice", view: "invoices", section: "entry", description: "Open billing workflow for this order." });
   }
   if (recommendation.includes("receipt") || recommendation.includes("allocate")) {
-    actions.push({ group: "Next Action", label: "Allocate Receipt", view: "receipt_allocation_workflow", description: "Open receipt allocation workflow." });
+    actions.push({ group: "Next Action", label: "Allocate Receipt", view: "receipt_allocation_workflow", section: "entry", description: "Open receipt allocation workflow." });
   }
 
   if (exceptions.some((item) => String(item.code || item.title || "").toLowerCase().includes("document") || String(item.title || "").toLowerCase().includes("missing"))) {
-    actions.push({ group: "Evidence", label: "Upload Documents", view: "documents", tone: "warning", description: "Attach missing order, delivery, CRAC, installation or payment proof." });
+    actions.push({ group: "Evidence", label: "Upload Documents", view: "documents", section: "documents", tone: "warning", description: "Attach missing order, delivery, CRAC, installation or payment proof." });
   }
 
   actions.push(
-    { group: "Evidence", label: "Stock Ledger", view: "stock_ledger", description: "Trace inventory movement evidence." },
-    { group: "Evidence", label: "General Ledger", view: "ledger_view", description: "Trace accounting movement evidence." },
-    { group: "Evidence", label: "Audit Trail", view: "audit_log", description: "Review action history." },
+    { group: "Evidence", label: "Stock Ledger", view: "stock_ledger", section: "ledger", description: "Trace inventory movement evidence." },
+    { group: "Evidence", label: "General Ledger", view: "ledger_view", section: "ledger", description: "Trace accounting movement evidence." },
+    { group: "Evidence", label: "Audit Trail", view: "audit_log", section: "audit", description: "Review action history." },
     {
       group: "Closure",
       label: "Review Order Closure",
       view: "supply_orders",
+      section: "entry",
       tone: closure.ready ? "normal" : "blocked",
       disabled: !closure.ready,
       description: "Open order screen when closure checks are complete.",
