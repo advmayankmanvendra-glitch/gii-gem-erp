@@ -222,11 +222,20 @@ function getPresetDates(preset) {
 
 export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo, onCompanyChange, onDateFromChange, onDateToChange, onPresetChange }) {
   const [activePreset, setActivePreset] = useState("");
+  const [pendingFrom, setPendingFrom] = useState(dateFrom || "");
+  const [pendingTo, setPendingTo] = useState(dateTo || "");
+
+  useEffect(() => {
+    setPendingFrom(dateFrom || "");
+    setPendingTo(dateTo || "");
+  }, [dateFrom, dateTo]);
 
   function handlePreset(preset) {
     const dates = getPresetDates(preset);
     if (!dates) return;
     setActivePreset(preset);
+    setPendingFrom(dates.date_from);
+    setPendingTo(dates.date_to);
     if (onPresetChange) {
       onPresetChange(dates.date_from, dates.date_to);
     } else {
@@ -237,12 +246,17 @@ export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo,
 
   function handleDateFromChange(value) {
     setActivePreset("");
-    if (onDateFromChange) onDateFromChange(value);
+    setPendingFrom(value);
   }
 
   function handleDateToChange(value) {
     setActivePreset("");
-    if (onDateToChange) onDateToChange(value);
+    setPendingTo(value);
+  }
+
+  function applyCustomRange() {
+    if (onDateFromChange) onDateFromChange(pendingFrom);
+    if (onDateToChange) onDateToChange(pendingTo);
   }
 
   return (
@@ -259,8 +273,9 @@ export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo,
           </button>
         ))}
       </div>
-      {onDateFromChange && <input type="date" value={dateFrom || ""} onChange={(event) => handleDateFromChange(event.target.value)} />}
-      {onDateToChange && <input type="date" value={dateTo || ""} onChange={(event) => handleDateToChange(event.target.value)} />}
+      {onDateFromChange && <input type="date" value={pendingFrom} onChange={(event) => handleDateFromChange(event.target.value)} />}
+      {onDateToChange && <input type="date" value={pendingTo} onChange={(event) => handleDateToChange(event.target.value)} />}
+      {onDateFromChange && onDateToChange && <button type="button" className="ghost-btn" onClick={applyCustomRange}>Go</button>}
     </>
   );
 }
