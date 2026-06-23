@@ -33,7 +33,7 @@ export function PaymentReadinessScreen({ notify, companyContext, apiClient, onNa
           <option value="Generated">Generated</option>
           <option value="Rejected">Rejected</option>
         </ReportSelectFilter>
-        <ReportDateFilters dateFrom={filters.date_from} dateTo={filters.date_to} onDateFromChange={(v) => setFilters({ ...filters, date_from: v })} onDateToChange={(v) => setFilters({ ...filters, date_to: v })} />
+        <ReportDateFilters dateFrom={filters.date_from} dateTo={filters.date_to} onDateFromChange={(v) => setFilters((prev) => ({ ...prev, date_from: v }))} onDateToChange={(v) => setFilters((prev) => ({ ...prev, date_to: v }))} onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))} />
         <ReportActionButtons onRefresh={loadReport} />
       </ReportToolbar>
       {loading ? (

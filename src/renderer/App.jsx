@@ -10050,9 +10050,10 @@ function AccountingScreen({ view, notify, role, companyContext, onNavigate }) {
             companies={data?.companies || []}
             dateFrom={filters.date_from}
             dateTo={filters.date_to}
-            onCompanyChange={(company_id) => setFilters({ ...filters, company_id })}
-            onDateFromChange={(date_from) => setFilters({ ...filters, date_from })}
-            onDateToChange={(date_to) => setFilters({ ...filters, date_to })}
+            onCompanyChange={(company_id) => setFilters((prev) => ({ ...prev, company_id }))}
+            onDateFromChange={(date_from) => setFilters((prev) => ({ ...prev, date_from }))}
+            onDateToChange={(date_to) => setFilters((prev) => ({ ...prev, date_to }))}
+            onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))}
           />
           <ReportActionButtons onExport={() => exportRows(config.title, rows)} onPrint={requestPrintPreview} />
           {view === "financial_years" && <button className="ghost-btn" onClick={createFinancialYearFromPrompt} disabled={!canManagePeriods}>New FY</button>}

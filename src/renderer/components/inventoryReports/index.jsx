@@ -33,9 +33,10 @@ export function InventoryReportToolbar({
         companies={companies}
         dateFrom={filters.date_from}
         dateTo={filters.date_to}
-        onCompanyChange={(company_id) => setFilters({ ...filters, company_id })}
-        onDateFromChange={(date_from) => setFilters({ ...filters, date_from })}
-        onDateToChange={(date_to) => setFilters({ ...filters, date_to })}
+        onCompanyChange={(company_id) => setFilters((prev) => ({ ...prev, company_id }))}
+        onDateFromChange={(date_from) => setFilters((prev) => ({ ...prev, date_from }))}
+        onDateToChange={(date_to) => setFilters((prev) => ({ ...prev, date_to }))}
+        onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))}
       />
       <ReportSelectFilter
         value={activeItemId}
@@ -260,13 +261,13 @@ export function InventoryReadOnlyReportPanel({
       <ReportToolbar title={config.title} note={`${rows.length} row(s)`} className="accounting-toolbar">
         <ReportSelectFilter
           value={filters.company_id}
-          onChange={(company_id) => setFilters({ ...filters, company_id })}
+          onChange={(company_id) => setFilters((prev) => ({ ...prev, company_id }))}
           options={companies.map((company) => [company.id, company.company_name])}
         />
         {view === "low_stock" && (
           <ReportSelectFilter
             value={filters.low_stock_mode || "stocked"}
-            onChange={(low_stock_mode) => setFilters({ ...filters, low_stock_mode })}
+            onChange={(low_stock_mode) => setFilters((prev) => ({ ...prev, low_stock_mode }))}
             options={[
               ["stocked", "Show stocked items only"],
               ["never_stocked", "Show never-stocked items"],
@@ -277,8 +278,9 @@ export function InventoryReadOnlyReportPanel({
         <ReportDateFilters
           dateFrom={filters.date_from}
           dateTo={filters.date_to}
-          onDateFromChange={(date_from) => setFilters({ ...filters, date_from })}
-          onDateToChange={(date_to) => setFilters({ ...filters, date_to })}
+          onDateFromChange={(date_from) => setFilters((prev) => ({ ...prev, date_from }))}
+          onDateToChange={(date_to) => setFilters((prev) => ({ ...prev, date_to }))}
+          onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))}
         />
         <ReportActionButtons onExport={onExport} onPrint={onPrint} />
       </ReportToolbar>

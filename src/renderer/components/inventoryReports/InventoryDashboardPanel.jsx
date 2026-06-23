@@ -81,15 +81,16 @@ export function InventoryDashboardPanel({
       <ReportToolbar title="Inventory Dashboard" note={`${companyName} - stock, reservation and movement command center`} className="accounting-toolbar">
         <ReportSelectFilter
           value={filters.company_id}
-          onChange={(company_id) => setFilters({ ...filters, company_id })}
+          onChange={(company_id) => setFilters((prev) => ({ ...prev, company_id }))}
           options={companies.map((company) => [company.id, company.company_name])}
         />
-        <ReportDateFilters
-          dateFrom={filters.date_from}
-          dateTo={filters.date_to}
-          onDateFromChange={(date_from) => setFilters({ ...filters, date_from })}
-          onDateToChange={(date_to) => setFilters({ ...filters, date_to })}
-        />
+          <ReportDateFilters
+            dateFrom={filters.date_from}
+            dateTo={filters.date_to}
+            onDateFromChange={(date_from) => setFilters((prev) => ({ ...prev, date_from }))}
+            onDateToChange={(date_to) => setFilters((prev) => ({ ...prev, date_to }))}
+            onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))}
+          />
         <ReportActionButtons onExport={onExport} onPrint={onPrint} />
       </ReportToolbar>
 

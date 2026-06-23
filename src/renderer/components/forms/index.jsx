@@ -220,15 +220,19 @@ function getPresetDates(preset) {
   }
 }
 
-export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo, onCompanyChange, onDateFromChange, onDateToChange }) {
+export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo, onCompanyChange, onDateFromChange, onDateToChange, onPresetChange }) {
   const [activePreset, setActivePreset] = useState("");
 
   function handlePreset(preset) {
     const dates = getPresetDates(preset);
     if (!dates) return;
     setActivePreset(preset);
-    if (onDateFromChange) onDateFromChange(dates.date_from);
-    if (onDateToChange) onDateToChange(dates.date_to);
+    if (onPresetChange) {
+      onPresetChange(dates.date_from, dates.date_to);
+    } else {
+      if (onDateFromChange) onDateFromChange(dates.date_from);
+      if (onDateToChange) onDateToChange(dates.date_to);
+    }
   }
 
   function handleDateFromChange(value) {
