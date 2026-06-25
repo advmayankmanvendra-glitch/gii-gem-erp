@@ -711,10 +711,19 @@ function runMigration(db, migrationName, callback) {
   transaction();
 }
 
+function assertSafeSqlIdentifier(identifier, label) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+    throw new Error(`Unsafe SQL ${label}: ${identifier}`);
+  }
+  return `"${identifier}"`;
+}
+
 function addColumnIfMissing(db, table, column, definition) {
-  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name);
+  const safeTable = assertSafeSqlIdentifier(table, "table identifier");
+  const safeColumn = assertSafeSqlIdentifier(column, "column identifier");
+  const columns = db.prepare(`PRAGMA table_info(${safeTable})`).all().map((row) => row.name);
   if (!columns.includes(column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    db.exec(`ALTER TABLE ${safeTable} ADD COLUMN ${safeColumn} ${definition}`);
   }
 }
 

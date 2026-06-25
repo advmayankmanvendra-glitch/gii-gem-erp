@@ -6416,7 +6416,7 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
           onExport={() => exportRows(queueFilter === "all" ? "Operations Attention Queue" : `Operations Attention Queue - ${activeFilter?.label || "Filtered"}`, attentionRows)}
           onPrint={requestPrintPreview}
         />
-        {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} />}
+        {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} notify={notify} />}
       </section>
     );
   }
@@ -6558,7 +6558,7 @@ function OperationsScreen({ view, notify, onNavigate, companyContext }) {
         onExport={() => exportRows(title, rows)}
         onPrint={requestPrintPreview}
       />
-      {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} />}
+      {drilldown && <OperationsDrilldownPanel drilldown={drilldown} onClose={() => { setDrilldown(null); scrollToSection(".operations-command-center", false); }} onNavigate={onNavigate} notify={notify} />}
     </>
   );
 }

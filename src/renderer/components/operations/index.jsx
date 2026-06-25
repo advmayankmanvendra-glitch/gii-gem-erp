@@ -40,7 +40,7 @@ export function OperationsAttentionQueueTable({ title, rows, columns, onNavigate
   );
 }
 
-export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onInlineAction }) {
+export function OperationsDrilldownContent({ drilldown, onClose, onNavigate, onInlineAction, notify }) {
   const summary = drilldown.summary;
   const actions = buildOperationsDrilldownActions(drilldown);
   const [inlineAction, setInlineAction] = React.useState(null);
