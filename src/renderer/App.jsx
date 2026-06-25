@@ -948,7 +948,7 @@ function App() {
         exitCurrentScreen();
         return;
       }
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key) && !isTextEntryElement(document.activeElement)) {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey && !isTextEntryElement(document.activeElement)) {
         if (moveTableSelection(event.key)) event.preventDefault();
         return;
       }
