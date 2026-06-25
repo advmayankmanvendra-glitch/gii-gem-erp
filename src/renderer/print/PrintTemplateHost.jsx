@@ -2,8 +2,11 @@ import React from "react";
 import { CreditNotePrint } from "./templates/CreditNotePrint.jsx";
 import { DebitNotePrint } from "./templates/DebitNotePrint.jsx";
 import { DeliveryChallanPrint } from "./templates/DeliveryChallanPrint.jsx";
+import { BalanceSheetPrint, LedgerPrint, ProfitLossPrint, TrialBalancePrint } from "./templates/FinancialReportPrints.jsx";
 import { GstReportPrint } from "./templates/GstReportPrint.jsx";
 import { JournalVoucherPrint } from "./templates/JournalVoucherPrint.jsx";
+import { DocumentChecklistPrint, GrnPrint, InvoiceWorkingSheetPrint, ProfitabilitySheetPrint } from "./templates/OperationalPrints.jsx";
+import { OutstandingPayablePrint, OutstandingReceivablePrint } from "./templates/OutstandingReportPrints.jsx";
 import { PaymentVoucherPrint } from "./templates/PaymentVoucherPrint.jsx";
 import { PurchaseVoucherPrint } from "./templates/PurchaseVoucherPrint.jsx";
 import { ReceiptVoucherPrint } from "./templates/ReceiptVoucherPrint.jsx";
@@ -15,12 +18,22 @@ const TEMPLATE_COMPONENTS = {
   credit_note: CreditNotePrint,
   debit_note: DebitNotePrint,
   delivery_challan: DeliveryChallanPrint,
+  grn: GrnPrint,
   receipt_voucher: ReceiptVoucherPrint,
   payment_voucher: PaymentVoucherPrint,
   purchase_voucher: PurchaseVoucherPrint,
   journal_voucher: JournalVoucherPrint,
   stock_report: StockReportPrint,
-  gst_report: GstReportPrint
+  gst_report: GstReportPrint,
+  ledger: LedgerPrint,
+  trial_balance: TrialBalancePrint,
+  profit_loss: ProfitLossPrint,
+  balance_sheet: BalanceSheetPrint,
+  outstanding_receivable: OutstandingReceivablePrint,
+  outstanding_payable: OutstandingPayablePrint,
+  invoice_working_sheet: InvoiceWorkingSheetPrint,
+  document_checklist: DocumentChecklistPrint,
+  profitability_sheet: ProfitabilitySheetPrint
 };
 
 function PrintTemplateHost({ templateKey, templateLabel, preview, data }) {

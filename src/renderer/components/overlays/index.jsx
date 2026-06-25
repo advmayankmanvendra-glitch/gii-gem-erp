@@ -53,8 +53,13 @@ export function ConfirmationActions({ dialog, canConfirm, onCancel, onConfirm })
 
 export function PrintPreviewDialog({ preview, onClose, notify, desktopApi }) {
   const templateOptions = preview.templateOptions?.length ? preview.templateOptions : [{ key: "screen_snapshot", label: "Screen Snapshot" }];
-  const [templateKey, setTemplateKey] = useState(preview.selectedTemplateKey || "screen_snapshot");
+  const defaultTemplateKey = preview.selectedTemplateKey || templateOptions[0]?.key || "screen_snapshot";
+  const [templateKey, setTemplateKey] = useState(defaultTemplateKey);
   const activePreview = useMemo(() => makePrintPreviewForTemplate(preview, templateKey), [preview, templateKey]);
+
+  useEffect(() => {
+    setTemplateKey(defaultTemplateKey);
+  }, [defaultTemplateKey]);
 
   useEffect(() => {
     function onKeyDown(event) {

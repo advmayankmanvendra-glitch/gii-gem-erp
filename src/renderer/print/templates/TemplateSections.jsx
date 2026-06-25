@@ -1,9 +1,39 @@
 import React from "react";
 import { firstTable, hasTemplateData, pickFields } from "../printUtils.js";
 
-function DocumentTemplate({ title, purpose, preview, data, fieldHints = [], tableTitle = "Line Details" }) {
+function selectFields(data, hints, fallbackCount) {
+  const highlightedFields = hints.length ? pickFields(data, hints) : [];
+  return highlightedFields.length ? highlightedFields : (data.fields || []).slice(0, fallbackCount);
+}
+
+function SignatureBlock({ labels = ["Prepared By", "Checked By", "Authorized Signatory"] }) {
+  return (
+    <div className="certified-print-footer-row">
+      {labels.map((label) => (
+        <div key={label}>
+          <strong>{label}</strong>
+          <p>Signature: ____________________</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DocumentTemplate({
+  title,
+  purpose,
+  preview,
+  data,
+  fieldHints = [],
+  secondaryFieldHints = [],
+  tableTitle = "Line Details",
+  copyType = "Certified Print",
+  declaration = "This document is a system-generated certified print from GII GeM ERP.",
+  signatureLabels
+}) {
   const highlightedFields = fieldHints.length ? pickFields(data, fieldHints) : [];
   const fields = highlightedFields.length ? highlightedFields : (data.fields || []).slice(0, 18);
+  const secondaryFields = secondaryFieldHints.length ? selectFields(data, secondaryFieldHints, 8) : [];
   const table = firstTable(data);
   const now = new Date();
   const certId = `CERT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
@@ -14,8 +44,11 @@ function DocumentTemplate({ title, purpose, preview, data, fieldHints = [], tabl
         <strong>{title}</strong>
         <small>{purpose}</small>
       </div>
-      {!hasTemplateData(data) && <MissingData warnings={data.warnings} />}
       <section className="certified-print-meta">
+        <div>
+          <span>Print Type</span>
+          <strong>{copyType}</strong>
+        </div>
         <div>
           <span>Source Screen</span>
           <strong>{preview.title || "GII GeM ERP"}</strong>
@@ -25,22 +58,47 @@ function DocumentTemplate({ title, purpose, preview, data, fieldHints = [], tabl
           <strong>{preview.generatedAt || "-"}</strong>
         </div>
         <div>
-          <span>Navigation</span>
-          <strong>{preview.breadcrumb || "-"}</strong>
-        </div>
-        <div>
           <span>Certification ID</span>
           <strong>{certId}</strong>
         </div>
       </section>
+      {!hasTemplateData(data) && <MissingData warnings={data.warnings} />}
+      <section className="certified-print-meta">
+        <div>
+          <span>Navigation</span>
+          <strong>{preview.breadcrumb || "-"}</strong>
+        </div>
+        <div>
+          <span>Generated From</span>
+          <strong>Loaded ERP data only</strong>
+        </div>
+        <div>
+          <span>Internal Panels</span>
+          <strong>Excluded</strong>
+        </div>
+        <div>
+          <span>Validation</span>
+          <strong>Refresh before official use</strong>
+        </div>
+      </section>
       <FieldGrid title="Document Details" fields={fields} />
+      {secondaryFields.length ? <FieldGrid title="Summary / Totals" fields={secondaryFields} /> : null}
       {table ? <DataTable title={table.heading || tableTitle} table={table} /> : <MissingData warnings={["No line-item or report table was loaded for this template."]} />}
       {(data.tables || []).slice(1, 3).map((extraTable) => <DataTable key={extraTable.heading} title={extraTable.heading} table={extraTable} compact />)}
       <section className="certified-print-footer">
+        {declaration ? (
+          <div className="certified-print-footer-row">
+            <div>
+              <strong>Declaration</strong>
+              <p>{declaration}</p>
+            </div>
+          </div>
+        ) : null}
+        <SignatureBlock labels={signatureLabels} />
         <div className="certified-print-footer-row">
           <div>
             <strong>Certification</strong>
-            <p>This document is a system-generated certified print from GII GeM ERP.</p>
+            <p>This print reflects data loaded at the time of generation.</p>
           </div>
           <div>
             <strong>Certification ID</strong>
