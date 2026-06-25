@@ -1,6 +1,15 @@
 # PERMANENT ARCHITECTURE AND FUNCTIONAL SAFETY RULES FOR GII GeM ERP
 
+Version: 3.1
+
 Apply these rules before implementing any new phase.
+
+## Governance Layer Hierarchy
+
+Every implementation phase must comply with:
+- Layer 1: Permanent Architecture Rules for engineering, modularization, `App.jsx`, IPC, database and verification.
+- Layer 2: Global UX Governance for navigation, toolbar, keyboard, search, help, feedback, tables and accessibility.
+- Layer 3: Product Governance for feature approval, ERP evolution, AI boundaries, roadmap, release maturity and production readiness.
 
 ## 1. Audit First
 
@@ -200,6 +209,8 @@ npm.cmd run verify:accounting
 npm.cmd run verify:financials
 ```
 
+Run verification commands sequentially when they access the same SQLite database unless parallel execution is explicitly known to be safe.
+
 If the phase touches controls, posting, approval, inventory or operational flow, also run:
 
 ```
@@ -226,10 +237,15 @@ Minimum smoke test:
 - current company remains visible
 - report/export/print works if touched
 
+If a phase modifies navigation, Help Assistant, ERP Intelligence Center, ERP Health Center, Import/Export, document workflows, dashboard, runtime behavior, backup or restore, perform a manual Electron click-through of the affected workflow. Browser preview alone is not sufficient.
+
 ## 16. End-of-Phase Report
 
 Every phase must generate a report in reports/ including:
 - phase name
+- feature classification
+- dependency assessment
+- dependencies satisfied: Yes/No
 - files changed
 - components added/changed
 - services added/changed
@@ -240,6 +256,8 @@ Every phase must generate a report in reports/ including:
 - business logic preserved confirmation
 - verification command results
 - desktop smoke test result
+- production readiness classification
+- production readiness gate result
 - known limitations
 - safe to lock: Yes/No
 
@@ -272,7 +290,40 @@ UX changes must remain modular:
 
 Every UX phase report must include a UX compliance checklist and clearly state any known gaps.
 
-## 19. Phase Governance Pipeline
+## 19. Product Governance
+
+Every proposed ERP feature must first answer whether it improves:
+- accounting accuracy
+- inventory integrity
+- operational traceability
+- audit readiness
+- management decision support
+- user productivity
+
+Do not approve features simply because they are technically possible.
+
+Priority order:
+1. Accounting Integrity
+2. Inventory Integrity
+3. Operational Integrity
+4. Audit Evidence
+5. Decision Support
+6. User Productivity
+7. AI Guidance
+8. Controlled Automation
+
+AI may explain, guide, recommend, summarize, prioritize and predict.
+
+AI must never silently post, reverse, delete, restore, approve, alter accounting or alter inventory unless a future controlled phase explicitly permits it.
+
+Every new feature should identify its Product Maturity Stage:
+- Transaction Processing
+- Operational Control
+- Decision Support
+- Predictive Intelligence
+- Controlled AI Assistance
+
+## 20. Phase Governance Pipeline and Git Governance
 
 No Codex or OpenCode phase should begin directly with implementation.
 
@@ -299,17 +350,104 @@ Pipeline rules:
 - Verification must run the required commands for the affected scope.
 - Desktop Smoke Test must be completed for functional/UI phases, or explicitly marked not applicable for documentation-only phases.
 - Git Commit should happen only after verification passes and the user has not asked to keep changes uncommitted.
-- Git Tag should be used only for major locked baselines or major phase milestones.
+- Git commits should represent completed, verified, reviewable work.
+- Git Tag should be used only for stable recovery points, major milestones, locked baselines or major phase milestones.
+- Do not create Git tags for every implementation phase.
 - Lock Note must state what is stable, what is out of scope, and what future changes require a separate phase.
 - If any step fails, stop and do not proceed to the next phase.
 
-## 20. Final Checklist Before Saying Done
+## 21. Feature Classification
+
+Every implementation phase must declare:
+- Primary Category
+- Secondary Categories, if any
+- Why the category applies
+- Whether the work affects more than one category
+
+Allowed categories:
+- Architecture
+- UX
+- Accounting
+- Inventory
+- Operations
+- Reporting
+- Import / Export
+- Intelligence
+- AI Guidance
+- Health & Recovery
+- Security
+- Performance
+- Packaging & Deployment
+- Governance
+
+If one phase touches multiple high-risk categories, split the phase unless the user explicitly approves a combined scope.
+
+## 22. Dependency Assessment
+
+Before implementation, identify prerequisite:
+- modules
+- services
+- APIs and IPC/preload methods
+- reports
+- database structures
+- governance documents
+- completed phases
+- locked baselines
+
+Every phase report must state:
+
+```text
+Dependencies Satisfied: Yes / No
+```
+
+If No, document:
+- missing dependency
+- limitation
+- accepted workaround, if approved
+- risk of proceeding
+- whether implementation should stop
+
+Do not implement features that depend on unfinished core functionality unless explicitly approved and documented.
+
+## 23. Production Readiness Gate
+
+A phase is not production-ready merely because coding is complete.
+
+Evaluate readiness using these gates:
+- implementation completed
+- verification passed
+- desktop smoke test completed where applicable
+- accounting verification passed
+- financial verification passed
+- git status reviewed
+- git commit completed where user approved committing
+- git tag created where appropriate
+- documentation updated
+- phase report generated
+- lock note completed where applicable
+- UAT completed where required
+- limitations documented
+- safe-to-lock recommendation recorded
+
+Classify readiness as:
+- Prototype
+- Internal Testing
+- Beta
+- Release Candidate
+- Production Ready
+
+Only classify a feature as Production Ready after all required gates are satisfied.
+
+## 24. Final Checklist Before Saying Done
 
 Before final response, confirm:
 
 - [ ] git status reviewed
 - [ ] only intended files changed
 - [ ] no unrelated files modified
+- [ ] feature classification recorded
+- [ ] dependency assessment recorded
+- [ ] dependencies satisfied stated
 - [ ] no App.jsx business logic added unnecessarily
 - [ ] no route keys changed
 - [ ] no IPC/preload names changed
@@ -326,4 +464,6 @@ Before final response, confirm:
 - [ ] verify:financials passed
 - [ ] desktop smoke test completed or clearly marked not completed
 - [ ] report generated
+- [ ] production readiness classification recorded
+- [ ] production readiness gate result recorded
 - [ ] safe to lock stated clearly

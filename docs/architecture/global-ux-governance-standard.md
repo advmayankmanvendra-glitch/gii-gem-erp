@@ -5,6 +5,8 @@ Scope: New or changed UX work only
 Owner: GII GeM ERP architecture discipline  
 Last updated: 2026-06-25
 
+Governance layer: Layer 2 of the GII GeM ERP governance hierarchy. This document controls UX behavior, while `docs/architecture/permanent-architecture-rules.md` controls engineering safety and Product Governance controls feature approval and ERP maturity.
+
 ## Purpose
 
 This document defines the standing UX and interaction rules for GII GeM ERP. It is meant to prevent inconsistent navigation, unclear actions, static drilldowns, confusing errors, and accidental changes to accounting or inventory data.

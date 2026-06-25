@@ -1,5 +1,9 @@
 # Permanent Architecture Rules for GII GeM ERP
 
+Version: 3.1  
+Status: Active governance constitution  
+Last updated: 2026-06-25
+
 This document records the standing engineering and safety rules for GII GeM ERP. It is intended for developers, accountants, auditors, Codex, OpenCode, and future maintainers.
 
 ## Purpose
@@ -9,6 +13,42 @@ GII GeM ERP is a Windows Electron desktop ERP with React renderer, Node/Electron
 Because the ERP affects books of accounts, GST, stock, receivables, payables, profitability, and audit history, every implementation must follow the rules below.
 
 ---
+
+## Governance Layer Hierarchy
+
+Every implementation phase must comply with all three governance layers:
+
+**Layer 1: Permanent Architecture Rules**
+
+Controls:
+- engineering discipline
+- modularization
+- `App.jsx` protection
+- IPC/preload stability
+- database safety
+- verification sequencing
+
+**Layer 2: Global UX Governance**
+
+Controls:
+- navigation
+- toolbar behavior
+- keyboard behavior
+- search
+- help and screen guidance
+- AI guidance presentation
+- processing feedback
+- tables and accessibility
+
+**Layer 3: Product Governance**
+
+Controls:
+- feature approval
+- ERP evolution
+- AI boundaries
+- roadmap priority
+- release maturity
+- production readiness
 
 ## 1. Audit First
 
@@ -203,6 +243,13 @@ npm.cmd run verify:accounting
 npm.cmd run verify:financials
 ```
 
+Verification commands that access the same SQLite database should run sequentially unless parallel execution is explicitly known to be safe.
+
+Purpose:
+- avoid transient SQLite database locked errors
+- avoid migration lock conflicts
+- avoid concurrent verification side effects
+
 If the phase touches controls, posting, approval, inventory or operational flow, also run:
 
 ```powershell
@@ -229,10 +276,26 @@ Minimum smoke test:
 - current company remains visible
 - report/export/print works if touched
 
+If a phase modifies any of the following, perform a manual Electron click-through of the affected workflow:
+- navigation
+- Help Assistant
+- ERP Intelligence Center
+- ERP Health Center
+- Import/Export
+- document workflows
+- dashboard
+- runtime behavior
+- backup and restore
+
+Browser preview alone is not sufficient for these areas.
+
 ## 16. End-of-Phase Report
 
 Every phase must generate a report in reports/ including:
 - phase name
+- feature classification
+- dependency assessment
+- dependencies satisfied: Yes/No
 - files changed
 - components added/changed
 - services added/changed
@@ -243,6 +306,8 @@ Every phase must generate a report in reports/ including:
 - business logic preserved confirmation
 - verification command results
 - desktop smoke test result
+- production readiness classification
+- production readiness gate result
 - known limitations
 - safe to lock: Yes/No
 
@@ -275,7 +340,57 @@ UX changes must remain modular:
 
 Every UX phase report must include a UX compliance checklist and clearly state any known gaps.
 
-## 19. Phase Governance Pipeline
+## 19. Product Governance
+
+Every proposed ERP feature must satisfy product objectives before implementation begins.
+
+Future features should answer:
+- Does it improve accounting accuracy?
+- Does it improve inventory integrity?
+- Does it improve operational traceability?
+- Does it improve audit readiness?
+- Does it improve management decision support?
+- Does it improve user productivity?
+
+Do not approve features simply because they are technically possible.
+
+Development priority should generally follow:
+1. Accounting Integrity
+2. Inventory Integrity
+3. Operational Integrity
+4. Audit Evidence
+5. Decision Support
+6. User Productivity
+7. AI Guidance
+8. Controlled Automation
+
+AI may:
+- explain
+- guide
+- recommend
+- summarize
+- prioritize
+- predict
+
+AI must never silently:
+- post
+- reverse
+- delete
+- restore
+- approve
+- alter accounting
+- alter inventory
+
+unless a future controlled phase explicitly permits it.
+
+Every new feature should identify its Product Maturity Stage:
+- Transaction Processing
+- Operational Control
+- Decision Support
+- Predictive Intelligence
+- Controlled AI Assistance
+
+## 20. Phase Governance Pipeline and Git Governance
 
 No Codex or OpenCode phase should begin directly with implementation.
 
@@ -302,17 +417,130 @@ Pipeline rules:
 - Verification must run the required commands for the affected scope.
 - Desktop Smoke Test must be completed for functional/UI phases, or explicitly marked not applicable for documentation-only phases.
 - Git Commit should happen only after verification passes and the user has not asked to keep changes uncommitted.
-- Git Tag should be used only for major locked baselines or major phase milestones.
+- Git commits should represent completed, verified, reviewable work.
+- Git Tag should be used only for stable recovery points, major milestones, locked baselines or major phase milestones.
+- Do not create Git tags for every implementation phase.
 - Lock Note must state what is stable, what is out of scope, and what future changes require a separate phase.
 - If any step fails, stop and do not proceed to the next phase.
 
-## 20. Final Checklist Before Saying Done
+## 21. Feature Classification
+
+Every implementation phase must declare its primary feature category before implementation begins.
+
+Allowed primary and secondary categories:
+- Architecture
+- UX
+- Accounting
+- Inventory
+- Operations
+- Reporting
+- Import / Export
+- Intelligence
+- AI Guidance
+- Health & Recovery
+- Security
+- Performance
+- Packaging & Deployment
+- Governance
+
+Every phase report must state:
+- Primary Category
+- Secondary Categories, if any
+- Why the category applies
+- Whether the work affects more than one category
+
+Purpose:
+- improve release planning
+- simplify audit trails
+- identify risk before implementation
+- organize Git milestones and lock notes
+- prevent accidental mixing of unrelated work
+
+If a phase touches multiple high-risk categories, split the phase unless the user explicitly approves a combined scope.
+
+## 22. Dependency Assessment
+
+Before every phase, identify prerequisite dependencies.
+
+Dependency assessment must check:
+- prerequisite modules
+- prerequisite services
+- prerequisite APIs and IPC/preload methods
+- prerequisite reports
+- prerequisite database structures
+- prerequisite governance documents
+- prerequisite completed phases
+- prerequisite locked baselines
+
+Every phase report must state:
+
+```text
+Dependencies Satisfied: Yes / No
+```
+
+If dependencies are not fully satisfied, document:
+- missing dependency
+- implementation limitation
+- accepted temporary workaround, if approved
+- risk of proceeding
+- whether the phase should stop before implementation
+
+Do not implement features that depend on unfinished core functionality unless explicitly approved and documented.
+
+Examples:
+- AI Data Assistant depends on approved read-only data APIs.
+- E-Invoice depends on stable GST invoice data and print/export structure.
+- Inventory intelligence depends on reliable stock ledger and valuation reports.
+- Packaging changes depend on stable runtime paths, backup paths and document paths.
+
+## 23. Production Readiness Gate
+
+A phase is not production-ready merely because coding is complete.
+
+Production readiness must be evaluated separately from implementation completion.
+
+Mandatory gates:
+- implementation completed
+- verification commands passed
+- desktop smoke test completed where applicable
+- accounting verification passed
+- financial verification passed
+- git status reviewed
+- git commit completed where user approved committing
+- git tag created where appropriate
+- documentation updated
+- phase report generated
+- lock note completed where applicable
+- UAT completed where required
+- limitations documented
+- safe-to-lock recommendation recorded
+
+Feature readiness must be classified as one of:
+- Prototype
+- Internal Testing
+- Beta
+- Release Candidate
+- Production Ready
+
+Rules:
+- Prototype means the idea works but is not operationally certified.
+- Internal Testing means developer verification passed but user workflow testing is incomplete.
+- Beta means the feature is usable with known limitations.
+- Release Candidate means the feature is ready for final business/user acceptance.
+- Production Ready means verification, smoke testing, documentation, lock note and user acceptance requirements are satisfied.
+
+Only classify a feature as Production Ready after all required gates are satisfied.
+
+## 24. Final Checklist Before Saying Done
 
 Before final response, confirm:
 
 - [ ] git status reviewed
 - [ ] only intended files changed
 - [ ] no unrelated files modified
+- [ ] feature classification recorded
+- [ ] dependency assessment recorded
+- [ ] dependencies satisfied stated
 - [ ] no App.jsx business logic added unnecessarily
 - [ ] no route keys changed
 - [ ] no IPC/preload names changed
@@ -329,6 +557,8 @@ Before final response, confirm:
 - [ ] verify:financials passed
 - [ ] desktop smoke test completed or clearly marked not completed
 - [ ] report generated
+- [ ] production readiness classification recorded
+- [ ] production readiness gate result recorded
 - [ ] safe to lock stated clearly
 
 ---
@@ -337,6 +567,8 @@ Before final response, confirm:
 
 | Version | Date | Description |
 | --- | --- | --- |
+| v3.1 | 2026-06-25 | Added Feature Classification, Dependency Assessment and Production Readiness Gate governance rules. |
+| v3.0 | 2026-06-25 | Integrated Product Governance, Git Governance, Verification Sequencing, Expanded Desktop Smoke Test and Governance Layer Hierarchy. |
 | v2.1 | 2026-06-25 | Added Global UX Governance and the mandatory Phase Governance Pipeline. Renumbered final checklist. |
 | v2.0 | 2026-06-21 | Expanded from 14 to 18 rules. Added Renderer Safety, Database/Data Safety, Navigation/UX Safety, Print/Export Safety, Error Guidance, Desktop Smoke Test, detailed Stop Rules, and Final Checklist. |
 | v1.0 | Previous | Initial 14-rule permanent architecture anchor. |
