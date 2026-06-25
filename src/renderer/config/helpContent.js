@@ -77,7 +77,7 @@ const knowledgeBaseItems = [
 ];
 
 const keyboardGuideSections = [
-  ["General Navigation", [["Enter", "Move to next editable field"], ["Shift + Enter", "Move to previous editable field"], ["Esc", "Close modal/dropdown or safely exit screen"], ["Alt + Home", "Return to Dashboard"], ["Ctrl + K", "Open Global Search"], ["Ctrl + Shift + K", "Open advanced search where available"], ["F1", "Open Keyboard Shortcut Guide"], ["F11", "Toggle full screen"], ["F12", "User Preferences"]]],
+  ["General Navigation", [["Enter", "Move to next editable field"], ["Shift + Enter", "Move to previous editable field"], ["Alt + Left Arrow", "Return to previous screen"], ["Backspace", "Return to previous screen when not typing"], ["Browser Back", "Return to previous screen from supported keyboards or mouse buttons"], ["Esc", "Close modal/dropdown or safely exit screen"], ["Alt + Home", "Return to Dashboard"], ["Ctrl + K", "Open Global Search"], ["Ctrl + Shift + K", "Open advanced search where available"], ["F1", "Open Keyboard Shortcut Guide"], ["F11", "Toggle full screen"], ["F12", "User Preferences"]]],
   ["Dashboard", [["Ctrl + 1", "Open Dashboard"], ["Ctrl + R", "Refresh Dashboard"], ["F5", "Refresh current screen"], ["Ctrl + P", "Print current screen"]]],
   ["Masters", [["Ctrl + 2", "Open Masters group"], ["Ctrl + N", "Create new record"], ["Ctrl + E", "Edit selected record"], ["Ctrl + F", "Focus search"], ["F10", "Quick create from supported transaction field"], ["Shift + F10", "Open alternate quick-create action where supported"]]],
   ["Supply Orders", [["F2", "New Order"], ["F3", "Edit Selected Order"], ["F4", "View Selected Order"], ["F6", "Generate Procurement"], ["F7", "Reserve Stock"], ["F8", "Generate Invoice"]]],

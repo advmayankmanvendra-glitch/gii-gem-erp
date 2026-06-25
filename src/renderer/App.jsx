@@ -943,9 +943,12 @@ function App() {
         editSelectedTableRow();
         return;
       }
-      if (event.key === "Backspace" && !isTextEntryElement(document.activeElement) && view !== "dashboard") {
+      const keyboardBackKey = event.key === "BrowserBack" || event.code === "BrowserBack";
+      const altLeftBackKey = event.altKey && !event.ctrlKey && !event.metaKey && event.key === "ArrowLeft";
+      const safeBackspaceKey = event.key === "Backspace" && !isTextEntryElement(document.activeElement);
+      if (keyboardBackKey || altLeftBackKey || safeBackspaceKey) {
         event.preventDefault();
-        exitCurrentScreen();
+        if (view !== "dashboard") exitCurrentScreen();
         return;
       }
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey && !isTextEntryElement(document.activeElement)) {
@@ -1047,11 +1050,6 @@ function App() {
           setGlobalSearchOpen(true);
           return;
         }
-      }
-      if (event.altKey && event.key === "ArrowLeft") {
-        event.preventDefault();
-        if (view !== "dashboard") exitCurrentScreen();
-        return;
       }
       if (event.altKey && event.key === "Home") {
         event.preventDefault();

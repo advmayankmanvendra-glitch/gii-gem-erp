@@ -102,9 +102,10 @@ export function WorkspaceFrame({ breadcrumb, title, subtitle, canGoBack, onBack,
             <Icon name="menu" />
           </button>
           {canGoBack && (
-            <button className="workspace-back-btn" type="button" onClick={onBack} title="Return to previous screen">
+            <button className="workspace-back-btn" type="button" onClick={onBack} title="Return to previous screen (Alt + Left Arrow)">
               <Icon name="undo" />
               <span>Back</span>
+              <kbd className="workspace-back-shortcut">Alt+←</kbd>
             </button>
           )}
         </div>

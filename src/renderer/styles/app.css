@@ -472,6 +472,15 @@ svg {
   background: #fff5e8;
 }
 
+.workspace-back-shortcut {
+  border-color: var(--color-line);
+  color: var(--color-muted);
+  background: var(--color-soft-panel);
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+}
+
 .breadcrumb {
   margin-bottom: 5px;
   color: var(--muted);

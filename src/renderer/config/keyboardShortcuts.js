@@ -4,6 +4,7 @@ const keyboardShortcuts = [
   { keys: "Backspace", action: "Go back to previous screen (when not typing)", module: "General Navigation", scope: "global" },
   { keys: "Esc", action: "Close modal/dropdown or safely exit screen", module: "General Navigation", scope: "global" },
   { keys: "Alt + Left Arrow", action: "Go back to previous screen", module: "General Navigation", scope: "global" },
+  { keys: "Browser Back", action: "Go back to previous screen from supported keyboards or mouse buttons", module: "General Navigation", scope: "global" },
   { keys: "Alt + Home", action: "Return to Dashboard", module: "General Navigation", scope: "global" },
   { keys: "Ctrl + K", action: "Open Global Search", module: "General Navigation", scope: "global" },
   { keys: "Ctrl + K", action: "Open Global Search", module: "General Navigation", scope: "global" },
