@@ -710,6 +710,7 @@ function App() {
     if (command === "production-health") navigate("financial_control");
     if (command === "audit-log") navigate("audit_log");
     if (command === "dashboard") navigate("dashboard");
+    if (command === "back" && view !== "dashboard") exitCurrentScreen();
     if (command === "f1") setShortcutHelpOpen(true);
     if (command === "f2") openRecordAction("supply_orders");
     if (command === "f3") editSelectedTableRow();
@@ -942,6 +943,11 @@ function App() {
         editSelectedTableRow();
         return;
       }
+      if (event.key === "Backspace" && !isTextEntryElement(document.activeElement) && view !== "dashboard") {
+        event.preventDefault();
+        exitCurrentScreen();
+        return;
+      }
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key) && !isTextEntryElement(document.activeElement)) {
         if (moveTableSelection(event.key)) event.preventDefault();
         return;
@@ -1042,12 +1048,17 @@ function App() {
           return;
         }
       }
+      if (event.altKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (view !== "dashboard") exitCurrentScreen();
+        return;
+      }
       if (event.altKey && event.key === "Home") {
         event.preventDefault();
         navigate("dashboard");
         return;
       }
-      if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && event.key !== "ArrowLeft") {
         const key = event.key.toLowerCase();
         const voucherShortcuts = {
           r: ["receipt", "voucher_dashboard"],

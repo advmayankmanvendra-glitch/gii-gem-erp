@@ -477,6 +477,7 @@ function desktopShortcutCommand(input = {}) {
 
   if (alt && !ctrl && !shift) {
     if (key === "Home") return "dashboard";
+    if (key === "ArrowLeft") return "back";
     const altCommands = {
       r: "voucher-receipt",
       p: "voucher-supplier-payment",
@@ -495,6 +496,7 @@ function desktopShortcutCommand(input = {}) {
   }
 
   if (!ctrl && !alt && !shift && /^F([1-9]|1[0-2])$/.test(key)) return key.toLowerCase();
+  if (!ctrl && !alt && !shift && key === "Backspace") return "back";
   return null;
 }
 

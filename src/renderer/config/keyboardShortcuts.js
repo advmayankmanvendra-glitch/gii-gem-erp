@@ -1,8 +1,11 @@
 const keyboardShortcuts = [
   { keys: "Enter", action: "Move to next editable field", module: "General Navigation", scope: "global" },
   { keys: "Shift + Enter", action: "Move to previous editable field", module: "General Navigation", scope: "global" },
+  { keys: "Backspace", action: "Go back to previous screen (when not typing)", module: "General Navigation", scope: "global" },
   { keys: "Esc", action: "Close modal/dropdown or safely exit screen", module: "General Navigation", scope: "global" },
+  { keys: "Alt + Left Arrow", action: "Go back to previous screen", module: "General Navigation", scope: "global" },
   { keys: "Alt + Home", action: "Return to Dashboard", module: "General Navigation", scope: "global" },
+  { keys: "Ctrl + K", action: "Open Global Search", module: "General Navigation", scope: "global" },
   { keys: "Ctrl + K", action: "Open Global Search", module: "General Navigation", scope: "global" },
   { keys: "Ctrl + Shift + K", action: "Open advanced search where available", module: "General Navigation", scope: "global" },
   { keys: "F1", action: "Open Keyboard Shortcut Guide", module: "General Navigation", scope: "global" },

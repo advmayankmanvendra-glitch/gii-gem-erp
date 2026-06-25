@@ -8923,9 +8923,11 @@ function gstRegisters(db, companyId, dateFrom, dateTo) {
         ELSE 0
       END gst_rate,
       'Posted' posting_status,
+      v.id voucher_id,
       v.voucher_number,
       v.voucher_type,
-      v.source_module
+      v.source_module,
+      v.source_id
     FROM ledger_entries le
     JOIN accounts a ON a.id = le.account_id
     JOIN vouchers v ON v.id = le.voucher_id

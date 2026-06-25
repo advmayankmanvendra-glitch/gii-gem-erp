@@ -44,6 +44,11 @@ const VIEW_SECTION_TARGETS = {
   ledger_view: {
     ledger: '.report-panel'
   },
+  gst_register: {
+    drilldown: '.voucher-detail-panel',
+    ledger: '.voucher-detail-panel',
+    report: '.report-panel'
+  },
   stock_ledger: {
     ledger: '.report-panel'
   },

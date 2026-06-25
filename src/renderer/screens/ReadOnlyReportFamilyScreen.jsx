@@ -284,7 +284,8 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
         { key: "gst_rate", label: "GST %" },
         { key: "gst_amount", label: "GST", type: "money" },
         { key: "posting_status", label: "Posting" },
-        { key: "actions", label: "Actions", type: "nav_action", actionView: "gst_register", actionLabel: "Drill" }
+        { key: "voucher_drill", label: "Voucher", type: "drill_voucher" },
+        { key: "source_drill", label: "Source", type: "drill_source" }
       ]
     };
   }
