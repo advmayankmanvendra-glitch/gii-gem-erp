@@ -261,7 +261,52 @@ Stop and wait for review if:
 
 Do not continue to the next phase after a failed verification.
 
-## 18. Final Checklist Before Saying Done
+## 18. Global UX Governance
+
+Follow `docs/architecture/global-ux-governance-standard.md` before implementing navigation, toolbar, keyboard, search, help, feedback, table, modal, empty-state, AI guidance, or recovery changes.
+
+This standard is mandatory for new or changed UX work, but it does not require retrofitting every existing screen unless a phase explicitly includes that scope.
+
+UX changes must remain modular:
+- do not add large UX dictionaries, screen manuals, toolbar rules or interaction engines into `src/renderer/App.jsx`
+- place reusable UX services in `src/renderer/utils` or feature modules
+- place reusable presentation in `src/renderer/components`
+- place screen/help metadata in `src/renderer/config` or the relevant feature folder
+
+Every UX phase report must include a UX compliance checklist and clearly state any known gaps.
+
+## 19. Phase Governance Pipeline
+
+No Codex or OpenCode phase should begin directly with implementation.
+
+Every implementation phase must follow this fixed pipeline:
+
+```text
+Idea
+  -> Architecture Audit
+  -> Architecture Compliance Check
+  -> UX Compliance Check
+  -> Implementation
+  -> Verification
+  -> Desktop Smoke Test
+  -> Git Commit
+  -> Git Tag (Major Phase Only)
+  -> Lock Note
+```
+
+Pipeline rules:
+- Architecture Audit must identify current module boundaries, reusable code, data models, services, reports, IPC/preload impact, route impact, and existing uncommitted changes.
+- Architecture Compliance Check must confirm App.jsx protection, modular placement, reuse-before-create, and preservation of core logic.
+- UX Compliance Check must apply `docs/architecture/global-ux-governance-standard.md` where the phase touches user interaction, navigation, help, tables, forms, search, error guidance, print/export, or dashboard behavior.
+- Implementation must be limited to the approved scope.
+- Verification must run the required commands for the affected scope.
+- Desktop Smoke Test must be completed for functional/UI phases, or explicitly marked not applicable for documentation-only phases.
+- Git Commit should happen only after verification passes and the user has not asked to keep changes uncommitted.
+- Git Tag should be used only for major locked baselines or major phase milestones.
+- Lock Note must state what is stable, what is out of scope, and what future changes require a separate phase.
+- If any step fails, stop and do not proceed to the next phase.
+
+## 20. Final Checklist Before Saying Done
 
 Before final response, confirm:
 
@@ -292,5 +337,6 @@ Before final response, confirm:
 
 | Version | Date | Description |
 | --- | --- | --- |
+| v2.1 | 2026-06-25 | Added Global UX Governance and the mandatory Phase Governance Pipeline. Renumbered final checklist. |
 | v2.0 | 2026-06-21 | Expanded from 14 to 18 rules. Added Renderer Safety, Database/Data Safety, Navigation/UX Safety, Print/Export Safety, Error Guidance, Desktop Smoke Test, detailed Stop Rules, and Final Checklist. |
 | v1.0 | Previous | Initial 14-rule permanent architecture anchor. |
