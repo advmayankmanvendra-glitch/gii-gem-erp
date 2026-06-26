@@ -1028,6 +1028,26 @@ svg {
   font-weight: 700;
 }
 
+.productivity-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.productivity-action-label {
+  line-height: 1.1;
+}
+
+.productivity-action-shortcut {
+  border-color: var(--color-line);
+  background: var(--nav);
+  color: var(--color-panel);
+  font-size: 10px;
+  line-height: 1;
+}
+
 .productivity-actions button:hover,
 .learn-screen-btn:hover {
   border-color: var(--accent);

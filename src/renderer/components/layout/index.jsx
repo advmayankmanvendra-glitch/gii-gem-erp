@@ -147,7 +147,7 @@ export function RightUtilitySidebar({
     return (
       <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
         <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
-        <button type="button" className="utility-compact-action" onClick={onHelp} title="Help">?</button>
+        <button type="button" className="utility-compact-action" onClick={onHelp} title="Screen Guidance">?</button>
         <button type="button" className="utility-compact-action" onClick={onHelpAssistant} title="Ask ERP Help">A</button>
         <button type="button" className={`utility-compact-action ${trainingMode ? "active" : ""}`} onClick={onTraining} title={trainingMode ? "Training Mode On" : "Training"}>T</button>
         <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
@@ -168,15 +168,15 @@ export function RightUtilitySidebar({
       </div>
 
       <div className="utility-section utility-actions">
-        <button type="button" className="ghost-btn help-btn" title="Open context-sensitive help for this screen" onClick={onHelp}>
+        <button type="button" className="ghost-btn help-btn" title="Open screen-specific guidance for the current module" onClick={onHelp}>
           <Icon name="help" />
-          <span>Help</span>
+          <span>Screen Help</span>
         </button>
         <button type="button" className={`ghost-btn help-btn ${trainingMode ? "active" : ""}`} title="Open safe sample-data training mode" onClick={onTraining}>
           <Icon name="book" />
           <span>{trainingMode ? "Training On" : "Training"}</span>
         </button>
-        <button type="button" className="ghost-btn help-btn ask-help-btn" title="Ask the ERP Help Assistant" onClick={onHelpAssistant}>
+        <button type="button" className="ghost-btn help-btn ask-help-btn" title="Ask a general ERP help question across modules and workflows" onClick={onHelpAssistant}>
           <Icon name="help" />
           <span>Ask ERP Help</span>
         </button>

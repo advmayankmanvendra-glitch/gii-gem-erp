@@ -57,7 +57,8 @@ export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, o
             <div className="productivity-actions">
               {quickActions.map((action) => (
                 <button type="button" key={action.label} onClick={() => onAction(action)} disabled={action.disabled} title={action.disabled ? "Hidden by role or unavailable on this screen" : action.label}>
-                  {action.label}
+                  <span className="productivity-action-label">{action.label}</span>
+                  {action.shortcut && <kbd className="productivity-action-shortcut">{action.shortcut}</kbd>}
                 </button>
               ))}
             </div>
@@ -213,7 +214,7 @@ function quickActionsForView(view, role) {
       { label: "Ageing Report", type: "navigate", view: "payable_ageing", scope: "report" }
     ],
     reports: [
-      { label: "Refresh", type: "refresh", scope: "report" },
+      { label: "Refresh", type: "refresh", shortcut: "Ctrl+R / F5", scope: "report" },
       { label: "Export", type: "export", scope: "report" },
       { label: "Print", type: "print", scope: "report" },
       { label: "PDF", type: "pdf", scope: "report" },
