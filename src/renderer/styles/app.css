@@ -4305,6 +4305,12 @@ svg {
   white-space: nowrap;
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 input, select, textarea {
   width: 100%;
   min-height: 38px;
@@ -4460,6 +4466,13 @@ th {
   border-radius: 5px;
   background: #fff;
   color: #153c54;
+}
+
+.row-actions .ghost-btn {
+  width: auto;
+  min-width: 64px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .row-actions button.danger {

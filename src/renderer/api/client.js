@@ -60,6 +60,7 @@ const blockedPreviewActions = new Set([
   "rollbackImportBatch",
   "deleteItemImportBatch",
   "deleteUnusedImportedItems",
+  "selectDocumentFile",
   "uploadDocument",
   "viewDocument",
   "downloadDocument",

@@ -79,6 +79,7 @@ const api = {
   listItemImportBatches: () => ipcRenderer.invoke("imports:item-batches"),
   deleteItemImportBatch: (batchId) => ipcRenderer.invoke("imports:item-batch-delete", batchId),
   deleteUnusedImportedItems: () => ipcRenderer.invoke("items:delete-unused-imported"),
+  selectDocumentFile: () => ipcRenderer.invoke("documents:select-file"),
   uploadDocument: (payload) => ipcRenderer.invoke("documents:upload", payload),
   listDocuments: (filters) => ipcRenderer.invoke("documents:list", filters),
   viewDocument: (id) => ipcRenderer.invoke("documents:view", id),

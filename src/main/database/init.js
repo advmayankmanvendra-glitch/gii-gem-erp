@@ -152,7 +152,7 @@ const ACCOUNTING_TABLES = new Set([
   "batches"
 ]);
 
-const DOCUMENT_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".csv"]);
+const DOCUMENT_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".csv"]);
 const IMPORT_ROLLBACK_BLOCKED_TABLES = new Set(["vouchers", "voucher_lines", "ledger_entries", "cash_bank_ledger", "receivables", "payment_allocations", "supplier_payment_allocations", "stock_ledger"]);
 const DEFAULT_ACCOUNTS = [
   ["1000", "Cash", "Asset", "Debit", 0],
@@ -3944,7 +3944,7 @@ export function listDocuments(db, filters = {}) {
 export function deleteDocument(db, id, context = {}) {
   const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
   if (!doc) throw new Error("Document not found or already deleted");
-  db.prepare("UPDATE documents SET is_deleted = 1, status = 'deleted', deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?").run(context.user_id || null, id);
+  db.prepare("UPDATE documents SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
   auditLog(db, { company_id: doc.company_id, user_id: context.user_id || null, action: "document delete", table_name: "documents", record_id: id, old_value: JSON.stringify({ fileName: doc.original_file_name, filePath: doc.file_path }) });
   return { id, status: "deleted" };
 }
@@ -4698,6 +4698,27 @@ export function billingVoucherData(db, filters = {}) {
     WHERE aa.company_id = ?
     ORDER BY aa.created_at DESC
   `).all(companyId);
+  const procuredQuantities = db.prepare(`
+    SELECT pi.order_id, pi.item_id, SUM(pi.quantity) procured_quantity
+    FROM procurement_items pi
+    JOIN procurements p ON p.id = pi.procurement_id
+    WHERE pi.company_id = ? AND COALESCE(p.is_deleted, 0) = 0 AND COALESCE(pi.is_deleted, 0) = 0
+    GROUP BY pi.order_id, pi.item_id
+  `).all(companyId);
+  const issuedQuantities = db.prepare(`
+    SELECT dc.order_id, dci.item_id, SUM(dci.quantity) issued_quantity
+    FROM delivery_challan_items dci
+    JOIN delivery_challans dc ON dc.id = dci.delivery_challan_id
+    WHERE dci.company_id = ? AND COALESCE(dc.is_deleted, 0) = 0 AND dc.status = 'Confirmed'
+    GROUP BY dc.order_id, dci.item_id
+  `).all(companyId);
+  const paymentAllocations = db.prepare(`
+    SELECT pa.*, p.utr_number, p.payment_date, p.payment_mode
+    FROM payment_allocations pa
+    LEFT JOIN payments p ON p.id = pa.payment_id
+    WHERE pa.company_id = ? AND COALESCE(pa.is_deleted, 0) = 0
+    ORDER BY pa.created_at DESC
+  `).all(companyId);
   return {
     references,
     financialYears,
@@ -4711,7 +4732,10 @@ export function billingVoucherData(db, filters = {}) {
     receiptAdvances,
     supplierAdvances,
     advanceAdjustments,
-    profitability: orderProfitability(db, { company_id: companyId })
+    profitability: orderProfitability(db, { company_id: companyId }),
+    procuredQuantities,
+    issuedQuantities,
+    paymentAllocations
   };
 }
 

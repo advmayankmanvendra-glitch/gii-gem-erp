@@ -672,14 +672,30 @@ function registerIpc() {
   ipcMain.handle("master-data:health", (_event, context) => {
     return getMasterDataToolsHealth(db, userContext([context], { module: "master_data_tools" }));
   });
+  ipcMain.handle("documents:select-file", async (event) => {
+    const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+      title: "Select Supporting Document",
+      properties: ["openFile"],
+      filters: [
+        { name: "Supported Documents", extensions: ["pdf", "jpg", "jpeg", "png", "xlsx", "xls", "csv"] },
+        { name: "PDF", extensions: ["pdf"] },
+        { name: "Images", extensions: ["jpg", "jpeg", "png"] },
+        { name: "Excel / CSV", extensions: ["xlsx", "xls", "csv"] }
+      ]
+    });
+    if (result.canceled || !result.filePaths?.[0]) return null;
+    return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
+  });
   ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
   ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
   ipcMain.handle("documents:view", async (_event, id) => {
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
     if (!doc) throw new Error("Document not found");
     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
+    const openResult = await shell.openPath(doc.file_path);
+    if (openResult) throw new Error(`Document could not be opened: ${openResult}`);
     auditLog(db, { company_id: doc.company_id, user_id: null, action: "document view", table_name: "documents", record_id: id });
-    return shell.openPath(doc.file_path);
+    return { opened: true };
   });
   ipcMain.handle("documents:download", async (event, id) => {
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);

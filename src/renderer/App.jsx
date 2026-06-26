@@ -35,6 +35,7 @@ import { StockAdjustmentControlPanel, validateStockAdjustmentDraft } from "./fea
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
+import { DocumentsScreen } from "./screens/DocumentsScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
 import { KeyboardShortcutScreen } from "./screens/KeyboardShortcutScreen.jsx";
@@ -1218,7 +1219,7 @@ function App() {
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
-            {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
+            {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
             {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />}
             {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
@@ -1229,7 +1230,7 @@ function App() {
             {voucherProposalViews.has(effectiveView) && <VoucherProposalScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
             {["receipt_allocation_workflow", "supplier_allocation_workflow", "advance_adjustment_wizard", "supplier_advance_adjustment_wizard", "party_opening_balances", "credit_terms"].includes(effectiveView) && <AllocationWorkflowScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} />}
             {["chart_accounts", "voucher_register", "ledger_view", "cash_bank_ledger", "day_book", "cash_book", "bank_book", "trial_balance", "profit_loss", "balance_sheet", "posting_control", "party_ledger", "department_ledger", "supplier_ledger", "bill_wise_receivables", "bill_wise_payables", "payment_allocations", "supplier_payment_allocations", "allocation_reconciliation", "unallocated_receipts", "unallocated_supplier_payments", "advance_receipts", "supplier_advances", "advance_adjustments", "allocation_audit", "receivable_ageing", "payable_ageing", "tds_reconciliation", "gst_tds_reconciliation", "party_ledger_summary", "party_reconciliation", "financial_control", "financial_years", "opening_balances", "approval_queue", "gst_register", "tds_register", "bill_outstanding", "year_end_closing", "carry_forward", "audit_log"].includes(effectiveView) && <AccountingScreen view={effectiveView} notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
-            {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} />}
+            {effectiveView === "documents" && <DocumentsScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} confirmAction={confirmAction} />}
             {["employee_performance", "receivables", "payables", "cash_flow", "gst", "reports"].includes(effectiveView) && <SummaryScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "master_data_tools" && <MasterDataToolsScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "master_import_templates" && <MasterImportTemplatesScreen notify={notify} />}
@@ -3813,7 +3814,7 @@ function MasterScreen({ table, config, notify, companyContext }) {
   );
 }
 
-function BillingVoucherScreen({ notify, role, companyContext }) {
+function BillingVoucherScreen({ notify, role, companyContext, onNavigate }) {
   const blankHeader = {
     company_id: "",
     financial_year_id: "",
@@ -4293,7 +4294,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
             <button type="button" className="ghost-btn" onClick={() => setGridExpanded((current) => !current)}>
               {gridExpanded ? "Exit Grid Mode" : "Expand Grid"}
             </button>
-            <span className={`status ${normalizeStatusClass(editing?.posting_status || header.invoice_status)}`}>{editing?.posting_status || header.invoice_status}</span>
+            {editing ? <span className={`status ${normalizeStatusClass(lifecycleStage(editing))}`}>{lifecycleStage(editing)}</span> : <span className={`status ${normalizeStatusClass(header.invoice_status)}`}>{header.invoice_status}</span>}
           </div>
         </div>
 
@@ -4572,9 +4573,10 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
         <section id="billing-posting-control" className="panel billing-control-panel">
           <h2>GST Invoice Finalization</h2>
           <div className="workflow-note" style={{ marginBottom: 10 }}>
-            <strong>{selectedInvoice?.posting_status || editing?.posting_status || "Draft"}</strong>
+            <strong>{lifecycleStage(selectedInvoice || editing || {})}</strong>
             <span>{
-              selectedInvoice?.posting_status === "Posted" ? "Invoice is posted to books. Ready for receivable tracking."
+              selectedInvoice?.posting_status === "Posted" && lifecycleStage(selectedInvoice).includes("Paid") ? "Invoice is posted and fully paid. Ready for closure."
+              : selectedInvoice?.posting_status === "Posted" ? "Invoice is posted to books. Ready for receivable tracking."
               : selectedInvoice?.posting_status === "Reversed" ? "Invoice has been reversed. No further actions apply."
               : selectedInvoice?.posting_status === "Error" ? "Posting encountered an error. Review and retry."
               : selectedInvoice?.invoice_status === "Approved" ? "Approved and awaiting posting."
@@ -4582,7 +4584,8 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
               : "Invoice is in draft state. Complete item details and post."
             }</span>
             <small>{
-              selectedInvoice?.posting_status === "Posted" ? "Next: Track receivable and receipt allocation."
+              lifecycleStage(selectedInvoice || editing || {}).includes("Paid") ? "Next: Invoice is fully paid and ready for archival."
+              : selectedInvoice?.posting_status === "Posted" ? "Next: Track receivable and receipt allocation."
               : selectedInvoice?.posting_status === "Reversed" ? "Next: Create a corrected invoice if needed."
               : selectedInvoice?.posting_status === "Error" ? "Next: Review error details and repost."
               : selectedInvoice?.invoice_status === "Approved" ? "Next: Post the invoice to create the sales voucher."
@@ -4591,6 +4594,7 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
             }</small>
           </div>
           <ReadOnlyBox label="Voucher Number" value={selectedInvoice?.voucher_number || "-"} />
+          <ReadOnlyBox label="Lifecycle Stage" value={lifecycleStage(selectedInvoice || editing || {})} />
           <ReadOnlyBox label="Invoice Status" value={selectedInvoice?.invoice_status || editing?.invoice_status || "Draft"} />
           <ReadOnlyBox label="Posting Status" value={selectedInvoice?.posting_status || editing?.posting_status || "Draft"} />
           <ReadOnlyBox label="Posting Date" value={selectedInvoice?.posted_at || selectedInvoice?.voucher_date || "-"} />
@@ -4605,9 +4609,37 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
         <section id="billing-order-validation" className="panel warning-panel">
           <h2>Billing vs Order</h2>
           <MetricLine label="Ordered Quantity" value={orderValidation.orderedQuantity || "-"} />
+          <MetricLine label="Procured Quantity" value={formatNumber(orderProcuredQuantity(data, header.order_id)) || "-"} />
+          <MetricLine label="Issued Quantity" value={formatNumber(orderIssuedQuantity(data, header.order_id)) || "-"} />
           <MetricLine label="Billed Quantity" value={orderValidation.billedQuantity} />
-          <MetricLine label="Balance Quantity" value={orderValidation.balanceQuantity || "-"} />
+          <MetricLine label="Balance (Order - Billed)" value={orderValidation.balanceQuantity || "-"} />
           {orderValidation.messages.length ? orderValidation.messages.map((message) => <span className="warning-line" key={message}>{message}</span>) : <span className="ok-line">No duplicate or excess billing warning.</span>}
+        </section>
+
+        <section id="billing-readiness" className="panel compact-summary">
+          <h2>Billing Readiness</h2>
+          {editing || selectedInvoice ? <>
+            <span className={`timeline-row ${orderProcuredQuantity(data, header.order_id) > 0 ? "done" : "pending"}`}>
+              <span>Items Procured</span>
+              <small>{orderProcuredQuantity(data, header.order_id) > 0 ? `${formatNumber(orderProcuredQuantity(data, header.order_id))} units` : "Not procured"}</small>
+              {orderProcuredQuantity(data, header.order_id) > 0 ? <span className="timeline-check">&#10003;</span> : <span className="timeline-blocked">&#9888;</span>}
+            </span>
+            <span className={`timeline-row ${orderIssuedQuantity(data, header.order_id) > 0 ? "done" : "pending"}`}>
+              <span>Items Issued (DC)</span>
+              <small>{orderIssuedQuantity(data, header.order_id) > 0 ? `${formatNumber(orderIssuedQuantity(data, header.order_id))} units` : "Not issued"}</small>
+              {orderIssuedQuantity(data, header.order_id) > 0 ? <span className="timeline-check">&#10003;</span> : <span className="timeline-blocked">&#9888;</span>}
+            </span>
+            <span className={`timeline-row ${documents.some((doc) => doc.document_type === "CRAC") ? "done" : "pending"}`}>
+              <span>CRAC Completed</span>
+              <small>{documents.some((doc) => doc.document_type === "CRAC") ? "Attached" : "Pending"}</small>
+              {documents.some((doc) => doc.document_type === "CRAC") ? <span className="timeline-check">&#10003;</span> : <span className="timeline-blocked">&#9888;</span>}
+            </span>
+            <span className={`timeline-row ${documents.some((doc) => doc.document_type === "Supply Order") ? "done" : "pending"}`}>
+              <span>Supply Order Attached</span>
+              <small>{documents.some((doc) => doc.document_type === "Supply Order") ? "Attached" : "Pending"}</small>
+              {documents.some((doc) => doc.document_type === "Supply Order") ? <span className="timeline-check">&#10003;</span> : <span className="timeline-blocked">&#9888;</span>}
+            </span>
+          </> : <small>Select or edit an invoice to see readiness status.</small>}
         </section>
 
         <section id="billing-receivable-summary" className="panel compact-summary">
@@ -4618,6 +4650,15 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           <MetricLine label="TDS Deducted" value={formatCurrency(selectedInvoice?.tds_deducted || 0)} />
           <MetricLine label="GST TDS Deducted" value={formatCurrency(selectedInvoice?.gst_tds_deducted || 0)} />
           <MetricLine label="Outstanding" value={formatCurrency(selectedInvoice?.balance_outstanding || totals.gross)} />
+          {(editing?.id) ? <div className="document-checklist compact-allocations">
+            {(data?.paymentAllocations || []).filter((pa) => Number(pa.billing_id) === Number(editing.id)).length > 0 ?
+              (data?.paymentAllocations || []).filter((pa) => Number(pa.billing_id) === Number(editing.id)).map((pa) => (
+                <span className={`timeline-row ${Number(pa.allocated_amount) > 0 ? "done" : "pending"}`} key={pa.id}>
+                  <span>{pa.utr_number || `Allocation #${pa.id}`}</span>
+                  <small>{formatCurrency(pa.allocated_amount)} {pa.tds_deducted > 0 ? `TDS ${formatCurrency(pa.tds_deducted)}` : ""} {pa.gst_tds_deducted > 0 ? `GST TDS ${formatCurrency(pa.gst_tds_deducted)}` : ""}</small>
+                </span>
+              )) : <small>No payment allocations yet.</small>}
+          </div> : null}
         </section>
 
         <section id="billing-profitability-preview" className="panel compact-summary">
@@ -4631,6 +4672,18 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
           <MetricLine label="ROI" value={`${formatNumber(profitability.roi)}%`} />
         </section>
 
+        <section id="billing-gst-summary" className="panel compact-summary">
+          <h2>GST Summary</h2>
+          <MetricLine label="GST Type" value={header.gst_type || "-"} />
+          <MetricLine label="Max GST Rate" value={`${maxLineGstRate(calculatedLines)}%`} />
+          <MetricLine label="Total Taxable" value={formatCurrency(totals.taxable)} />
+          <MetricLine label="CGST" value={formatCurrency(totals.cgst)} />
+          <MetricLine label="SGST" value={formatCurrency(totals.sgst)} />
+          <MetricLine label="IGST" value={formatCurrency(totals.igst)} />
+          <MetricLine label="Total GST" value={formatCurrency(totals.gst)} />
+          <MetricLine label="Gross Invoice Value" value={formatCurrency(totals.gross)} />
+        </section>
+
         <section id="billing-documents" className="panel compact-summary">
           <h2>Documents</h2>
           <div className="document-checklist">
@@ -4638,6 +4691,11 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
               const found = documents.some((doc) => doc.document_type === type);
               return <span className={found ? "done" : ""} key={type}>{type}<small>{found ? "Attached" : "Pending"}</small></span>;
             })}
+            <div className="checklist-readiness">
+              {requiredBillingDocuments.every((type) => documents.some((doc) => doc.document_type === type))
+                ? <span className="ok-line">All required documents attached — ready for billing.</span>
+                : <span className="warning-line">Complete missing documents before finalizing billing.</span>}
+            </div>
           </div>
           <form className="mini-upload" onSubmit={uploadAttachment}>
             <select value={uploadForm.document_type} onChange={(event) => setUploadForm({ ...uploadForm, document_type: event.target.value })}>
@@ -4664,6 +4722,34 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
             </span>
           ))}
         </section>
+
+        <section id="billing-corrections" className="panel compact-summary">
+          <h2>Correction Workflow</h2>
+          {editing ? <>
+            {selectedInvoice?.invoice_type === "Credit Note" ? <span className="timeline-row done"><span>Credit Note</span><small>This invoice is a credit note</small></span> : null}
+            {selectedInvoice?.invoice_type === "Debit Note" ? <span className="timeline-row done"><span>Debit Note</span><small>This invoice is a debit note</small></span> : null}
+            {selectedInvoice?.posting_status === "Reversed" ? <span className="timeline-row done"><span>Reversed</span><small>This invoice has been reversed</small></span> : null}
+            {selectedInvoice?.posting_status !== "Reversed" && selectedInvoice?.invoice_type !== "Credit Note" && selectedInvoice?.invoice_type !== "Debit Note" ? <>
+              <span className="timeline-row pending"><span>Credit Note</span><small>Available for posted invoices</small></span>
+              <span className="timeline-row pending"><span>Debit Note</span><small>Available for posted invoices</small></span>
+            </> : null}
+          </> : <small>Select an invoice to see correction options.</small>}
+        </section>
+
+        <section id="billing-einvoice" className="panel compact-summary">
+          <h2>E-Invoice / E-Way Bill</h2>
+          <span className="timeline-row pending">
+            <span>E-Invoice</span>
+            <small>Not configured</small>
+            <span className="timeline-blocked">&#9888;</span>
+          </span>
+          <span className="timeline-row pending">
+            <span>E-Way Bill</span>
+            <small>Not configured</small>
+            <span className="timeline-blocked">&#9888;</span>
+          </span>
+          <small style={{ display: "block", marginTop: 8, color: "#888" }}>E-invoice and e-way bill require separate portal integration and are not part of this phase.</small>
+        </section>
       </aside>}
 
       <section id="billing-invoice-list" className="panel billing-list">
@@ -4685,11 +4771,11 @@ function BillingVoucherScreen({ notify, role, companyContext }) {
                     <td>{invoice.department_name}</td>
                     <td>{formatCurrency(invoice.billing_value)}</td>
                     <td>
-                      <span className={`status ${normalizeStatusClass(invoice.posting_status || invoice.invoice_status)}`}>{invoice.posting_status || invoice.invoice_status}</span>
-                      {invoice.invoice_status && invoice.invoice_status !== (invoice.posting_status || invoice.invoice_status) ? <small className="status-sub">{invoice.invoice_status}</small> : null}
+                      <span className={`status ${normalizeStatusClass(lifecycleStage(invoice))}`}>{lifecycleStage(invoice)}</span>
+                      {lifecycleStage(invoice) !== (invoice.posting_status || invoice.invoice_status) && !lifecycleStage(invoice).includes("Paid") ? <small className="status-sub">{invoice.invoice_status}</small> : null}
                     </td>
                     <td>{invoice.voucher_number || "-"}</td>
-                    <td><span className="drill-path">Invoice / Voucher / Ledger / Receivable / Allocation / Payment</span></td>
+                    <td><span className="drill-path"><button type="button" className="ghost-btn small-btn" title="View invoice" onClick={() => editInvoice(invoice)}>Invoice</button> / {invoice.voucher_id ? <button type="button" className="ghost-btn small-btn" title="View voucher" onClick={() => onNavigate?.("voucher_register", { recordId: invoice.voucher_id })}>Voucher</button> : <span>Voucher</span>} / {invoice.voucher_id ? <button type="button" className="ghost-btn small-btn" title="View ledger" onClick={() => onNavigate?.("ledger_view", { recordId: invoice.voucher_id })}>Ledger</button> : <span>Ledger</span>} / Receivable / Allocation / Payment</span></td>
                     <td><button type="button" className="ghost-btn" onClick={() => editInvoice(invoice)}>{isRecordLocked(invoice) ? "View" : "Open"}</button></td>
                   </tr>
                 ))}
@@ -6118,6 +6204,18 @@ function maxLineGstRate(lines) {
   return lines.reduce((max, line) => Math.max(max, Number(line.gst_rate || 0)), 0);
 }
 
+function orderProcuredQuantity(data, orderId) {
+  return (data?.procuredQuantities || [])
+    .filter((row) => Number(row.order_id) === Number(orderId))
+    .reduce((sum, row) => sum + Number(row.procured_quantity || 0), 0);
+}
+
+function orderIssuedQuantity(data, orderId) {
+  return (data?.issuedQuantities || [])
+    .filter((row) => Number(row.order_id) === Number(orderId))
+    .reduce((sum, row) => sum + Number(row.issued_quantity || 0), 0);
+}
+
 function billingOrderValidation(data, header, lines, editingId) {
   const orderId = Number(header.order_id || 0);
   const orderItems = (data?.orderItems || []).filter((row) => Number(row.order_id) === orderId);
@@ -6167,13 +6265,28 @@ function profitabilityPreviewForOrder(rows, orderId, currentBilling) {
 }
 
 function invoiceTimeline(invoice) {
+  const isPosted = invoice?.posting_status === "Posted";
+  const amountReceived = Number(invoice?.amount_received || 0);
+  const balanceOutstanding = Number(invoice?.balance_outstanding || 0);
+  const isPaid = isPosted && amountReceived > 0 && balanceOutstanding <= 0;
+  const isClosed = isPaid;
   return [
-    { label: "Invoice Created", value: invoice?.created_at || "-", done: Boolean(invoice?.id) },
-    { label: "Approved", value: invoice?.approved_at || invoice?.approval_status || "-", done: invoice?.approval_status === "Approved" || invoice?.posting_status === "Posted" },
-    { label: "Posted", value: invoice?.posted_at || invoice?.voucher_date || "-", done: invoice?.posting_status === "Posted" },
-    { label: "Payment Received", value: formatCurrency(invoice?.amount_received || 0), done: Number(invoice?.amount_received || 0) > 0 },
-    { label: "Closed", value: Number(invoice?.balance_outstanding || 0) <= 0 && invoice?.id ? "Closed" : "Open", done: Number(invoice?.balance_outstanding || 0) <= 0 && invoice?.id }
+    { label: "Created", value: invoice?.created_at || "-", done: Boolean(invoice?.id) },
+    { label: "Approved", value: invoice?.approval_status === "Approved" ? "Approved" : invoice?.approval_status || "-", done: invoice?.approval_status === "Approved" || isPosted },
+    { label: "Posted", value: isPosted ? (invoice?.voucher_date || invoice?.posted_at || "Posted") : "-", done: isPosted },
+    { label: "Paid", value: isPaid ? `\u20B9${formatNumber(amountReceived)}` : isPosted ? `\u20B9${formatNumber(amountReceived)} / \u20B9${formatNumber(invoice?.invoice_value || 0)}` : "-", done: isPaid },
+    { label: "Closed", value: isClosed ? "Closed" : invoice?.id ? "Open" : "-", done: isClosed }
   ];
+}
+
+function lifecycleStage(invoice) {
+  if (!invoice?.id) return "New";
+  if (invoice?.posting_status === "Reversed") return "Reversed";
+  if (Number(invoice?.balance_outstanding || 0) <= 0 && Number(invoice?.amount_received || 0) > 0 && invoice?.posting_status === "Posted") return "Paid / Closed";
+  if (invoice?.posting_status === "Posted") return "Posted";
+  if (invoice?.approval_status === "Approved") return "Approved";
+  if (invoice?.invoice_status === "Pending Approval") return "Pending Approval";
+  return "Draft";
 }
 
 function normalizeStatusClass(status) {
@@ -7286,131 +7399,6 @@ function documentMatchesOrder(document, order, type, invoices = []) {
     return Number(invoice?.order_id) === Number(order.id) && (typeMatches || ["Invoice Copy", "CRAC", "Installation Report", "Delivery Challan"].includes(type));
   }
   return false;
-}
-
-const expectedDocumentTypes = {
-  supply_orders: ["Supply Order", "OEM Authorization", "Delivery Challan", "Installation Report"],
-  invoices: ["Invoice Copy", "Delivery Challan", "GST E-Invoice", "E-Way Bill"],
-  procurements: ["Purchase Order", "Delivery Challan", "Supplier Invoice", "GRN"],
-  payments: ["Payment Proof", "Bank Statement", "TDS Certificate"],
-  stock_inwards: ["Stock Receipt Note", "Supplier Invoice", "Inspection Report"],
-  stock_outwards: ["Delivery Challan", "Stock Transfer Note", "Gate Pass"]
-};
-
-function DocumentsScreen({ notify, companyContext }) {
-  const [documents, setDocuments] = useState([]);
-  const [moduleFilter, setModuleFilter] = useState("");
-
-  async function load() {
-    try {
-      setDocuments(await api.listDocuments({ module: moduleFilter, company_id: companyContext?.company_id }));
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  }
-
-  useEffect(() => {
-    load();
-  }, [moduleFilter, companyContext?.company_id, companyContext?.company_scope]);
-
-  async function handleView(doc) {
-    try {
-      await api.viewDocument(doc.id);
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  }
-
-  async function handleDownload(doc) {
-    try {
-      const result = await api.downloadDocument(doc.id);
-      if (result?.canceled) return;
-      notify("Document downloaded");
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  }
-
-  async function handleDelete(doc) {
-    try {
-      await api.deleteDocument({ id: doc.id });
-      notify("Document deleted");
-      load();
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  }
-
-  const expectedDocs = moduleFilter ? (expectedDocumentTypes[moduleFilter] || []) : [];
-  const uploadedTypes = new Set(documents.map((d) => d.document_type));
-  const missingDocs = expectedDocs.filter((type) => !uploadedTypes.has(type));
-
-  return (
-    <section className="panel settings-panel report-panel">
-      <ReportToolbar title="Document Center" note={`${companyContext?.company_name || "No company selected"} - ${documents.length} uploaded document(s)`}>
-        <ReportSelectFilter
-          value={moduleFilter}
-          onChange={setModuleFilter}
-          placeholderLabel="All Modules"
-          options={Object.keys(importTemplates).map((module) => [module, module.replaceAll("_", " ")])}
-        />
-      </ReportToolbar>
-      <div className="workflow-note" style={{ margin: "0 16px 8px" }}>
-        <strong>Document Lifecycle</strong>
-        <span>Documents prove business events - orders, invoices, payments, receipts. They support audit trail, payment readiness, and closure readiness without posting accounting directly.</span>
-        <small>Upload documents from the Add Record screen for each module. Use the filter above to narrow by module. Use the View/Download/Delete actions to manage documents.</small>
-      </div>
-      {moduleFilter && expectedDocs.length > 0 && (
-        <div className="intelligence-card" style={{ margin: "0 16px 12px" }}>
-          <div className="intel-title">Document Checklist - {moduleFilter.replaceAll("_", " ")}</div>
-          <div className="metric-rows">
-            {expectedDocs.map((type) => (
-              <div key={type} className={`metric-line ${uploadedTypes.has(type) ? "ok-line" : "warning-line"}`}>
-                <span>{type}</span>
-                <span>{uploadedTypes.has(type) ? "Uploaded" : missingDocs.includes(type) ? "Missing" : "Optional"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {documents.length ? (
-        <div className="table-wrap" style={{ margin: "0 16px" }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Module</th>
-                <th>Record</th>
-                <th>Document Type</th>
-                <th>File</th>
-                <th>Size</th>
-                <th>Uploaded</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((document) => (
-                <tr key={document.id}>
-                  <td>{document.linked_module}</td>
-                  <td>{document.linked_record_id || "-"}</td>
-                  <td>{document.document_type}</td>
-                  <td><button className="ghost-btn small-btn" type="button" onClick={() => handleView(document)} title="Open document">{document.original_file_name}</button></td>
-                  <td>{Math.round(Number(document.file_size || 0) / 1024)} KB</td>
-                  <td>{new Date(document.uploaded_at).toLocaleString("en-IN")}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="icon-btn" type="button" title="View document" onClick={() => handleView(document)}><Icon name="file" /></button>
-                      <button className="icon-btn" type="button" title="Download document" onClick={() => handleDownload(document)}><Icon name="download" /></button>
-                      <button className="icon-btn danger" type="button" title="Delete document" onClick={() => handleDelete(document)}><Icon name="trash" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : <EmptyState title="No documents uploaded" note="Use Upload PDF/Document from any Add Record screen. Select a module filter above to see the expected document checklist." />}
-    </section>
-  );
 }
 
 function BusinessVoucherScreen({ notify, onNavigate, role, requestedVoucherKind, companyContext }) {
