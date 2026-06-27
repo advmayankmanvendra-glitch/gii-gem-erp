@@ -93,6 +93,9 @@ import {
 } from "./database/init.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
+import { dbPath } from "./database/connection.js";
+import { previewReset, executeReset } from "./services/operationalResetService.js";
+import { generateCertificate } from "./services/productionReadinessService.js";
 import {
   confirmMasterDataUpdate,
   exportMasterData,
@@ -824,6 +827,54 @@ function registerIpc() {
     const failureReason = await shell.openPath(selectedInstaller);
     if (failureReason) throw new Error(failureReason);
     return { success: true, installerPath: selectedInstaller };
+  });
+
+  ipcMain.handle("environment:info", (_event, context) => {
+    const companyId = Number(context?.company_id || 0);
+    const healthContext = { ...context, dbName: DB_NAME };
+    const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
+    const counts = dashboardCounts(db, companyId ? { company_id: companyId } : {});
+    const backups = listBackups(runtimeDataRoot);
+    const hasOperationalData = counts.totalOrders > 0 || counts.vouchers > 0 || counts.invoices > 0;
+    const envType = hasOperationalData ? "Development" : "Production";
+    return {
+      environment: envType,
+      company: { id: companyId, name: context?.company_name || "" },
+      database: {
+        path: dbPath(runtimeDataRoot),
+        exists: fs.existsSync(dbPath(runtimeDataRoot)),
+        size: fs.existsSync(dbPath(runtimeDataRoot)) ? fs.statSync(dbPath(runtimeDataRoot)).size : 0
+      },
+      lastBackup: backups.length > 0 ? backups[0] : null,
+      lastVerificationProfile: "Development",
+      operationalCounts: {
+        totalOrders: counts.totalOrders,
+        invoices: db.prepare("SELECT COUNT(*) count FROM invoices WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0").get(companyId)?.count || 0,
+        procurements: db.prepare("SELECT COUNT(*) count FROM procurements WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0").get(companyId)?.count || 0,
+        payments: db.prepare("SELECT COUNT(*) count FROM payments WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0").get(companyId)?.count || 0,
+        vouchers: db.prepare("SELECT COUNT(*) count FROM vouchers WHERE company_id = ? AND is_deleted = 0").get(companyId)?.count || 0,
+        receivables: db.prepare("SELECT COUNT(*) count FROM receivables WHERE company_id = ? AND is_deleted = 0").get(companyId)?.count || 0,
+        payables: db.prepare("SELECT COUNT(*) count FROM procurements WHERE company_id = ? AND is_deleted = 0 AND posting_status = 'Posted'").get(companyId)?.count || 0
+      },
+      productionReadiness: hasOperationalData ? "Not Ready" : "Production Ready",
+      app: diagnostics.app,
+      paths: diagnostics.paths
+    };
+  });
+
+  ipcMain.handle("certificate:generate", () => {
+    return generateCertificate(db, runtimeDataRoot);
+  });
+
+  ipcMain.handle("reset:preview", () => {
+    return previewReset(db);
+  });
+
+  ipcMain.handle("reset:execute", (_event, { userId }) => {
+    const result = executeReset(db, runtimeDataRoot, userId);
+    db.close();
+    db = initializeDatabase(runtimeDataRoot);
+    return result;
   });
 
   ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));

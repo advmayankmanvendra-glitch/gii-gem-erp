@@ -1,25 +1,45 @@
 import { accountingData, initializeDatabase } from "../src/main/database/init.js";
+import { parseProfileArgs, PROFILES } from "./lib/verificationProfiles.js";
 
+const profile = parseProfileArgs();
 const db = initializeDatabase();
 const data = accountingData(db, {});
 const debit = data.trialBalance.reduce((sum, row) => sum + Number(row.debit || 0), 0);
 const credit = data.trialBalance.reduce((sum, row) => sum + Number(row.credit || 0), 0);
 const difference = Math.round((debit - credit) * 100) / 100;
 
-const checks = [
-  ["accounts", data.accounts.length >= 15],
-  ["vouchers", data.vouchers.length > 0],
-  ["ledger entries", data.ledger.length > 0],
-  ["cash bank ledger", data.cashBank.length > 0],
-  ["receivables", data.receivables.length > 0],
-  ["payables", data.payables.length > 0],
-  ["input GST", data.gstSummary.inputGst > 0],
-  ["output GST", data.gstSummary.outputGst > 0],
-  ["trial balance", difference === 0]
-];
+const isProduction = profile.key === "production";
+
+const checks = [];
+
+if (isProduction) {
+  checks.push(
+    ["trial balance", difference === 0],
+    ["receivables count", data.receivables.length === 0],
+    ["payables count", data.payables.length === 0],
+    ["vouchers count", data.vouchers.length === 0],
+    ["ledger entries count", data.ledger.length === 0],
+    ["accounts exist", data.accounts.length >= 15],
+    ["input GST", Number(data.gstSummary.inputGst) === 0],
+    ["output GST", Number(data.gstSummary.outputGst) === 0]
+  );
+} else {
+  checks.push(
+    ["accounts", data.accounts.length >= 15],
+    ["vouchers", data.vouchers.length > 0],
+    ["ledger entries", data.ledger.length > 0],
+    ["cash bank ledger", data.cashBank.length > 0],
+    ["receivables", data.receivables.length > 0],
+    ["payables", data.payables.length > 0],
+    ["input GST", data.gstSummary.inputGst > 0],
+    ["output GST", data.gstSummary.outputGst > 0],
+    ["trial balance", difference === 0]
+  );
+}
 
 const failed = checks.filter(([, ok]) => !ok);
 console.log(JSON.stringify({
+  profile: profile.name,
   debit,
   credit,
   difference,
@@ -35,7 +55,7 @@ console.log(JSON.stringify({
 db.close();
 
 if (failed.length) {
-  console.error(`Failed accounting checks: ${failed.map(([name]) => name).join(", ")}`);
+  console.error(`Failed accounting checks (${profile.name}): ${failed.map(([name]) => name).join(", ")}`);
   process.exit(1);
 }
 

@@ -147,6 +147,7 @@ const viewTitles = {
   crac_tracker: ["CRAC Tracker", "Track CRAC status, timeline and linked invoice progress."],
   payment_readiness: ["Payment Readiness Report", "Identify payment bottlenecks through CRAC, invoice and receipt comparison."],
   order_closure_tracking: ["Order Closure Tracking", "Checklist-driven operational closure certification."],
+  environment_manager: ["Environment Manager", "Go-live preparation, environment status, operational data counts and production readiness."],
   health_center: ["ERP Health Center", "Runtime diagnostics, recovery guidance, support bundles and verification checklist."],
   safe_mode: ["Safe Mode Recovery", "Renderer crash recovery, diagnostics and support options."],
   help_keyboard: ["Keyboard Shortcuts", "Complete keyboard guide with Smart Enter flow and module-specific shortcuts."],
@@ -252,9 +253,10 @@ const navGroups = [
     icon: "settings",
     sections: [
       { id: "import_export", label: "Import / Export", items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"]] },
-      { id: "support_recovery", label: "Support & Recovery", items: [["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]] }
+      { id: "support_recovery", label: "Support & Recovery", items: [["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]] },
+      { id: "go_live", label: "Go-Live Preparation", items: [["environment_manager", "Environment Manager", "Go-Live Preparation Environment Readiness Production Initialization"]] }
     ],
-    items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
+    items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"], ["environment_manager", "Environment Manager", "Go-Live Preparation Environment Readiness Production Initialization"]]
   },
   { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_keyboard", "Keyboard Shortcuts"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
   { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }

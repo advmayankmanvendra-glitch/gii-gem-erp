@@ -1,4 +1,7 @@
 import { accountingData, initializeDatabase } from "../src/main/database/init.js";
+import { parseProfileArgs } from "./lib/verificationProfiles.js";
+
+const profile = parseProfileArgs();
 
 process.on("uncaughtException", (error) => {
   console.error(error.message || error);
@@ -54,7 +57,10 @@ const gstTdsRegister = round(data.tdsRegisters.reduce((sum, row) => sum + Number
 const gstTdsReport = round(data.gstTdsReconciliation.reduce((sum, row) => sum + Number(row.gst_tds_deducted || 0), 0));
 const gstTdsDifference = round(gstTdsRegister - gstTdsReport);
 
+const isProduction = profile.key === "production";
+
 const result = {
+  profile: profile.name,
   trialBalance: { debit, credit, difference: trialBalanceDifference },
   profitLoss: { income: plIncome, expenses: plExpenses, netProfit: plNetProfit, difference: plDifference },
   balanceSheet: { assets, liabilitiesAndEquity, difference: balanceSheetDifference },
@@ -77,4 +83,11 @@ assert(payableDifference === 0, "Payables do not reconcile");
 assert(gstDifference === 0, "GST does not reconcile");
 assert(tdsDifference === 0, "TDS does not reconcile");
 assert(gstTdsDifference === 0, "GST TDS does not reconcile");
+
+if (isProduction) {
+  if (data.vouchers.length > 0) console.warn(`Production profile warning: ${data.vouchers.length} voucher(s) exist`);
+  if (data.receivables.length > 0) console.warn(`Production profile warning: ${data.receivables.length} receivable(s) exist`);
+  if (data.payables.length > 0) console.warn(`Production profile warning: ${data.payables.length} payable(s) exist`);
+}
+
 process.exit(0);

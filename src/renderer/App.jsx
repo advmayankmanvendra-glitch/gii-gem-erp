@@ -36,6 +36,7 @@ import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
 import { DocumentsScreen } from "./screens/DocumentsScreen.jsx";
+import { EnvironmentManagerScreen } from "./screens/EnvironmentManager/EnvironmentManagerScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
 import { KeyboardShortcutScreen } from "./screens/KeyboardShortcutScreen.jsx";
@@ -291,7 +292,7 @@ function App() {
     company_name: effectiveCompanyScope === "all" ? "All Companies" : currentCompany?.company_name || "",
     company_scope: effectiveCompanyScope
   }), [effectiveCompanyScope, currentCompanyId, currentCompany?.company_name]);
-  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_keyboard", "help_assistant", "health_center", "master_data_tools", "safe_mode"].includes(effectiveView);
+  const allCompaniesReadOnly = companyContext.company_scope === "all" && !["dashboard", "companies", "settings", "help_training", "help_keyboard", "help_assistant", "environment_manager", "health_center", "master_data_tools", "safe_mode"].includes(effectiveView);
   const rendererCrashContext = useMemo(() => ({
     view: effectiveView,
     routeView: view,
@@ -1217,6 +1218,7 @@ function App() {
             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
+            {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} />}
