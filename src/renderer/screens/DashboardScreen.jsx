@@ -1,23 +1,26 @@
 import React, { useState, useCallback } from "react";
 import { DASHBOARD_MODE_LABELS, MODE_CARDS, MODE_DEFAULT_VISIBLE } from "../features/dashboards/dashboardConfig.js";
-import { usePeriod, useDashboardData, resolveCardValue, PERIOD_OPTIONS } from "../features/dashboards/dashboardService.js";
+import { useFinancialYear, usePeriod, useComparison, useDashboardData, resolveCardValue, PERIOD_OPTIONS, COMPARISON_OPTIONS, buildExportContext } from "../features/dashboards/dashboardService.js";
 import { WidgetContainer, WorkQueueWidget, WidgetGrid, WidgetToolbar } from "../features/dashboards/widgetFramework.jsx";
-import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_VIEW_KEY, DASHBOARD_WIDGET_ORDER_KEY } from "../config/storageKeys.js";
-import { DashboardViewToolbar, PeriodSelector, DashboardPeriodBar, DashboardCustomizer, DashboardSetupChecklist } from "../components/dashboard/index.jsx";
+import { DashboardProvider, useDashboardContext } from "../features/dashboards/dashboardContext.jsx";
+import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_WIDGET_ORDER_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
+import { ContextBar, DashboardViewToolbar, DashboardCustomizer, DashboardSetupChecklist } from "../components/dashboard/index.jsx";
 import { safeArray, safeObject } from "../stability/rendererStabilityUtils.js";
 import { readJsonPreference } from "../utils/uiHelpers.js";
 
-export function DashboardScreen({ notify, setView, companyContext, apiClient }) {
-  const { counts, loading, error, refreshTime, bankLedgers, refresh: refreshData } = useDashboardData(apiClient, companyContext);
-  const { period, setPeriod, label: periodLabel, customLabel, setCustomLabel } = usePeriod();
-  const [dashboardMode, setDashboardMode] = useState(() => window.localStorage?.getItem(DASHBOARD_VIEW_KEY) || "executive");
+function DashboardInner({ notify, setView, companyContext, apiClient }) {
+  const { counts, loading, error, refreshTime, refresh: refreshData } = useDashboardData(apiClient, companyContext);
+  const { selectedFy, setFinancialYear, fyOptions } = useFinancialYear();
+  const { period, setPeriod, range, label: periodLabel, customLabel, setCustomLabel, customFrom, setCustomFrom, customTo, setCustomTo, applyCustomRange, resetCustomRange } = usePeriod(selectedFy.start, selectedFy.end);
+  const { comparisonMode, setComparison, comparisonLabel, applyComparison } = useComparison(period, range);
+  const { dashboardMode, setDashboardMode, navigateWithContext } = useDashboardContext();
   const [customizing, setCustomizing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [hiddenCards, setHiddenCards] = useState(() => safeObject(readJsonPreference(DASHBOARD_HIDDEN_CARDS_KEY, {})));
   const [pinnedCards, setPinnedCards] = useState(() => safeArray(readJsonPreference(DASHBOARD_PINNED_CARDS_KEY, [])));
   const [widgetOrder, setWidgetOrder] = useState(() => safeArray(readJsonPreference(DASHBOARD_WIDGET_ORDER_KEY, {})));
 
   const modeCards = safeArray(MODE_CARDS[dashboardMode] || MODE_CARDS.executive);
-  const modeLabel = DASHBOARD_MODE_LABELS[dashboardMode] || "Executive";
 
   function persist(key, value) {
     window.localStorage?.setItem(key, value);
@@ -26,16 +29,13 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
   const changeMode = useCallback((mode) => {
     setDashboardMode(mode);
     setCustomizing(false);
-    persist(DASHBOARD_VIEW_KEY, mode);
-  }, []);
+  }, [setDashboardMode]);
 
   const toggleCardVisibility = useCallback((cardId) => {
     setHiddenCards((current) => {
       const safe = safeObject(current);
       const currentHidden = safeArray(safe[dashboardMode] || []);
-      const nextHidden = currentHidden.includes(cardId)
-        ? currentHidden.filter((id) => id !== cardId)
-        : [...currentHidden, cardId];
+      const nextHidden = currentHidden.includes(cardId) ? currentHidden.filter((id) => id !== cardId) : [...currentHidden, cardId];
       const next = { ...safe, [dashboardMode]: nextHidden };
       persist(DASHBOARD_HIDDEN_CARDS_KEY, JSON.stringify(next));
       return next;
@@ -46,9 +46,7 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
     const pinKey = `${dashboardMode}:${cardId}`;
     setPinnedCards((current) => {
       const safe = safeArray(current);
-      const next = safe.includes(pinKey)
-        ? safe.filter((item) => item !== pinKey)
-        : [...safe, pinKey];
+      const next = safe.includes(pinKey) ? safe.filter((item) => item !== pinKey) : [...safe, pinKey];
       persist(DASHBOARD_PINNED_CARDS_KEY, JSON.stringify(next));
       return next;
     });
@@ -69,9 +67,7 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
     setHiddenCards((current) => {
       const safe = safeObject(current);
       const currentHidden = safeArray(safe[dashboardMode] || []);
-      const nextHidden = currentHidden.includes(cardId)
-        ? currentHidden
-        : [...currentHidden, cardId];
+      const nextHidden = currentHidden.includes(cardId) ? currentHidden : [...currentHidden, cardId];
       const next = { ...safe, [dashboardMode]: nextHidden };
       persist(DASHBOARD_HIDDEN_CARDS_KEY, JSON.stringify(next));
       return next;
@@ -79,22 +75,26 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
   }, [dashboardMode]);
 
   const resizeWidget = useCallback((cardId, size) => {
-    // persist size preference per card per mode
     const key = `${DASHBOARD_VIEW_KEY}:size`;
     const sizes = safeObject(readJsonPreference(key, {}));
     sizes[`${dashboardMode}:${cardId}`] = size;
     persist(key, JSON.stringify(sizes));
   }, [dashboardMode]);
 
+  const handleDrillDown = useCallback((target) => {
+    navigateWithContext(setView, target);
+  }, [navigateWithContext, setView]);
+
+  const handleFyChange = useCallback((fy) => {
+    setFinancialYear(fy);
+  }, [setFinancialYear]);
+
   const safeHiddenCards = safeObject(hiddenCards);
   const safePinnedCards = safeArray(pinnedCards);
   const defaultVisibleIds = safeArray(MODE_DEFAULT_VISIBLE[dashboardMode] || MODE_DEFAULT_VISIBLE.executive);
   const modeVisible = safeArray(safeHiddenCards[dashboardMode]);
 
-  const modeHiddenCards = modeVisible.length
-    ? modeVisible
-    : modeCards.filter((card) => !defaultVisibleIds.includes(card.id)).map((card) => card.id);
-
+  const modeHiddenCards = modeVisible.length ? modeVisible : modeCards.filter((card) => !defaultVisibleIds.includes(card.id)).map((card) => card.id);
   const visibleCards = modeCards.filter((card) => !modeHiddenCards.includes(card.id));
   const hiddenCardsList = modeCards.filter((card) => modeHiddenCards.includes(card.id));
 
@@ -108,6 +108,9 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
     return leftOrder - rightOrder;
   });
 
+  const exportContext = buildExportContext(companyContext, selectedFy, periodLabel, comparisonLabel);
+  const hasNoData = !loading && !error && (!counts || Object.keys(counts).length === 0);
+
   const checklist = [
     ["Add Company", "companies"],
     ["Add Employees", "employees"],
@@ -120,8 +123,6 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
     ["Raise Invoice", "invoices"]
   ];
 
-  const hasNoData = !loading && !error && (!counts || Object.keys(counts).length === 0);
-
   return (
     <section className="page dashboard-page">
       <div className="context-strip">
@@ -129,27 +130,39 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
         <span>{companyContext.company_name || "Create a company to begin"}</span>
       </div>
 
+      <ContextBar
+        selectedFy={selectedFy}
+        fyOptions={fyOptions}
+        onFyChange={handleFyChange}
+        period={period}
+        periodOptions={PERIOD_OPTIONS}
+        onPeriodChange={setPeriod}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFrom={setCustomFrom}
+        onCustomTo={setCustomTo}
+        customLabel={customLabel}
+        onCustomLabel={setCustomLabel}
+        onApplyCustom={applyCustomRange}
+        onResetCustom={resetCustomRange}
+        comparisonMode={comparisonMode}
+        comparisonOptions={COMPARISON_OPTIONS}
+        onComparisonChange={setComparison}
+        refreshTime={refreshTime}
+        onRefresh={refreshData}
+        autoRefresh={autoRefresh}
+        onAutoRefreshToggle={() => setAutoRefresh((a) => !a)}
+        fyStart={selectedFy.start}
+        fyEnd={selectedFy.end}
+        exportContext={exportContext}
+      />
+
       <DashboardViewToolbar
         dashboardMode={dashboardMode}
         dashboardModeLabels={DASHBOARD_MODE_LABELS}
         customizing={customizing}
         onChangeMode={changeMode}
         onToggleCustomize={() => setCustomizing((current) => !current)}
-      />
-
-      <DashboardPeriodBar
-        periodLabel={periodLabel}
-        refreshTime={refreshTime}
-        companyName={companyContext.company_name}
-        onRefresh={refreshData}
-      />
-
-      <PeriodSelector
-        period={period}
-        periodOptions={PERIOD_OPTIONS}
-        onPeriodChange={setPeriod}
-        customLabel={customLabel}
-        onCustomLabelChange={setCustomLabel}
       />
 
       {customizing && (
@@ -202,8 +215,9 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
                     dataSource={card.dataSource}
                     refreshTime={refreshTime}
                     periodLabel={periodLabel}
+                    comparisonLabel={comparisonLabel}
                     isPinned={isPinned}
-                    onOpen={setView}
+                    onOpen={handleDrillDown}
                     onTogglePin={togglePinnedCard}
                     onRemove={removeWidget}
                     onResize={resizeWidget}
@@ -221,8 +235,9 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
                   dataSource={card.dataSource}
                   refreshTime={refreshTime}
                   periodLabel={periodLabel}
+                  comparisonLabel={comparisonLabel}
                   isPinned={isPinned}
-                  onOpen={setView}
+                  onOpen={handleDrillDown}
                   onTogglePin={togglePinnedCard}
                   onRemove={removeWidget}
                   onResize={resizeWidget}
@@ -242,5 +257,13 @@ export function DashboardScreen({ notify, setView, companyContext, apiClient }) 
 
       {hasNoData && <DashboardSetupChecklist checklist={checklist} onOpen={setView} />}
     </section>
+  );
+}
+
+export function DashboardScreen(props) {
+  return (
+    <DashboardProvider companyContext={props.companyContext} apiClient={props.apiClient}>
+      <DashboardInner {...props} />
+    </DashboardProvider>
   );
 }

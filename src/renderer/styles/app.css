@@ -2770,6 +2770,249 @@ svg {
   color: #5f1515;
 }
 
+/* --- Context Bar --- */
+.context-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.context-bar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.context-bar-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-bar-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #536477;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.context-bar-select {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: #15384f;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.context-bar-period-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.context-bar-period-buttons button,
+.context-bar-extended button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: #15384f;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.context-bar-period-buttons button.active,
+.context-bar-extended button.active {
+  border-color: var(--accent);
+  background: #fff4e6;
+  color: #111;
+}
+
+.more-periods-toggle {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #f5f7fa;
+  color: #536477;
+  padding: 0 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.more-periods-toggle:hover {
+  background: #e8ecf0;
+}
+
+.context-bar-extended {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.context-bar-refresh {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-bar-refresh-time {
+  font-size: 11px;
+  color: #8a9aa8;
+}
+
+.context-bar-refresh-btn {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.context-bar-refresh-btn:hover {
+  color: var(--accent);
+}
+
+/* --- Date Picker --- */
+.context-bar-date-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.date-picker-fields {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.date-picker-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #536477;
+}
+
+.date-picker-fields input {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0 10px;
+  font-size: 13px;
+  background: #fff;
+  color: #15384f;
+}
+
+.date-picker-fields input[type="date"] {
+  width: 160px;
+}
+
+.date-picker-fields input[type="text"] {
+  width: 180px;
+}
+
+.date-picker-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.date-error {
+  font-size: 12px;
+  color: #cf222e;
+  font-weight: 600;
+}
+
+.date-picker-cross-fy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #536477;
+}
+
+.date-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Comparison --- */
+.widget-comparison {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.comparison-previous {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.comparison-arrow {
+  font-size: 14px;
+}
+
+.comparison-value {
+  font-weight: 700;
+}
+
+.comparison-variance {
+  font-weight: 700;
+}
+
+.widget-comparison-label {
+  font-weight: 600;
+}
+
+/* --- Export Context Banner --- */
+.context-bar-export-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #f0f6fc;
+  border: 1px solid #cce0f5;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.context-bar-export-banner strong {
+  color: #074463;
+}
+
+.export-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 16px;
+  color: #354052;
+}
+
+/* --- Widget Comparison integration --- */
+.widget-footer .widget-comparison-label {
+  color: #074463;
+}
+
 .setup-panel h2 {
   display: flex;
   align-items: center;

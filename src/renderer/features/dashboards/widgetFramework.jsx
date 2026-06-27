@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Icon } from "../../components/common.jsx";
 import { formatCurrency } from "../../utils/formatters.js";
 
@@ -7,7 +7,21 @@ function formatCardValue(value, format) {
   return String(value ?? 0);
 }
 
-export function WidgetContainer({ card, value, format, dataSource, refreshTime, periodLabel, isPinned, onOpen, onTogglePin, onRemove, onResize }) {
+function ComparisonRow({ comparison }) {
+  if (!comparison) return null;
+  const arrow = comparison.trend === "up" ? "▲" : comparison.trend === "down" ? "▼" : "→";
+  const color = comparison.trend === "up" ? "#1a7f37" : comparison.trend === "down" ? "#cf222e" : "#8a9aa8";
+  return (
+    <div className="widget-comparison" style={{ color }}>
+      <span className="comparison-previous">{formatCardValue(comparison.previous, "currency")}</span>
+      <span className="comparison-arrow">{arrow}</span>
+      <span className="comparison-value">{formatCardValue(comparison.current, "currency")}</span>
+      <span className="comparison-variance">{comparison.variancePercent >= 0 ? "+" : ""}{comparison.variancePercent.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+export function WidgetContainer({ card, value, format, dataSource, refreshTime, periodLabel, comparisonLabel, comparisonData, isPinned, onOpen, onTogglePin, onRemove, onResize }) {
   const [size, setSize] = useState("medium");
   const displayValue = formatCardValue(value, format);
 
@@ -35,12 +49,14 @@ export function WidgetContainer({ card, value, format, dataSource, refreshTime, 
 
       <button type="button" className="widget-body" onClick={() => onOpen(card.target)} title={`Review ${card.label}`}>
         <strong className="widget-value">{displayValue}</strong>
+        {comparisonData && <ComparisonRow comparison={comparisonData} />}
       </button>
 
       <div className="widget-footer">
         {dataSource && <span className="widget-meta" title="Data Source">Source: {dataSource}</span>}
         {refreshTime && <span className="widget-meta" title="Last Refreshed">As of {refreshTime}</span>}
         <span className="widget-meta" title="Reporting Period">Period: {periodLabel}</span>
+        {comparisonLabel && <span className="widget-meta widget-comparison-label" title="Comparison">{comparisonLabel}</span>}
         {card.target && (
           <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(card.target)} title="Reconcile with source report">
             Reconcile →
@@ -51,7 +67,7 @@ export function WidgetContainer({ card, value, format, dataSource, refreshTime, 
   );
 }
 
-export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, periodLabel, isPinned, onOpen, onTogglePin, onRemove, onResize, items }) {
+export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, periodLabel, comparisonLabel, comparisonData, isPinned, onOpen, onTogglePin, onRemove, onResize, items }) {
   const displayValue = formatCardValue(value, format);
 
   return (
@@ -73,6 +89,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
 
       <div className="widget-body">
         <strong className="widget-value">{displayValue}</strong>
+        {comparisonData && <ComparisonRow comparison={comparisonData} />}
         {items?.length > 0 && (
           <div className="widget-queue">
             {items.slice(0, 5).map((item, i) => (
@@ -90,6 +107,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
         {dataSource && <span className="widget-meta">Source: {dataSource}</span>}
         {refreshTime && <span className="widget-meta">As of {refreshTime}</span>}
         <span className="widget-meta">Period: {periodLabel}</span>
+        {comparisonLabel && <span className="widget-meta widget-comparison-label">{comparisonLabel}</span>}
         <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(card.target)}>Reconcile →</button>
       </div>
     </div>
