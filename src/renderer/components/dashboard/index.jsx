@@ -5,8 +5,8 @@ export function DashboardViewToolbar({ dashboardMode, dashboardModeLabels, custo
   return (
     <section className="panel dashboard-toolbar">
       <div>
-        <h2>Dashboard View</h2>
-        <p>Choose the card set that matches the review you are doing now.</p>
+        <h2>Dashboard Command Center</h2>
+        <p>Select your view. Every widget links to its source report for verification.</p>
       </div>
       <div className="dashboard-mode-controls" role="group" aria-label="Dashboard view mode">
         {Object.entries(dashboardModeLabels).map(([mode, label]) => (
@@ -22,6 +22,57 @@ export function DashboardViewToolbar({ dashboardMode, dashboardModeLabels, custo
   );
 }
 
+export function PeriodSelector({ period, periodOptions, onPeriodChange, customLabel, onCustomLabelChange }) {
+  return (
+    <div className="period-selector" role="group" aria-label="Reporting period">
+      {periodOptions.map((opt) => (
+        <button
+          type="button"
+          key={opt.value}
+          className={period === opt.value ? "active" : ""}
+          onClick={() => onPeriodChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+      {period === "custom" && (
+        <input
+          type="text"
+          className="period-custom-input"
+          placeholder="e.g. Apr-Jun 2026"
+          value={customLabel || ""}
+          onChange={(e) => onCustomLabelChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
+export function DashboardPeriodBar({ periodLabel, refreshTime, companyName, onRefresh }) {
+  return (
+    <div className="dashboard-period-bar">
+      <span className="period-bar-item">
+        <strong>Period:</strong> {periodLabel}
+      </span>
+      {refreshTime && (
+        <span className="period-bar-item">
+          <strong>Last Refreshed:</strong> {refreshTime}
+        </span>
+      )}
+      {companyName && (
+        <span className="period-bar-item">
+          <strong>Company:</strong> {companyName}
+        </span>
+      )}
+      {onRefresh && (
+        <button type="button" className="ghost-btn period-refresh-btn" onClick={onRefresh} title="Refresh dashboard data">
+          ⟳ Refresh
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function DashboardCustomizer({
   dashboardMode,
   dashboardModeLabels,
@@ -34,8 +85,8 @@ export function DashboardCustomizer({
   return (
     <section className="panel dashboard-customizer">
       <div>
-        <h2>Customize {dashboardModeLabels[dashboardMode]} Cards</h2>
-        <p>Show, hide or pin cards without changing dashboard calculations.</p>
+        <h2>Customize {dashboardModeLabels[dashboardMode]} Widgets</h2>
+        <p>Show, hide, pin or reorder widgets. Changes persist per view mode.</p>
       </div>
       <div className="dashboard-customizer-grid">
         {modeCards.map((card) => {
@@ -85,8 +136,8 @@ export function DashboardCardGrid({ dashboardMode, visibleCards, pinnedCards, on
       {!visibleCards.length && (
         <section className="panel empty-state">
           <Icon name="grid" />
-          <strong>No dashboard cards visible</strong>
-          <span>Open Customize and enable at least one card for this view.</span>
+          <strong>No dashboard widgets visible</strong>
+          <span>Open Customize and enable at least one widget for this view.</span>
         </section>
       )}
     </>
