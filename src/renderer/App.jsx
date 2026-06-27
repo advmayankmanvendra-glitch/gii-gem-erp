@@ -6276,7 +6276,7 @@ function invoiceTimeline(invoice) {
     { label: "Created", value: invoice?.created_at || "-", done: Boolean(invoice?.id) },
     { label: "Approved", value: invoice?.approval_status === "Approved" ? "Approved" : invoice?.approval_status || "-", done: invoice?.approval_status === "Approved" || isPosted },
     { label: "Posted", value: isPosted ? (invoice?.voucher_date || invoice?.posted_at || "Posted") : "-", done: isPosted },
-    { label: "Paid", value: isPaid ? `\u20B9${formatNumber(amountReceived)}` : isPosted ? `\u20B9${formatNumber(amountReceived)} / \u20B9${formatNumber(invoice?.invoice_value || 0)}` : "-", done: isPaid },
+    { label: "Paid", value: isPaid ? formatCurrency(amountReceived) : isPosted ? `${formatCurrency(amountReceived)} / ${formatCurrency(invoice?.invoice_value || 0)}` : "-", done: isPaid },
     { label: "Closed", value: isClosed ? "Closed" : invoice?.id ? "Open" : "-", done: isClosed }
   ];
 }
