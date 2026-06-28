@@ -1218,8 +1218,8 @@ function App() {
             ) : (
               <>
             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
-            {effectiveView === "production_readiness" && <ProductionReadinessScreen />}
-            {effectiveView === "go_live_wizard" && <GoLiveWizard />}
+            {effectiveView === "production_readiness" && <ProductionReadinessScreen apiClient={api} />}
+            {effectiveView === "go_live_wizard" && <GoLiveWizard apiClient={api} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
             {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}

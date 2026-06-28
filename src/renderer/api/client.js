@@ -89,7 +89,9 @@ export function resolveApi(fallbackApi) {
   return new Proxy({ ...fallbackApi, __runtime: "browser-preview", __readOnlyPreview: true }, {
     get(target, prop) {
       if (blockedPreviewActions.has(prop)) return previewBlocked(prop);
-      return target[prop];
+      if (typeof target[prop] === "function") return target[prop];
+      if (prop in target) return target[prop];
+      return async () => { throw new Error(`${String(prop)} is not available in browser preview. Run in the desktop app.`); };
     }
   });
 }

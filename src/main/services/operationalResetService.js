@@ -163,6 +163,8 @@ export function executeReset(db, runtimeRoot, userId) {
   const before = previewReset(db);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
+  db.pragma("foreign_keys = OFF");
+
   const deleteTransaction = db.transaction(() => {
     for (const { table } of RESET_TABLES) {
       if (!tables.has(table)) continue;
@@ -176,6 +178,8 @@ export function executeReset(db, runtimeRoot, userId) {
   });
 
   deleteTransaction();
+
+  db.pragma("foreign_keys = ON");
 
   const zeroState = rebuildZeroState(db);
   const after = previewReset(db);
@@ -188,6 +192,8 @@ export function executeEnhancedReset(db, runtimeRoot, userId) {
   const before = previewReset(db);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
+  db.pragma("foreign_keys = OFF");
+
   const deleteTransaction = db.transaction(() => {
     for (const { table } of RESET_TABLES) {
       if (!tables.has(table)) continue;
@@ -201,6 +207,8 @@ export function executeEnhancedReset(db, runtimeRoot, userId) {
   });
 
   deleteTransaction();
+
+  db.pragma("foreign_keys = ON");
 
   const zeroState = rebuildZeroState(db);
   const after = previewReset(db);

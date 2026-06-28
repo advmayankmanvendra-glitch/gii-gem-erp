@@ -3,7 +3,7 @@ import { ReadinessScoreCard, OverallScoreCard } from "./ReadinessScoreCard.jsx";
 import { GoLiveChecklist } from "./GoLiveChecklist.jsx";
 import { CertificationHistory } from "./CertificationHistory.jsx";
 
-function ProductionReadinessScreen() {
+function ProductionReadinessScreen({ apiClient }) {
   const [readiness, setReadiness] = useState(null);
   const [certificate, setCertificate] = useState(null);
   const [history, setHistory] = useState(null);
@@ -14,7 +14,7 @@ function ProductionReadinessScreen() {
     setLoading(true);
     setError(null);
     try {
-      const result = await window.api.getDeploymentReadiness();
+      const result = await apiClient.getDeploymentReadiness();
       setReadiness(result);
     } catch (err) {
       setError(err.message || "Failed to assess readiness");
@@ -27,9 +27,9 @@ function ProductionReadinessScreen() {
     setLoading(true);
     setError(null);
     try {
-      const result = await window.api.generateGoLiveCertificate("system");
+      const result = await apiClient.generateGoLiveCertificate("system");
       setCertificate(result);
-      const hist = await window.api.getCertificateHistory();
+      const hist = await apiClient.getCertificateHistory();
       setHistory(hist);
     } catch (err) {
       setError(err.message || "Failed to generate certificate");
@@ -40,7 +40,7 @@ function ProductionReadinessScreen() {
 
   const refreshHistory = async () => {
     try {
-      const hist = await window.api.getCertificateHistory();
+      const hist = await apiClient.getCertificateHistory();
       setHistory(hist);
     } catch { /* ignore */ }
   };

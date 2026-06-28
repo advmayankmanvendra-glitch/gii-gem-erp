@@ -40,7 +40,7 @@ function StepIndicator({ currentStep, failedStep }) {
   );
 }
 
-function GoLiveWizard() {
+function GoLiveWizard({ apiClient }) {
   const [step, setStep] = useState(0);
   const [failedStep, setFailedStep] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -73,7 +73,7 @@ function GoLiveWizard() {
   const step1CheckPreconditions = async () => {
     setLoading(true);
     try {
-      const result = await window.api.checkGoLivePreconditions();
+      const result = await apiClient.checkGoLivePreconditions();
       setPreconditions(result);
       if (!result.allPassed) {
         handleError("Precondition check failed — see details below", 1);
@@ -99,9 +99,9 @@ function GoLiveWizard() {
   const step3CreateBackup = async () => {
     setLoading(true);
     try {
-      const preview = await window.api.previewGoLive();
+      const preview = await apiClient.previewGoLive();
       setPreviewData(preview);
-      const result = await window.api.executeGoLive("system");
+      const result = await apiClient.executeGoLive("system");
       setBackupInfo(result.backup);
       setBackupValidation(result.backupValidation);
       setResetResult(result.resetResult);
@@ -163,11 +163,11 @@ function GoLiveWizard() {
   const step8VerifyProduction = async () => {
     setLoading(true);
     try {
-      const result = await window.api.verifyGoLive(goLiveEntry?.id);
+      const result = await apiClient.verifyGoLive(goLiveEntry?.id);
       setVerification(result.verification);
       if (!result.verification.overallPassed) {
         handleError("Production verification failed — auto-rollback triggered", 8);
-        const rollback = await window.api.rollbackGoLive(goLiveEntry?.id, "Production verification failed");
+        const rollback = await apiClient.rollbackGoLive(goLiveEntry?.id, "Production verification failed");
         setError(`Rollback ${rollback.rollbackResult.success ? "succeeded" : "failed"}: ${rollback.reason}`);
       } else {
         enterStep(9);
@@ -182,7 +182,7 @@ function GoLiveWizard() {
   const step9GenerateCertificate = async () => {
     setLoading(true);
     try {
-      const result = await window.api.completeGoLive(goLiveEntry?.id, verification);
+      const result = await apiClient.completeGoLive(goLiveEntry?.id, verification);
       setCertificate(result.certificate);
       if (result.success) {
         enterStep(10);
@@ -198,7 +198,7 @@ function GoLiveWizard() {
 
   const step10Finish = async () => {
     try {
-      const hist = await window.api.getGoLiveHistory();
+      const hist = await apiClient.getGoLiveHistory();
       setHistory(hist);
     } catch { /* ignore */ }
   };
