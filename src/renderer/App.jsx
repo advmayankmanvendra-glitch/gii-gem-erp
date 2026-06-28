@@ -50,6 +50,8 @@ import { CRACManagementScreen, CRACEntryScreen, CRACTrackerScreen, PaymentReadin
 import { AccountingReportsIndex, CashFlowSummary, EmployeePerformanceSummary, GstSummary } from "./screens/ReadOnlySummaryReports.jsx";
 import { SettingsScreen } from "./screens/SettingsScreen.jsx";
 import { SafeModeRecoveryScreen } from "./screens/SafeMode/index.js";
+import { ProductionReadinessScreen } from "./modules/deployment/ProductionReadinessScreen.jsx";
+import { GoLiveWizard } from "./modules/deployment/GoLiveWizard.jsx";
 import { RendererErrorBoundary } from "./stability/RendererErrorBoundary.jsx";
 import { runStartupSelfTest } from "./stability/startupSelfTest.js";
 import "./styles/app.css";
@@ -1216,6 +1218,8 @@ function App() {
             ) : (
               <>
             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
+            {effectiveView === "production_readiness" && <ProductionReadinessScreen />}
+            {effectiveView === "go_live_wizard" && <GoLiveWizard />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
             {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}

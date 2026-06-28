@@ -21,6 +21,7 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
   const [diagnostics, setDiagnostics] = useState(null);
   const [checks, setChecks] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [envInfo, setEnvInfo] = useState(null);
 
   const context = useMemo(() => ({
     company_id: companyContext?.company_id,
@@ -34,12 +35,14 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
   const refresh = async () => {
     setLoading(true);
     try {
-      const [diagnosticResult, checkResult] = await Promise.all([
+      const [diagnosticResult, checkResult, envResult] = await Promise.all([
         apiClient.getHealthDiagnostics(context),
-        apiClient.runHealthChecks(context)
+        apiClient.runHealthChecks(context),
+        apiClient.getEnvironmentInfo?.(context) || Promise.resolve(null)
       ]);
       setDiagnostics(diagnosticResult);
       setChecks(checkResult);
+      setEnvInfo(envResult);
     } catch (error) {
       notify?.(error.message || "Health diagnostics could not load", "error");
     } finally {
@@ -79,6 +82,16 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
           <button type="button" className="secondary-btn" onClick={() => setActiveTab("support")}>Support Bundle</button>
         </div>
       </section>
+
+      {envInfo && (
+        <section className="panel health-deployment-bar" style={{ marginBottom: "var(--spacing-md)", padding: "var(--spacing-sm) var(--spacing-md)", display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap", fontSize: "0.85rem" }}>
+          <span><strong>Environment:</strong> <span className={`env-badge ${envInfo.environment === "Production" ? "env-production" : "env-development"}`}>{envInfo.environment}</span></span>
+          <span><strong>Profile:</strong> {envInfo.lastVerificationProfile}</span>
+          <span><strong>Readiness:</strong> <span className={`readiness-badge ${envInfo.productionReadiness === "Production Ready" ? "ready" : "not-ready"}`} style={{ fontSize: "0.75rem" }}>{envInfo.productionReadiness}</span></span>
+          <span><strong>Company:</strong> {envInfo.company?.name || "All Companies"}</span>
+          <span><strong>Last Reset:</strong> {envInfo.lastReset?.at ? new Date(envInfo.lastReset.at).toLocaleString() : "Never"}</span>
+        </section>
+      )}
 
       <div className="health-tab-bar" role="tablist" aria-label="Health Center sections">
         {TABS.map(([key, label]) => (

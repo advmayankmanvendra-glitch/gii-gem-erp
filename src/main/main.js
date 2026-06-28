@@ -94,7 +94,7 @@ import {
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { dbPath } from "./database/connection.js";
-import { previewReset, executeReset } from "./services/operationalResetService.js";
+import { previewReset, executeReset, analyzeDependencies, executeEnhancedReset, rollbackReset } from "./services/operationalResetService.js";
 import { generateCertificate } from "./services/productionReadinessService.js";
 import {
   confirmMasterDataUpdate,
@@ -106,6 +106,11 @@ import {
 } from "./services/masterDataToolsService.js";
 import { createSupportBundle } from "./services/supportBundleService.js";
 import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
+import { PROFILES } from "../../scripts/lib/verificationProfiles.js";
+import { calculateReadinessScore } from "./services/deployment/readinessService.js";
+import { generateGoLiveCertificate, getCertificateHistory } from "./services/deployment/certificationService.js";
+import { checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";
+import { getGoLiveHistory } from "./services/deployment/goLiveHistoryService.js";
 import {
   listCracRecords,
   getCracRecord,
@@ -254,6 +259,26 @@ function safeReadUpdateManifest(manifestPath) {
   } catch (error) {
     return { error: `latest.json could not be read: ${error.message}` };
   }
+}
+
+function environmentConfigPath() {
+  return path.join(runtimeDataRoot, "environment-config.json");
+}
+
+function readEnvironmentConfig() {
+  const configPath = environmentConfigPath();
+  try {
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf8"));
+    }
+  } catch { /* return defaults */ }
+  return { environment: "Development", verificationProfile: "Development" };
+}
+
+function writeEnvironmentConfig(config) {
+  const configPath = environmentConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
 function findLatestUpdateInstaller(updateFolder, manifest) {
@@ -835,10 +860,17 @@ function registerIpc() {
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const counts = dashboardCounts(db, companyId ? { company_id: companyId } : {});
     const backups = listBackups(runtimeDataRoot);
+    const envConfig = readEnvironmentConfig();
     const hasOperationalData = counts.totalOrders > 0 || counts.vouchers > 0 || counts.invoices > 0;
-    const envType = hasOperationalData ? "Development" : "Production";
+    let lastReset = null;
+    try {
+      const resetRow = db.prepare("SELECT created_at, details FROM audit_log WHERE action = 'operational_reset' ORDER BY id DESC LIMIT 1").get();
+      if (resetRow) {
+        lastReset = { at: resetRow.created_at, details: resetRow.details };
+      }
+    } catch { /* table may not exist */ }
     return {
-      environment: envType,
+      environment: envConfig.environment || "Development",
       company: { id: companyId, name: context?.company_name || "" },
       database: {
         path: dbPath(runtimeDataRoot),
@@ -846,7 +878,8 @@ function registerIpc() {
         size: fs.existsSync(dbPath(runtimeDataRoot)) ? fs.statSync(dbPath(runtimeDataRoot)).size : 0
       },
       lastBackup: backups.length > 0 ? backups[0] : null,
-      lastVerificationProfile: "Development",
+      lastReset,
+      lastVerificationProfile: envConfig.verificationProfile || "Development",
       operationalCounts: {
         totalOrders: counts.totalOrders,
         invoices: db.prepare("SELECT COUNT(*) count FROM invoices WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0").get(companyId)?.count || 0,
@@ -862,6 +895,78 @@ function registerIpc() {
     };
   });
 
+  ipcMain.handle("environment:get-profiles", () => {
+    return Object.entries(PROFILES).map(([key, profile]) => ({
+      key,
+      name: profile.name,
+      description: profile.description
+    }));
+  });
+
+  ipcMain.handle("environment:set-profile", (_event, { profile }) => {
+    const config = readEnvironmentConfig();
+    config.verificationProfile = profile;
+    writeEnvironmentConfig(config);
+    return { success: true, verificationProfile: profile };
+  });
+
+  ipcMain.handle("environment:switch-type", (_event, { environment }) => {
+    const config = readEnvironmentConfig();
+    config.environment = environment;
+    writeEnvironmentConfig(config);
+    return { success: true, environment };
+  });
+
+  ipcMain.handle("backup:open-folder", () => {
+    const backupDir = path.join(runtimeDataRoot, "backups");
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    shell.openPath(backupDir);
+    return { success: true, path: backupDir };
+  });
+
+  ipcMain.handle("deployment:readiness", () => {
+    return calculateReadinessScore(db, runtimeDataRoot);
+  });
+
+  ipcMain.handle("deployment:certify", (_event, { userId }) => {
+    return generateGoLiveCertificate(db, runtimeDataRoot, userId);
+  });
+
+  ipcMain.handle("deployment:certificate-history", () => {
+    return getCertificateHistory(runtimeDataRoot);
+  });
+
+  ipcMain.handle("go-live:preconditions", () => {
+    const envConfig = readEnvironmentConfig();
+    return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development");
+  });
+
+  ipcMain.handle("go-live:preview", () => {
+    return previewGoLive(db, runtimeDataRoot);
+  });
+
+  ipcMain.handle("go-live:execute", (_event, { userId }) => {
+    return executeGoLiveReset(db, runtimeDataRoot, userId);
+  });
+
+  ipcMain.handle("go-live:verify", (_event, { goLiveId }) => {
+    return verifyGoLiveProduction(db, runtimeDataRoot, "system", goLiveId);
+  });
+
+  ipcMain.handle("go-live:complete", (_event, { goLiveId, verification }) => {
+    return completeGoLive(db, runtimeDataRoot, "system", goLiveId, verification);
+  });
+
+  ipcMain.handle("go-live:rollback", (_event, { goLiveId, reason }) => {
+    return failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, db, "system");
+  });
+
+  ipcMain.handle("go-live:history", () => {
+    return getGoLiveHistory(runtimeDataRoot);
+  });
+
   ipcMain.handle("certificate:generate", () => {
     return generateCertificate(db, runtimeDataRoot);
   });
@@ -875,6 +980,21 @@ function registerIpc() {
     db.close();
     db = initializeDatabase(runtimeDataRoot);
     return result;
+  });
+
+  ipcMain.handle("reset:analyze-dependencies", () => {
+    return analyzeDependencies(db);
+  });
+
+  ipcMain.handle("reset:execute-enhanced", (_event, { userId }) => {
+    const result = executeEnhancedReset(db, runtimeDataRoot, userId);
+    db.close();
+    db = initializeDatabase(runtimeDataRoot);
+    return result;
+  });
+
+  ipcMain.handle("reset:rollback", (_event, { backup }) => {
+    return rollbackReset(runtimeDataRoot, backup);
   });
 
   ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));

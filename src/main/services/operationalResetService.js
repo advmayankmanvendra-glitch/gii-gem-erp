@@ -1,4 +1,6 @@
-import { createBackup } from "./backup.js";
+import fs from "node:fs";
+import path from "node:path";
+import { createBackup, restoreBackup, listBackups } from "./backup.js";
 import * as init from "../database/init.js";
 
 const PRESERVED_TABLES = new Set([
@@ -49,6 +51,14 @@ const RESET_TABLES = [
   { table: "crac_records", module: "CRAC" }
 ];
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function tableExists(db, name) {
+  return db.prepare("SELECT count(*) cnt FROM sqlite_master WHERE type='table' AND name=?").get(name)?.cnt > 0;
+}
+
 export function previewReset(db) {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
   const counts = [];
@@ -67,6 +77,85 @@ export function previewReset(db) {
     preservedCounts.push({ table, count: Number(row?.count || 0) });
   }
   return { operational: counts, preserved: preservedCounts, totalOperational };
+}
+
+export function analyzeDependencies(db) {
+  const issues = [];
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+  const foreignKeys = [];
+
+  for (const { table } of RESET_TABLES) {
+    if (!tables.has(table)) continue;
+    const fkInfo = db.prepare(`PRAGMA foreign_key_list("${table}")`).all();
+    for (const fk of fkInfo) {
+      foreignKeys.push({ from: table, column: fk.from, to: fk.table, toColumn: fk.to });
+    }
+  }
+
+  for (const { table, module } of RESET_TABLES) {
+    if (!tables.has(table)) continue;
+    const childRefs = foreignKeys.filter(fk => fk.to === table);
+    const parentRefs = foreignKeys.filter(fk => fk.from === table);
+    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
+    const count = Number(row?.count || 0);
+
+    const orphanChecks = parentRefs.map(fk => {
+      if (!tables.has(fk.from)) return null;
+      try {
+        const orphanRow = db.prepare(`SELECT COUNT(*) count FROM "${fk.from}" LEFT JOIN "${fk.to}" ON "${fk.from}"."${fk.column}" = "${fk.to}"."${fk.toColumn}" WHERE "${fk.to}"."${fk.toColumn}" IS NULL AND "${fk.from}"."${fk.column}" IS NOT NULL`).get();
+        return { table: fk.from, column: fk.column, orphanCount: Number(orphanRow?.count || 0) };
+      } catch { return null; }
+    }).filter(Boolean);
+    issues.push({ table, module, rowCount: count, childTables: childRefs.map(fk => fk.from), parentTables: parentRefs.map(fk => fk.to), orphans: orphanChecks });
+  }
+
+  const blocked = issues.filter(i => i.orphans.some(o => o.orphanCount > 0));
+  const warnings = issues.filter(i => !blocked.includes(i) && i.rowCount > 0 && i.orphans.some(o => o.orphanCount > 0));
+  const safe = issues.filter(i => i.rowCount === 0);
+
+  return {
+    safe: safe.map(i => ({ table: i.table, rowCount: i.rowCount, module: i.module })),
+    warnings: warnings.map(i => ({ table: i.table, rowCount: i.rowCount, module: i.module, orphans: i.orphans.filter(o => o.orphanCount > 0) })),
+    blocked: blocked.map(i => ({ table: i.table, rowCount: i.rowCount, module: i.module, orphans: i.orphans.filter(o => o.orphanCount > 0) })),
+    total: { safe: safe.length, warnings: warnings.length, blocked: blocked.length }
+  };
+}
+
+export function rebuildZeroState(db) {
+  const results = { rebuilt: [], warnings: [] };
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+
+  const zeroChecks = [
+    { key: "vouchers", label: "Voucher count", query: "SELECT COUNT(*) count FROM vouchers" },
+    { key: "ledgerEntries", label: "Ledger entries", query: "SELECT COUNT(*) count FROM ledger_entries" },
+    { key: "receivables", label: "Receivables", query: "SELECT COUNT(*) count FROM receivables" },
+    { key: "payables", label: "Payables", query: "SELECT COUNT(*) count FROM supplier_payables" },
+    { key: "stockLedger", label: "Stock ledger", query: "SELECT COUNT(*) count FROM stock_ledger" }
+  ];
+
+  for (const check of zeroChecks) {
+    if (!tables.has(check.key === "vouchers" ? "vouchers" : check.key)) continue;
+    const row = db.prepare(check.query).get();
+    const count = Number(row?.count || 0);
+    if (count > 0) {
+      results.warnings.push(`${check.label}: ${count} rows remain (expected 0)`);
+    } else {
+      results.rebuilt.push(`${check.label}: 0 (clean)`);
+    }
+  }
+
+  const orphanChecks = [
+    { label: "Voucher lines without voucher", query: "SELECT COUNT(*) count FROM voucher_lines WHERE voucher_id NOT IN (SELECT id FROM vouchers)" },
+    { label: "Ledger entries without voucher", query: "SELECT COUNT(*) count FROM ledger_entries WHERE voucher_id NOT IN (SELECT id FROM vouchers)" }
+  ];
+
+  for (const check of orphanChecks) {
+    const row = db.prepare(check.query).get();
+    const count = Number(row?.count || 0);
+    if (count > 0) results.warnings.push(`${check.label}: ${count} orphans`);
+  }
+
+  return results;
 }
 
 export function executeReset(db, runtimeRoot, userId) {
@@ -88,6 +177,32 @@ export function executeReset(db, runtimeRoot, userId) {
 
   deleteTransaction();
 
+  const zeroState = rebuildZeroState(db);
+  const after = previewReset(db);
+
+  return { backup, before, after, zeroState, auditId: null };
+}
+
+export function executeEnhancedReset(db, runtimeRoot, userId) {
+  const backup = createBackup(runtimeRoot);
+  const before = previewReset(db);
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+
+  const deleteTransaction = db.transaction(() => {
+    for (const { table } of RESET_TABLES) {
+      if (!tables.has(table)) continue;
+      const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+      if (cols.includes("is_deleted")) {
+        db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
+      } else {
+        db.prepare(`DELETE FROM "${table}"`).run();
+      }
+    }
+  });
+
+  deleteTransaction();
+
+  const zeroState = rebuildZeroState(db);
   const after = previewReset(db);
   const auditId = init.createRecord(db, "audit_log", {
     action: "operational_reset",
@@ -98,7 +213,9 @@ export function executeReset(db, runtimeRoot, userId) {
       backupFileName: backup.fileName,
       beforeCounts: before,
       afterCounts: after,
-      userId
+      zeroState,
+      userId,
+      resetAt: nowIso()
     }),
     user_id: userId
   });
@@ -107,8 +224,33 @@ export function executeReset(db, runtimeRoot, userId) {
     backup: { fileName: backup.fileName, path: backup.path, size: backup.size, createdAt: backup.createdAt },
     before,
     after,
+    zeroState,
     auditId
   };
+}
+
+export function rollbackReset(runtimeRoot, backupIdentifier) {
+  try {
+    const backups = listBackups(runtimeRoot);
+    let targetBackup = backupIdentifier;
+    if (!targetBackup) {
+      targetBackup = backups[0];
+    } else {
+      const match = backups.find(b => b.includes(backupIdentifier) || backupIdentifier.includes(b));
+      targetBackup = match || backupIdentifier;
+    }
+    if (!targetBackup) {
+      return { success: false, reason: "No backup found to restore from. Reset rollback requires a valid backup." };
+    }
+    const pendingFile = path.join(runtimeRoot, "database", "pending_restore.json");
+    if (fs.existsSync(pendingFile)) {
+      return { success: false, reason: "A pending database restore is already queued. Complete or cancel it before rolling back." };
+    }
+    restoreBackup(targetBackup, runtimeRoot);
+    return { success: true, restoredFrom: targetBackup };
+  } catch (error) {
+    return { success: false, reason: error.message };
+  }
 }
 
 export class OperationalResetError extends Error {
