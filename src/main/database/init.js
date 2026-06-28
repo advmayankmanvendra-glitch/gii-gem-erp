@@ -4569,6 +4569,7 @@ export function dashboardCounts(db, filters = {}) {
     cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params).balance
   };
 }
+console.error("DEBUG dashboardCounts companyId=" + companyId + " companyWhere=" + companyWhere + " cashBankBalance=" + JSON.stringify(db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params)));
 
 function dashboardInventorySummary(db, companyId = 0) {
   const companies = companyId
