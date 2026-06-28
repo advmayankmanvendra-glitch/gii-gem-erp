@@ -35,6 +35,11 @@ import { StockAdjustmentControlPanel, validateStockAdjustmentDraft } from "./fea
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
+import {
+  BillingDrilldown, CollectionsDrilldown, ReceivablesDrilldown,
+  ProfitDrilldown, OrdersDrilldown, TreasuryDrilldown,
+  GstDrilldown, StockDrilldown, TrialBalanceDrilldown, UnpostedDrilldown
+} from "./features/dashboards/drilldowns/index.js";
 import { DocumentsScreen } from "./screens/DocumentsScreen.jsx";
 import { EnvironmentManagerScreen } from "./screens/EnvironmentManager/EnvironmentManagerScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
@@ -1221,6 +1226,16 @@ function App() {
             {effectiveView === "production_readiness" && <ProductionReadinessScreen apiClient={api} />}
             {effectiveView === "go_live_wizard" && <GoLiveWizard apiClient={api} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
+            {effectiveView === "billing_drilldown" && <BillingDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "collections_drilldown" && <CollectionsDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "receivables_drilldown" && <ReceivablesDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "profit_drilldown" && <ProfitDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "orders_drilldown" && <OrdersDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "treasury_drilldown" && <TreasuryDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "gst_drilldown" && <GstDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "stock_drilldown" && <StockDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "trial_balance_drilldown" && <TrialBalanceDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "unposted_drilldown" && <UnpostedDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
             {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}

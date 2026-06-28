@@ -7015,3 +7015,28 @@ tr.keyboard-row-selected {
 .badge-fail { background: #f8d7da; color: #721c24; }
 .form-select { padding: 6px 10px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--color-bg, #fff); color: var(--color-ink); cursor: pointer; }
 .form-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Dashboard Drill-down Views */
+.drilldown-page { padding: 18px 24px; }
+.drilldown-header { margin-bottom: 12px; }
+.drilldown-title { margin: 0 0 16px; font-size: 1.25rem; font-weight: 700; color: var(--color-ink); }
+.drilldown-summary { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.drilldown-summary .metric-card { flex: 1; min-width: 140px; padding: 12px 16px; border: 1px solid var(--color-line); border-radius: 6px; background: #fff; }
+.drilldown-summary .metric-card strong { display: block; font-size: 0.75rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+.drilldown-summary .metric-card span { font-size: 1.1rem; font-weight: 700; color: var(--color-ink); }
+.drilldown-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.85rem; }
+.drilldown-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--color-line); font-weight: 700; color: var(--color-ink); background: var(--color-faint); white-space: nowrap; }
+.drilldown-table td { padding: 6px 10px; border-bottom: 1px solid var(--color-line); color: var(--color-ink); }
+.drilldown-table tr:hover td { background: #f0f7ff; }
+.drilldown-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.drilldown-row-loss { background: #fff5f5; }
+.drilldown-row-loss:hover td { background: #ffe8e8; }
+.drilldown-section-title { margin: 20px 0 8px; font-size: 0.95rem; font-weight: 600; color: var(--color-ink); }
+.drilldown-note { margin: 8px 0; font-size: 0.85rem; color: var(--color-muted); line-height: 1.5; }
+.drilldown-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.drilldown-actions .ghost-btn { font-size: 0.85rem; }
+.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font-size: inherit; padding: 0; }
+.link-btn:hover { color: #0056b3; }
+.empty-state-actions { display: flex; gap: 8px; margin-top: 12px; }
+.highlight-ok { border-left: 4px solid #1a7f37; }
+.highlight-error { border-left: 4px solid #cf222e; }

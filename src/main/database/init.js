@@ -4565,7 +4565,8 @@ export function dashboardCounts(db, filters = {}) {
     cracPending,
     cracGenerated,
     paymentReadyOrders: ordersWithInvoiceAndCrac,
-    readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`)
+    readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`),
+    cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params).balance
   };
 }
 
