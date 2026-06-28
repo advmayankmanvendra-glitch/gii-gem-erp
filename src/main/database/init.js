@@ -4543,6 +4543,8 @@ export function dashboardCounts(db, filters = {}) {
       AND EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = so.id AND i.is_deleted = 0)
       AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id = so.id AND p.is_deleted = 0)
   `).get({}).count;
+  const cashBankResult = db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params);
+  console.error("DEBUG dashboardCounts companyId=" + companyId + " companyWhere=" + companyWhere + " filters=" + JSON.stringify(filters) + " cashBankResult=" + JSON.stringify(cashBankResult));
   return {
     totalOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`),
     activeOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND order_status NOT IN ('Closed', 'Fully Received')`),
@@ -4566,10 +4568,9 @@ export function dashboardCounts(db, filters = {}) {
     cracGenerated,
     paymentReadyOrders: ordersWithInvoiceAndCrac,
     readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`),
-    cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params).balance
+    cashBankBalance: cashBankResult.balance
   };
 }
-console.error("DEBUG dashboardCounts companyId=" + companyId + " companyWhere=" + companyWhere + " cashBankBalance=" + JSON.stringify(db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params)));
 
 function dashboardInventorySummary(db, companyId = 0) {
   const companies = companyId
