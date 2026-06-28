@@ -73,8 +73,7 @@ export function previewReset(db) {
   let totalOperational = 0;
   for (const { table, module } of RESET_TABLES) {
     if (!tables.has(table)) continue;
-    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
-    const count = Number(row?.count || 0);
+    const count = activeCount(db, table);
     if (count > 0) totalOperational += count;
     counts.push({ table, module, count });
   }
@@ -129,22 +128,27 @@ export function analyzeDependencies(db) {
   };
 }
 
+function activeCount(db, table) {
+  const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+  const where = cols.includes("is_deleted") ? " WHERE COALESCE(is_deleted, 0) = 0" : "";
+  return db.prepare(`SELECT COUNT(*) count FROM "${table}"${where}`).get().count;
+}
+
 export function rebuildZeroState(db) {
   const results = { rebuilt: [], warnings: [] };
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
   const zeroChecks = [
-    { key: "vouchers", label: "Voucher count", query: "SELECT COUNT(*) count FROM vouchers" },
-    { key: "ledgerEntries", label: "Ledger entries", query: "SELECT COUNT(*) count FROM ledger_entries" },
-    { key: "receivables", label: "Receivables", query: "SELECT COUNT(*) count FROM receivables" },
-    { key: "payables", label: "Payables", query: "SELECT COUNT(*) count FROM supplier_payables" },
-    { key: "stockLedger", label: "Stock ledger", query: "SELECT COUNT(*) count FROM stock_ledger" }
+    { key: "vouchers", label: "Voucher count", table: "vouchers" },
+    { key: "ledgerEntries", label: "Ledger entries", table: "ledger_entries" },
+    { key: "receivables", label: "Receivables", table: "receivables" },
+    { key: "payables", label: "Payables", table: "supplier_payables" },
+    { key: "stockLedger", label: "Stock ledger", table: "stock_ledger" }
   ];
 
   for (const check of zeroChecks) {
-    if (!tables.has(check.key === "vouchers" ? "vouchers" : check.key)) continue;
-    const row = db.prepare(check.query).get();
-    const count = Number(row?.count || 0);
+    if (!tables.has(check.table)) continue;
+    const count = activeCount(db, check.table);
     if (count > 0) {
       results.warnings.push(`${check.label}: ${count} rows remain (expected 0)`);
     } else {
@@ -152,15 +156,15 @@ export function rebuildZeroState(db) {
     }
   }
 
-  const orphanChecks = [
-    { label: "Voucher lines without voucher", query: "SELECT COUNT(*) count FROM voucher_lines WHERE voucher_id NOT IN (SELECT id FROM vouchers)" },
-    { label: "Ledger entries without voucher", query: "SELECT COUNT(*) count FROM ledger_entries WHERE voucher_id NOT IN (SELECT id FROM vouchers)" }
-  ];
-
-  for (const check of orphanChecks) {
-    const row = db.prepare(check.query).get();
+  const orphanTables = ["voucher_lines", "ledger_entries"];
+  const orphanLabels = { voucher_lines: "Voucher lines without voucher", ledger_entries: "Ledger entries without voucher" };
+  for (const table of orphanTables) {
+    if (!tables.has(table)) continue;
+    const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+    const isDeletedWhere = cols.includes("is_deleted") ? "COALESCE(is_deleted, 0) = 0 AND " : "";
+    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}" WHERE ${isDeletedWhere}voucher_id NOT IN (SELECT id FROM vouchers WHERE COALESCE(is_deleted, 0) = 0)`).get();
     const count = Number(row?.count || 0);
-    if (count > 0) results.warnings.push(`${check.label}: ${count} orphans`);
+    if (count > 0) results.warnings.push(`${orphanLabels[table]}: ${count} orphans`);
   }
 
   return results;
