@@ -12,11 +12,12 @@ export function DashboardProvider({ children, companyContext, apiClient }) {
     window.localStorage?.setItem(DASHBOARD_VIEW_KEY, mode);
   }, []);
 
-  const navigateWithContext = useCallback((setView, target) => {
+  const navigateWithContext = useCallback((setView, target, extraContext = {}) => {
     if (!setView || !target) return;
     const context = {
       company: companyContext,
-      mode: dashboardMode
+      mode: dashboardMode,
+      ...extraContext
     };
     sessionStorage.setItem("gii-gem-dashboard-nav-context", JSON.stringify(context));
     setView(target);

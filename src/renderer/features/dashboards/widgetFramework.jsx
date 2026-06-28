@@ -7,6 +7,16 @@ function formatCardValue(value, format) {
   return String(value ?? 0);
 }
 
+/** Returns a lightweight dashboard integrity label without recalculating report totals. */
+function widgetIntegrity(card, value) {
+  if (card.integrity) return card.integrity;
+  const count = Number(value || 0);
+  if (["pending_procurement", "pending_billing", "pending_documents", "pending_supply", "pending_delivery", "low_stock", "critical_alerts", "unposted_vouchers"].includes(card.id)) {
+    return count > 0 ? "Warning" : "Reconciled";
+  }
+  return "Reconciled";
+}
+
 function ComparisonRow({ comparison }) {
   if (!comparison) return null;
   const arrow = comparison.trend === "up" ? "▲" : comparison.trend === "down" ? "▼" : "→";
@@ -24,6 +34,9 @@ function ComparisonRow({ comparison }) {
 export function WidgetContainer({ card, value, format, dataSource, refreshTime, periodLabel, comparisonLabel, comparisonData, isPinned, onOpen, onTogglePin, onRemove, onResize }) {
   const [size, setSize] = useState("medium");
   const displayValue = formatCardValue(value, format);
+  const drillTarget = card.drilldownTarget || card.target;
+  const reconcileTarget = card.reconcileTarget || drillTarget;
+  const integrity = widgetIntegrity(card, value);
 
   function handleResize() {
     const next = size === "small" ? "medium" : size === "medium" ? "large" : "small";
@@ -47,18 +60,20 @@ export function WidgetContainer({ card, value, format, dataSource, refreshTime, 
         </div>
       </div>
 
-      <button type="button" className="widget-body" onClick={() => onOpen(card.target)} title={`Review ${card.label}`}>
+      <button type="button" className="widget-body" onClick={() => onOpen(drillTarget)} title={`Review ${card.label}`}>
         <strong className="widget-value">{displayValue}</strong>
+        <span className={`widget-integrity widget-integrity-${String(integrity).toLowerCase().replace(/\s+/g, "-")}`}>{integrity}</span>
         {comparisonData && <ComparisonRow comparison={comparisonData} />}
+        {card.nextAction && <small className="widget-next-action">{card.nextAction}</small>}
       </button>
 
       <div className="widget-footer">
-        {dataSource && <span className="widget-meta" title="Data Source">Source: {dataSource}</span>}
+        {dataSource && <span className="widget-meta" title="Source Report">Source Report: {dataSource}</span>}
         {refreshTime && <span className="widget-meta" title="Last Refreshed">As of {refreshTime}</span>}
         <span className="widget-meta" title="Reporting Period">Period: {periodLabel}</span>
         {comparisonLabel && <span className="widget-meta widget-comparison-label" title="Comparison">{comparisonLabel}</span>}
-        {card.target && (
-          <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(card.target)} title="Reconcile with source report">
+        {reconcileTarget && (
+          <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(reconcileTarget)} title="Reconcile with source report">
             Reconcile →
           </button>
         )}
@@ -69,6 +84,9 @@ export function WidgetContainer({ card, value, format, dataSource, refreshTime, 
 
 export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, periodLabel, comparisonLabel, comparisonData, isPinned, onOpen, onTogglePin, onRemove, onResize, items }) {
   const displayValue = formatCardValue(value, format);
+  const drillTarget = card.drilldownTarget || card.target;
+  const reconcileTarget = card.reconcileTarget || drillTarget;
+  const integrity = widgetIntegrity(card, value);
 
   return (
     <div className={`widget-card widget-work-queue${isPinned ? " widget-pinned" : ""}`}>
@@ -89,7 +107,9 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
 
       <div className="widget-body">
         <strong className="widget-value">{displayValue}</strong>
+        <span className={`widget-integrity widget-integrity-${String(integrity).toLowerCase().replace(/\s+/g, "-")}`}>{integrity}</span>
         {comparisonData && <ComparisonRow comparison={comparisonData} />}
+        {card.nextAction && <small className="widget-next-action">{card.nextAction}</small>}
         {items?.length > 0 && (
           <div className="widget-queue">
             {items.slice(0, 5).map((item, i) => (
@@ -104,11 +124,15 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
       </div>
 
       <div className="widget-footer">
-        {dataSource && <span className="widget-meta">Source: {dataSource}</span>}
+        {dataSource && <span className="widget-meta">Source Report: {dataSource}</span>}
         {refreshTime && <span className="widget-meta">As of {refreshTime}</span>}
         <span className="widget-meta">Period: {periodLabel}</span>
         {comparisonLabel && <span className="widget-meta widget-comparison-label">{comparisonLabel}</span>}
-        <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(card.target)}>Reconcile →</button>
+        {reconcileTarget && (
+          <button type="button" className="widget-reconcile-btn" onClick={() => onOpen(reconcileTarget)} title="Reconcile with source report">
+            Reconcile →
+          </button>
+        )}
       </div>
     </div>
   );

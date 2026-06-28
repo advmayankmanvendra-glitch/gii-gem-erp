@@ -3,13 +3,14 @@ import { DASHBOARD_MODE_LABELS, MODE_CARDS, MODE_DEFAULT_VISIBLE } from "../feat
 import { useFinancialYear, usePeriod, useComparison, useDashboardData, resolveCardValue, PERIOD_OPTIONS, COMPARISON_OPTIONS, buildExportContext } from "../features/dashboards/dashboardService.js";
 import { WidgetContainer, WorkQueueWidget, WidgetGrid, WidgetToolbar } from "../features/dashboards/widgetFramework.jsx";
 import { DashboardProvider, useDashboardContext } from "../features/dashboards/dashboardContext.jsx";
+import { TreasuryOverview } from "../features/dashboards/treasuryOverview.jsx";
 import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_WIDGET_ORDER_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
 import { ContextBar, DashboardViewToolbar, DashboardCustomizer, DashboardSetupChecklist } from "../components/dashboard/index.jsx";
 import { safeArray, safeObject } from "../stability/rendererStabilityUtils.js";
 import { readJsonPreference } from "../utils/uiHelpers.js";
 
 function DashboardInner({ notify, setView, companyContext, apiClient }) {
-  const { counts, loading, error, refreshTime, refresh: refreshData } = useDashboardData(apiClient, companyContext);
+  const { counts, loading, error, refreshTime, treasury, refresh: refreshData } = useDashboardData(apiClient, companyContext);
   const { selectedFy, setFinancialYear, fyOptions } = useFinancialYear();
   const { period, setPeriod, range, label: periodLabel, customLabel, setCustomLabel, customFrom, setCustomFrom, customTo, setCustomTo, applyCustomRange, resetCustomRange } = usePeriod(selectedFy.start, selectedFy.end);
   const { comparisonMode, setComparison, comparisonLabel, applyComparison } = useComparison(period, range);
@@ -82,8 +83,19 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
   }, [dashboardMode]);
 
   const handleDrillDown = useCallback((target) => {
-    navigateWithContext(setView, target);
-  }, [navigateWithContext, setView]);
+    const viewTarget = typeof target === "object" ? target.view : target;
+    navigateWithContext(setView, viewTarget, {
+      financialYear: selectedFy,
+      period,
+      periodLabel,
+      range: {
+        start: range?.start?.toISOString?.() || null,
+        end: range?.end?.toISOString?.() || null
+      },
+      comparisonMode,
+      comparisonLabel
+    });
+  }, [comparisonLabel, comparisonMode, navigateWithContext, period, periodLabel, range, selectedFy, setView]);
 
   const handleFyChange = useCallback((fy) => {
     setFinancialYear(fy);
@@ -193,6 +205,10 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
 
       {!loading && !error && (
         <>
+          {["accounts", "management_intelligence"].includes(dashboardMode) && (
+            <TreasuryOverview treasury={treasury} refreshTime={refreshTime} onOpen={handleDrillDown} />
+          )}
+
           <WidgetToolbar
             onAddWidget={addWidget}
             availableCards={hiddenCardsList}

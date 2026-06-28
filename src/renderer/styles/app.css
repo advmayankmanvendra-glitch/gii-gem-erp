@@ -2649,6 +2649,40 @@ svg {
   margin-bottom: 8px;
 }
 
+.widget-integrity,
+.widget-next-action {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.widget-integrity {
+  padding: 2px 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-soft-panel);
+  color: var(--color-muted);
+}
+
+.widget-integrity-reconciled {
+  border-color: var(--color-success-bg);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.widget-integrity-warning,
+.widget-integrity-refresh-required {
+  border-color: var(--color-warning-bg);
+  background: var(--color-warning-bg);
+  color: var(--color-accent);
+}
+
+.widget-next-action {
+  margin-top: var(--spacing-sm);
+  color: var(--color-muted);
+}
+
 /* --- Widget Queue (Work Queue mode) --- */
 .widget-queue {
   display: flex;
@@ -2751,6 +2785,113 @@ svg {
   font-size: 13px;
   background: #fff;
   color: #15384f;
+}
+
+/* --- Treasury Overview --- */
+.treasury-overview {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  box-shadow: var(--shadow);
+  padding: var(--spacing-md);
+}
+
+.treasury-head,
+.treasury-actions,
+.treasury-metrics,
+.treasury-alerts {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.treasury-head {
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+}
+
+.treasury-head h2 {
+  margin: 0;
+  color: var(--color-ink);
+}
+
+.treasury-head p,
+.treasury-empty,
+.treasury-metric span,
+.treasury-bank-table td small {
+  color: var(--color-muted);
+}
+
+.treasury-actions {
+  flex-wrap: wrap;
+}
+
+.treasury-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: var(--spacing-md);
+}
+
+.treasury-metric {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-soft-panel);
+  padding: var(--spacing-md);
+}
+
+.treasury-metric strong {
+  display: block;
+  margin-top: var(--spacing-xs);
+  font-size: 20px;
+  color: var(--color-ink);
+}
+
+.treasury-bank-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+}
+
+.treasury-bank-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.treasury-bank-table th,
+.treasury-bank-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+}
+
+.treasury-bank-table th {
+  background: var(--color-soft-panel);
+  color: var(--color-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.treasury-bank-table td:last-child {
+  white-space: nowrap;
+}
+
+.treasury-bank-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.treasury-alerts {
+  flex-direction: column;
+  margin-top: var(--spacing-md);
+}
+
+.treasury-alert {
+  border: 1px solid var(--color-warning-bg);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+  color: var(--color-accent);
+  padding: var(--spacing-sm) var(--spacing-md);
 }
 
 /* --- Loading / Error states --- */

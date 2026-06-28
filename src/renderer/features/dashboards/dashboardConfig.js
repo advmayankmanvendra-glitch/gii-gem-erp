@@ -9,14 +9,14 @@ export const DASHBOARD_MODE_LABELS = {
 };
 
 const EXECUTIVE_CARDS = [
-  { id: "orders_pending", label: "Orders Pending", icon: "clipboard", target: "supply_orders", dataSource: "Supply Orders Register", valueKey: "activeOrders", format: "number" },
-  { id: "billing_this_month", label: "Billing This Month", icon: "rupee", target: "invoices", dataSource: "Sales Register / Invoice Summary", valueKey: "totalOrderValue", format: "currency" },
-  { id: "collections_this_month", label: "Collections This Month", icon: "card", target: "cash_book", dataSource: "Cash / Bank Receipt Register", valueKey: "amountReceived", format: "currency" },
-  { id: "receivables", label: "Outstanding Receivables", icon: "wallet", target: "bill_wise_receivables", dataSource: "Bill-wise Receivables Report", valueKey: "outstanding", format: "currency" },
-  { id: "payables", label: "Supplier Payables", icon: "truck", target: "payables", dataSource: "Supplier Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency" },
-  { id: "net_profit", label: "Net Profit", icon: "trend", target: "profitability_reports", dataSource: "Profitability Report", valueKey: "totalProfit", format: "currency" },
-  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_summary", dataSource: "Stock Summary Report", valueKey: "totalStockValue", format: "currency" },
-  { id: "critical_alerts", label: "Critical Alerts", icon: "shield", target: "low_stock", dataSource: "Low Stock / Exception Report", valueKey: "lowStockItems", format: "number" },
+  { id: "orders_pending", label: "Orders Pending", icon: "clipboard", target: "supply_orders", dataSource: "Supply Orders Register", valueKey: "activeOrders", format: "number", nextAction: "Review active order ageing and stage." },
+  { id: "billing_this_month", label: "Billing This Month", icon: "rupee", target: "invoices", dataSource: "Sales Register / Invoice Summary", valueKey: "totalOrderValue", format: "currency", nextAction: "Verify invoice list and GST impact." },
+  { id: "collections_this_month", label: "Collections This Month", icon: "card", target: "cash_book", dataSource: "Cash / Bank Receipt Register", valueKey: "amountReceived", format: "currency", nextAction: "Match receipts with cash and bank books." },
+  { id: "receivables", label: "Outstanding Receivables", icon: "wallet", target: "bill_wise_receivables", dataSource: "Bill-wise Receivables Report", valueKey: "outstanding", format: "currency", nextAction: "Review ageing and allocation gaps." },
+  { id: "payables", label: "Supplier Payables", icon: "truck", target: "bill_wise_payables", dataSource: "Supplier Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency", nextAction: "Review supplier bill ageing." },
+  { id: "net_profit", label: "Net Profit", icon: "trend", target: "profitability_reports", dataSource: "Profitability Report", valueKey: "totalProfit", format: "currency", nextAction: "Drill into order-wise profitability." },
+  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_valuation", dataSource: "Stock Valuation Report", valueKey: "totalStockValue", format: "currency", nextAction: "Verify item and warehouse valuation." },
+  { id: "critical_alerts", label: "Critical Alerts", icon: "shield", target: "low_stock", dataSource: "Low Stock / Exception Report", valueKey: "lowStockItems", format: "number", nextAction: "Review stock and exception rows." },
   { id: "companies", label: "Companies", icon: "building", target: "companies", dataSource: "Company Master", valueKey: "companies", format: "number" },
   { id: "suppliers", label: "Suppliers", icon: "truck", target: "suppliers", dataSource: "Supplier Master", valueKey: "suppliers", format: "number" },
   { id: "items", label: "Items", icon: "box", target: "items", dataSource: "Item Master", valueKey: "items", format: "number" }
@@ -24,10 +24,10 @@ const EXECUTIVE_CARDS = [
 
 const OPERATIONS_CARDS = [
   { id: "orders_received", label: "Orders Received", icon: "clipboard", target: "supply_orders", dataSource: "Supply Orders Register", valueKey: "totalOrders", format: "number" },
-  { id: "pending_procurement", label: "Pending Procurement", icon: "cart", target: "pending_procurement", dataSource: "Procurement Queue", valueKey: "pendingProcurement", format: "number" },
-  { id: "pending_supply", label: "Pending Supply", icon: "truck", target: "order_lifecycle", dataSource: "Order Lifecycle Report", valueKey: "pendingSupply", fallbackKey: "activeOrders", format: "number" },
-  { id: "pending_billing", label: "Pending Billing", icon: "receipt", target: "pending_billing", dataSource: "Pending Billing Report", valueKey: "pendingBilling", format: "number" },
-  { id: "pending_documents", label: "Pending Documents", icon: "file", target: "missing_documents", dataSource: "Missing Documents Report", valueKey: "pendingDocuments", format: "number" },
+  { id: "pending_procurement", label: "Pending Procurement", icon: "cart", target: "pending_procurement", dataSource: "Procurement Queue", valueKey: "pendingProcurement", format: "number", nextAction: "Open procurement queue and complete pending order items." },
+  { id: "pending_supply", label: "Pending Supply", icon: "truck", target: "order_lifecycle", dataSource: "Order Lifecycle Report", valueKey: "pendingSupply", fallbackKey: "activeOrders", format: "number", nextAction: "Review lifecycle stage and supply blockers." },
+  { id: "pending_billing", label: "Pending Billing", icon: "receipt", target: "pending_billing", dataSource: "Pending Billing Report", valueKey: "pendingBilling", format: "number", nextAction: "Raise or review pending invoice records." },
+  { id: "pending_documents", label: "Pending Documents", icon: "file", target: "missing_documents", dataSource: "Missing Documents Report", valueKey: "pendingDocuments", format: "number", nextAction: "Upload missing order, invoice or payment evidence." },
   { id: "ready_for_closure", label: "Ready For Closure", icon: "clipboard", target: "operations_dashboard", dataSource: "Operations Dashboard", valueKey: "readyForClosure", format: "number" },
   { id: "low_stock", label: "Low Stock", icon: "shield", target: "low_stock", dataSource: "Low Stock Report", valueKey: "lowStockItems", format: "number" },
   { id: "pending_delivery", label: "Pending Delivery", icon: "truck", target: "delivery_challans", dataSource: "Delivery Challan Register", valueKey: "pendingDeliveries", format: "number" },
@@ -40,9 +40,9 @@ const OPERATIONS_CARDS = [
 ];
 
 const ACCOUNTS_CARDS = [
-  { id: "cash_bank_balance", label: "Cash / Bank Balance", icon: "card", target: "cash_book", dataSource: "Cash Book / Bank Book", valueKey: "cashBankBalance", fallbackKey: "amountReceived", format: "currency" },
+  { id: "cash_bank_balance", label: "Cash / Bank Balance", icon: "card", target: "cash_book", reconcileTarget: "bank_book", dataSource: "Cash Book / Bank Book", valueKey: "cashBankBalance", fallbackKey: "amountReceived", format: "currency", nextAction: "Use Treasury Overview for account-wise balances." },
   { id: "receivables", label: "Receivables", icon: "wallet", target: "bill_wise_receivables", dataSource: "Bill-wise Receivables Report", valueKey: "outstanding", format: "currency" },
-  { id: "payables", label: "Payables", icon: "truck", target: "payables", dataSource: "Supplier Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency" },
+  { id: "payables", label: "Payables", icon: "truck", target: "bill_wise_payables", dataSource: "Supplier Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency", nextAction: "Review bill-wise supplier dues." },
   { id: "unposted_vouchers", label: "Unposted Vouchers", icon: "receipt", target: "posting_control", dataSource: "Posting Control Queue", valueKey: "unpostedVouchers", fallbackKey: "draftVouchers", format: "number" },
   { id: "pending_approvals", label: "Pending Approvals", icon: "shield", target: "approval_queue", dataSource: "Approval Queue", valueKey: "pendingApprovals", format: "number" },
   { id: "gst_position", label: "GST Position", icon: "receipt", target: "gst", dataSource: "GST Summary Report", valueKey: "gstPayable", format: "currency" },
@@ -64,7 +64,7 @@ const BUSINESS_DEVELOPMENT_CARDS = [
 ];
 
 const INVENTORY_PROCUREMENT_CARDS = [
-  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_summary", dataSource: "Stock Summary Report", valueKey: "totalStockValue", format: "currency" },
+  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_valuation", dataSource: "Stock Valuation Report", valueKey: "totalStockValue", format: "currency", nextAction: "Verify valuation by item and warehouse." },
   { id: "low_stock", label: "Low Stock Items", icon: "shield", target: "low_stock", dataSource: "Low Stock Report", valueKey: "lowStockItems", format: "number" },
   { id: "items_in_stock", label: "Items In Stock", icon: "box", target: "stock_summary", dataSource: "Stock Summary Report", valueKey: "itemsInStock", format: "number" },
   { id: "items_issued", label: "Items Issued", icon: "truck", target: "stock_ledger", dataSource: "Stock Ledger", valueKey: "itemsIssued", format: "number" },
@@ -80,9 +80,9 @@ const MANAGEMENT_INTELLIGENCE_CARDS = [
   { id: "collections", label: "Collections", icon: "card", target: "cash_book", dataSource: "Receipt Register", valueKey: "amountReceived", format: "currency" },
   { id: "net_profit", label: "Net Profit", icon: "trend", target: "profitability_reports", dataSource: "Profitability Report", valueKey: "totalProfit", format: "currency" },
   { id: "outstanding", label: "Outstanding Receivables", icon: "wallet", target: "bill_wise_receivables", dataSource: "Receivables Report", valueKey: "outstanding", format: "currency" },
-  { id: "payables", label: "Supplier Payables", icon: "truck", target: "payables", dataSource: "Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency" },
-  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_summary", dataSource: "Stock Summary Report", valueKey: "totalStockValue", format: "currency" },
-  { id: "cash_bank", label: "Cash / Bank Balance", icon: "card", target: "cash_book", dataSource: "Cash Book / Bank Book", valueKey: "cashBankBalance", fallbackKey: "amountReceived", format: "currency" },
+  { id: "payables", label: "Supplier Payables", icon: "truck", target: "bill_wise_payables", dataSource: "Payables Report", valueKey: "supplierPayables", fallbackKey: "payables", format: "currency", nextAction: "Review bill-wise supplier dues." },
+  { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_valuation", dataSource: "Stock Valuation Report", valueKey: "totalStockValue", format: "currency", nextAction: "Verify valuation by item and warehouse." },
+  { id: "cash_bank", label: "Cash / Bank Balance", icon: "card", target: "cash_book", reconcileTarget: "bank_book", dataSource: "Cash Book / Bank Book", valueKey: "cashBankBalance", fallbackKey: "amountReceived", format: "currency", nextAction: "Use Treasury Overview for account-wise balances." },
   { id: "gst_position", label: "GST Position", icon: "receipt", target: "gst", dataSource: "GST Summary Report", valueKey: "gstPayable", format: "currency" },
   { id: "trial_balance", label: "Trial Balance", icon: "clipboard", target: "trial_balance", dataSource: "Trial Balance Report", valueKey: null, staticValue: "Balanced", format: "text" },
   { id: "active_orders", label: "Active Orders", icon: "clipboard", target: "supply_orders", dataSource: "Supply Orders Register", valueKey: "activeOrders", format: "number" },

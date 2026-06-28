@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { readJsonPreference } from "../../utils/uiHelpers.js";
+import { buildTreasuryOverview } from "./treasuryService.js";
 
 const DASHBOARD_PERIOD_KEY = "gii-gem-dashboard-period";
 const DASHBOARD_PERIOD_LABEL_KEY = "gii-gem-dashboard-period-label";
@@ -320,6 +321,7 @@ export function useDashboardData(apiClient, companyContext) {
   const [error, setError] = useState(null);
   const [refreshTime, setRefreshTime] = useState(null);
   const [bankLedgers, setBankLedgers] = useState([]);
+  const [treasury, setTreasury] = useState(null);
   const mountedRef = useRef(true);
 
   const fetchData = useCallback(() => {
@@ -328,12 +330,17 @@ export function useDashboardData(apiClient, companyContext) {
     setError(null);
     Promise.allSettled([
       apiClient.getDashboardCounts(companyContext),
-      apiClient.getBankLedgers ? apiClient.getBankLedgers(companyContext) : Promise.resolve([])
-    ]).then(([countsResult, bankResult]) => {
+      apiClient.getBankLedgers ? apiClient.getBankLedgers(companyContext) : Promise.resolve([]),
+      apiClient.getAccountingData ? apiClient.getAccountingData(companyContext) : Promise.resolve(null)
+    ]).then(([countsResult, bankResult, accountingResult]) => {
       if (!mountedRef.current) return;
-      if (countsResult.status === "fulfilled") setCounts(countsResult.value);
+      const nextCounts = countsResult.status === "fulfilled" ? countsResult.value : null;
+      const nextBanks = bankResult.status === "fulfilled" ? bankResult.value : [];
+      const nextAccounting = accountingResult.status === "fulfilled" ? accountingResult.value : null;
+      if (countsResult.status === "fulfilled") setCounts(nextCounts);
       else setError(countsResult.reason?.message || "Failed to load dashboard data");
-      if (bankResult.status === "fulfilled") setBankLedgers(bankResult.value);
+      setBankLedgers(nextBanks);
+      setTreasury(buildTreasuryOverview(nextCounts, nextAccounting, nextBanks));
       setRefreshTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
       setLoading(false);
     });
@@ -345,7 +352,7 @@ export function useDashboardData(apiClient, companyContext) {
     return () => { mountedRef.current = false; };
   }, [fetchData]);
 
-  return { counts, loading, error, refreshTime, bankLedgers, refresh: fetchData };
+  return { counts, loading, error, refreshTime, bankLedgers, treasury, refresh: fetchData };
 }
 
 export function resolveCardValue(card, counts) {
