@@ -212,11 +212,12 @@ export function executeEnhancedReset(db, runtimeRoot, userId) {
 
   const zeroState = rebuildZeroState(db);
   const after = previewReset(db);
-  const auditId = init.createRecord(db, "audit_log", {
+  init.auditLog(db, {
     action: "operational_reset",
     module: "go_live_preparation",
-    record_id: null,
-    details: JSON.stringify({
+    table_name: "system",
+    user_id: userId,
+    new_value: JSON.stringify({
       backupPath: backup.path,
       backupFileName: backup.fileName,
       beforeCounts: before,
@@ -224,9 +225,9 @@ export function executeEnhancedReset(db, runtimeRoot, userId) {
       zeroState,
       userId,
       resetAt: nowIso()
-    }),
-    user_id: userId
+    })
   });
+  const auditId = db.prepare("SELECT last_insert_rowid() as id").get()?.id || null;
 
   return {
     backup: { fileName: backup.fileName, path: backup.path, size: backup.size, createdAt: backup.createdAt },
