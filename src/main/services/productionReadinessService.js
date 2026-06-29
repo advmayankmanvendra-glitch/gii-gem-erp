@@ -48,8 +48,8 @@ export function generateCertificate(db, runtimeRoot) {
 
   const gstInput = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
     ? db.prepare(`
-      SELECT COALESCE(SUM(CASE WHEN a.account_category='input_gst' THEN vl.debit ELSE 0 END),0) input,
-        COALESCE(SUM(CASE WHEN a.account_category='output_gst' THEN vl.credit ELSE 0 END),0) output
+      SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
+        COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
       FROM voucher_lines vl
       JOIN accounts a ON a.id=vl.account_id
       JOIN vouchers v ON v.id=vl.voucher_id

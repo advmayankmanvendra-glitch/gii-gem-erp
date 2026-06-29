@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
+import { buildTreasuryOverview } from "../treasuryService.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
 
 export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
@@ -22,11 +23,12 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
     });
   }, [apiClient, companyContext]);
 
-  const cashBank = data?.accounting?.cashBank || [];
-  const banks = data?.accounting?.references?.banks || data?.accounting?.references?.banks || [];
-
-  const cashBalance = cashBank.filter((r) => (r.account_type || "").toLowerCase() === "cash").reduce((s, r) => s + Number(r.balance || r.amount || 0), 0);
-  const bankBalance = cashBank.filter((r) => (r.account_type || "").toLowerCase() === "bank").reduce((s, r) => s + Number(r.balance || r.amount || 0), 0);
+  const accounting = data?.accounting || {};
+  const cashBank = accounting.cashBank || [];
+  const treasury = buildTreasuryOverview({}, accounting, data?.bankLedgers || []);
+  const banks = treasury.bankAccounts || [];
+  const cashBalance = treasury.cash.bookCashBalance;
+  const bankBalance = banks.reduce((sum, bank) => sum + Number(bank.bookBalance || 0), 0);
 
   return (
     <DrilldownBase title="Treasury Overview" onNavigate={onNavigate} loading={loading} error={error} empty={!cashBank.length && !banks.length} emptyMessage="No cash or bank accounts configured.">
@@ -50,10 +52,10 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
             <tbody>
               {banks.map((b) => (
                 <tr key={b.id}>
-                  <td>{b.account_name || b.bank_name}</td>
-                  <td>{b.bank_name || "-"}</td>
-                  <td>{b.account_number || "-"}</td>
-                  <td className="num">{formatCurrency(b.opening_balance || 0)}</td>
+                  <td>{b.name || b.account_name || b.bank_name}</td>
+                  <td>{b.bankName || b.bank_name || "-"}</td>
+                  <td>{b.accountNumber || b.account_number || "-"}</td>
+                  <td className="num">{formatCurrency(b.bookBalance || 0)}</td>
                 </tr>
               ))}
             </tbody>

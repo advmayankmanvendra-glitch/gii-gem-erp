@@ -1,7 +1,9 @@
 /** Builds read-only cash and bank visibility from existing accounting rows. */
 export function buildTreasuryOverview(counts, accountingData, bankLedgers = []) {
   const cashBankRows = Array.isArray(accountingData?.cashBank) ? accountingData.cashBank : [];
-  const bankMasters = Array.isArray(accountingData?.banks) ? accountingData.banks : [];
+  const bankMasters = Array.isArray(accountingData?.banks)
+    ? accountingData.banks
+    : (Array.isArray(accountingData?.references?.banks) ? accountingData.references.banks : []);
   const bankRows = Array.isArray(bankLedgers) && bankLedgers.length ? bankLedgers : bankMasters;
   const rowsByBank = new Map();
 
@@ -22,6 +24,7 @@ export function buildTreasuryOverview(counts, accountingData, bankLedgers = []) 
       id: bankId,
       name: bank.bank_account_name || bank.account_name || bank.bank_name || `Bank ${bankId || ""}`.trim(),
       bankName: bank.bank_name || "-",
+      accountNumber: bank.account_number || "-",
       bookBalance,
       availableBalance: bookBalance,
       difference: 0,

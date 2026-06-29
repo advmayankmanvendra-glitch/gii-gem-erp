@@ -12,10 +12,11 @@ const PRESERVED_TABLES = new Set([
 ]);
 
 const RESET_TABLES = [
-  { table: "voucher_lines", module: "Accounting" },
-  { table: "vouchers", module: "Accounting" },
+  // ledger_entries must be deleted before voucher_lines (FK voucher_line_id → voucher_lines.id)
   { table: "ledger_entries", module: "Accounting" },
   { table: "cash_bank_ledger", module: "Accounting" },
+  { table: "voucher_lines", module: "Accounting" },
+  { table: "vouchers", module: "Accounting" },
   { table: "guided_vouchers", module: "Accounting" },
   { table: "invoice_items", module: "Billing" },
   { table: "invoices", module: "Billing" },
@@ -65,6 +66,29 @@ function nowIso() {
 
 function tableExists(db, name) {
   return db.prepare("SELECT count(*) cnt FROM sqlite_master WHERE type='table' AND name=?").get(name)?.cnt > 0;
+}
+
+function formatForeignKeyIssues(issues) {
+  return issues
+    .slice(0, 5)
+    .map((issue) => `${issue.table} row ${issue.rowid} references ${issue.parent}`)
+    .join("; ");
+}
+
+function assertNoForeignKeyIssues(db) {
+  const issues = db.prepare("PRAGMA foreign_key_check").all();
+  if (issues.length > 0) {
+    throw new OperationalResetError(`Reset would leave ${issues.length} foreign key issue(s): ${formatForeignKeyIssues(issues)}`);
+  }
+}
+
+function runWithForeignKeysDisabled(db, callback) {
+  db.exec("PRAGMA foreign_keys = OFF");
+  try {
+    return callback();
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
+  }
 }
 
 export function previewReset(db) {
@@ -139,10 +163,13 @@ export function rebuildZeroState(db) {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
   const zeroChecks = [
+    { key: "voucherLines", label: "Voucher lines", table: "voucher_lines" },
     { key: "vouchers", label: "Voucher count", table: "vouchers" },
     { key: "ledgerEntries", label: "Ledger entries", table: "ledger_entries" },
+    { key: "cashBankEntries", label: "Cash/Bank entries", table: "cash_bank_ledger" },
     { key: "receivables", label: "Receivables", table: "receivables" },
-    { key: "payables", label: "Payables", table: "supplier_payables" },
+    { key: "supplierPayments", label: "Supplier payments", table: "supplier_payments" },
+    { key: "supplierPaymentAllocations", label: "Supplier payment allocations", table: "supplier_payment_allocations" },
     { key: "stockLedger", label: "Stock ledger", table: "stock_ledger" }
   ];
 
@@ -175,23 +202,28 @@ export function executeReset(db, runtimeRoot, userId) {
   const before = previewReset(db);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
-  db.pragma("foreign_keys = OFF");
-
-  const deleteTransaction = db.transaction(() => {
-    for (const { table } of RESET_TABLES) {
-      if (!tables.has(table)) continue;
-      const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
-      if (cols.includes("is_deleted")) {
-        db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
-      } else {
-        db.prepare(`DELETE FROM "${table}"`).run();
+  runWithForeignKeysDisabled(db, () => {
+    const deleteTransaction = db.transaction(() => {
+      for (const { table } of RESET_TABLES) {
+        if (!tables.has(table)) continue;
+        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+        if (cols.includes("is_deleted")) {
+          db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
+        } else {
+          const beforeCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
+          if (beforeCount > 0) {
+            db.prepare(`DELETE FROM "${table}"`).run();
+            const afterCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
+            if (afterCount > 0) {
+              throw new Error(`Reset failed: table "${table}" still has ${afterCount} rows after DELETE`);
+            }
+          }
+        }
       }
-    }
+      assertNoForeignKeyIssues(db);
+    });
+    deleteTransaction();
   });
-
-  deleteTransaction();
-
-  db.pragma("foreign_keys = ON");
 
   const zeroState = rebuildZeroState(db);
   const after = previewReset(db);
@@ -204,23 +236,28 @@ export function executeEnhancedReset(db, runtimeRoot, userId) {
   const before = previewReset(db);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
-  db.pragma("foreign_keys = OFF");
-
-  const deleteTransaction = db.transaction(() => {
-    for (const { table } of RESET_TABLES) {
-      if (!tables.has(table)) continue;
-      const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
-      if (cols.includes("is_deleted")) {
-        db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
-      } else {
-        db.prepare(`DELETE FROM "${table}"`).run();
+  runWithForeignKeysDisabled(db, () => {
+    const deleteTransaction = db.transaction(() => {
+      for (const { table } of RESET_TABLES) {
+        if (!tables.has(table)) continue;
+        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+        if (cols.includes("is_deleted")) {
+          db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
+        } else {
+          const beforeCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
+          if (beforeCount > 0) {
+            db.prepare(`DELETE FROM "${table}"`).run();
+            const afterCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
+            if (afterCount > 0) {
+              throw new Error(`Reset failed: table "${table}" still has ${afterCount} rows after DELETE`);
+            }
+          }
+        }
       }
-    }
+      assertNoForeignKeyIssues(db);
+    });
+    deleteTransaction();
   });
-
-  deleteTransaction();
-
-  db.pragma("foreign_keys = ON");
 
   const zeroState = rebuildZeroState(db);
   const after = previewReset(db);

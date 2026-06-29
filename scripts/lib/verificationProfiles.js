@@ -123,6 +123,10 @@ export function parseProfileArgs() {
   let profile = process.env.VERIFY_PROFILE || "development";
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith("--profile=")) {
+      profile = args[i].slice("--profile=".length);
+      continue;
+    }
     if (args[i] === "--profile" && args[i + 1]) {
       profile = args[i + 1];
       i++;

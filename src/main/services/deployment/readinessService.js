@@ -77,8 +77,8 @@ export function assessInventory(db) {
 export function assessGst(db) {
   const checks = [];
   const gstRows = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
-    ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_category='input_gst' THEN vl.debit ELSE 0 END),0) input,
-      COALESCE(SUM(CASE WHEN a.account_category='output_gst' THEN vl.credit ELSE 0 END),0) output
+    ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
+      COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
       FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE v.is_deleted=0`).get()
     : { input: 0, output: 0 };
   const netGst = Math.round((Number(gstRows.output || 0) - Number(gstRows.input || 0)) * 100) / 100;

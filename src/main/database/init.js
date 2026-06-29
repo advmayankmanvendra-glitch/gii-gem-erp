@@ -818,6 +818,12 @@ function columnExists(db, table, column) {
   return db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
 }
 
+function activeRowClause(db, table, alias = "") {
+  if (!columnExists(db, table, "is_deleted")) return "";
+  const prefix = alias ? `${alias}.` : "";
+  return ` AND COALESCE(${prefix}is_deleted, 0) = 0`;
+}
+
 function addSupplyOrderItemEntryEnhancement(db) {
   [
     ["supply_type", "TEXT NOT NULL DEFAULT 'GeM'"],
@@ -4525,6 +4531,7 @@ export function dashboardCounts(db, filters = {}) {
   const companyId = Number(filters.company_id || 0);
   const activeCompanySubquery = "(SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0)";
   const companyWhere = companyId ? "company_id = @company_id" : `company_id IN ${activeCompanySubquery}`;
+  const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
   const params = companyId ? { company_id: companyId } : {};
   const count = (table, where = "", extraParams = {}) => db.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`).get(where.includes("@company_id") ? { ...params, ...extraParams } : extraParams).count;
   const totalOrderValue = db.prepare(`SELECT COALESCE(SUM(billing_value), 0) AS value FROM invoices WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value;
@@ -4566,7 +4573,7 @@ export function dashboardCounts(db, filters = {}) {
     cracGenerated,
     paymentReadyOrders: ordersWithInvoiceAndCrac,
     readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`),
-    cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}`).get(params).balance
+    cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}${cashBankActiveWhere}`).get(params).balance
   };
 }
 
@@ -5746,7 +5753,8 @@ function expenseLedgerForName(name = "") {
 }
 
 function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, sourceModule, sourceId) {
-  const previous = db.prepare("SELECT running_balance FROM ledger_entries WHERE company_id = ? AND account_id = ? ORDER BY id DESC LIMIT 1").get(companyId, accountIdValue);
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries");
+  const previous = db.prepare(`SELECT running_balance FROM ledger_entries WHERE company_id = ? AND account_id = ?${ledgerActiveWhere} ORDER BY id DESC LIMIT 1`).get(companyId, accountIdValue);
   const account = db.prepare("SELECT normal_balance FROM accounts WHERE id = ?").get(accountIdValue);
   const delta = account?.normal_balance === "Credit" ? credit - debit : debit - credit;
   const running = Number(previous?.running_balance || 0) + delta;
@@ -5757,6 +5765,7 @@ function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue
 }
 
 function updateCashBankLedger(db, { company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit = 0, credit = 0, payment_mode, utr_number, remarks }) {
+  const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
   const existing = db.prepare(`
     SELECT id FROM cash_bank_ledger
     WHERE company_id = ?
@@ -5766,10 +5775,11 @@ function updateCashBankLedger(db, { company_id, bank_account_id, transaction_dat
       AND COALESCE(source_id, 0) = COALESCE(?, 0)
       AND ROUND(COALESCE(debit, 0), 2) = ROUND(?, 2)
       AND ROUND(COALESCE(credit, 0), 2) = ROUND(?, 2)
+      ${cashBankActiveWhere}
     LIMIT 1
   `).get(company_id, bank_account_id || null, voucher_id || null, source_module || "", source_id || null, Number(debit || 0), Number(credit || 0));
   if (existing) return existing.id;
-  const previous = db.prepare("SELECT balance FROM cash_bank_ledger WHERE company_id = ? AND COALESCE(bank_account_id, 0) = COALESCE(?, 0) ORDER BY id DESC LIMIT 1").get(company_id, bank_account_id);
+  const previous = db.prepare(`SELECT balance FROM cash_bank_ledger WHERE company_id = ? AND COALESCE(bank_account_id, 0) = COALESCE(?, 0)${cashBankActiveWhere} ORDER BY id DESC LIMIT 1`).get(company_id, bank_account_id);
   const balance = Number(previous?.balance || 0) + Number(debit || 0) - Number(credit || 0);
   const result = db.prepare(`
     INSERT INTO cash_bank_ledger (company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit, credit, balance, payment_mode, utr_number, remarks)
@@ -5920,7 +5930,8 @@ export function reverseVoucher(db, voucherId, reason = "") {
       `).run(original.source_id);
     }
 
-    const cashRows = db.prepare("SELECT * FROM cash_bank_ledger WHERE voucher_id = ? ORDER BY id").all(original.id);
+    const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
+    const cashRows = db.prepare(`SELECT * FROM cash_bank_ledger WHERE voucher_id = ?${cashBankActiveWhere} ORDER BY id`).all(original.id);
     cashRows.forEach((row) => {
       updateCashBankLedger(db, {
         company_id: row.company_id,
@@ -6125,13 +6136,14 @@ export function drilldownData(db, payload = {}) {
   const voucherId = Number(payload.voucher_id || 0);
   const sourceModule = payload.source_module || null;
   const sourceId = Number(payload.source_id || 0);
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
 
   const ledger = accountIdValue ? db.prepare(`
     SELECT le.*, a.account_name, a.account_code, v.voucher_number, v.voucher_type, v.narration, v.source_module, v.source_id
     FROM ledger_entries le
     JOIN accounts a ON a.id = le.account_id
     JOIN vouchers v ON v.id = le.voucher_id
-    WHERE le.company_id = ? AND le.account_id = ? AND le.entry_date BETWEEN ? AND ? AND v.is_deleted = 0
+    WHERE le.company_id = ? AND le.account_id = ? AND le.entry_date BETWEEN ? AND ? AND v.is_deleted = 0${ledgerActiveWhere}
     ORDER BY le.entry_date, le.id
   `).all(companyId, accountIdValue, dateFrom, dateTo) : [];
 
@@ -7290,13 +7302,14 @@ function warehouseTransferReport(db, companyId, dateFrom, dateTo) {
 }
 
 function cogsReport(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   return db.prepare(`
     SELECT le.entry_date, v.voucher_number, v.source_module, v.source_id, a.account_name,
       le.debit cogs_value, le.credit, v.narration
     FROM ledger_entries le
     JOIN accounts a ON a.id = le.account_id
     JOIN vouchers v ON v.id = le.voucher_id
-    WHERE le.company_id = ? AND le.entry_date BETWEEN ? AND ? AND a.account_name = 'Cost of Goods Sold'
+    WHERE le.company_id = ? AND le.entry_date BETWEEN ? AND ? AND a.account_name = 'Cost of Goods Sold'${ledgerActiveWhere}
     ORDER BY le.entry_date DESC, le.id DESC
   `).all(companyId, dateFrom, dateTo);
 }
@@ -7913,6 +7926,7 @@ export function postDraftVoucherFromProposal(db, proposalId, userId = null) {
   const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
   if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) throw new Error("Draft voucher is not balanced");
   assertOpenFinancialYear(db, voucher.company_id, voucher.voucher_date);
+  const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
   const tx = db.transaction(() => {
     lines.forEach((line) => {
       postLedgerEntry(db, voucher.company_id, voucher.id, line.id, line.account_id, voucher.voucher_date, Number(line.debit || 0), Number(line.credit || 0), "voucher_proposal", proposal.id);
@@ -7937,7 +7951,7 @@ export function postDraftVoucherFromProposal(db, proposalId, userId = null) {
     });
     db.prepare("UPDATE vouchers SET status = 'Posted', approval_status = 'Approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id);
     db.prepare("UPDATE voucher_proposals SET status = 'Posted', posted_voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id, proposal.id);
-    db.prepare("UPDATE bank_statement_entries SET review_status = 'Posted', posted_bank_book_id = (SELECT id FROM cash_bank_ledger WHERE voucher_id = ? ORDER BY id DESC LIMIT 1), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id, proposal.bank_entry_id);
+    db.prepare(`UPDATE bank_statement_entries SET review_status = 'Posted', posted_bank_book_id = (SELECT id FROM cash_bank_ledger WHERE voucher_id = ?${cashBankActiveWhere} ORDER BY id DESC LIMIT 1), updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(voucher.id, proposal.bank_entry_id);
     proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Voucher Posted", created_by: userId, new_value: JSON.stringify({ voucher_id: voucher.id, voucher_number: voucher.voucher_number }) });
     auditLog(db, { company_id: proposal.company_id, user_id: userId, action: "voucher_proposal_posted", table_name: "voucher_proposals", record_id: proposal.id, new_value: JSON.stringify({ voucher_id: voucher.id }) });
   });
@@ -8231,6 +8245,8 @@ export function accountingData(db, filters = {}) {
   const companyId = Number(filters.company_id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0);
   const dateFrom = filters.date_from || "1900-01-01";
   const dateTo = filters.date_to || "2999-12-31";
+  const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   return {
     references: referenceData(db, { company_id: companyId }),
     accounts: db.prepare("SELECT * FROM accounts WHERE company_id = ? AND is_deleted = 0 ORDER BY account_code").all(companyId),
@@ -8249,10 +8265,10 @@ export function accountingData(db, filters = {}) {
       FROM ledger_entries le
       JOIN accounts a ON a.id = le.account_id
       JOIN vouchers v ON v.id = le.voucher_id
-      WHERE le.company_id = ? AND le.entry_date BETWEEN ? AND ?
+      WHERE le.company_id = ? AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
       ORDER BY le.entry_date, le.id
     `).all(companyId, dateFrom, dateTo),
-    cashBank: db.prepare("SELECT * FROM cash_bank_ledger WHERE company_id = ? AND transaction_date BETWEEN ? AND ? ORDER BY transaction_date, id").all(companyId, dateFrom, dateTo),
+    cashBank: db.prepare(`SELECT * FROM cash_bank_ledger WHERE company_id = ? AND transaction_date BETWEEN ? AND ?${cashBankActiveWhere} ORDER BY transaction_date, id`).all(companyId, dateFrom, dateTo),
     receivables: db.prepare("SELECT * FROM receivables WHERE company_id = ? AND is_deleted = 0 ORDER BY invoice_date DESC").all(companyId),
     payables: supplierPayableReport(db, companyId),
     auditLog: db.prepare("SELECT * FROM audit_log WHERE COALESCE(company_id, ?) = ? ORDER BY id DESC LIMIT 300").all(companyId, companyId),
@@ -8938,6 +8954,7 @@ function approvalQueueReport(db, companyId) {
 }
 
 function gstRegisters(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   const registerRows = (accountName, direction) => db.prepare(`
     SELECT le.entry_date date,
       COALESCE(i.invoice_number, p.purchase_invoice_number, v.voucher_number) reference,
@@ -8973,6 +8990,7 @@ function gstRegisters(db, companyId, dateFrom, dateTo) {
       AND a.account_name = @accountName
       AND v.is_deleted = 0
       AND le.entry_date BETWEEN @dateFrom AND @dateTo
+      ${ledgerActiveWhere}
     ORDER BY le.entry_date DESC, le.id DESC
   `).all({ companyId, accountName, dateFrom, dateTo, direction });
   const output = registerRows("Output GST", "output");
@@ -9059,6 +9077,7 @@ function carryForwardReport(db, companyId) {
 }
 
 function trialBalance(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   return db.prepare(`
     SELECT a.id, a.account_code, a.account_name, a.account_type,
       COALESCE(SUM(le.debit), 0) + CASE WHEN a.normal_balance = 'Debit' THEN a.opening_balance ELSE 0 END debit,
@@ -9068,7 +9087,7 @@ function trialBalance(db, companyId, dateFrom, dateTo) {
         ELSE COALESCE(SUM(le.debit - le.credit), 0) + a.opening_balance
       END balance
     FROM accounts a
-    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?
+    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
     WHERE a.company_id = ? AND a.is_deleted = 0
     GROUP BY a.id
     ORDER BY a.account_code
@@ -9076,12 +9095,13 @@ function trialBalance(db, companyId, dateFrom, dateTo) {
 }
 
 function profitLossReport(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   const rows = db.prepare(`
     SELECT a.id, a.account_code, a.account_name, a.account_type,
       COALESCE(SUM(le.debit), 0) debit,
       COALESCE(SUM(le.credit), 0) credit
     FROM accounts a
-    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?
+    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
     WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Income','Expense')
     GROUP BY a.id
     ORDER BY a.account_type, a.account_code
@@ -9095,13 +9115,14 @@ function profitLossReport(db, companyId, dateFrom, dateTo) {
 }
 
 function balanceSheetReport(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   const rows = db.prepare(`
     SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
       COALESCE(SUM(le.debit), 0) debit,
       COALESCE(SUM(le.credit), 0) credit,
       a.opening_balance
     FROM accounts a
-    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date <= ?
+    LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date <= ?${ledgerActiveWhere}
     WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Asset','Liability','Equity')
     GROUP BY a.id
     ORDER BY a.account_type, a.account_code
@@ -9138,19 +9159,20 @@ function financialStatementSummary(db, companyId, dateFrom, dateTo) {
 
 
 function gstSummary(db, companyId, dateFrom, dateTo) {
+  const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
   const input = db.prepare(`
     SELECT COALESCE(SUM(le.debit - le.credit), 0) value
     FROM ledger_entries le
     JOIN accounts a ON a.id = le.account_id
     JOIN vouchers v ON v.id = le.voucher_id
-    WHERE le.company_id = ? AND a.account_name = 'Input GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?
+    WHERE le.company_id = ? AND a.account_name = 'Input GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
   `).get(companyId, dateFrom, dateTo).value;
   const output = db.prepare(`
     SELECT COALESCE(SUM(le.credit - le.debit), 0) value
     FROM ledger_entries le
     JOIN accounts a ON a.id = le.account_id
     JOIN vouchers v ON v.id = le.voucher_id
-    WHERE le.company_id = ? AND a.account_name = 'Output GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?
+    WHERE le.company_id = ? AND a.account_name = 'Output GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
   `).get(companyId, dateFrom, dateTo).value;
   return { inputGst: input, outputGst: output, netGstPayable: output - input, gstImpactOnProfitability: output - input };
 }
