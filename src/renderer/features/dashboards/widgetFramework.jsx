@@ -105,7 +105,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
         </div>
       </div>
 
-      <div className="widget-body">
+      <button type="button" className="widget-body" onClick={() => onOpen(drillTarget)} title={`Review ${card.label}`}>
         <strong className="widget-value">{displayValue}</strong>
         <span className={`widget-integrity widget-integrity-${String(integrity).toLowerCase().replace(/\s+/g, "-")}`}>{integrity}</span>
         {comparisonData && <ComparisonRow comparison={comparisonData} />}
@@ -121,7 +121,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
             {items.length > 5 && <span className="widget-queue-more">+{items.length - 5} more</span>}
           </div>
         )}
-      </div>
+      </button>
 
       <div className="widget-footer">
         {dataSource && <span className="widget-meta">Source Report: {dataSource}</span>}
@@ -145,6 +145,7 @@ export function WidgetGrid({ children }) {
 export function WidgetToolbar({ onAddWidget, availableCards, mode }) {
   const [adding, setAdding] = useState(false);
   const [selectedCard, setSelectedCard] = useState("");
+  const hasAvailableCards = availableCards && availableCards.filter((c) => !c.hidden).length > 0;
 
   function handleAdd() {
     if (selectedCard && onAddWidget) {
@@ -169,8 +170,10 @@ export function WidgetToolbar({ onAddWidget, availableCards, mode }) {
               <button type="button" className="ghost-btn" onClick={handleAdd} disabled={!selectedCard}>Add</button>
               <button type="button" className="ghost-btn" onClick={() => setAdding(false)}>Cancel</button>
             </>
-          ) : (
+          ) : hasAvailableCards ? (
             <button type="button" className="ghost-btn" onClick={() => setAdding(true)}>+ Add Widget</button>
+          ) : (
+            <span className="muted" style={{ fontSize: "0.75rem" }}>No additional widgets available for this dashboard view.</span>
           )}
         </div>
       )}

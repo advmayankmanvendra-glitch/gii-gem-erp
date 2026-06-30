@@ -419,7 +419,11 @@ function App() {
     setView(nextView);
     setRecentScreens((current) => [nextView, ...current.filter((item) => item !== nextView)].slice(0, 2));
     const groupId = flatNavItems.find((item) => item.key === nextView)?.groupId || "dashboard";
-    setExpandedGroups(groupId === "dashboard" ? {} : { [groupId]: true });
+    setExpandedGroups((current) => {
+      if (groupId === "dashboard") return {};
+      const existingSections = Object.fromEntries(Object.entries(current).filter(([k]) => k === groupId || k.startsWith(`${groupId}:`)));
+      return { ...existingSections, [groupId]: true };
+    });
     setMobileSidebarOpen(false);
     setTimeout(() => {
       if (!scrollToNavigationTarget(nextView, context)) resetWorkspaceScroll();
@@ -431,7 +435,11 @@ function App() {
     setNavigationHistory((current) => current.filter((item) => item !== previous));
     setView(previous);
     const groupId = flatNavItems.find((item) => item.key === previous)?.groupId || "dashboard";
-    setExpandedGroups(groupId === "dashboard" ? {} : { [groupId]: true });
+    setExpandedGroups((current) => {
+      if (groupId === "dashboard") return {};
+      const existingSections = Object.fromEntries(Object.entries(current).filter(([k]) => k === groupId || k.startsWith(`${groupId}:`)));
+      return { ...existingSections, [groupId]: true };
+    });
     setRecentScreens((current) => [previous, ...current.filter((item) => item !== previous)].slice(0, 2));
     setMobileSidebarOpen(false);
     setTimeout(resetWorkspaceScroll, 50);
@@ -588,23 +596,19 @@ function App() {
         return;
       }
       lastExitEscRef.current = now;
-      setConfirmDialog(hasUnsavedChanges ? {
-        mode: "danger",
-        title: "Unsaved changes",
-        message: "You have unsaved changes. Do you want to exit without saving? Press Esc again to exit directly.",
-        confirmLabel: "Yes, Exit",
-        cancelLabel: "No, Stay",
-        onConfirm: exitCurrentScreen,
-        moduleName: view
-      } : {
-        mode: "normal",
-        title: "Exit screen",
-        message: "Do you want to exit this screen and return to the previous screen? Press Esc again to exit directly.",
-        confirmLabel: "Yes",
-        cancelLabel: "No",
-        onConfirm: exitCurrentScreen,
-        moduleName: view
-      });
+      if (hasUnsavedChanges) {
+        setConfirmDialog({
+          mode: "danger",
+          title: "Unsaved changes",
+          message: "You have unsaved changes. Do you want to exit without saving? Press Esc again to exit directly.",
+          confirmLabel: "Yes, Exit",
+          cancelLabel: "No, Stay",
+          onConfirm: exitCurrentScreen,
+          moduleName: view
+        });
+      } else {
+        notify("Press Esc again to go back", "info");
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -9129,6 +9133,7 @@ function InventoryReportScreen({ view, notify, companyContext, onNavigate }) {
   const today = new Date().toISOString().slice(0, 10);
   const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: "2026-01-01", date_to: today, low_stock_mode: "stocked" });
   const [data, setData] = useState(null);
+  const [drilldown, setDrilldown] = useState(null);
 
   async function load() {
     try {
@@ -9147,6 +9152,28 @@ function InventoryReportScreen({ view, notify, companyContext, onNavigate }) {
     }
     load();
   }, [filters.company_id, filters.date_from, filters.date_to, filters.low_stock_mode, companyContext?.company_id, companyContext?.company_scope]);
+
+  async function openInventoryDrilldown(row, mode = "account") {
+    try {
+      const payload = {
+        company_id: filters.company_id,
+        date_from: filters.date_from,
+        date_to: filters.date_to
+      };
+      if (mode === "account") payload.account_id = row.id;
+      if (mode === "voucher") payload.voucher_id = row.voucher_id || row.id;
+      if (mode === "source") {
+        payload.source_module = row.source_module;
+        payload.source_id = row.source_id;
+      }
+      const result = await api.getDrilldownData(payload);
+      setDrilldown({ mode, title: row.account_name || row.voucher_number || row.reference || "Drilldown", ...result });
+      notify("Drilldown opened");
+      scrollToSection(".voucher-detail-panel", false);
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
 
   const config = inventoryTableConfig(view, data || {});
   const rows = config.rows || [];
@@ -9176,24 +9203,27 @@ function InventoryReportScreen({ view, notify, companyContext, onNavigate }) {
     );
   }
   return (
-    <InventoryReadOnlyReportPanel
-      view={view}
-      config={config}
-      rows={rows}
-      filters={filters}
-      setFilters={setFilters}
-      companies={data?.companies || []}
-      formatValue={formatCell}
-      onExport={() => exportRows(config.title, rows)}
-      onPrint={requestPrintPreview}
-      onDrillVoucher={(row) => openDrilldown(row, "voucher")}
-      onDrillSource={(row) => openDrilldown(row, "source")}
-      onDrillAccount={(row) => openDrilldown(row, "account")}
-      onNavigate={onNavigate}
-    >
-      {view === "delivery_challans" && <DeliveryChallanQuickForm data={data || {}} notify={notify} onSaved={load} />}
-      {view === "warehouse_transfers" && <WarehouseTransferQuickForm data={data || {}} notify={notify} onSaved={load} />}
-    </InventoryReadOnlyReportPanel>
+    <>
+      <InventoryReadOnlyReportPanel
+        view={view}
+        config={config}
+        rows={rows}
+        filters={filters}
+        setFilters={setFilters}
+        companies={data?.companies || []}
+        formatValue={formatCell}
+        onExport={() => exportRows(config.title, rows)}
+        onPrint={requestPrintPreview}
+        onDrillVoucher={(row) => openInventoryDrilldown(row, "voucher")}
+        onDrillSource={(row) => openInventoryDrilldown(row, "source")}
+        onDrillAccount={(row) => openInventoryDrilldown(row, "account")}
+        onNavigate={onNavigate}
+      >
+        {view === "delivery_challans" && <DeliveryChallanQuickForm data={data || {}} notify={notify} onSaved={load} />}
+        {view === "warehouse_transfers" && <WarehouseTransferQuickForm data={data || {}} notify={notify} onSaved={load} />}
+      </InventoryReadOnlyReportPanel>
+      {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} notify={notify} />}
+    </>
   );
 }
 

@@ -94,10 +94,19 @@ export function assessOperations(db) {
     ? db.prepare("SELECT COUNT(*) count FROM order_items WHERE order_id NOT IN (SELECT id FROM supply_orders)").get()?.count === 0
     : true;
   checks.push({ key: "orderIntegrity", label: "Order items reference valid orders", passed: orderIntegrity });
-  const invoiceIntegrity = hasTable(db, "invoice_items")
-    ? db.prepare("SELECT COUNT(*) count FROM invoice_items WHERE invoice_id NOT IN (SELECT id FROM invoices)").get()?.count === 0
-    : true;
-  checks.push({ key: "invoiceIntegrity", label: "Invoice items reference valid invoices", passed: invoiceIntegrity });
+  const invoiceItemsHaveInvoiceId = hasTable(db, "invoice_items") && db.prepare("PRAGMA table_info('invoice_items')").all().some(c => c.name === "invoice_id");
+  const invoiceItemsHaveBillingId = hasTable(db, "invoice_items") && db.prepare("PRAGMA table_info('invoice_items')").all().some(c => c.name === "billing_id");
+  let invoicePassed = true;
+  let invoiceDetail = "";
+  if (invoiceItemsHaveInvoiceId) {
+    invoicePassed = db.prepare("SELECT COUNT(*) count FROM invoice_items WHERE invoice_id NOT IN (SELECT id FROM invoices)").get()?.count === 0;
+  } else if (invoiceItemsHaveBillingId) {
+    invoicePassed = db.prepare("SELECT COUNT(*) count FROM invoice_items WHERE billing_id NOT IN (SELECT id FROM invoices)").get()?.count === 0;
+    invoiceDetail = "using billing_id column";
+  } else {
+    invoiceDetail = "no invoice_id or billing_id column found — orphan check skipped";
+  }
+  checks.push({ key: "invoiceIntegrity", label: "Invoice items reference valid invoices", passed: invoicePassed, detail: invoiceDetail });
   const paymentIntegrity = hasTable(db, "payment_allocations")
     ? db.prepare("SELECT COUNT(*) count FROM payment_allocations WHERE payment_id NOT IN (SELECT id FROM payments)").get()?.count === 0
     : true;

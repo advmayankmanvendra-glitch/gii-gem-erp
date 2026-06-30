@@ -1421,6 +1421,7 @@ function addBusinessVoucherInventoryTables(db) {
     ["remarks", "TEXT"],
     ["voucher_id", "INTEGER"]
   ].forEach(([column, definition]) => addColumnIfMissing(db, "stock_ledger", column, definition));
+  addColumnIfMissing(db, "stock_ledger", "is_deleted", "INTEGER NOT NULL DEFAULT 0");
 
   ["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].forEach((table) => {
     addColumnIfMissing(db, table, "voucher_id", "INTEGER");
@@ -4567,7 +4568,7 @@ export function dashboardCounts(db, filters = {}) {
     totalStockValue: inventorySummary.totalStockValue,
     lowStockItems: inventorySummary.lowStockItems,
     itemsInStock: inventorySummary.itemsInStock,
-    itemsIssued: db.prepare(`SELECT COALESCE(SUM(outward_quantity), 0) AS value FROM stock_ledger WHERE ${companyWhere} AND transaction_type IN ('Outward','Supplier Return','Adjustment Decrease')`).get(params).value,
+    itemsIssued: db.prepare(`SELECT COALESCE(SUM(outward_quantity), 0) AS value FROM stock_ledger WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND transaction_type IN ('Outward','Supplier Return','Adjustment Decrease')`).get(params).value,
     returnedItems: db.prepare(`SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_returns WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value,
     cracPending,
     cracGenerated,
@@ -4915,7 +4916,7 @@ export function calculateProfitability(db, order) {
   const issuedStockCost = Number(db.prepare(`
     SELECT COALESCE(SUM(value), 0) total
     FROM stock_ledger
-    WHERE order_id = ? AND transaction_type = 'Outward'
+    WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_type = 'Outward'
   `).get(order.id)?.total || 0);
   const inventoryCostBasis = issuedStockCost > 0 ? issuedStockCost : purchaseValue;
   const supplierPaid = procurements.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
@@ -6183,7 +6184,17 @@ function sourceTransactionDetail(db, sourceModule, sourceId) {
     expense: ["expense_entries", "id"],
     manual_voucher: ["vouchers", "id"],
     opening_balance: ["opening_balances", "voucher_id"],
-    voucher_reversal: ["vouchers", "id"]
+    voucher_reversal: ["vouchers", "id"],
+    stock_inwards: ["stock_inwards", "id"],
+    stock_outwards: ["stock_outwards", "id"],
+    stock_adjustments: ["stock_adjustments", "id"],
+    stock_returns: ["stock_returns", "id"],
+    warehouse_transfers: ["warehouse_transfers", "id"],
+    guided_vouchers: ["guided_vouchers", "id"],
+    delivery_challan: ["delivery_challans", "id"],
+    goods_receipt: ["goods_receipts", "id"],
+    procurement_items: ["procurement_items", "id"],
+    invoice_items: ["invoice_items", "id"]
   };
   const map = sourceMap[moduleName];
   if (!map) return { source_module: moduleName, source_id: sourceId, message: "Source viewer not configured for this module" };
@@ -6842,7 +6853,7 @@ function stockBalance(db, companyId, itemId, warehouseId) {
     SELECT COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
       COALESCE(SUM(CASE WHEN transaction_type IN ('Inward','Adjustment Increase','Department Return') THEN value ELSE -value END), 0) value
     FROM stock_ledger
-    WHERE company_id = ? AND item_id = ? AND warehouse_id = ?
+    WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
   `).get(companyId, itemId, warehouseId);
   const quantity = openingQuantity + Number(movement?.quantity || 0);
   const value = openingValue + Number(movement?.value || 0);
@@ -7200,7 +7211,7 @@ function inventoryDashboard(db, companyId) {
   const today = new Date().toISOString().slice(0, 10);
   const pendingGrns = db.prepare("SELECT COUNT(*) count FROM goods_receipts WHERE company_id = ? AND status != 'Posted' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
   const pendingDeliveries = db.prepare("SELECT COUNT(*) count FROM delivery_challans WHERE company_id = ? AND status != 'Confirmed' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
-  const stockIssuedToday = db.prepare("SELECT COALESCE(SUM(outward_quantity), 0) qty FROM stock_ledger WHERE company_id = ? AND transaction_date = ? AND transaction_type = 'Outward'").get(companyId, today).qty;
+  const stockIssuedToday = db.prepare("SELECT COALESCE(SUM(outward_quantity), 0) qty FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_date = ? AND transaction_type = 'Outward'").get(companyId, today).qty;
   const transfersToday = db.prepare("SELECT COUNT(*) count FROM warehouse_transfers WHERE company_id = ? AND transfer_date = ? AND COALESCE(is_deleted, 0) = 0").get(companyId, today).count;
   return [
     { id: "stock_value", metric: "Total Stock Value", value: totalStockValue, note: "Weighted average", type: "money" },
@@ -7346,7 +7357,7 @@ function inventoryStockSummary(db, companyId) {
         SUM(CASE WHEN transaction_type IN ('Inward','Adjustment Increase','Department Return') THEN value ELSE -value END) net_value,
         COUNT(*) movement_count
       FROM stock_ledger
-      WHERE company_id = @company_id
+      WHERE company_id = @company_id AND COALESCE(is_deleted, 0) = 0
       GROUP BY item_id, warehouse_id
     ),
     item_warehouses AS (
@@ -7404,7 +7415,7 @@ function inventoryStockLedger(db, companyId, dateFrom, dateTo) {
     LEFT JOIN supply_orders so ON so.id = sl.order_id
     LEFT JOIN suppliers s ON s.id = sl.supplier_id
     LEFT JOIN government_departments gd ON gd.id = sl.department_id
-    WHERE sl.company_id = ? AND sl.transaction_date BETWEEN ? AND ?
+    WHERE sl.company_id = ? AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_date BETWEEN ? AND ?
     ORDER BY sl.transaction_date, sl.id
   `).all(companyId, dateFrom, dateTo);
 }
@@ -7416,7 +7427,7 @@ function inventoryStockMovement(db, companyId, dateFrom, dateTo) {
     FROM stock_ledger sl
     JOIN items it ON it.id = sl.item_id
     JOIN warehouses w ON w.id = sl.warehouse_id
-    WHERE sl.company_id = ? AND sl.transaction_date BETWEEN ? AND ?
+    WHERE sl.company_id = ? AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_date BETWEEN ? AND ?
     GROUP BY it.item_name, w.warehouse_name, sl.transaction_type
     ORDER BY it.item_name, sl.transaction_type
   `).all(companyId, dateFrom, dateTo);
@@ -7463,7 +7474,7 @@ function inventoryNeverStockedLowStockRows(db, companyId) {
       AND NOT EXISTS (
         SELECT 1
         FROM stock_ledger sl
-        WHERE sl.company_id = ? AND sl.item_id = it.id
+        WHERE sl.company_id = ? AND sl.item_id = it.id AND COALESCE(sl.is_deleted, 0) = 0
       )
     ORDER BY it.item_name
   `).all(companyId);
@@ -7479,8 +7490,8 @@ function inventoryItemProfitabilityReport(db, companyId) {
   return db.prepare(`
     SELECT it.item_name, so.order_number,
       SUM(ii.taxable_value) billing_value,
-      COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND sl.transaction_type = 'Outward'), 0) issued_stock_cost,
-      SUM(ii.taxable_value) - COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND sl.transaction_type = 'Outward'), 0) gross_margin
+      COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) issued_stock_cost,
+      SUM(ii.taxable_value) - COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) gross_margin
     FROM invoice_items ii
     JOIN items it ON it.id = ii.item_id
     LEFT JOIN supply_orders so ON so.id = ii.order_id
@@ -9007,6 +9018,9 @@ function tdsRegisters(db, companyId, dateFrom, dateTo) {
     JOIN supply_orders so ON so.id = i.order_id
     LEFT JOIN government_departments gd ON gd.id = so.department_id
     WHERE pa.company_id = ? AND pa.created_at BETWEEN ? AND ?
+      AND COALESCE(pa.is_deleted, 0) = 0
+      AND COALESCE(i.is_deleted, 0) = 0
+      AND COALESCE(so.is_deleted, 0) = 0
     ORDER BY pa.created_at DESC
   `).all(companyId, `${dateFrom} 00:00:00`, `${dateTo} 23:59:59`);
 }

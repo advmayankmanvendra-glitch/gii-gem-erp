@@ -1,0 +1,657 @@
+{
+  "meta": {
+    "version": "1.0",
+    "name": "GII GeM ERP Business Rules Repository",
+    "description": "Core business rules for Government e-Marketplace ERP system governing procurement, inventory, billing, payments, GST, banking, accounting, and compliance",
+    "lastUpdated": "2026-06-30",
+    "totalRules": 40,
+    "categories": [
+      "Procurement",
+      "Inventory",
+      "Billing & Invoicing",
+      "Payments & Receivables",
+      "GST & Taxation",
+      "Banking & Reconciliation",
+      "Accounting & Vouchers",
+      "Reporting",
+      "System & Administration"
+    ]
+  },
+  "rules": [
+    {
+      "id": "BR-001",
+      "name": "Invoice Requires Completed Delivery",
+      "description": "Invoice cannot be raised without delivered quantities",
+      "condition": "Invoice quantities must reference delivery challan or goods receipt note with status = 'Delivered'",
+      "exceptions": [
+        "Advance payment invoices raised before delivery with CFO approval"
+      ],
+      "modules": ["Billing", "Procurement", "Inventory"],
+      "reports": ["RPT-BILL-001", "RPT-DLV-003"],
+      "relatedRules": ["BR-009", "BR-011", "BR-040"],
+      "workflowImpact": "Blocks invoice creation until delivery is confirmed in the system",
+      "priority": "Critical",
+      "category": "Billing & Invoicing"
+    },
+    {
+      "id": "BR-002",
+      "name": "Order Requires Employee Assignment",
+      "description": "Every supply order must have an assigned employee",
+      "condition": "Supply order header.employeeId must be non-null and reference an active employee record",
+      "exceptions": [
+        "System-generated auto-orders for indented stock transfers"
+      ],
+      "modules": ["Procurement", "HRMS Integration"],
+      "reports": ["RPT-PRO-002", "RPT-ORD-005"],
+      "relatedRules": ["BR-003", "BR-004"],
+      "workflowImpact": "Prevents order submission without responsible employee assignment",
+      "priority": "High",
+      "category": "Procurement"
+    },
+    {
+      "id": "BR-003",
+      "name": "Order Items Required",
+      "description": "Supply order must have at least one item before procurement-pending",
+      "condition": "Count of supplyOrder.lineItems >= 1 before status transitions to 'Procurement Pending'",
+      "exceptions": [],
+      "modules": ["Procurement", "Order Management"],
+      "reports": ["RPT-PRO-001", "RPT-ORD-003"],
+      "relatedRules": ["BR-002", "BR-004", "BR-005"],
+      "workflowImpact": "Order cannot proceed to procurement stage without line items",
+      "priority": "Critical",
+      "category": "Procurement"
+    },
+    {
+      "id": "BR-004",
+      "name": "Procurement Requires Linked Order",
+      "description": "Every procurement must reference a valid supply order",
+      "condition": "procurement.orderId must reference an existing supplyOrder with status != 'Cancelled'",
+      "exceptions": [
+        "Direct procurement for emergency purchases with management approval"
+      ],
+      "modules": ["Procurement", "Purchase Management"],
+      "reports": ["RPT-PRO-001", "RPT-PRO-004"],
+      "relatedRules": ["BR-002", "BR-003", "BR-005"],
+      "workflowImpact": "Procurement creation blocked unless linked to a valid supply order",
+      "priority": "Critical",
+      "category": "Procurement"
+    },
+    {
+      "id": "BR-005",
+      "name": "Procurement Quantity Limit",
+      "description": "Procurement quantity cannot exceed order requirement unless authorized",
+      "condition": "SUM(procurement.lineItems.quantity) <= supplyOrder.lineItems.quantity for each item, OR authorized by officer rank >= Deputy Secretary",
+      "exceptions": [
+        "Rate contract procurements with blanket order authorization",
+        "Emergency procurements with post-facto approval"
+      ],
+      "modules": ["Procurement", "Inventory"],
+      "reports": ["RPT-PRO-001", "RPT-ORD-006"],
+      "relatedRules": ["BR-003", "BR-004", "BR-006"],
+      "workflowImpact": "Excess quantity requires authorization workflow with higher officer approval",
+      "priority": "High",
+      "category": "Procurement"
+    },
+    {
+      "id": "BR-006",
+      "name": "Stock Outward Requires Reservation",
+      "description": "Stock issue requires existing reservation or authorization",
+      "condition": "stockOutward.reservationId IS NOT NULL OR stockOutward.authorizationRef IS NOT NULL",
+      "exceptions": [
+        "Direct material issues to production against production order",
+        "Sample issues below threshold value with storekeeper approval"
+      ],
+      "modules": ["Inventory", "Warehouse Management"],
+      "reports": ["RPT-INV-002", "RPT-INV-005"],
+      "relatedRules": ["BR-007", "BR-039"],
+      "workflowImpact": "Prevents unplanned stock removal without proper reservation or authorization",
+      "priority": "High",
+      "category": "Inventory"
+    },
+    {
+      "id": "BR-007",
+      "name": "Stock Adjustment Requires Approval",
+      "description": "Stock adjustments need maker-checker approval",
+      "condition": "stockAdjustment.status = 'Pending Approval' AND adjustment.createdBy != adjustment.approvedBy",
+      "exceptions": [
+        "System-triggered adjustments from physical verification with negative variance below threshold"
+      ],
+      "modules": ["Inventory", "Audit"],
+      "reports": ["RPT-INV-003", "RPT-INV-006"],
+      "relatedRules": ["BR-006", "BR-008", "BR-035"],
+      "workflowImpact": "Adjustments enter approval queue; maker and checker must be different users",
+      "priority": "High",
+      "category": "Inventory"
+    },
+    {
+      "id": "BR-008",
+      "name": "Stock Valuation Uses Weighted Average",
+      "description": "Inventory valuation uses weighted average cost method",
+      "condition": "itemValuation.costMethod = 'WeightedAverage' AND valuation = (totalCost / totalQuantity)",
+      "exceptions": [
+        "Specific identification method for serial-number-tracked high-value items"
+      ],
+      "modules": ["Inventory", "Accounting"],
+      "reports": ["RPT-INV-001", "RPT-INV-004", "RPT-FIN-003"],
+      "relatedRules": ["BR-007", "BR-039"],
+      "workflowImpact": "Valuation method is fixed for all inventory transactions",
+      "priority": "Medium",
+      "category": "Inventory"
+    },
+    {
+      "id": "BR-009",
+      "name": "Billing Requires Order Items",
+      "description": "Invoice must have at least one item row",
+      "condition": "COUNT(invoice.lineItems) >= 1",
+      "exceptions": [],
+      "modules": ["Billing", "Accounts Receivable"],
+      "reports": ["RPT-BILL-001", "RPT-BILL-002"],
+      "relatedRules": ["BR-001", "BR-010", "BR-011"],
+      "workflowImpact": "Invoice cannot be saved or posted without item details",
+      "priority": "Critical",
+      "category": "Billing & Invoicing"
+    },
+    {
+      "id": "BR-010",
+      "name": "GST Type Must Match Place of Supply",
+      "description": "CGST/SGST for same state, IGST for different state",
+      "condition": "IF(placeOfSupply = companyState, taxType IN ('CGST','SGST'), taxType = 'IGST')",
+      "exceptions": [
+        "SEZ supplies with zero-rated invoicing"
+      ],
+      "modules": ["Billing", "GST", "Taxation"],
+      "reports": ["RPT-GST-001", "RPT-GST-002"],
+      "relatedRules": ["BR-009", "BR-018", "BR-019"],
+      "workflowImpact": "Tax type auto-selected based on place of supply; manual override blocked",
+      "priority": "Critical",
+      "category": "GST & Taxation"
+    },
+    {
+      "id": "BR-011",
+      "name": "Excess Billing Requires Authorization",
+      "description": "Billing above ordered quantity needs explicit reason",
+      "condition": "IF invoice.lineItems.quantity > salesOrder.lineItems.quantity THEN reasonCode IS NOT NULL AND authorizedBy IS NOT NULL",
+      "exceptions": [
+        "Retention money release invoices",
+        "Price escalation clauses in contract"
+      ],
+      "modules": ["Billing", "Order Management"],
+      "reports": ["RPT-BILL-003", "RPT-BILL-005"],
+      "relatedRules": ["BR-001", "BR-009", "BR-005"],
+      "workflowImpact": "Excess billing flagged for review and requires authorized reason",
+      "priority": "High",
+      "category": "Billing & Invoicing"
+    },
+    {
+      "id": "BR-012",
+      "name": "Payment Requires UTR",
+      "description": "Every receipt must have a unique UTR reference",
+      "condition": "receipt.utr IS NOT NULL AND receipt.utr IS UNIQUE IN receipt collection",
+      "exceptions": [
+        "Cash receipts below threshold of INR 5,000"
+      ],
+      "modules": ["Accounts Receivable", "Banking", "Treasury"],
+      "reports": ["RPT-REC-001", "RPT-REC-003"],
+      "relatedRules": ["BR-014", "BR-015", "BR-021"],
+      "workflowImpact": "Receipt entry blocked without unique UTR; duplicate UTR flagged",
+      "priority": "Critical",
+      "category": "Payments & Receivables"
+    },
+    {
+      "id": "BR-013",
+      "name": "TDS Deduction Based on Threshold",
+      "description": "TDS deducted when invoice value exceeds threshold",
+      "condition": "IF invoice.totalValue >= sectionThreshold, TDS deducted at applicable section rate; ELSE no TDS",
+      "exceptions": [
+        "Lower deduction certificate holder with valid certificate on file"
+      ],
+      "modules": ["Billing", "Taxation", "Payments"],
+      "reports": ["RPT-TDS-001", "RPT-TDS-002"],
+      "relatedRules": ["BR-010", "BR-018", "BR-020"],
+      "workflowImpact": "TDS auto-calculated; threshold values maintained per financial year",
+      "priority": "High",
+      "category": "GST & Taxation"
+    },
+    {
+      "id": "BR-014",
+      "name": "Receivable Requires Posted Invoice",
+      "description": "Receivable reports show only posted invoices",
+      "condition": "receivable.invoice.status = 'Posted'",
+      "exceptions": [],
+      "modules": ["Accounts Receivable", "Reporting"],
+      "reports": ["RPT-REC-001", "RPT-REC-002", "RPT-REC-004", "RPT-FIN-002"],
+      "relatedRules": ["BR-009", "BR-012", "BR-027"],
+      "workflowImpact": "Only posted invoices appear in ageing and outstanding reports",
+      "priority": "Medium",
+      "category": "Reporting"
+    },
+    {
+      "id": "BR-015",
+      "name": "Allocation Reduces Outstanding",
+      "description": "Unallocated payments do not reduce bill-wise outstanding",
+      "condition": "receiptAllocation.invoiceId IS NOT NULL AND receiptAllocation.allocatedAmount = receiptAllocation.amount",
+      "exceptions": [
+        "On-account payments treated as advances without allocation"
+      ],
+      "modules": ["Accounts Receivable", "Payments"],
+      "reports": ["RPT-REC-001", "RPT-REC-002"],
+      "relatedRules": ["BR-012", "BR-014"],
+      "workflowImpact": "Outstanding reduced only when payment is allocated to specific invoice",
+      "priority": "High",
+      "category": "Payments & Receivables"
+    },
+    {
+      "id": "BR-016",
+      "name": "Payable Requires Posted Purchase",
+      "description": "Payable reports show only posted procurement",
+      "condition": "payable.procurement.status = 'Posted'",
+      "exceptions": [],
+      "modules": ["Accounts Payable", "Reporting"],
+      "reports": ["RPT-PAY-001", "RPT-PAY-002", "RPT-PAY-004", "RPT-FIN-002"],
+      "relatedRules": ["BR-004", "BR-017", "BR-027"],
+      "workflowImpact": "Only posted procurement reflected in payable ageing reports",
+      "priority": "Medium",
+      "category": "Reporting"
+    },
+    {
+      "id": "BR-017",
+      "name": "Supplier Payment Requires Bill Reference",
+      "description": "Payment must reference purchase bill for allocation",
+      "condition": "supplierPayment.billReference IS NOT NULL AND supplierPayment.allocationAmount <= billReference.pendingAmount",
+      "exceptions": [
+        "Advance payments to suppliers against purchase orders"
+      ],
+      "modules": ["Accounts Payable", "Payments"],
+      "reports": ["RPT-PAY-001", "RPT-PAY-003"],
+      "relatedRules": ["BR-016", "BR-013"],
+      "workflowImpact": "Payment must be allocated against specific purchase bills",
+      "priority": "High",
+      "category": "Payments & Receivables"
+    },
+    {
+      "id": "BR-018",
+      "name": "GST Register Based on Posted Vouchers",
+      "description": "GST reports use only posted voucher data",
+      "condition": "gstRegister.voucher.status = 'Posted' AND voucher.type IN ('SalesInvoice', 'PurchaseInvoice', 'CreditNote', 'DebitNote')",
+      "exceptions": [],
+      "modules": ["GST", "Taxation", "Reporting"],
+      "reports": ["RPT-GST-001", "RPT-GST-002", "RPT-GST-003", "RPT-GST-004"],
+      "relatedRules": ["BR-010", "BR-013", "BR-019", "BR-020", "BR-027"],
+      "workflowImpact": "Draft/saved vouchers excluded from GST return computation",
+      "priority": "Critical",
+      "category": "GST & Taxation"
+    },
+    {
+      "id": "BR-019",
+      "name": "Input GST Claim Requires Valid GSTIN",
+      "description": "Supplier must have valid GSTIN for input credit",
+      "condition": "supplier.gstin IS NOT NULL AND isValidGSTIN(supplier.gstin) = TRUE AND supplier.gstinStatus = 'Active'",
+      "exceptions": [
+        "Composition scheme suppliers where reverse charge applies",
+        "Import of services under reverse charge mechanism"
+      ],
+      "modules": ["GST", "Accounts Payable", "Master Data"],
+      "reports": ["RPT-GST-002", "RPT-GST-003"],
+      "relatedRules": ["BR-010", "BR-018", "BR-020"],
+      "workflowImpact": "Input tax credit blocked for suppliers without valid registered GSTIN",
+      "priority": "Critical",
+      "category": "GST & Taxation"
+    },
+    {
+      "id": "BR-020",
+      "name": "GST TDS Deduction Follows Section 194Q",
+      "description": "GST TDS deducted at 0.5% CGST + 0.5% SGST or 1% IGST",
+      "condition": "gstTds.taxType = IF(placeOfSupply = companyState, 'CGST+SGST', 'IGST') AND rate = IF(taxType='CGST+SGST', 0.005+0.005, 0.01)",
+      "exceptions": [
+        "Supplies covered under TCS under GST Act",
+        "Supplies below threshold value specified in Section 194Q"
+      ],
+      "modules": ["GST", "Taxation", "Payments"],
+      "reports": ["RPT-GST-004", "RPT-TDS-001"],
+      "relatedRules": ["BR-010", "BR-013", "BR-018", "BR-019"],
+      "workflowImpact": "GST TDS auto-calculated at prescribed rates; manual override prevented",
+      "priority": "High",
+      "category": "GST & Taxation"
+    },
+    {
+      "id": "BR-021",
+      "name": "Bank Import Requires Statement Validation",
+      "description": "Imported rows must pass validation before approval",
+      "condition": "bankImport.rows ALL HAVING validationStatus = 'Passed'",
+      "exceptions": [
+        "Rows with minor date mismatches can be force-approved by finance head"
+      ],
+      "modules": ["Banking", "Reconciliation"],
+      "reports": ["RPT-BNK-001", "RPT-BNK-002"],
+      "relatedRules": ["BR-022", "BR-023"],
+      "workflowImpact": "Import approval blocked until all rows pass validation checks",
+      "priority": "High",
+      "category": "Banking & Reconciliation"
+    },
+    {
+      "id": "BR-022",
+      "name": "Duplicate Bank Rows Blocked from Approval",
+      "description": "Potential duplicate entries are prevented from approval",
+      "condition": "bankImport.rows ALL HAVING duplicateScore < 0.8 (confidence threshold)",
+      "exceptions": [
+        "Confirmed duplicate entries with supporting documentation"
+      ],
+      "modules": ["Banking", "Reconciliation"],
+      "reports": ["RPT-BNK-001", "RPT-BNK-003"],
+      "relatedRules": ["BR-021", "BR-023"],
+      "workflowImpact": "High-scoring potential duplicates flagged and blocked from approval",
+      "priority": "Medium",
+      "category": "Banking & Reconciliation"
+    },
+    {
+      "id": "BR-023",
+      "name": "Voucher Must Be Balanced",
+      "description": "Debit and credit totals must match before posting",
+      "condition": "SUM(voucher.entries.amount WHERE side = 'Debit') = SUM(voucher.entries.amount WHERE side = 'Credit')",
+      "exceptions": [],
+      "modules": ["Accounting", "Vouchers"],
+      "reports": ["RPT-ACC-001", "RPT-ACC-002"],
+      "relatedRules": ["BR-024", "BR-025", "BR-033"],
+      "workflowImpact": "Posting blocked for unbalanced vouchers; differential shown for correction",
+      "priority": "Critical",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-024",
+      "name": "Locked Financial Year Blocks Posting",
+      "description": "Closed years prevent new voucher posting",
+      "condition": "voucher.date WITHIN financialYear.openingDate AND financialYear.closingDate AND financialYear.status = 'Open'",
+      "exceptions": [
+        "Prior period entries with authorized reopening of closed year"
+      ],
+      "modules": ["Accounting", "Administration"],
+      "reports": ["RPT-ACC-003", "RPT-FIN-001"],
+      "relatedRules": ["BR-023", "BR-025", "BR-037"],
+      "workflowImpact": "Posting prevented in locked financial years; reopening requires admin approval",
+      "priority": "Critical",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-025",
+      "name": "Reversal Requires Audit Reason",
+      "description": "Posted voucher reversal needs documented audit reason",
+      "condition": "reversal.auditReason IS NOT NULL AND LENGTH(reversal.auditReason) >= 50",
+      "exceptions": [],
+      "modules": ["Accounting", "Audit"],
+      "reports": ["RPT-AUD-001", "RPT-AUD-002"],
+      "relatedRules": ["BR-023", "BR-033", "BR-034"],
+      "workflowImpact": "Reversal requires detailed reason; logged in audit trail",
+      "priority": "High",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-026",
+      "name": "Business Voucher Preferred Over Journal",
+      "description": "Use guided business vouchers, not manual journal, for routine transactions",
+      "condition": "transaction.type IN supportedBusinessVouchers IMPLIES journalEntry.type != 'Manual Journal'",
+      "exceptions": [
+        "Rectification entries for previous period errors",
+        "Opening balance entries during implementation"
+      ],
+      "modules": ["Accounting", "User Interface"],
+      "reports": ["RPT-ACC-001", "RPT-ACC-004"],
+      "relatedRules": ["BR-023", "BR-033"],
+      "workflowImpact": "System suggests appropriate business voucher; journal restricted to advanced users",
+      "priority": "Low",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-027",
+      "name": "Reports Use Posted Data Only",
+      "description": "Financial reports show only posted ledger entries",
+      "condition": "report.dataSource FILTER entry.status = 'Posted'",
+      "exceptions": [
+        "Draft report previews explicitly marked as 'Unposted Data Included'"
+      ],
+      "modules": ["Reporting", "Accounting"],
+      "reports": ["RPT-FIN-001", "RPT-FIN-002", "RPT-FIN-003", "RPT-FIN-004"],
+      "relatedRules": ["BR-014", "BR-016", "BR-018"],
+      "workflowImpact": "Unposted transactions excluded from all financial reports by default",
+      "priority": "Critical",
+      "category": "Reporting"
+    },
+    {
+      "id": "BR-028",
+      "name": "Readiness Requires Zero Failed Checks",
+      "description": "Production readiness requires all checks passing",
+      "condition": "readiness.checkResults ALL HAVING status = 'Pass'",
+      "exceptions": [
+        "Documented deviations with risk acceptance from Project Steering Committee"
+      ],
+      "modules": ["System", "Administration"],
+      "reports": ["RPT-SYS-001", "RPT-SYS-002"],
+      "relatedRules": ["BR-029", "BR-030", "BR-031"],
+      "workflowImpact": "Go-live blocked until all readiness checks pass",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-029",
+      "name": "Environment Lock Prevents Dual Launch",
+      "description": "Only one environment can be production at a time",
+      "condition": "COUNT(environments WHERE role = 'Production') <= 1",
+      "exceptions": [
+        "Disaster recovery failover with documented DR switch"
+      ],
+      "modules": ["System", "Administration", "DevOps"],
+      "reports": ["RPT-SYS-001", "RPT-SYS-003"],
+      "relatedRules": ["BR-028", "BR-030", "BR-031"],
+      "workflowImpact": "Promoting an environment to production auto-demotes current production",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-030",
+      "name": "Go-Live Requires Admin Confirmation",
+      "description": "Production reset requires typed confirmation and admin role",
+      "condition": "resetAction.user.role = 'Administrator' AND resetAction.typedConfirmation = 'CONFIRM-RESET'",
+      "exceptions": [],
+      "modules": ["System", "Administration"],
+      "reports": ["RPT-SYS-002", "RPT-AUD-003"],
+      "relatedRules": ["BR-028", "BR-029", "BR-031"],
+      "workflowImpact": "Reset action gated behind administrator role and explicit text confirmation",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-031",
+      "name": "Reset Preserves Configuration",
+      "description": "Operational reset must preserve master data and configuration",
+      "condition": "reset.scope IN ('TransactionalData', 'OperationalTransactions') AND masterData.status = 'Preserved' AND configuration.status = 'Preserved'",
+      "exceptions": [
+        "Full system reset with explicit configuration reset flag and backup verification"
+      ],
+      "modules": ["System", "Administration"],
+      "reports": ["RPT-SYS-003", "RPT-AUD-003"],
+      "relatedRules": ["BR-028", "BR-029", "BR-030", "BR-036"],
+      "workflowImpact": "Reset operation retains company setup, chart of accounts, item masters, user roles",
+      "priority": "High",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-032",
+      "name": "Company Context Required for Transactions",
+      "description": "Every transaction must reference current company",
+      "condition": "transaction.companyId IS NOT NULL AND transaction.companyId IN user.accessibleCompanies",
+      "exceptions": [],
+      "modules": ["Core", "Multi-Company", "Security"],
+      "reports": ["RPT-FIN-001", "RPT-FIN-002"],
+      "relatedRules": ["BR-023", "BR-024", "BR-037"],
+      "workflowImpact": "All transactions scoped to active company context; cross-company visibility controlled",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-033",
+      "name": "No Direct Ledger Editing",
+      "description": "Ledger entries cannot be directly edited; use reversal workflow",
+      "condition": "ledgerEntry.updateAllowed = FALSE AND ledgerEntry.modificationMethod = 'ReversalOnly'",
+      "exceptions": [
+        "System administrator data fix under documented change request"
+      ],
+      "modules": ["Accounting", "Audit"],
+      "reports": ["RPT-AUD-001", "RPT-AUD-002"],
+      "relatedRules": ["BR-023", "BR-025", "BR-034"],
+      "workflowImpact": "Ledger entries immutable after posting; corrections only via reversal + re-entry",
+      "priority": "Critical",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-034",
+      "name": "Audit Log for Critical Actions",
+      "description": "Create, edit, delete, post, reverse, import actions are logged",
+      "condition": "auditLog.actionType IN ('CREATE', 'EDIT', 'DELETE', 'POST', 'REVERSE', 'IMPORT') AND auditLog.timestamp IS NOT NULL AND auditLog.userId IS NOT NULL",
+      "exceptions": [],
+      "modules": ["Audit", "Security", "Core"],
+      "reports": ["RPT-AUD-001", "RPT-AUD-002", "RPT-AUD-003"],
+      "relatedRules": ["BR-025", "BR-033", "BR-035"],
+      "workflowImpact": "All critical actions captured with user, timestamp, IP, and before-after snapshot",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-035",
+      "name": "Maker-Checker for Sensitive Actions",
+      "description": "Approval required for posting, reversal, adjustment, financial year close",
+      "condition": "sensitiveAction.creatorId != sensitiveAction.approverId AND sensitiveAction.status = 'Approved'",
+      "exceptions": [
+        "System-generated automatic postings (e.g., depreciation, accruals)"
+      ],
+      "modules": ["Audit", "Security", "Administration"],
+      "reports": ["RPT-AUD-001", "RPT-AUD-002"],
+      "relatedRules": ["BR-007", "BR-025", "BR-033", "BR-034"],
+      "workflowImpact": "Dual control enforced; same user cannot create and approve their own action",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-036",
+      "name": "Backup Before Restore",
+      "description": "Backup must be created before any restore operation",
+      "condition": "restoreOperation.preBackupId IS NOT NULL AND preBackup.verificationStatus = 'Verified'",
+      "exceptions": [],
+      "modules": ["System", "Administration", "Infrastructure"],
+      "reports": ["RPT-SYS-003", "RPT-AUD-003"],
+      "relatedRules": ["BR-028", "BR-030", "BR-031"],
+      "workflowImpact": "Restore blocked unless verified backup exists from current state",
+      "priority": "Critical",
+      "category": "System & Administration"
+    },
+    {
+      "id": "BR-037",
+      "name": "Financial Year Sequential",
+      "description": "Vouchers must use dates within open financial year",
+      "condition": "voucher.date >= financialYear.startDate AND voucher.date <= financialYear.endDate",
+      "exceptions": [
+        "Prior period adjustment vouchers in reopened years with admin authorization"
+      ],
+      "modules": ["Accounting", "Administration"],
+      "reports": ["RPT-ACC-003", "RPT-FIN-001"],
+      "relatedRules": ["BR-024", "BR-032"],
+      "workflowImpact": "Voucher date restricted to current open financial year range",
+      "priority": "High",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-038",
+      "name": "Party Ledger Reconciliation Required",
+      "description": "Party ledgers must reconcile with control accounts",
+      "condition": "ABS(SUM(partyLedger.balance) - controlAccount.balance) <= reconciliationTolerance AND reconciliationDate IS NOT NULL",
+      "exceptions": [
+        "Inter-unit transactions pending cross-entity confirmation"
+      ],
+      "modules": ["Accounting", "Audit", "Payments"],
+      "reports": ["RPT-REC-004", "RPT-PAY-004", "RPT-AUD-002"],
+      "relatedRules": ["BR-014", "BR-015", "BR-016", "BR-017"],
+      "workflowImpact": "Period-end reconciliation mandatory; unreconciled difference flagged for review",
+      "priority": "High",
+      "category": "Accounting & Vouchers"
+    },
+    {
+      "id": "BR-039",
+      "name": "Serial Number Tracking for Tracked Items",
+      "description": "Serial/batch numbers required for tracked items",
+      "condition": "item.serialTracking = TRUE IMPLIES transaction.lineItem.serialNumber IS NOT NULL; item.batchTracking = TRUE IMPLIES transaction.lineItem.batchNumber IS NOT NULL",
+      "exceptions": [
+        "Bulk consumables with no tracking requirement defined in item master"
+      ],
+      "modules": ["Inventory", "Warehouse", "Quality"],
+      "reports": ["RPT-INV-002", "RPT-INV-005", "RPT-DLV-003"],
+      "relatedRules": ["BR-006", "BR-008"],
+      "workflowImpact": "Serial/batch fields mandatory for tracked items in all inward and outward transactions",
+      "priority": "High",
+      "category": "Inventory"
+    },
+    {
+      "id": "BR-040",
+      "name": "Document Readiness Before Billing",
+      "description": "Required documents must be attached before billing completion",
+      "condition": "billing.requiredDocuments ALL HAVING attachmentId IS NOT NULL AND attachment.status = 'Verified'",
+      "exceptions": [
+        "Provisional billing with government undertaking for pending documents"
+      ],
+      "modules": ["Billing", "Document Management", "Compliance"],
+      "reports": ["RPT-BILL-004", "RPT-DLV-002"],
+      "relatedRules": ["BR-001", "BR-009", "BR-010"],
+      "workflowImpact": "Billing completion blocked until all mandatory documents are attached and verified",
+      "priority": "High",
+      "category": "Billing & Invoicing"
+    }
+  ],
+  "relationships": {
+    "procurementChain": ["BR-002", "BR-003", "BR-004", "BR-005"],
+    "billingChain": ["BR-001", "BR-009", "BR-010", "BR-011", "BR-040"],
+    "inventoryChain": ["BR-006", "BR-007", "BR-008", "BR-039"],
+    "paymentChain": ["BR-012", "BR-015", "BR-017", "BR-013"],
+    "gstChain": ["BR-010", "BR-018", "BR-019", "BR-020"],
+    "reportingChain": ["BR-014", "BR-016", "BR-018", "BR-027"],
+    "accountingChain": ["BR-023", "BR-024", "BR-025", "BR-026", "BR-033", "BR-037", "BR-038"],
+    "bankingChain": ["BR-021", "BR-022"],
+    "adminChain": ["BR-028", "BR-029", "BR-030", "BR-031", "BR-036"],
+    "auditChain": ["BR-034", "BR-035"],
+    "coreChain": ["BR-032"]
+  },
+  "categories": {
+    "Procurement": {
+      "rules": ["BR-002", "BR-003", "BR-004", "BR-005"],
+      "description": "Supply order and procurement governance"
+    },
+    "Inventory": {
+      "rules": ["BR-006", "BR-007", "BR-008", "BR-039"],
+      "description": "Stock movement, valuation, and tracking"
+    },
+    "Billing & Invoicing": {
+      "rules": ["BR-001", "BR-009", "BR-010", "BR-011", "BR-040"],
+      "description": "Invoice generation, tax determination, and document compliance"
+    },
+    "Payments & Receivables": {
+      "rules": ["BR-012", "BR-013", "BR-015", "BR-017"],
+      "description": "Payment receipts, TDS, allocation, and supplier payments"
+    },
+    "GST & Taxation": {
+      "rules": ["BR-010", "BR-013", "BR-018", "BR-019", "BR-020"],
+      "description": "GST compliance, input credit, TDS under GST"
+    },
+    "Banking & Reconciliation": {
+      "rules": ["BR-021", "BR-022"],
+      "description": "Bank statement import, validation, and duplicate detection"
+    },
+    "Accounting & Vouchers": {
+      "rules": ["BR-023", "BR-024", "BR-025", "BR-026", "BR-033", "BR-037", "BR-038"],
+      "description": "Voucher integrity, financial years, ledger immutability, reconciliation"
+    },
+    "Reporting": {
+      "rules": ["BR-014", "BR-016", "BR-027"],
+      "description": "Report data accuracy and post-only filtering"
+    },
+    "System & Administration": {
+      "rules": ["BR-028", "BR-029", "BR-030", "BR-031", "BR-032", "BR-034", "BR-035", "BR-036"],
+      "description": "Readiness, environment management, security, audit, backup"
+    }
+  }
+}

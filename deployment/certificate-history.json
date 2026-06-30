@@ -1,0 +1,41 @@
+{
+  "nextId": 5,
+  "certificates": [
+    {
+      "certificateNumber": "GLC-2026-000004",
+      "generatedAt": "2026-06-29T14:18:39.035Z",
+      "generatedDate": "6/29/2026",
+      "environment": "Production Ready",
+      "readinessScore": 100,
+      "issuedBy": "system",
+      "status": "Production Ready"
+    },
+    {
+      "certificateNumber": "GLC-2026-000003",
+      "generatedAt": "2026-06-29T14:18:38.443Z",
+      "generatedDate": "6/29/2026",
+      "environment": "Production Ready",
+      "readinessScore": 100,
+      "issuedBy": "system",
+      "status": "Production Ready"
+    },
+    {
+      "certificateNumber": "GLC-2026-000002",
+      "generatedAt": "2026-06-29T14:18:37.971Z",
+      "generatedDate": "6/29/2026",
+      "environment": "Production Ready",
+      "readinessScore": 100,
+      "issuedBy": "system",
+      "status": "Production Ready"
+    },
+    {
+      "certificateNumber": "GLC-2026-000001",
+      "generatedAt": "2026-06-29T14:18:37.243Z",
+      "generatedDate": "6/29/2026",
+      "environment": "Production Ready",
+      "readinessScore": 100,
+      "issuedBy": "system",
+      "status": "Production Ready"
+    }
+  ]
+}

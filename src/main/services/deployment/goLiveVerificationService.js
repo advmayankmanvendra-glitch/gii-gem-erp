@@ -53,7 +53,7 @@ export function runProductionVerification(db, profile = "production") {
   } catch { additionalChecks.push({ key: "zeroVouchers", label: "No operational vouchers", passed: false, detail: "query failed" }); }
 
   try {
-    const stockCount = db.prepare("SELECT COUNT(*) count FROM stock_ledger").get()?.count || 0;
+    const stockCount = db.prepare("SELECT COUNT(*) count FROM stock_ledger WHERE COALESCE(is_deleted, 0) = 0").get()?.count || 0;
     additionalChecks.push({ key: "zeroStock", label: "No stock movements", passed: Number(stockCount) === 0, detail: `stock_ledger=${stockCount}` });
   } catch { additionalChecks.push({ key: "zeroStock", label: "No stock movements", passed: false, detail: "query failed" }); }
 

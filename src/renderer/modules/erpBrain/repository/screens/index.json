@@ -1,0 +1,2741 @@
+{
+  "meta": {
+    "repository": "ERP Knowledge Repository - Screens",
+    "version": "1.0.0",
+    "module": "erpBrain",
+    "description": "Master screen registry for GII GeM ERP system",
+    "totalScreens": 30
+  },
+  "screens": [
+    {
+      "id": "SCR-supply_orders",
+      "name": "Supply Orders",
+      "purpose": "Main transaction screen for creating and managing supply orders against GeM contracts. Allows users to raise indents, generate purchase orders, and track fulfillment status.",
+      "fields": [
+        "orderNumber",
+        "orderDate",
+        "supplierCode",
+        "supplierName",
+        "contractReference",
+        "gemContractId",
+        "departmentCode",
+        "consigneeCode",
+        "deliveryLocation",
+        "itemCode",
+        "itemDescription",
+        "quantity",
+        "uom",
+        "unitPrice",
+        "netAmount",
+        "gstAmount",
+        "totalAmount",
+        "deliveryDate",
+        "orderStatus",
+        "approvalStatus",
+        "remarks"
+      ],
+      "buttons": [
+        "New Order",
+        "Save Draft",
+        "Submit for Approval",
+        "Approve",
+        "Reject",
+        "Amend Order",
+        "Cancel Order",
+        "Print Order",
+        "Export PDF",
+        "Send to Supplier",
+        "View History",
+        "Close"
+      ],
+      "actions": [
+        "Creates a new supply order with auto-generated order number",
+        "Saves current order as draft without workflow submission",
+        "Submits order to maker-checker approval workflow",
+        "Approves the order at current approval level",
+        "Rejects the order with reason and sends back to maker",
+        "Amends a previously approved order with change log",
+        "Cancels an order that is no longer required",
+        "Generates printable order document in prescribed format",
+        "Exports order details to PDF for external sharing",
+        "Transmits order to supplier via registered communication channel",
+        "Opens complete audit trail and modification history",
+        "Closes the current screen and returns to previous view"
+      ],
+      "validation": [
+        "Mandatory fields: orderDate, supplierCode, departmentCode, consigneeCode",
+        "At least one line item with quantity > 0 required",
+        "Total amount must match sum of line item totals",
+        "Delivery date must be later than order date",
+        "Supplier must be GeM registered and active",
+        "Contract reference must be valid and within validity period",
+        "Budget head must have sufficient unutilized balance"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Order",
+        "Ctrl+S: Save Draft",
+        "Ctrl+Shift+S: Submit for Approval",
+        "Ctrl+P: Print Order",
+        "F5: Refresh",
+        "F2: Edit Selected",
+        "F8: View History"
+      ],
+      "relatedReports": [
+        "RPT-order_summary",
+        "RPT-order_register",
+        "RPT-pending_deliveries",
+        "RPT-supplier_performance"
+      ],
+      "relatedWorkflows": [
+        "Order Approval Workflow",
+        "Order Amendment Workflow",
+        "Order Cancellation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-order-value-limit",
+        "BR-supplier-eligibility",
+        "BR-budget-check",
+        "BR-contract-validity"
+      ],
+      "commonErrors": [
+        "ERR-001: Supplier code not found or inactive",
+        "ERR-002: Contract reference expired or invalid",
+        "ERR-003: Budget head exceeded allocated limit",
+        "ERR-004: Duplicate order number detected",
+        "ERR-005: Mandatory fields missing"
+      ],
+      "module": "Procurement",
+      "navigationPath": "/procurement/supply-orders",
+      "viewKey": "supply_orders"
+    },
+    {
+      "id": "SCR-procurements",
+      "name": "Procurement",
+      "purpose": "Supplier purchase recording screen for capturing procurement transactions including direct purchases, rate contracts, and GeM contract buys.",
+      "fields": [
+        "procurementId",
+        "procurementDate",
+        "procurementType",
+        "supplierCode",
+        "supplierName",
+        "contractReference",
+        "gemContractId",
+        "itemCode",
+        "itemDescription",
+        "quantity",
+        "uom",
+        "unitPrice",
+        "discountPercent",
+        "discountAmount",
+        "taxableAmount",
+        "gstRate",
+        "gstAmount",
+        "totalAmount",
+        "departmentCode",
+        "budgetHead",
+        "chargeType",
+        "consigneeCode",
+        "deliveryLocation",
+        "expectedDelivery",
+        "procurementStatus",
+        "paymentTerms",
+        "createdBy",
+        "approvedBy"
+      ],
+      "buttons": [
+        "New Procurement",
+        "Save",
+        "Submit for Approval",
+        "Amend",
+        "Cancel",
+        "Link to Contract",
+        "Generate PO",
+        "Print",
+        "View Linked Orders",
+        "Export"
+      ],
+      "actions": [
+        "Initiates a new procurement transaction with auto-generated ID",
+        "Saves the procurement record as draft",
+        "Submits procurement to approval workflow",
+        "Amends existing procurement record with change tracking",
+        "Cancels procurement transaction with reason",
+        "Links procurement to an existing GeM contract",
+        "Generates purchase order from procurement details",
+        "Prints the procurement record",
+        "Shows all supply orders linked to this procurement",
+        "Exports procurement data in CSV/Excel format"
+      ],
+      "validation": [
+        "Procurement type must be a valid system value",
+        "Supplier must be active in vendor master",
+        "Quantity must be positive numeric value",
+        "Unit price cannot be zero or negative",
+        "GST rate must match HSN code slab",
+        "Budget head must be valid and active",
+        "Total amount must equal taxable amount plus GST"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Procurement",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+S: Submit",
+        "Ctrl+P: Print",
+        "F3: Link Contract",
+        "F5: Refresh"
+      ],
+      "relatedReports": [
+        "RPT-procurement_register",
+        "RPT-procurement_summary",
+        "RPT-supplier_wise_procurement",
+        "RPT-department_wise_spend"
+      ],
+      "relatedWorkflows": [
+        "Procurement Approval Workflow",
+        "Contract Linkage Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-procurement-type-validation",
+        "BR-supplier-blacklist-check",
+        "BR-budget-availability",
+        "BR-gst-compliance"
+      ],
+      "commonErrors": [
+        "ERR-101: Invalid procurement type code",
+        "ERR-102: Supplier is blacklisted",
+        "ERR-103: Budget head insufficient balance",
+        "ERR-104: Contract not eligible for procurement"
+      ],
+      "module": "Procurement",
+      "navigationPath": "/procurement/manage",
+      "viewKey": "procurements"
+    },
+    {
+      "id": "SCR-invoices",
+      "name": "Billing Voucher",
+      "purpose": "Invoice creation screen with item-level grid for generating supplier bills, recording debit notes, credit notes, and adjusting entries against purchase orders.",
+      "fields": [
+        "voucherNumber",
+        "voucherDate",
+        "voucherType",
+        "supplierCode",
+        "supplierName",
+        "orderReference",
+        "orderNumber",
+        "grnReference",
+        "invoiceReference",
+        "receiptDate",
+        "itemCode",
+        "itemDescription",
+        "quantity",
+        "uom",
+        "rate",
+        "gstRate",
+        "gstAmount",
+        "discount",
+        "lineTotal",
+        "totalQuantity",
+        "totalAmount",
+        "cgst",
+        "sgst",
+        "igst",
+        "roundOff",
+        "netPayable",
+        "departmentCode",
+        "budgetHead",
+        "paymentTerms",
+        "dueDate",
+        "narration",
+        "approvalStatus",
+        "postingStatus"
+      ],
+      "buttons": [
+        "New Voucher",
+        "Save Draft",
+        "Post",
+        "Approve",
+        "Reject",
+        "Add Item",
+        "Remove Item",
+        "Import from GRN",
+        "Import from Order",
+        "Print Voucher",
+        "Preview Ledger",
+        "Cancel Voucher",
+        "View Audit Trail"
+      ],
+      "actions": [
+        "Creates a new billing voucher with auto-generated number",
+        "Saves voucher as draft without posting to ledger",
+        "Posts the voucher to general ledger making entries effective",
+        "Approves voucher in maker-checker workflow",
+        "Rejects voucher with reason and returns to maker",
+        "Adds a new line item to the voucher grid",
+        "Removes selected line item from the voucher grid",
+        "Imports item details from Goods Receipt Note",
+        "Imports item details from purchase order",
+        "Generates printer-friendly voucher document",
+        "Shows ledger impact preview before posting",
+        "Cancels a posted voucher with reversal entries",
+        "Opens complete audit trail of the voucher"
+      ],
+      "validation": [
+        "Voucher type must be one of: Purchase, Debit Note, Credit Note, Expense",
+        "Supplier code must be valid and active",
+        "At least one item line required",
+        "All item quantities must be positive",
+        "Total must match sum of line totals after tax and discount",
+        "Reference order must be in approved status",
+        "GRN reference must be posted before billing",
+        "CGST + SGST = IGST for inter-state transactions"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Voucher",
+        "Ctrl+S: Save Draft",
+        "Ctrl+Shift+P: Post Voucher",
+        "Ctrl+I: Add Item",
+        "Ctrl+R: Remove Item",
+        "Ctrl+G: Import from GRN",
+        "Ctrl+O: Import from Order",
+        "Ctrl+P: Print",
+        "F3: Preview Ledger"
+      ],
+      "relatedReports": [
+        "RPT-invoice_register",
+        "RPT-purchase_register",
+        "RPT-gst_input_credit",
+        "RPT-supplier_outstanding"
+      ],
+      "relatedWorkflows": [
+        "Invoice Approval Workflow",
+        "Invoice Posting Workflow",
+        "Invoice Cancellation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-invoice-type-validation",
+        "BR-gst-calculation",
+        "BR-order-linking",
+        "BR-duplicate-invoice-check"
+      ],
+      "commonErrors": [
+        "ERR-201: Duplicate invoice reference from same supplier",
+        "ERR-202: Order already fully billed",
+        "ERR-203: GRN not yet posted",
+        "ERR-204: GST mismatch between items"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/billing-voucher",
+      "viewKey": "invoices"
+    },
+    {
+      "id": "SCR-payments",
+      "name": "Payments",
+      "purpose": "Receipt and payment recording screen for capturing all cash and bank transactions including supplier payments, expense reimbursements, and miscellaneous receipts.",
+      "fields": [
+        "paymentVoucherNo",
+        "paymentDate",
+        "paymentType",
+        "modeOfPayment",
+        "bankAccount",
+        "supplierCode",
+        "supplierName",
+        "invoiceReference",
+        "invoiceAmount",
+        "paidAmount",
+        "tdsAmount",
+        "tdsSection",
+        "netPayment",
+        "paymentReference",
+        "chequeNumber",
+        "chequeDate",
+        "utrNumber",
+        "departmentCode",
+        "budgetHead",
+        "narration",
+        "approvalStatus",
+        "reconciliationStatus"
+      ],
+      "buttons": [
+        "New Payment",
+        "Save Draft",
+        "Post Payment",
+        "Approve",
+        "Reject",
+        "Allocate to Invoices",
+        "Print Cheque",
+        "Generate Bank File",
+        "View Payment History",
+        "Cancel Payment",
+        "Reconcile"
+      ],
+      "actions": [
+        "Creates a new payment voucher",
+        "Saves payment as draft",
+        "Posts payment to bank/cash ledger",
+        "Approves payment in approval workflow",
+        "Rejects payment entry",
+        "Opens allocation screen to map payment to outstanding invoices",
+        "Prints cheque with proper format and signatures",
+        "Generates bank transfer file for upload to banking portal",
+        "Shows complete payment history for selected supplier",
+        "Cancels posted payment with reversal",
+        "Matches payment with bank statement entries"
+      ],
+      "validation": [
+        "Payment type must be Payment or Receipt",
+        "Mode of payment must be valid system value",
+        "Bank account must be active and have sufficient balance (for payments)",
+        "Paid amount cannot exceed invoice outstanding",
+        "TDS section must be valid for supplier type",
+        "Net payment must equal paid amount minus TDS",
+        "Payment date cannot be a future date",
+        "Invoice reference must be in posted status"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Payment",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+A: Allocate",
+        "Ctrl+Q: Print Cheque",
+        "F5: Refresh",
+        "F2: Reconcile"
+      ],
+      "relatedReports": [
+        "RPT-payment_register",
+        "RPT-bank_book",
+        "RPT-cash_flow",
+        "RPT-supplier_payment_aging",
+        "RPT-tds_register"
+      ],
+      "relatedWorkflows": [
+        "Payment Approval Workflow",
+        "Payment Posting Workflow",
+        "Payment Cancellation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-payment-mode-restriction",
+        "BR-tds-calculation",
+        "BR-budget-check-payment",
+        "BR-duplicate-payment-check"
+      ],
+      "commonErrors": [
+        "ERR-301: Insufficient bank balance",
+        "ERR-302: Invoice already fully paid",
+        "ERR-303: Invalid TDS section for supplier category",
+        "ERR-304: Duplicate payment reference number"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/payments",
+      "viewKey": "payments"
+    },
+    {
+      "id": "SCR-stock_inwards",
+      "name": "Stock Inward",
+      "purpose": "Goods receipt into warehouse screen for recording inward stock movements against purchase orders, including quality checks and bin location assignment.",
+      "fields": [
+        "grnNumber",
+        "grnDate",
+        "orderReference",
+        "orderNumber",
+        "supplierCode",
+        "supplierName",
+        "invoiceReference",
+        "invoiceNumber",
+        "warehouseCode",
+        "warehouseName",
+        "binLocation",
+        "itemCode",
+        "itemDescription",
+        "expectedQuantity",
+        "receivedQuantity",
+        "acceptedQuantity",
+        "rejectedQuantity",
+        "rejectionReason",
+        "uom",
+        "batchNumber",
+        "manufacturingDate",
+        "expiryDate",
+        "serialNumber",
+        "qualityStatus",
+        "inspectedBy",
+        "inspectionDate",
+        "remarks",
+        "grnStatus",
+        "postingStatus"
+      ],
+      "buttons": [
+        "New GRN",
+        "Save Draft",
+        "Post GRN",
+        "Approve GRN",
+        "Reject GRN",
+        "Add Item",
+        "Remove Item",
+        "Import from Order",
+        "Print GRN",
+        "Generate QR Label",
+        "Quality Check",
+        "Cancel GRN",
+        "View Stock Impact"
+      ],
+      "actions": [
+        "Creates a new Goods Receipt Note",
+        "Saves GRN as draft without stock impact",
+        "Posts GRN to update inventory and create stock entries",
+        "Approves GRN in receipt workflow",
+        "Rejects GRN and sends back for correction",
+        "Adds a received item line to the GRN grid",
+        "Removes a selected item line from GRN",
+        "Imports expected items from purchase order",
+        "Prints GRN document for warehouse acknowledgment",
+        "Generates QR/barcode label for inventory tagging",
+        "Opens quality inspection checklist for received items",
+        "Cancels a posted GRN with stock reversal",
+        "Displays projected stock impact before posting"
+      ],
+      "validation": [
+        "Order reference must be in approved status",
+        "Warehouse code must be active",
+        "Received quantity must be numeric and non-negative",
+        "Rejected quantity cannot exceed received quantity",
+        "Accepted quantity must equal received minus rejected",
+        "Expiry date must be later than GRN date (for perishables)",
+        "Batch number is mandatory for batch-tracked items",
+        "At least one item with accepted quantity > 0 required"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New GRN",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post GRN",
+        "Ctrl+I: Add Item",
+        "Ctrl+O: Import from Order",
+        "Ctrl+P: Print",
+        "F4: Quality Check",
+        "F6: Stock Impact"
+      ],
+      "relatedReports": [
+        "RPT-grn_register",
+        "RPT-daily_receipts",
+        "RPT-supplier_return_summary",
+        "RPT-stock_aging",
+        "RPT-quality_rejection_analysis"
+      ],
+      "relatedWorkflows": [
+        "GRN Approval Workflow",
+        "Quality Inspection Workflow",
+        "Stock Posting Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-receipt-overrun-tolerance",
+        "BR-quality-inspection-mandate",
+        "BR-batch-tracking-rules",
+        "BR-expiry-management"
+      ],
+      "commonErrors": [
+        "ERR-401: Order not in approved status for receipt",
+        "ERR-402: Warehouse code inactive",
+        "ERR-403: Quantity exceeds order tolerance limit",
+        "ERR-404: Duplicate GRN for same order and invoice"
+      ],
+      "module": "Inventory",
+      "navigationPath": "/inventory/stock-inward",
+      "viewKey": "stock_inwards"
+    },
+    {
+      "id": "SCR-stock_outwards",
+      "name": "Stock Outward",
+      "purpose": "Stock issue against orders screen for recording outward movements including material issue to production, dispatch to consignees, and inter-warehouse transfers.",
+      "fields": [
+        "issueVoucherNo",
+        "issueDate",
+        "issueType",
+        "orderReference",
+        "orderNumber",
+        "consigneeCode",
+        "consigneeName",
+        "deliveryLocation",
+        "warehouseCode",
+        "warehouseName",
+        "binLocation",
+        "itemCode",
+        "itemDescription",
+        "requestedQuantity",
+        "issuedQuantity",
+        "uom",
+        "batchNumber",
+        "serialNumber",
+        "vehicleNumber",
+        "driverDetails",
+        "dispatchDate",
+        "expectedDeliveryDate",
+        "ewayBillNumber",
+        "issueStatus",
+        "postingStatus"
+      ],
+      "buttons": [
+        "New Issue",
+        "Save Draft",
+        "Post Issue",
+        "Print Delivery Challan",
+        "Generate E-Way Bill",
+        "Add Item",
+        "Remove Item",
+        "Load from Order",
+        "Cancel Issue",
+        "Track Shipment",
+        "View Allocation"
+      ],
+      "actions": [
+        "Creates a new stock issue voucher",
+        "Saves issue voucher as draft",
+        "Posts issue to reduce inventory and update outstanding orders",
+        "Prints delivery challan in prescribed format",
+        "Integrates with GST portal to generate e-way bill",
+        "Adds item to the issue grid",
+        "Removes selected item from issue grid",
+        "Loads items and quantities from the source order",
+        "Cancels posted issue with stock reversal",
+        "Opens shipment tracking interface if carrier integrated",
+        "Displays current stock allocation for selected items"
+      ],
+      "validation": [
+        "Issue type must be valid: Issue to Consignee, Transfer, Return to Supplier",
+        "Warehouse must have sufficient stock for each item",
+        "Issued quantity cannot exceed requested quantity",
+        "Batch number selection required for batch-tracked items",
+        "E-way bill required for inter-state movement above threshold",
+        "Delivery location must match consignee master",
+        "Stock valuation method must be consistently applied"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Issue",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+D: Print Challan",
+        "Ctrl+W: Generate E-Way Bill",
+        "Ctrl+I: Add Item",
+        "F5: Refresh",
+        "F7: Track Shipment"
+      ],
+      "relatedReports": [
+        "RPT-issue_register",
+        "RPT-daily_despatch",
+        "RPT-consignee_wise_issue",
+        "RPT-stock_movement",
+        "RPT-eway_bill_register"
+      ],
+      "relatedWorkflows": [
+        "Stock Issue Workflow",
+        "Dispatch Confirmation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-stock-availability-check",
+        "BR-fifo-valuation",
+        "BR-eway-bill-generation",
+        "BR-consignee-validation"
+      ],
+      "commonErrors": [
+        "ERR-501: Insufficient stock in selected warehouse",
+        "ERR-502: Invalid consignee code",
+        "ERR-503: E-way bill generation failed",
+        "ERR-504: Batch number mandatory but not provided"
+      ],
+      "module": "Inventory",
+      "navigationPath": "/inventory/stock-outward",
+      "viewKey": "stock_outwards"
+    },
+    {
+      "id": "SCR-stock_adjustments",
+      "name": "Stock Adjustment",
+      "purpose": "Approved stock correction screen for writing off damaged stock, adjusting discrepancies found during physical verification, and correcting system errors.",
+      "fields": [
+        "adjustmentVoucherNo",
+        "adjustmentDate",
+        "adjustmentType",
+        "warehouseCode",
+        "warehouseName",
+        "binLocation",
+        "itemCode",
+        "itemDescription",
+        "systemQuantity",
+        "physicalQuantity",
+        "differenceQuantity",
+        "adjustmentQuantity",
+        "uom",
+        "batchNumber",
+        "valuationRate",
+        "adjustmentValue",
+        "reasonCode",
+        "reasonDescription",
+        "referenceDocument",
+        "approvedBy",
+        "approvalDate",
+        "adjustmentStatus",
+        "postingStatus"
+      ],
+      "buttons": [
+        "New Adjustment",
+        "Save Draft",
+        "Post Adjustment",
+        "Add Item",
+        "Import from Physical Count",
+        "Print Adjustment Voucher",
+        "Cancel Adjustment",
+        "View Verification History"
+      ],
+      "actions": [
+        "Creates a new stock adjustment voucher",
+        "Saves adjustment as draft",
+        "Posts adjustment to update inventory valuation",
+        "Adds item line to adjustment grid",
+        "Imports discrepancy data from physical count worksheet",
+        "Prints adjustment voucher for audit documentation",
+        "Cancels posted adjustment with reversal entry",
+        "Opens previous physical verification records for reference"
+      ],
+      "validation": [
+        "Adjustment type must be: Write-off, Shortage, Excess, Rate Correction",
+        "Reason code is mandatory for negative adjustments",
+        "Difference quantity must equal physical minus system",
+        "Adjustment requires approval for value above threshold",
+        "Approved adjustment cannot be modified",
+        "Batch number required for batch-tracked items",
+        "Previous physical count must be completed for same location"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Adjustment",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+I: Add Item",
+        "F2: Import Physical Count",
+        "F5: Refresh"
+      ],
+      "relatedReports": [
+        "RPT-adjustment_register",
+        "RPT-stock_discrepancy_report",
+        "RPT-write_off_summary",
+        "RPT-physical_verification_status"
+      ],
+      "relatedWorkflows": [
+        "Stock Adjustment Approval Workflow",
+        "Physical Verification Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-adjustment-threshold-approval",
+        "BR-reason-code-mandate",
+        "BR-valuation-rate-freeze"
+      ],
+      "commonErrors": [
+        "ERR-601: Adjustment value exceeds auto-approval threshold",
+        "ERR-602: Reason code missing for negative adjustment",
+        "ERR-603: Physical count not completed for this location"
+      ],
+      "module": "Inventory",
+      "navigationPath": "/inventory/stock-adjustment",
+      "viewKey": "stock_adjustments"
+    },
+    {
+      "id": "SCR-operations_dashboard",
+      "name": "Operations Dashboard",
+      "purpose": "Command center view providing real-time operational KPIs, pending task summaries, and quick-action tiles for daily ERP operations management.",
+      "fields": [
+        "pendingOrdersCount",
+        "pendingInvoicesCount",
+        "pendingPaymentsCount",
+        "pendingGrnCount",
+        "pendingApprovalsCount",
+        "overdueDeliveriesCount",
+        "stockAlertsCount",
+        "todayReceiptsValue",
+        "todayDespatchesValue",
+        "todayPaymentsValue",
+        "todayReceiptsCount",
+        "monthToDateProcurement",
+        "monthToDatePayment",
+        "departmentWiseSpend",
+        "supplierPerformanceScore",
+        "orderFulfillmentRate",
+        "averageProcessingTime",
+        "pendingTasksList",
+        "recentAlerts",
+        "systemHealthStatus"
+      ],
+      "buttons": [
+        "Refresh Dashboard",
+        "View All Pending Orders",
+        "View All Pending Approvals",
+        "View Stock Alerts",
+        "Generate Operations Report",
+        "Configure Widgets",
+        "Export Dashboard",
+        "Notification Settings"
+      ],
+      "actions": [
+        "Refreshes all dashboard widgets with latest data",
+        "Navigates to pending orders list view",
+        "Navigates to pending approvals queue",
+        "Navigates to stock alert list",
+        "Generates daily operations summary report",
+        "Opens widget configuration panel for dashboard personalization",
+        "Exports current dashboard view as PDF",
+        "Opens notification preference settings"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Refresh Dashboard",
+        "Ctrl+R: Generate Report",
+        "Ctrl+W: Widget Settings",
+        "F1: Help"
+      ],
+      "relatedReports": [
+        "RPT-daily_operations_summary",
+        "RPT-kpi_trend",
+        "RPT-pending_actions",
+        "RPT-system_health"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [],
+      "commonErrors": [],
+      "module": "Operations",
+      "navigationPath": "/operations/dashboard",
+      "viewKey": "operations_dashboard"
+    },
+    {
+      "id": "SCR-inventory_dashboard",
+      "name": "Inventory Dashboard",
+      "purpose": "Stock overview screen providing real-time visibility into inventory levels, valuation, turnover metrics, and actionable stock alerts across warehouses.",
+      "fields": [
+        "totalItems",
+        "totalStockValue",
+        "totalWarehouses",
+        "stockTurnoverRatio",
+        "slowMovingCount",
+        "nonMovingCount",
+        "expiringSoonCount",
+        "stockOutCount",
+        "belowReorderCount",
+        "excessStockCount",
+        "warehouseWiseValue",
+        "categoryWiseStock",
+        "todaysReceipts",
+        "todaysIssues",
+        "pendingTransferOrders",
+        "lastPhysicalVerificationDate",
+        "inventoryAccuracyPercent"
+      ],
+      "buttons": [
+        "Refresh",
+        "View Stock Summary",
+        "View Slow Moving Items",
+        "View Non Moving Items",
+        "View Expiring Items",
+        "Generate Inventory Report",
+        "Trigger Reorder",
+        "Export Stock List",
+        "Configure Alerts"
+      ],
+      "actions": [
+        "Refreshes all inventory metrics",
+        "Navigates to detailed stock summary with filters",
+        "Filters and displays slow-moving items list",
+        "Filters and displays non-moving items for review",
+        "Shows items nearing expiry for action",
+        "Generates comprehensive inventory status report",
+        "Initiates reorder process for items below reorder level",
+        "Exports current stock list with valuation",
+        "Opens inventory alert threshold configuration"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+R: Generate Report",
+        "Ctrl+E: Export",
+        "F1: Help"
+      ],
+      "relatedReports": [
+        "RPT-inventory_summary",
+        "RPT-slow_non_moving",
+        "RPT-stock_aging_analysis",
+        "RPT-reorder_suggestion",
+        "RPT-inventory_valuation"
+      ],
+      "relatedWorkflows": [
+        "Reorder Initiation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-reorder-level-calculation",
+        "BR-slow-moving-threshold"
+      ],
+      "commonErrors": [],
+      "module": "Inventory",
+      "navigationPath": "/inventory/dashboard",
+      "viewKey": "inventory_dashboard"
+    },
+    {
+      "id": "SCR-trial_balance",
+      "name": "Trial Balance",
+      "purpose": "Financial control report screen showing the trial balance with debit and credit balances for all ledger accounts, with drill-down to subsidiary ledgers.",
+      "fields": [
+        "reportDate",
+        "fromDate",
+        "toDate",
+        "accountCode",
+        "accountName",
+        "openingDebit",
+        "openingCredit",
+        "periodDebit",
+        "periodCredit",
+        "closingDebit",
+        "closingCredit",
+        "totalDebit",
+        "totalCredit",
+        "difference",
+        "branchCode",
+        "costCenterCode",
+        "reportLevel"
+      ],
+      "buttons": [
+        "Run Report",
+        "Export to Excel",
+        "Export to PDF",
+        "Print",
+        "Drill Down",
+        "Refresh",
+        "Set Filters",
+        "Save Configuration"
+      ],
+      "actions": [
+        "Generates trial balance for selected period",
+        "Exports report data to Excel format",
+        "Exports report to PDF document",
+        "Prints the trial balance report",
+        "Drills down to selected account's ledger details",
+        "Refreshes report with latest posted entries",
+        "Opens filter panel for date range, branch, cost center",
+        "Saves current filter configuration as default"
+      ],
+      "validation": [
+        "From date must be earlier than to date",
+        "Total debits must equal total credits",
+        "Report cannot be generated for future periods",
+        "Period must be within current financial year"
+      ],
+      "shortcuts": [
+        "F5: Run Report",
+        "Ctrl+E: Export to Excel",
+        "Ctrl+P: Print",
+        "Ctrl+D: Drill Down",
+        "F2: Set Filters"
+      ],
+      "relatedReports": [
+        "RPT-trial_balance_detail",
+        "RPT-account_ledger",
+        "RPT-group_summary"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-account-closing-period",
+        "BR-financial-year-validation"
+      ],
+      "commonErrors": [
+        "ERR-701: Selected period not yet closed for trial balance",
+        "ERR-702: Debit and credit totals mismatch",
+        "ERR-703: Accounts with unposted vouchers in period"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/reports/trial-balance",
+      "viewKey": "trial_balance"
+    },
+    {
+      "id": "SCR-profit_loss",
+      "name": "Profit & Loss",
+      "purpose": "Income statement screen showing revenue, expenses, and profit/loss for selected periods with comparative analysis and drill-down capability.",
+      "fields": [
+        "reportDate",
+        "fromDate",
+        "toDate",
+        "comparisonPeriod",
+        "incomeGroup",
+        "incomeAccount",
+        "incomeAmount",
+        "incomeBudget",
+        "incomeVariance",
+        "expenseGroup",
+        "expenseAccount",
+        "expenseAmount",
+        "expenseBudget",
+        "expenseVariance",
+        "grossProfit",
+        "operatingExpenses",
+        "operatingProfit",
+        "otherIncome",
+        "otherExpenses",
+        "netProfit",
+        "branchCode",
+        "costCenterCode",
+        "reportLevel"
+      ],
+      "buttons": [
+        "Run Report",
+        "Export to Excel",
+        "Export to PDF",
+        "Print",
+        "Drill Down",
+        "Refresh",
+        "Set Filters",
+        "Compare Period",
+        "View Graph",
+        "Save Configuration"
+      ],
+      "actions": [
+        "Generates P&L statement for selected period",
+        "Exports to Excel with formatting",
+        "Exports to PDF document",
+        "Prints the income statement",
+        "Drills down to individual account transactions",
+        "Refreshes with latest data",
+        "Opens filter panel for date range, branch, cost center",
+        "Toggles comparison with previous period or budget",
+        "Renders graphical representation of income and expense trends",
+        "Saves current configuration as default view"
+      ],
+      "validation": [
+        "From and to dates must be within same financial year",
+        "Period must be closed for final reporting",
+        "Report cannot be generated for future periods",
+        "Comparative period must have valid data"
+      ],
+      "shortcuts": [
+        "F5: Run Report",
+        "Ctrl+E: Export to Excel",
+        "Ctrl+P: Print",
+        "Ctrl+D: Drill Down",
+        "Ctrl+G: View Graph",
+        "F2: Set Filters"
+      ],
+      "relatedReports": [
+        "RPT-profit_loss_detail",
+        "RPT-income_expense_summary",
+        "RPT-budget_variance",
+        "RPT-comparative_pl"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-financial-year-closing",
+        "BR-revenue-recognition",
+        "BR-expense-accrual"
+      ],
+      "commonErrors": [
+        "ERR-801: Selected period not yet closed for P&L",
+        "ERR-802: Income and expense classification mismatch",
+        "ERR-803: Budget data not available for comparison"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/reports/profit-loss",
+      "viewKey": "profit_loss"
+    },
+    {
+      "id": "SCR-balance_sheet",
+      "name": "Balance Sheet",
+      "purpose": "Position statement screen showing assets, liabilities, and equity with schedule-wise drill-down for the current financial period.",
+      "fields": [
+        "reportDate",
+        "asOnDate",
+        "assetGroup",
+        "assetAccount",
+        "assetAmount",
+        "liabilityGroup",
+        "liabilityAccount",
+        "liabilityAmount",
+        "equityAccount",
+        "equityAmount",
+        "totalAssets",
+        "totalLiabilities",
+        "netEquity",
+        "difference",
+        "scheduleNumber",
+        "scheduleDescription",
+        "branchCode",
+        "costCenterCode",
+        "reportLevel"
+      ],
+      "buttons": [
+        "Run Report",
+        "Export to Excel",
+        "Export to PDF",
+        "Print",
+        "Drill Down to Schedule",
+        "Drill Down to Account",
+        "View Schedule List",
+        "Refresh",
+        "Set Filters"
+      ],
+      "actions": [
+        "Generates balance sheet as on selected date",
+        "Exports to Excel format",
+        "Exports to PDF",
+        "Prints balance sheet",
+        "Drills down from group to detailed schedule",
+        "Drills down from schedule to individual account ledgers",
+        "Displays complete schedule index for navigation",
+        "Refreshes with latest posted data",
+        "Opens filter panel for date and branch selection"
+      ],
+      "validation": [
+        "As-on date must be a valid closing date",
+        "Total assets must equal total liabilities plus equity",
+        "Report cannot be generated for future dates",
+        "All schedules must be balanced"
+      ],
+      "shortcuts": [
+        "F5: Run Report",
+        "Ctrl+E: Export to Excel",
+        "Ctrl+P: Print",
+        "Ctrl+D: Drill Down",
+        "F2: Set Filters",
+        "F3: Schedule List"
+      ],
+      "relatedReports": [
+        "RPT-balance_sheet_detail",
+        "RPT-schedule_wise_report",
+        "RPT-asset_register",
+        "RPT-liability_aging"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-asset-classification",
+        "BR-depreciation-policy",
+        "BR-liability-recognition"
+      ],
+      "commonErrors": [
+        "ERR-901: Assets and liabilities total mismatch",
+        "ERR-902: Schedule not yet certified for display",
+        "ERR-903: Previous period not yet closed"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/reports/balance-sheet",
+      "viewKey": "balance_sheet"
+    },
+    {
+      "id": "SCR-gst_register",
+      "name": "GST Register",
+      "purpose": "Tax register screen for GSTR-1, GSTR-3B preparation, input tax credit tracking, and reconciliation of sales and purchase registers with GST returns.",
+      "fields": [
+        "returnPeriod",
+        "returnType",
+        "gstin",
+        "supplyType",
+        "hsnCode",
+        "hsnDescription",
+        "taxableValue",
+        "cgstRate",
+        "cgstAmount",
+        "sgstRate",
+        "sgstAmount",
+        "igstRate",
+        "igstAmount",
+        "totalTax",
+        "invoiceCount",
+        "creditNoteCount",
+        "debitNoteCount",
+        "advanceReceipts",
+        "reverseCharge",
+        "itcClaimed",
+        "itcEligible",
+        "itcReversed",
+        "filingStatus",
+        "dueDate",
+        "filingDate"
+      ],
+      "buttons": [
+        "Generate Register",
+        "Export GSTR-1 JSON",
+        "Export GSTR-3B JSON",
+        "Reconcile with Portal",
+        "View ITC Dashboard",
+        "Print Register",
+        "Export to Excel",
+        "Match with Purchase Register",
+        "Push to GST Portal",
+        "View Filing History"
+      ],
+      "actions": [
+        "Generates GST register for selected return period",
+        "Exports GSTR-1 data in JSON format for portal upload",
+        "Exports GSTR-3B summary JSON",
+        "Runs reconciliation between system data and GST portal data",
+        "Navigates to input tax credit dashboard",
+        "Prints GST register report",
+        "Exports data to Excel with HSN-wise summary",
+        "Matches sales GST with purchase register for ITC validation",
+        "Pushes return data directly to GST portal via API",
+        "Shows historical filing records and acknowledgment details"
+      ],
+      "validation": [
+        "Return period must be a valid GST period (month/year)",
+        "GSTIN must be active and registered",
+        "HSN codes must be valid as per GST master",
+        "Taxable value must match sum of invoice values",
+        "ITC claimed cannot exceed eligible ITC",
+        "Reverse charge liability must be correctly computed",
+        "Return cannot be generated for periods already filed"
+      ],
+      "shortcuts": [
+        "F5: Generate Register",
+        "Ctrl+E: Export Excel",
+        "Ctrl+J: Export JSON",
+        "Ctrl+R: Reconcile",
+        "Ctrl+P: Print",
+        "F2: Push to Portal"
+      ],
+      "relatedReports": [
+        "RPT-gstr1_summary",
+        "RPT-gstr3b_summary",
+        "RPT-itc_statement",
+        "RPT-hsn_wise_summary",
+        "RPT-reverse_charge_register"
+      ],
+      "relatedWorkflows": [
+        "GST Return Filing Workflow",
+        "ITC Reconciliation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-gst-return-period",
+        "BR-itc-eligibility",
+        "BR-reverse-charge",
+        "BR-e-invoice-mandate"
+      ],
+      "commonErrors": [
+        "ERR-1001: GSTIN not active for return period",
+        "ERR-1002: HSN code not mapped to correct rate",
+        "ERR-1003: ITC mismatch between purchase and vendor GSTR-2A",
+        "ERR-1004: Return period already filed"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/gst-register",
+      "viewKey": "gst_register"
+    },
+    {
+      "id": "SCR-voucher_dashboard",
+      "name": "Voucher Dashboard",
+      "purpose": "Guided voucher entry screen providing a unified interface for creating, editing, and managing all accounting vouchers including journal, receipt, payment, contra, and purchase/sales entries.",
+      "fields": [
+        "voucherType",
+        "voucherNumber",
+        "voucherDate",
+        "accountCode",
+        "accountName",
+        "debitAmount",
+        "creditAmount",
+        "narration",
+        "costCenter",
+        "branchCode",
+        "referenceNumber",
+        "referenceDate",
+        "partyCode",
+        "partyName",
+        "totalDebit",
+        "totalCredit",
+        "difference",
+        "postingStatus",
+        "approvalStatus"
+      ],
+      "buttons": [
+        "New Voucher",
+        "Save Draft",
+        "Post Voucher",
+        "Approve",
+        "Reject",
+        "Add Entry Row",
+        "Delete Entry Row",
+        "Auto Balance",
+        "Split Narration",
+        "Import from Template",
+        "View Ledger",
+        "Print Voucher",
+        "Cancel Voucher",
+        "Quick Copy"
+      ],
+      "actions": [
+        "Creates a new voucher of selected type",
+        "Saves voucher as draft without financial impact",
+        "Posts voucher to general ledger",
+        "Approves voucher in maker-checker workflow",
+        "Rejects voucher with reason",
+        "Adds a new debit/credit entry row",
+        "Removes selected entry row",
+        "Auto-fills balancing figure to equalize debit and credit",
+        "Allows line-level narration for each entry row",
+        "Loads voucher from predefined template",
+        "Displays ledger transactions for selected account",
+        "Prints voucher in standard accounting format",
+        "Cancels posted voucher with auto-reversal",
+        "Creates a copy of current voucher for quick entry"
+      ],
+      "validation": [
+        "Total debits must equal total credits",
+        "At least two entry rows required",
+        "Voucher date must be within open financial period",
+        "Account codes must be active and of correct type",
+        "Party code required for party ledger accounts",
+        "Narration is mandatory for each entry",
+        "Cannot post voucher in locked period"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Voucher",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+B: Auto Balance",
+        "Ctrl+I: Add Row",
+        "Ctrl+D: Delete Row",
+        "Ctrl+L: View Ledger",
+        "Ctrl+P: Print",
+        "F3: Quick Copy"
+      ],
+      "relatedReports": [
+        "RPT-voucher_register",
+        "RPT-day_book",
+        "RPT-account_ledger",
+        "RPT-journal_register"
+      ],
+      "relatedWorkflows": [
+        "Voucher Approval Workflow",
+        "Voucher Posting Workflow",
+        "Voucher Cancellation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-voucher-type-restrictions",
+        "BR-account-type-validation",
+        "BR-period-locking",
+        "BR-maker-checker"
+      ],
+      "commonErrors": [
+        "ERR-1101: Debit and credit totals do not match",
+        "ERR-1102: Account code not valid for voucher type",
+        "ERR-1103: Period is locked for voucher entry",
+        "ERR-1104: Duplicate voucher number detected"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/voucher-dashboard",
+      "viewKey": "voucher_dashboard"
+    },
+    {
+      "id": "SCR-chart_accounts",
+      "name": "Chart of Accounts",
+      "purpose": "Accounting masters screen for creating, modifying, and organizing the chart of accounts hierarchy including groups, ledgers, and cost centers.",
+      "fields": [
+        "accountCode",
+        "accountName",
+        "accountType",
+        "groupName",
+        "parentGroup",
+        "groupHierarchy",
+        "isLeafNode",
+        "openingBalance",
+        "openingBalanceType",
+        "address",
+        "gstin",
+        "pan",
+        "contactPerson",
+        "contactNumber",
+        "email",
+        "bankAccountNumber",
+        "bankIfscCode",
+        "creditLimit",
+        "paymentTerms",
+        "costCenterApplicable",
+        "activeStatus",
+        "createdDate",
+        "modifiedDate"
+      ],
+      "buttons": [
+        "New Account",
+        "Edit Account",
+        "Delete Account",
+        "New Group",
+        "Edit Group",
+        "Delete Group",
+        "Import from Excel",
+        "Export to Excel",
+        "Print Chart",
+        "Refresh Tree",
+        "Search Account",
+        "View Ledger",
+        "Show Inactive",
+        "Reorder Tree"
+      ],
+      "actions": [
+        "Creates a new ledger account under selected group",
+        "Edits selected account details",
+        "Deletes account if no transactions exist",
+        "Creates a new group under selected parent",
+        "Edits selected group properties",
+        "Deletes group if no children or transactions",
+        "Bulk imports chart of accounts from Excel template",
+        "Exports complete chart to Excel",
+        "Prints chart of accounts report",
+        "Refreshes account tree with latest data",
+        "Opens search panel to find specific account",
+        "Displays ledger report for selected account",
+        "Toggles display of inactive accounts",
+        "Reorders groups and accounts within hierarchy"
+      ],
+      "validation": [
+        "Account code must be unique",
+        "Group name must be unique within same parent",
+        "Account type must match group type",
+        "GSTIN format must be valid if provided",
+        "PAN format must be valid if provided",
+        "IFSC code must be 11 characters if provided",
+        "Cannot delete group with active child accounts",
+        "Cannot delete account with posted transactions"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Account",
+        "Ctrl+Shift+N: New Group",
+        "Ctrl+E: Edit",
+        "Ctrl+S: Search",
+        "Ctrl+L: View Ledger",
+        "F5: Refresh",
+        "F2: Rename"
+      ],
+      "relatedReports": [
+        "RPT-chart_of_accounts",
+        "RPT-group_summary",
+        "RPT-account_master_list"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-account-code-format",
+        "BR-group-hierarchy-restriction",
+        "BR-account-type-immutable"
+      ],
+      "commonErrors": [
+        "ERR-1201: Duplicate account code",
+        "ERR-1202: Cannot delete group with child accounts",
+        "ERR-1203: Invalid account type for selected group",
+        "ERR-1204: GSTIN validation failed"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/chart-of-accounts",
+      "viewKey": "chart_accounts"
+    },
+    {
+      "id": "SCR-ledger_view",
+      "name": "General Ledger",
+      "purpose": "Ledger viewing screen displaying all transactions for a selected account with date range filters, running balance, and drill-down to source vouchers.",
+      "fields": [
+        "accountCode",
+        "accountName",
+        "fromDate",
+        "toDate",
+        "transactionDate",
+        "voucherNumber",
+        "voucherType",
+        "voucherReference",
+        "narration",
+        "debitAmount",
+        "creditAmount",
+        "runningBalance",
+        "balanceType",
+        "partyName",
+        "costCenter",
+        "branchCode",
+        "openingBalance",
+        "totalDebit",
+        "totalCredit",
+        "closingBalance"
+      ],
+      "buttons": [
+        "View Ledger",
+        "Refresh",
+        "Export to Excel",
+        "Export to PDF",
+        "Print",
+        "Drill Down to Voucher",
+        "Set Date Range",
+        "Toggle Debit/Credit",
+        "Show Opening Balance",
+        "Account Summary"
+      ],
+      "actions": [
+        "Displays ledger transactions for selected account",
+        "Refreshes ledger with latest posted transactions",
+        "Exports ledger to Excel format",
+        "Exports ledger to PDF",
+        "Prints ledger report",
+        "Opens source voucher from which transaction originated",
+        "Opens date range filter panel",
+        "Toggles between detailed and summary view",
+        "Shows/hides opening balance row",
+        "Navigates to account summary with period totals"
+      ],
+      "validation": [
+        "Account code must be a valid leaf account",
+        "From date must be earlier than to date",
+        "Date range must be within current financial year",
+        "Account must have at least one transaction"
+      ],
+      "shortcuts": [
+        "F5: View Ledger",
+        "Ctrl+E: Export Excel",
+        "Ctrl+P: Print",
+        "Ctrl+D: Drill Down",
+        "F2: Date Range",
+        "F3: Account Summary"
+      ],
+      "relatedReports": [
+        "RPT-account_ledger",
+        "RPT-ledger_summary",
+        "RPT-day_book",
+        "RPT-account_aging"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-ledger-view-restriction",
+        "BR-transaction-visibility"
+      ],
+      "commonErrors": [
+        "ERR-1301: Account code not a leaf account",
+        "ERR-1302: No transactions found for selected period",
+        "ERR-1303: Selected period not within financial year"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/general-ledger",
+      "viewKey": "ledger_view"
+    },
+    {
+      "id": "SCR-bank_reconciliation",
+      "name": "Bank Reconciliation",
+      "purpose": "Matching screen for reconciling system bank book transactions with bank statement entries, identifying unmatched items, and generating reconciliation reports.",
+      "fields": [
+        "bankAccountCode",
+        "bankAccountName",
+        "statementDate",
+        "statementBalance",
+        "systemBalance",
+        "difference",
+        "reconciliationDate",
+        "systemTransactionDate",
+        "systemTransactionRef",
+        "systemDescription",
+        "systemDebit",
+        "systemCredit",
+        "statementTransactionDate",
+        "statementTransactionRef",
+        "statementDescription",
+        "statementDebit",
+        "statementCredit",
+        "matchStatus",
+        "remarks",
+        "clearedBalance"
+      ],
+      "buttons": [
+        "Start Reconciliation",
+        "Auto Match",
+        "Manual Match",
+        "Unmatch",
+        "Add System Entry",
+        "Add Statement Entry",
+        "Import Statement",
+        "Save Reconciliation",
+        "Print Report",
+        "Export to Excel",
+        "View Previous Reconciliation",
+        "Resolve Difference"
+      ],
+      "actions": [
+        "Initiates new reconciliation session for selected bank account",
+        "Runs auto-matching algorithm based on reference and amount",
+        "Manually matches selected system and statement entries",
+        "Unmatches previously matched entries",
+        "Adds a manual system-side entry for unreconciled items",
+        "Adds a manual statement entry for unreconciled items",
+        "Imports bank statement file (CSV, OFX, MT940)",
+        "Saves current reconciliation status",
+        "Prints bank reconciliation statement",
+        "Exports reconciliation details to Excel",
+        "Shows previous period reconciliation for reference",
+        "Opens difference resolution assistant with suggestions"
+      ],
+      "validation": [
+        "Bank account must be active and mapped",
+        "Statement date must not be in future",
+        "Statement balance must be positive (or zero)",
+        "Difference must equal statement balance minus system balance",
+        "Previous period must be reconciled before current period",
+        "Matched entries must have same amount direction"
+      ],
+      "shortcuts": [
+        "F5: Start Reconciliation",
+        "Ctrl+A: Auto Match",
+        "Ctrl+M: Manual Match",
+        "Ctrl+U: Unmatch",
+        "Ctrl+I: Import Statement",
+        "Ctrl+S: Save",
+        "Ctrl+P: Print",
+        "F2: Resolve Difference"
+      ],
+      "relatedReports": [
+        "RPT-bank_reconciliation_statement",
+        "RPT-unreconciled_items",
+        "RPT-bank_book",
+        "RPT-cash_flow_reconciliation"
+      ],
+      "relatedWorkflows": [
+        "Bank Reconciliation Workflow",
+        "Difference Resolution Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-reconciliation-frequency",
+        "BR-auto-match-threshold",
+        "BR-old-item-escalation"
+      ],
+      "commonErrors": [
+        "ERR-1401: Previous period not reconciled",
+        "ERR-1402: Statement import format not recognized",
+        "ERR-1403: Difference cannot be resolved automatically",
+        "ERR-1404: Duplicate statement entries detected"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/bank-reconciliation",
+      "viewKey": "bank_reconciliation"
+    },
+    {
+      "id": "SCR-receivables",
+      "name": "Receivables Dashboard",
+      "purpose": "Receivable overview screen showing outstanding customer receivables with aging analysis, collection forecasts, and actionable follow-up tools.",
+      "fields": [
+        "customerCode",
+        "customerName",
+        "totalOutstanding",
+        "currentDue",
+        "days0to30",
+        "days31to60",
+        "days61to90",
+        "days91plus",
+        "totalOverdue",
+        "creditLimit",
+        "availableCredit",
+        "lastPaymentDate",
+        "lastPaymentAmount",
+        "averageCollectionPeriod",
+        "collectionEfficiency",
+        "invoiceCount",
+        "overdueInvoiceCount",
+        "disputedAmount",
+        "expectedCollectionDate",
+        "reminderStatus"
+      ],
+      "buttons": [
+        "Refresh Dashboard",
+        "View Aging Details",
+        "Send Reminder",
+        "Generate Demand Letter",
+        "Apply Receipt",
+        "Adjust Credit Limit",
+        "View Customer Ledger",
+        "Export to Excel",
+        "Print Report",
+        "Set Collection Target"
+      ],
+      "actions": [
+        "Refreshes receivable metrics with latest data",
+        "Navigates to detailed aging analysis view",
+        "Sends payment reminder to customer via registered contact",
+        "Generates formal demand letter for overdue amounts",
+        "Opens receipt allocation screen for selected customer",
+        "Opens credit limit adjustment form",
+        "Displays complete customer ledger with all transactions",
+        "Exports aging report to Excel",
+        "Prints receivables summary report",
+        "Opens collection target setting dashboard"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+R: Send Reminder",
+        "Ctrl+D: Demand Letter",
+        "Ctrl+L: View Ledger",
+        "Ctrl+E: Export",
+        "F2: Aging Details"
+      ],
+      "relatedReports": [
+        "RPT-receivable_aging",
+        "RPT-collection_summary",
+        "RPT-customer_outstanding",
+        "RPT-dispute_tracker"
+      ],
+      "relatedWorkflows": [
+        "Collection Workflow",
+        "Credit Limit Review Workflow",
+        "Dispute Resolution Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-credit-limit-enforcement",
+        "BR-aging-classification",
+        "BR-reminder-escalation"
+      ],
+      "commonErrors": [],
+      "module": "Finance",
+      "navigationPath": "/finance/receivables",
+      "viewKey": "receivables"
+    },
+    {
+      "id": "SCR-payables",
+      "name": "Payables Dashboard",
+      "purpose": "Payable overview screen showing outstanding supplier payables with aging analysis, payment planning tools, and invoice tracking.",
+      "fields": [
+        "supplierCode",
+        "supplierName",
+        "totalOutstanding",
+        "currentDue",
+        "days0to30",
+        "days31to60",
+        "days61to90",
+        "days91plus",
+        "totalOverdue",
+        "creditPeriod",
+        "lastPaymentDate",
+        "lastPaymentAmount",
+        "averagePaymentPeriod",
+        "invoiceCount",
+        "pendingInvoiceCount",
+        "disputedAmount",
+        "onHoldAmount",
+        "plannedPaymentDate",
+        "paymentPriority"
+      ],
+      "buttons": [
+        "Refresh Dashboard",
+        "View Aging Details",
+        "Plan Payment",
+        "Generate Payment Batch",
+        "Hold Invoice",
+        "Release Hold",
+        "View Supplier Ledger",
+        "Export to Excel",
+        "Print Report",
+        "Set Payment Priority"
+      ],
+      "actions": [
+        "Refreshes payable metrics with latest data",
+        "Navigates to detailed aging analysis view",
+        "Opens payment planning screen for selected supplier",
+        "Creates payment batch for selected invoices",
+        "Places selected invoice on hold with reason",
+        "Releases hold on selected invoice",
+        "Displays complete supplier ledger",
+        "Exports aging report to Excel",
+        "Prints payables summary report",
+        "Allows setting payment priority for selected invoices"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+P: Plan Payment",
+        "Ctrl+B: Payment Batch",
+        "Ctrl+L: View Ledger",
+        "Ctrl+E: Export",
+        "F2: Aging Details"
+      ],
+      "relatedReports": [
+        "RPT-payable_aging",
+        "RPT-payment_schedule",
+        "RPT-supplier_outstanding",
+        "RPT-cash_flow_forecast"
+      ],
+      "relatedWorkflows": [
+        "Payment Planning Workflow",
+        "Invoice Hold Workflow",
+        "Payment Batch Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-payment-priority-matrix",
+        "BR-aging-classification",
+        "BR-early-payment-discount"
+      ],
+      "commonErrors": [],
+      "module": "Finance",
+      "navigationPath": "/finance/payables",
+      "viewKey": "payables"
+    },
+    {
+      "id": "SCR-receipt_allocation_workflow",
+      "name": "Receipt Allocation",
+      "purpose": "Allocation workflow screen for matching customer receipts to outstanding invoices, handling on-account receipts, and managing credit notes.",
+      "fields": [
+        "receiptReference",
+        "receiptDate",
+        "customerCode",
+        "customerName",
+        "receiptAmount",
+        "unallocatedAmount",
+        "invoiceNumber",
+        "invoiceDate",
+        "invoiceAmount",
+        "outstandingAmount",
+        "allocatedAmount",
+        "discountAllowed",
+        "writeOffAmount",
+        "remainingReceipt",
+        "allocationType",
+        "remarks",
+        "allocationStatus"
+      ],
+      "buttons": [
+        "New Allocation",
+        "Save Allocation",
+        "Post Allocation",
+        "Auto Allocate",
+        "Clear Allocation",
+        "Add Credit Note",
+        "Partial Allocate",
+        "View Receipt History",
+        "Print Allocation Report",
+        "Undo Allocation"
+      ],
+      "actions": [
+        "Creates a new receipt allocation session",
+        "Saves current allocation as draft",
+        "Posts allocation to update customer outstanding",
+        "Runs auto-allocation algorithm matching by due date and amount",
+        "Clears all allocation entries and resets",
+        "Adds credit note to allocation for netting off",
+        "Allows partial allocation of receipt to selected invoice",
+        "Shows complete allocation history for the receipt",
+        "Prints receipt allocation statement",
+        "Reverses a previously posted allocation"
+      ],
+      "validation": [
+        "Receipt must not be fully allocated already",
+        "Allocated amount cannot exceed invoice outstanding",
+        "Total allocated must not exceed receipt amount",
+        "Discount allowed must be within authorized limit",
+        "Credit note must be valid and unutilized",
+        "Allocation date cannot precede receipt date"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Allocation",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+A: Auto Allocate",
+        "Ctrl+C: Clear",
+        "F5: Refresh"
+      ],
+      "relatedReports": [
+        "RPT-receipt_allocation_register",
+        "RPT-receipt_aging",
+        "RPT-customer_outstanding"
+      ],
+      "relatedWorkflows": [
+        "Receipt Allocation Workflow",
+        "Credit Note Adjustment Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-allocation-priority",
+        "BR-discount-authorization",
+        "BR-write-off-threshold"
+      ],
+      "commonErrors": [
+        "ERR-1501: Receipt already fully allocated",
+        "ERR-1502: Invoice not found or not outstanding",
+        "ERR-1503: Discount exceeds authorized limit",
+        "ERR-1504: Credit note already utilized"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/receipt-allocation",
+      "viewKey": "receipt_allocation_workflow"
+    },
+    {
+      "id": "SCR-supplier_allocation_workflow",
+      "name": "Supplier Allocation",
+      "purpose": "Supplier payment allocation screen for distributing payment amounts across multiple invoices, handling TDS adjustments, and discount capture.",
+      "fields": [
+        "paymentReference",
+        "paymentDate",
+        "supplierCode",
+        "supplierName",
+        "paymentAmount",
+        "unallocatedAmount",
+        "invoiceNumber",
+        "invoiceDate",
+        "invoiceAmount",
+        "outstandingAmount",
+        "allocatedAmount",
+        "tdsDeducted",
+        "tdsSection",
+        "discountAvailed",
+        "netPayment",
+        "remainingPayment",
+        "allocationType",
+        "remarks",
+        "allocationStatus"
+      ],
+      "buttons": [
+        "New Allocation",
+        "Save Allocation",
+        "Post Allocation",
+        "Auto Allocate",
+        "Clear Allocation",
+        "Add TDS Line",
+        "Split Payment",
+        "View Payment History",
+        "Print Allocation Report",
+        "Undo Allocation"
+      ],
+      "actions": [
+        "Creates a new supplier payment allocation session",
+        "Saves allocation as draft",
+        "Posts allocation to update supplier outstanding",
+        "Auto-allocates payment to oldest outstanding invoices",
+        "Clears all allocations and resets",
+        "Adds TDS deduction line to the allocation",
+        "Splits payment across multiple invoices with different amounts",
+        "Shows complete payment allocation history",
+        "Prints supplier payment allocation statement",
+        "Reverses a previously posted allocation"
+      ],
+      "validation": [
+        "Payment must not be fully allocated",
+        "Allocated amount cannot exceed invoice outstanding",
+        "Total allocated plus TDS must not exceed payment amount",
+        "TDS section must be valid for supplier category",
+        "Discount availed must be within invoice terms",
+        "Each invoice can only be allocated once per payment"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New Allocation",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+P: Post",
+        "Ctrl+A: Auto Allocate",
+        "Ctrl+T: Add TDS",
+        "F5: Refresh"
+      ],
+      "relatedReports": [
+        "RPT-supplier_allocation_register",
+        "RPT-tds_deduction_statement",
+        "RPT-supplier_outstanding"
+      ],
+      "relatedWorkflows": [
+        "Supplier Allocation Workflow",
+        "TDS Processing Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-allocation-priority-supplier",
+        "BR-tds-calculation-rules",
+        "BR-discount-capture"
+      ],
+      "commonErrors": [
+        "ERR-1601: Payment already fully allocated",
+        "ERR-1602: Invoice not outstanding for supplier",
+        "ERR-1603: Invalid TDS section for supplier type",
+        "ERR-1604: Allocation exceeds invoice outstanding"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/supplier-allocation",
+      "viewKey": "supplier_allocation_workflow"
+    },
+    {
+      "id": "SCR-stock_summary",
+      "name": "Stock Summary",
+      "purpose": "Stock position view screen showing current inventory levels, valuation, reorder status, and movement trends across warehouses and item categories.",
+      "fields": [
+        "itemCode",
+        "itemDescription",
+        "itemCategory",
+        "itemType",
+        "uom",
+        "warehouseCode",
+        "warehouseName",
+        "binLocation",
+        "openingStock",
+        "inwardQuantity",
+        "outwardQuantity",
+        "closingStock",
+        "reservedQuantity",
+        "availableQuantity",
+        "reorderLevel",
+        "reorderQuantity",
+        "maximumLevel",
+        "minimumLevel",
+        "unitCost",
+        "totalValue",
+        "valuationMethod",
+        "batchNumber",
+        "expiryDate",
+        "statusFlag"
+      ],
+      "buttons": [
+        "Refresh",
+        "Search Item",
+        "Apply Filter",
+        "Export to Excel",
+        "Print",
+        "View Movement",
+        "Set Reorder Level",
+        "Trigger Physical Count",
+        "View Item Ledger",
+        "Show Low Stock Only"
+      ],
+      "actions": [
+        "Refreshes stock summary with latest movements",
+        "Opens item search panel with auto-suggest",
+        "Applies selected filters (warehouse, category, status)",
+        "Exports stock summary to Excel",
+        "Prints stock position report",
+        "Shows detailed movement history for selected item",
+        "Opens reorder level configuration for selected item",
+        "Initiates physical count request for selected location",
+        "Displays item-wise stock ledger with all transactions",
+        "Filters view to show only items below reorder level"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+F: Search",
+        "Ctrl+E: Export",
+        "Ctrl+P: Print",
+        "Ctrl+M: View Movement",
+        "F2: Set Reorder Level",
+        "F4: Item Ledger"
+      ],
+      "relatedReports": [
+        "RPT-stock_summary",
+        "RPT-stock_valuation",
+        "RPT-reorder_report",
+        "RPT-warehouse_stock",
+        "RPT-stock_movement_analysis"
+      ],
+      "relatedWorkflows": [
+        "Reorder Workflow",
+        "Physical Count Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-reorder-level-calculation",
+        "BR-stock-valuation-method",
+        "BR-min-max-level"
+      ],
+      "commonErrors": [],
+      "module": "Inventory",
+      "navigationPath": "/inventory/stock-summary",
+      "viewKey": "stock_summary"
+    },
+    {
+      "id": "SCR-profitability",
+      "name": "Order Profitability",
+      "purpose": "Margin analysis screen for evaluating profitability of supply orders, contracts, and departments by comparing revenue against cost of goods sold and expenses.",
+      "fields": [
+        "orderNumber",
+        "orderDate",
+        "supplierCode",
+        "supplierName",
+        "itemCode",
+        "itemDescription",
+        "orderQuantity",
+        "unitPrice",
+        "totalRevenue",
+        "costPrice",
+        "totalCost",
+        "grossMargin",
+        "grossMarginPercent",
+        "additionalCosts",
+        "logisticsCost",
+        "handlingCost",
+        "overheadCost",
+        "netMargin",
+        "netMarginPercent",
+        "departmentCode",
+        "profitCenter",
+        "contractReference",
+        "marginStatus"
+      ],
+      "buttons": [
+        "Run Analysis",
+        "Refresh",
+        "Export to Excel",
+        "Export to PDF",
+        "Print",
+        "View Detail",
+        "Compare Orders",
+        "Set Target Margin",
+        "View Trend",
+        "Apply Filters"
+      ],
+      "actions": [
+        "Generates profitability analysis for selected orders/period",
+        "Refreshes analysis with latest cost data",
+        "Exports analysis to Excel with charts",
+        "Exports to PDF report",
+        "Prints profitability report",
+        "Shows detailed cost breakdown for selected order",
+        "Opens side-by-side comparison of multiple orders",
+        "Sets target margin percentage for monitoring",
+        "Shows margin trend over time for selected parameters",
+        "Opens filter panel for date, department, supplier filters"
+      ],
+      "validation": [
+        "Cost data must be available for all selected orders",
+        "Revenue must be greater than zero",
+        "Margin calculation requires landed cost",
+        "Comparison requires at least two orders"
+      ],
+      "shortcuts": [
+        "F5: Run Analysis",
+        "Ctrl+E: Export Excel",
+        "Ctrl+P: Print",
+        "Ctrl+D: View Detail",
+        "F2: Apply Filters",
+        "Ctrl+C: Compare"
+      ],
+      "relatedReports": [
+        "RPT-order_profitability",
+        "RPT-margin_analysis",
+        "RPT-cost_breakdown",
+        "RPT-profitability_trend"
+      ],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [
+        "BR-cost-allocation",
+        "BR-margin-threshold",
+        "BR-landed-cost-calculation"
+      ],
+      "commonErrors": [
+        "ERR-1701: Cost data not available for selected period",
+        "ERR-1702: Revenue data incomplete for margin calculation",
+        "ERR-1703: Landed cost not yet computed"
+      ],
+      "module": "Operations",
+      "navigationPath": "/operations/profitability",
+      "viewKey": "profitability"
+    },
+    {
+      "id": "SCR-posting_control",
+      "name": "Posting Queue",
+      "purpose": "Voucher posting control screen for managing the posting queue, reviewing pending vouchers, scheduling batch posting, and monitoring posting errors.",
+      "fields": [
+        "queueId",
+        "voucherNumber",
+        "voucherType",
+        "voucherDate",
+        "voucherAmount",
+        "sourceModule",
+        "createdBy",
+        "createdDate",
+        "submittedDate",
+        "postingStatus",
+        "postingAttempts",
+        "lastError",
+        "errorDescription",
+        "scheduledPostingDate",
+        "batchId",
+        "batchName",
+        "priority",
+        "remarks"
+      ],
+      "buttons": [
+        "Refresh Queue",
+        "Post Selected",
+        "Post All Pending",
+        "Schedule Posting",
+        "View Voucher",
+        "View Error Details",
+        "Reset Failed",
+        "Hold",
+        "Release Hold",
+        "Remove from Queue",
+        "Export Queue",
+        "Batch Configuration"
+      ],
+      "actions": [
+        "Refreshes the posting queue with latest status",
+        "Posts selected vouchers from the queue to ledger",
+        "Posts all pending vouchers in sequence",
+        "Schedules batch posting at specified date/time",
+        "Opens the source voucher for review",
+        "Shows detailed error description for failed vouchers",
+        "Resets failed vouchers for re-posting",
+        "Places selected voucher on hold in queue",
+        "Releases held voucher back to pending",
+        "Removes selected voucher from posting queue",
+        "Exports queue list to Excel for monitoring",
+        "Configures batch posting parameters and schedules"
+      ],
+      "validation": [
+        "Voucher must pass all pre-posting validation rules",
+        "Financial period must be open for posting",
+        "Maker and checker cannot be same user",
+        "Duplicate posting check must pass",
+        "Sequential posting order must be maintained"
+      ],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+S: Post Selected",
+        "Ctrl+Shift+A: Post All",
+        "Ctrl+V: View Voucher",
+        "Ctrl+E: Error Details",
+        "F2: Hold/Release",
+        "F4: Batch Config"
+      ],
+      "relatedReports": [
+        "RPT-posting_queue_status",
+        "RPT-posting_error_log",
+        "RPT-voucher_register",
+        "RPT-batch_posting_summary"
+      ],
+      "relatedWorkflows": [
+        "Voucher Posting Workflow",
+        "Error Resolution Workflow",
+        "Batch Posting Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-posting-sequence",
+        "BR-maker-checker-separation",
+        "BR-period-locking",
+        "BR-duplicate-check"
+      ],
+      "commonErrors": [
+        "ERR-1801: Voucher fails pre-posting validation",
+        "ERR-1802: Financial period is locked",
+        "ERR-1803: Maker and checker are same user",
+        "ERR-1804: Posting sequence violation detected"
+      ],
+      "module": "Finance",
+      "navigationPath": "/finance/posting-control",
+      "viewKey": "posting_control"
+    },
+    {
+      "id": "SCR-approval_queue",
+      "name": "Approval Queue",
+      "purpose": "Maker-checker approval screen for reviewing and approving/rejecting transactions across all modules, with complete visibility into pending approvals.",
+      "fields": [
+        "approvalId",
+        "moduleName",
+        "transactionType",
+        "transactionId",
+        "transactionNumber",
+        "transactionDate",
+        "transactionAmount",
+        "makerUserId",
+        "makerName",
+        "makerDate",
+        "checkerUserId",
+        "checkerName",
+        "approvalStatus",
+        "approvalLevel",
+        "totalLevels",
+        "currentApprover",
+        "submittedForApproval",
+        "comments",
+        "rejectionReason",
+        "submissionDate",
+        "dueDate"
+      ],
+      "buttons": [
+        "Refresh Queue",
+        "Approve Selected",
+        "Approve All Visible",
+        "Reject Selected",
+        "View Transaction",
+        "View Maker Notes",
+        "Add Comment",
+        "Forward to Level",
+        "Delegate Approval",
+        "Print Approval List",
+        "Export Queue",
+        "Set Auto Approval Rules"
+      ],
+      "actions": [
+        "Refreshes approval queue with latest pending items",
+        "Approves selected transaction at current level",
+        "Approves all visible transactions in current view",
+        "Rejects selected transaction with mandatory reason",
+        "Opens the source transaction document for complete review",
+        "Displays notes and remarks entered by the maker",
+        "Adds approver comment to the approval record",
+        "Forwards transaction to next approval level",
+        "Delegates approval authority to another user",
+        "Prints the pending approval list",
+        "Exports approval queue to Excel",
+        "Opens auto-approval rule configuration based on thresholds"
+      ],
+      "validation": [
+        "Checker cannot approve own created transactions",
+        "Transaction must be in submitted status",
+        "Approval level must match current approver's authority",
+        "Rejection reason is mandatory",
+        "Amount above delegation limit requires higher approval",
+        "Comments are mandatory for delegation"
+      ],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+A: Approve Selected",
+        "Ctrl+Shift+A: Approve All",
+        "Ctrl+R: Reject",
+        "Ctrl+V: View Transaction",
+        "Ctrl+M: View Maker Notes",
+        "F2: Forward",
+        "F4: Delegate"
+      ],
+      "relatedReports": [
+        "RPT-approval_queue_status",
+        "RPT-approval_turnaround_time",
+        "RPT-maker_checker_summary",
+        "RPT-delegation_register"
+      ],
+      "relatedWorkflows": [
+        "Multi-Level Approval Workflow",
+        "Delegation Workflow",
+        "Escalation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-maker-checker-mandate",
+        "BR-approval-delegation-limit",
+        "BR-escalation-matrix",
+        "BR-approval-threshold"
+      ],
+      "commonErrors": [
+        "ERR-1901: Checker cannot approve own transaction",
+        "ERR-1902: Transaction not in submitted state",
+        "ERR-1903: Approval exceeds delegation limit",
+        "ERR-1904: Rejection reason not provided"
+      ],
+      "module": "System",
+      "navigationPath": "/system/approval-queue",
+      "viewKey": "approval_queue"
+    },
+    {
+      "id": "SCR-crac_management",
+      "name": "CRAC Management",
+      "purpose": "Consignee Receipt and Acceptance Confirmation screen for tracking delivery completion at consignee locations, acceptance recording, and discrepancy management.",
+      "fields": [
+        "cracNumber",
+        "cracDate",
+        "orderNumber",
+        "orderDate",
+        "supplierCode",
+        "supplierName",
+        "consigneeCode",
+        "consigneeName",
+        "deliveryLocation",
+        "dispatchDate",
+        "receivedDate",
+        "receivingOfficer",
+        "itemCode",
+        "itemDescription",
+        "dispatchedQuantity",
+        "receivedQuantity",
+        "acceptedQuantity",
+        "rejectedQuantity",
+        "rejectionReason",
+        "conditionCode",
+        "conditionRemarks",
+        "binLocation",
+        "batchNumber",
+        "serialNumber",
+        "cracStatus",
+        "acceptanceDate",
+        "acceptedBy",
+        "remarks"
+      ],
+      "buttons": [
+        "New CRAC",
+        "Save Draft",
+        "Submit Acceptance",
+        "Record Discrepancy",
+        "Generate Receipt Certificate",
+        "Print CRAC",
+        "Link to GRN",
+        "Cancel CRAC",
+        "View Consignee History",
+        "Export"
+      ],
+      "actions": [
+        "Creates a new Consignee Receipt and Acceptance Confirmation",
+        "Saves CRAC as draft",
+        "Submits final acceptance recording all received quantities",
+        "Records discrepancy between dispatch and receipt",
+        "Generates official receipt certificate for supplier record",
+        "Prints CRAC document",
+        "Links CRAC to Goods Receipt Note in warehouse",
+        "Cancels CRAC record",
+        "Shows receipt history for selected consignee",
+        "Exports CRAC data to Excel"
+      ],
+      "validation": [
+        "Order must be in dispatched status",
+        "Consignee code must be valid and active",
+        "Received quantity cannot exceed dispatched quantity",
+        "Accepted plus rejected must equal received quantity",
+        "Rejection reason mandatory when rejected quantity > 0",
+        "Receiving officer name is mandatory",
+        "CRAC date cannot be before dispatch date"
+      ],
+      "shortcuts": [
+        "Ctrl+N: New CRAC",
+        "Ctrl+S: Save",
+        "Ctrl+Shift+S: Submit Acceptance",
+        "Ctrl+D: Record Discrepancy",
+        "Ctrl+P: Print",
+        "Ctrl+G: Link to GRN",
+        "F5: Refresh"
+      ],
+      "relatedReports": [
+        "RPT-crac_register",
+        "RPT-consignee_acceptance_status",
+        "RPT-delivery_completion_report",
+        "RPT-discrepancy_log"
+      ],
+      "relatedWorkflows": [
+        "CRAC Workflow",
+        "Discrepancy Resolution Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-crac-mandate",
+        "BR-consignee-validation",
+        "BR-discrepancy-escalation"
+      ],
+      "commonErrors": [
+        "ERR-2001: Order not in dispatched status",
+        "ERR-2002: Invalid consignee code",
+        "ERR-2003: Rejection reason missing for rejected quantity",
+        "ERR-2004: CRAC already exists for this order and consignee"
+      ],
+      "module": "Operations",
+      "navigationPath": "/operations/crac-management",
+      "viewKey": "crac_management"
+    },
+    {
+      "id": "SCR-help_assistant",
+      "name": "Help Assistant",
+      "purpose": "AI-powered guidance interface providing contextual help, step-by-step walkthroughs, FAQ search, and intelligent assistance for ERP users.",
+      "fields": [
+        "searchQuery",
+        "contextModule",
+        "contextScreen",
+        "helpTopic",
+        "helpContent",
+        "faqResults",
+        "walkthroughSteps",
+        "relatedTopics",
+        "videoTutorials",
+        "documentLinks",
+        "feedbackRating",
+        "userRole",
+        "recentSearches"
+      ],
+      "buttons": [
+        "Search Help",
+        "Ask Assistant",
+        "Start Walkthrough",
+        "View FAQ",
+        "View Tutorials",
+        "Open Documentation",
+        "Submit Feedback",
+        "Clear History",
+        "Report Issue",
+        "Contact Support"
+      ],
+      "actions": [
+        "Searches help content based on user query and context",
+        "Sends natural language query to AI assistant for resolution",
+        "Starts interactive step-by-step walkthrough for current screen",
+        "Displays frequently asked questions for context module",
+        "Opens list of video tutorials for current feature",
+        "Opens detailed documentation in knowledge base viewer",
+        "Submits user feedback on help article or assistant response",
+        "Clears recent search and help history",
+        "Opens issue reporting form for help content gaps",
+        "Opens contact channel for live support escalation"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F1: Open Help",
+        "Ctrl+Space: Ask Assistant",
+        "Ctrl+W: Start Walkthrough",
+        "Esc: Close Help"
+      ],
+      "relatedReports": [],
+      "relatedWorkflows": [],
+      "relatedBusinessRules": [],
+      "commonErrors": [],
+      "module": "System",
+      "navigationPath": "/system/help-assistant",
+      "viewKey": "help_assistant"
+    },
+    {
+      "id": "SCR-health_center",
+      "name": "ERP Health Center",
+      "purpose": "Diagnostics and recovery screen for monitoring system health, running diagnostic checks, viewing error logs, and performing recovery actions.",
+      "fields": [
+        "systemStatus",
+        "databaseStatus",
+        "apiStatus",
+        "schedulerStatus",
+        "integrationStatus",
+        "lastDiagnosticRun",
+        "diagnosticResults",
+        "activeAlertsCount",
+        "criticalIssuesCount",
+        "warningCount",
+        "errorLogEntries",
+        "performanceMetrics",
+        "cpuUsage",
+        "memoryUsage",
+        "diskSpace",
+        "responseTime",
+        "uptime",
+        "lastBackupDate",
+        "pendingBackup",
+        "recoveryActions",
+        "serviceName",
+        "serviceStatus"
+      ],
+      "buttons": [
+        "Run Diagnostics",
+        "View Error Logs",
+        "View Performance",
+        "Clear Cache",
+        "Restart Service",
+        "Run Recovery",
+        "View Backup Status",
+        "Trigger Backup",
+        "View Integration Status",
+        "Generate Health Report",
+        "Notify Admin",
+        "Schedule Maintenance"
+      ],
+      "actions": [
+        "Runs comprehensive system diagnostic checks",
+        "Opens error log viewer with filters and search",
+        "Displays performance metrics dashboard",
+        "Clears application cache to resolve data freshness issues",
+        "Restarts selected system service",
+        "Executes automated recovery procedures for known issues",
+        "Shows backup schedule and last backup details",
+        "Triggers immediate system backup",
+        "Shows status of all external integrations and APIs",
+        "Generates detailed system health report for IT team",
+        "Sends notification to system administrator about issues",
+        "Opens maintenance scheduling interface for planned downtime"
+      ],
+      "validation": [],
+      "shortcuts": [
+        "F5: Run Diagnostics",
+        "Ctrl+L: View Logs",
+        "Ctrl+P: Performance",
+        "Ctrl+R: Recovery",
+        "F1: Health Tips"
+      ],
+      "relatedReports": [
+        "RPT-system_health_report",
+        "RPT-error_log_analysis",
+        "RPT-performance_trend",
+        "RPT-backup_status"
+      ],
+      "relatedWorkflows": [
+        "System Recovery Workflow",
+        "Incident Management Workflow",
+        "Backup Verification Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-health-check-frequency",
+        "BR-backup-mandate",
+        "BR-incident-escalation"
+      ],
+      "commonErrors": [
+        "ERR-2101: Database connection failed",
+        "ERR-2102: API service unreachable",
+        "ERR-2103: Cache corruption detected",
+        "ERR-2104: Backup overdue beyond policy threshold"
+      ],
+      "module": "System",
+      "navigationPath": "/system/health-center",
+      "viewKey": "health_center"
+    },
+    {
+      "id": "SCR-production_readiness",
+      "name": "Production Readiness",
+      "purpose": "Go-live certification screen providing a comprehensive checklist and status tracking for all pre-production validation items before ERP system launch.",
+      "fields": [
+        "checklistId",
+        "checklistCategory",
+        "checklistItem",
+        "description",
+        "status",
+        "assignedTo",
+        "targetDate",
+        "completionDate",
+        "remarks",
+        "evidenceDocument",
+        "verifiedBy",
+        "verificationDate",
+        "categoryProgress",
+        "overallProgress",
+        "blockingIssues",
+        "riskLevel",
+        "signOffStatus"
+      ],
+      "buttons": [
+        "Refresh Status",
+        "Update Item Status",
+        "Upload Evidence",
+        "View Category Details",
+        "Generate Readiness Report",
+        "Export Checklist",
+        "Escalate Issue",
+        "Request Verification",
+        "View Sign Off Status",
+        "Print Certificate"
+      ],
+      "actions": [
+        "Refreshes readiness status across all categories",
+        "Updates status of selected checklist item",
+        "Uploads supporting evidence document for completed item",
+        "Drills down into specific category readiness details",
+        "Generates comprehensive production readiness report",
+        "Exports complete checklist to Excel",
+        "Escalates blocking issue to project management team",
+        "Requests verification sign-off from assigned verifier",
+        "Shows complete sign-off status matrix",
+        "Prints readiness certificate when all items are complete"
+      ],
+      "validation": [
+        "All critical items must be completed before sign-off",
+        "Evidence document required for completed items",
+        "Verification must be done by independent verifier",
+        "Blocking issues must have resolution plan",
+        "Risk level must be assessed for incomplete items"
+      ],
+      "shortcuts": [
+        "F5: Refresh",
+        "Ctrl+S: Update Status",
+        "Ctrl+U: Upload Evidence",
+        "Ctrl+R: Generate Report",
+        "Ctrl+E: Export",
+        "F2: Escalate"
+      ],
+      "relatedReports": [
+        "RPT-production_readiness_report",
+        "RPT-readiness_gap_analysis",
+        "RPT-sign_off_matrix",
+        "RPT-risk_register"
+      ],
+      "relatedWorkflows": [
+        "Production Readiness Workflow",
+        "Sign Off Workflow",
+        "Issue Escalation Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-readiness-criteria",
+        "BR-sign-off-authority",
+        "BR-risk-classification"
+      ],
+      "commonErrors": [
+        "ERR-2201: Critical item not completed",
+        "ERR-2202: Evidence missing for completed item",
+        "ERR-2203: Verification pending for required items",
+        "ERR-2204: Blocking issue not resolved"
+      ],
+      "module": "System",
+      "navigationPath": "/system/production-readiness",
+      "viewKey": "production_readiness"
+    },
+    {
+      "id": "SCR-go_live_wizard",
+      "name": "Go-Live Wizard",
+      "purpose": "Production initialization screen providing a guided step-by-step wizard for transitioning from UAT to live production environment with data migration and system activation.",
+      "fields": [
+        "wizardStep",
+        "stepName",
+        "stepStatus",
+        "completionPercent",
+        "currentStep",
+        "totalSteps",
+        "dataMigrationStatus",
+        "masterDataImported",
+        "openingBalancesImported",
+        "configurationApplied",
+        "userRolesAssigned",
+        "permissionsSynced",
+        "integrationTestingStatus",
+        "cutoverDate",
+        "goLiveDate",
+        "rollbackPlan",
+        "confirmationStatus",
+        "approvedBy",
+        "remarks"
+      ],
+      "buttons": [
+        "Start Wizard",
+        "Next Step",
+        "Previous Step",
+        "Skip Step",
+        "Run Step",
+        "Validate Step",
+        "View Summary",
+        "Execute Go-Live",
+        "Rollback",
+        "View Log",
+        "Cancel Setup",
+        "Download Checklist"
+      ],
+      "actions": [
+        "Initiates the go-live wizard starting from first step",
+        "Proceeds to the next step in the wizard sequence",
+        "Returns to the previous step for review",
+        "Skips current step if not applicable (with confirmation)",
+        "Executes the actions required for the current step",
+        "Validates that the current step completed successfully",
+        "Shows full summary of all steps and their status",
+        "Executes the final go-live process after all validations",
+        "Initiates rollback to pre-go-live state in case of issues",
+        "Displays detailed execution log for current step",
+        "Cancels the entire go-live setup process",
+        "Downloads step-by-step checklist document"
+      ],
+      "validation": [
+        "All readiness checks must pass before go-live",
+        "Data migration must be validated completely",
+        "Opening balances must match trial balance",
+        "User roles and permissions must be fully assigned",
+        "Rollback plan must be approved before execution",
+        "Cutover date must be confirmed by project team",
+        "Integration tests must pass for all connected systems"
+      ],
+      "shortcuts": [
+        "Ctrl+N: Next Step",
+        "Ctrl+P: Previous Step",
+        "Ctrl+R: Run Step",
+        "Ctrl+V: Validate Step",
+        "Ctrl+S: Summary",
+        "Ctrl+G: Execute Go-Live",
+        "F1: Help"
+      ],
+      "relatedReports": [
+        "RPT-go_live_readiness",
+        "RPT-data_migration_status",
+        "RPT-cutover_plan",
+        "RPT-rollback_plan"
+      ],
+      "relatedWorkflows": [
+        "Go-Live Execution Workflow",
+        "Data Migration Workflow",
+        "Rollback Workflow"
+      ],
+      "relatedBusinessRules": [
+        "BR-go-live-approval",
+        "BR-cutover-criteria",
+        "BR-rollback-mandate"
+      ],
+      "commonErrors": [
+        "ERR-2301: Previous step not completed",
+        "ERR-2302: Data migration validation failed",
+        "ERR-2303: Opening balance mismatch detected",
+        "ERR-2304: User permissions not fully assigned"
+      ],
+      "module": "System",
+      "navigationPath": "/system/go-live-wizard",
+      "viewKey": "go_live_wizard"
+    }
+  ]
+}

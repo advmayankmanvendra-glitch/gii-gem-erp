@@ -1,0 +1,632 @@
+[
+  {
+    "id": "ERR-001",
+    "error": "Supply order saved without items",
+    "possibleCauses": [
+      "User clicked save before adding item rows",
+      "Frontend validation failed to prevent empty item grid submission",
+      "API accepted order payload with empty items array",
+      "Network lag caused item rows to drop before save"
+    ],
+    "businessRules": ["BR-SUP-001", "BR-SUP-003"],
+    "resolution": [
+      "Re-open the order and verify item grid is populated",
+      "Cancel the empty order and regenerate with items",
+      "Check API logs for the submitted payload to confirm missing items",
+      "Ensure client-side validation enforces minimum one item row before save"
+    ],
+    "relatedScreens": ["SCR-SUP-ORD-001", "SCR-SUP-ORD-002"],
+    "relatedReports": ["RPT-SUP-ORD-LIST"],
+    "modules": ["Supply Order", "Procurement"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-002",
+    "error": "Order not visible in procurement",
+    "possibleCauses": [
+      "Order workflow status not advanced to Approved",
+      "Procurement module filters exclude orders with pending status",
+      "Order created under a different department or unit",
+      "Database replication delay between supply and procurement schemas"
+    ],
+    "businessRules": ["BR-PROC-002", "BR-PROC-004"],
+    "resolution": [
+      "Verify order status in the supply order listing",
+      "Advance the order approval workflow if pending",
+      "Check department/unit filter on the procurement dashboard",
+      "Confirm database synchronization is active and refresh the screen"
+    ],
+    "relatedScreens": ["SCR-PROC-DSH-001", "SCR-PROC-ORD-001"],
+    "relatedReports": ["RPT-PROC-PIPELINE"],
+    "modules": ["Supply Order", "Procurement"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-003",
+    "error": "Procurement without linked order",
+    "possibleCauses": [
+      "Purchase bill created directly without selecting a supply order",
+      "Order reference field left blank during procurement entry",
+      "Deleted or cancelled order still referenced in procurement",
+      "Auto-link process failed due to mismatched identifiers"
+    ],
+    "businessRules": ["BR-PROC-001", "BR-PROC-005"],
+    "resolution": [
+      "Cancel the orphan purchase bill and recreate with a valid order reference",
+      "Identify the correct supply order ID and update the procurement record",
+      "Ensure procurement workflow enforces mandatory order linkage",
+      "Run integrity check to reconcile procurements without parent orders"
+    ],
+    "relatedScreens": ["SCR-PROC-BILL-001", "SCR-PROC-BILL-002"],
+    "relatedReports": ["RPT-PROC-ORPHAN"],
+    "modules": ["Procurement", "Finance"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-004",
+    "error": "Wrong supplier GST details",
+    "possibleCauses": [
+      "Supplier GSTIN entered manually without verification",
+      "Supplier master data not updated after GST registration change",
+      "GSTIN format validation bypassed during supplier creation",
+      "GSTIN mismatch between ERP and GST portal"
+    ],
+    "businessRules": ["BR-GST-001", "BR-GST-003", "BR-MST-002"],
+    "resolution": [
+      "Verify GSTIN on the GST portal and update supplier master",
+      "Correct the GSTIN in the supplier record and regenerate documents",
+      "Set up GSTIN format and checksum validation on the supplier form",
+      "Enable auto-validation against the GST portal API"
+    ],
+    "relatedScreens": ["SCR-MST-SUP-001", "SCR-MST-SUP-002"],
+    "relatedReports": ["RPT-GST-SUPPLIER"],
+    "modules": ["Master Data", "GST", "Finance"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-005",
+    "error": "Stock not available for issue",
+    "possibleCauses": [
+      "Selected warehouse has insufficient quantity",
+      "Stock already reserved or allocated to other orders",
+      "Wrong warehouse selected for the store location",
+      "Stock batch or serial number mismatch"
+    ],
+    "businessRules": ["BR-INV-001", "BR-INV-003", "BR-INV-005"],
+    "resolution": [
+      "Check stock ledger for the selected warehouse and item",
+      "Transfer stock from another warehouse or procure fresh stock",
+      "Release pending reservations if order is cancelled",
+      "Re-select the correct warehouse from the store master"
+    ],
+    "relatedScreens": ["SCR-INV-STK-001", "SCR-INV-ISS-001"],
+    "relatedReports": ["RPT-INV-STOCKLEDGER", "RPT-INV-RESERVATION"],
+    "modules": ["Inventory", "Supply Order"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-006",
+    "error": "GRN not completed",
+    "possibleCauses": [
+      "Goods receipt entry saved as draft and not finalized",
+      "Quantity or quality mismatch preventing GRN approval",
+      "GRN rejected by inspector and not re-submitted",
+      "Procurement-to-GRN auto-workflow not triggered"
+    ],
+    "businessRules": ["BR-PROC-003", "BR-INV-006", "BR-PROC-007"],
+    "resolution": [
+      "Open the pending GRN and complete the finalization step",
+      "Re-inspect and accept the goods with correct quantities",
+      "Trigger the GRN workflow manually",
+      "Check workflow logs for failure reason and resolve"
+    ],
+    "relatedScreens": ["SCR-PROC-GRN-001", "SCR-PROC-GRN-002"],
+    "relatedReports": ["RPT-PROC-GRN-PENDING"],
+    "modules": ["Procurement", "Inventory"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-007",
+    "error": "Stock adjustment without approval",
+    "possibleCauses": [
+      "Adjustment saved directly by user without routing to approval queue",
+      "Approval workflow configuration missing for stock adjustments",
+      "User bypassed approval by using a direct database update tool",
+      "Approval queue backlog causing timeout and auto-pass"
+    ],
+    "businessRules": ["BR-INV-002", "BR-APR-001", "BR-APR-003"],
+    "resolution": [
+      "Recall the unapproved adjustment and route through approval workflow",
+      "Configure the approval matrix for stock adjustment transactions",
+      "Audit user activity logs to identify unauthorized adjustments",
+      "Reverse the adjustment and re-apply after proper approval"
+    ],
+    "relatedScreens": ["SCR-INV-ADJ-001", "SCR-INV-ADJ-002"],
+    "relatedReports": ["RPT-INV-ADJ-AUDIT"],
+    "modules": ["Inventory", "Approval Workflow"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-008",
+    "error": "Voucher not posting",
+    "possibleCauses": [
+      "Voucher date falls in a locked or closed financial period",
+      "Mandatory fields missing or invalid in the voucher entry",
+      "Voucher blocked by a posting hold rule or credit limit check",
+      "Workflow approval pending before posting can proceed"
+    ],
+    "businessRules": ["BR-FIN-001", "BR-FIN-004", "BR-APR-005"],
+    "resolution": [
+      "Verify the voucher date is within an open financial period",
+      "Fill all mandatory fields and re-validate the voucher",
+      "Check the posting queue for hold reasons and resolve them",
+      "Complete pending workflow approvals and re-submit"
+    ],
+    "relatedScreens": ["SCR-FIN-VCH-001", "SCR-FIN-VCH-002"],
+    "relatedReports": ["RPT-FIN-PENDING-POST"],
+    "modules": ["Finance", "Approval Workflow"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-009",
+    "error": "Excess billing warning",
+    "possibleCauses": [
+      "Billed quantity exceeds the ordered quantity",
+      "Multiple invoices raised against the same order line",
+      "Billing user overrode the quantity validation warning",
+      "Order line quantity revised downward after partial billing"
+    ],
+    "businessRules": ["BR-PROC-006", "BR-FIN-003", "BR-BILL-001"],
+    "resolution": [
+      "Compare billed quantity against the original supply order",
+      "Cancel excess invoice and re-bill with correct quantity",
+      "Reconcile order line revisions and adjust billing accordingly",
+      "Implement hard block on billing exceeding ordered quantity"
+    ],
+    "relatedScreens": ["SCR-PROC-BILL-002", "SCR-SUP-ORD-001"],
+    "relatedReports": ["RPT-BILL-EXCESS"],
+    "modules": ["Procurement", "Finance"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-010",
+    "error": "Wrong GST rate applied",
+    "possibleCauses": [
+      "Item HSN code missing or incorrect in item master",
+      "GST rate master not updated for the relevant tax slab",
+      "Manual override of GST rate during billing",
+      "Item classified under wrong GST category"
+    ],
+    "businessRules": ["BR-GST-002", "BR-GST-004", "BR-MST-003"],
+    "resolution": [
+      "Verify HSN code and GST rate in the item master",
+      "Update the GST rate master with correct slab percentages",
+      "Cancel the invoice and re-issue with correct GST rate",
+      "Enable auto-population of GST rate from HSN master"
+    ],
+    "relatedScreens": ["SCR-MST-ITEM-001", "SCR-FIN-BILL-001"],
+    "relatedReports": ["RPT-GST-RATE-AUDIT"],
+    "modules": ["GST", "Master Data", "Finance"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-011",
+    "error": "Payment without allocation",
+    "possibleCauses": [
+      "Payment recorded against a supplier but not linked to specific invoices",
+      "Allocation step skipped or forgotten in the payment workflow",
+      "Payment imported from bank statement without mapping",
+      "Partial payment left unallocated against multiple invoices"
+    ],
+    "businessRules": ["BR-FIN-005", "BR-FIN-007", "BR-PMT-001"],
+    "resolution": [
+      "Open the payment record and run the allocation tool against open invoices",
+      "Manually link the payment to the correct invoice references",
+      "Set up auto-allocation rules by supplier and PO number",
+      "Generate an unallocated payment report and process pending items"
+    ],
+    "relatedScreens": ["SCR-FIN-PMT-001", "SCR-FIN-ALLOC-001"],
+    "relatedReports": ["RPT-FIN-UNALLOC-PMT"],
+    "modules": ["Finance", "Payments"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-012",
+    "error": "Missing UTR reference",
+    "possibleCauses": [
+      "Payment saved without entering the bank UTR number",
+      "UTR field left optional in the payment form",
+      "Bank statement upload did not map UTR to payment record",
+      "User entered a placeholder value instead of actual UTR"
+    ],
+    "businessRules": ["BR-PMT-002", "BR-PMT-004", "BR-FIN-008"],
+    "resolution": [
+      "Retrieve the actual UTR from the bank and update the payment record",
+      "Set UTR as a mandatory field in the payment entry form",
+      "Reconcile bank statement to auto-populate missing UTRs",
+      "Run a missing-UTR report and bulk-update from bank data"
+    ],
+    "relatedScreens": ["SCR-FIN-PMT-002", "SCR-FIN-PMT-003"],
+    "relatedReports": ["RPT-PMT-MISSING-UTR"],
+    "modules": ["Finance", "Payments", "Bank Reconciliation"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-013",
+    "error": "Invoice not visible in receivables",
+    "possibleCauses": [
+      "Invoice saved as draft and not posted",
+      "Invoice posted but not linked to the correct department or cost center",
+      "Receivables filter excludes the invoice date range",
+      "Invoice cancelled after posting and not re-issued"
+    ],
+    "businessRules": ["BR-FIN-002", "BR-FIN-006", "BR-REC-001"],
+    "resolution": [
+      "Check invoice status and post it if in draft",
+      "Verify department and cost center mapping on the invoice",
+      "Adjust date range filters in the receivables dashboard",
+      "Re-issue the cancelled invoice with correct details"
+    ],
+    "relatedScreens": ["SCR-FIN-INV-001", "SCR-REC-DSH-001"],
+    "relatedReports": ["RPT-REC-AGING", "RPT-FIN-INV-LIST"],
+    "modules": ["Finance", "Receivables"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-014",
+    "error": "Outstanding not reducing after payment",
+    "possibleCauses": [
+      "Payment recorded but not allocated to the specific invoice",
+      "Payment partially allocated leaving residual outstanding",
+      "Payment allocated to a wrong invoice or supplier",
+      "Payment reversed or cancelled after allocation"
+    ],
+    "businessRules": ["BR-FIN-005", "BR-FIN-009", "BR-PMT-003"],
+    "resolution": [
+      "Run the allocation tool to link the payment to the correct invoice",
+      "Check allocation history for any misallocations and correct them",
+      "Re-allocate the payment if it was assigned to the wrong invoice",
+      "Reverse incorrect allocation and reapply correctly"
+    ],
+    "relatedScreens": ["SCR-FIN-ALLOC-001", "SCR-REC-DSH-001"],
+    "relatedReports": ["RPT-FIN-OUTSTANDING", "RPT-REC-AGING"],
+    "modules": ["Finance", "Receivables", "Payments"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-015",
+    "error": "Supplier bill still outstanding",
+    "possibleCauses": [
+      "Payment recorded but unallocated to the supplier bill",
+      "Payment allocated to a different supplier by mistake",
+      "Payment amount less than bill amount and remaining unallocated",
+      "Bill partially paid and residual balance not tracked"
+    ],
+    "businessRules": ["BR-FIN-005", "BR-FIN-010", "BR-PMT-005"],
+    "resolution": [
+      "Allocate the payment to the correct supplier bill",
+      "Correct supplier mapping if payment was misallocated",
+      "Process additional payment for the remaining bill amount",
+      "Generate outstanding payables report and clear each item"
+    ],
+    "relatedScreens": ["SCR-FIN-PMT-003", "SCR-PAY-DSH-001"],
+    "relatedReports": ["RPT-PAY-OUTSTANDING", "RPT-FIN-AP-AGING"],
+    "modules": ["Finance", "Payables", "Payments"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-016",
+    "error": "Duplicate supplier payment",
+    "possibleCauses": [
+      "Same bill paid twice due to lack of payment tracking",
+      "Payment initiated from two different screens or users",
+      "Bank UTR imported twice into the ERP",
+      "Payment file uploaded and processed more than once"
+    ],
+    "businessRules": ["BR-PMT-006", "BR-PMT-007", "BR-FIN-011"],
+    "resolution": [
+      "Identify the duplicate payment from payment register",
+      "Reverse one of the payments and reallocate the funds",
+      "Set up duplicate payment detection by UTR and bill reference",
+      "Implement a lock to prevent payments against already-paid bills"
+    ],
+    "relatedScreens": ["SCR-FIN-PMT-001", "SCR-FIN-PMT-003"],
+    "relatedReports": ["RPT-PMT-DUPLICATE"],
+    "modules": ["Finance", "Payments"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-017",
+    "error": "GST register mismatch",
+    "possibleCauses": [
+      "Output GST and input GST calculated from different periods",
+      "GST on purchases not recorded or recorded with wrong rate",
+      "Credit note or debit note not reflected in the register",
+      "GST return filed with different values than ERP"
+    ],
+    "businessRules": ["BR-GST-005", "BR-GST-006", "BR-GST-007"],
+    "resolution": [
+      "Run the GST input-output reconciliation report",
+      "Verify all purchase and sales invoices are posted with correct GST",
+      "Include pending credit/debit notes in the register",
+      "Adjust ERP entries to match GST return before next filing"
+    ],
+    "relatedScreens": ["SCR-GST-RPT-001", "SCR-GST-RPT-002"],
+    "relatedReports": ["RPT-GST-RECON", "RPT-GST-REGISTER"],
+    "modules": ["GST", "Finance"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-018",
+    "error": "TDS not deducted",
+    "possibleCauses": [
+      "Payment processed without checking TDS applicability",
+      "TDS threshold not evaluated before payment release",
+      "Supplier PAN not linked or TDS section not configured",
+      "TDS master not updated for the relevant financial year"
+    ],
+    "businessRules": ["BR-TDS-001", "BR-TDS-002", "BR-TDS-003"],
+    "resolution": [
+      "Verify TDS threshold and applicable section for the transaction",
+      "Deduct TDS from the payment and deposit with the tax authority",
+      "Update supplier master with PAN and TDS nature",
+      "Configure TDS auto-calculation in the payment workflow"
+    ],
+    "relatedScreens": ["SCR-FIN-PMT-002", "SCR-TDS-CALC-001"],
+    "relatedReports": ["RPT-TDS-DEDUCTION", "RPT-TDS-PENDING"],
+    "modules": ["Finance", "TDS", "Payments"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-019",
+    "error": "Duplicate bank entries",
+    "possibleCauses": [
+      "Same bank statement imported more than once",
+      "Bank file upload processed multiple times",
+      "UTR number same for multiple transactions leading to duplication",
+      "Manual entry added on top of auto-imported records"
+    ],
+    "businessRules": ["BR-BNK-001", "BR-BNK-002", "BR-FIN-012"],
+    "resolution": [
+      "Run duplicate detection report by UTR and transaction date",
+      "Remove or reverse duplicate entries from the bank ledger",
+      "Set up UTR-based deduplication on bank statement import",
+      "Enable import-id tracking to prevent re-processing same file"
+    ],
+    "relatedScreens": ["SCR-BNK-IMP-001", "SCR-BNK-LED-001"],
+    "relatedReports": ["RPT-BNK-DUPLICATE"],
+    "modules": ["Bank Reconciliation", "Finance"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-020",
+    "error": "Bank reconciliation not matching",
+    "possibleCauses": [
+      "Transactions in ERP but not in bank statement (and vice versa)",
+      "Date differences between bank and ERP entries",
+      "Bank charges or interest not recorded in ERP",
+      "Foreign currency conversion rate differences"
+    ],
+    "businessRules": ["BR-BNK-003", "BR-BNK-004", "BR-FIN-013"],
+    "resolution": [
+      "Run the reconciliation report and identify unmatched items",
+      "Add missing bank charges and interest entries in ERP",
+      "Adjust date cut-off to align with bank statement period",
+      "Reconcile with correct exchange rates for foreign transactions"
+    ],
+    "relatedScreens": ["SCR-BNK-REC-001", "SCR-BNK-REC-002"],
+    "relatedReports": ["RPT-BNK-RECON", "RPT-BNK-UNMATCHED"],
+    "modules": ["Bank Reconciliation", "Finance"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-021",
+    "error": "Trial balance not matching",
+    "possibleCauses": [
+      "Manual journal entries posted without proper balancing",
+      "Reversal entries not applied symmetrically",
+      "Opening balance mismatch from previous year closure",
+      "Rounding differences in multi-currency transactions"
+    ],
+    "businessRules": ["BR-FIN-014", "BR-FIN-015", "BR-FIN-016"],
+    "resolution": [
+      "Run the trial balance audit report to identify out-of-balance accounts",
+      "Review manual journals and correct unbalanced entries",
+      "Verify opening balance carry-forward from previous year",
+      "Adjust rounding differences with a balancing entry"
+    ],
+    "relatedScreens": ["SCR-FIN-TB-001", "SCR-FIN-JRN-001"],
+    "relatedReports": ["RPT-FIN-TB", "RPT-FIN-TB-AUDIT"],
+    "modules": ["Finance", "Accounts"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-022",
+    "error": "Financial year locked",
+    "possibleCauses": [
+      "Voucher date entered falls in a closed or locked financial year",
+      "Year-end closure process already completed for that period",
+      "User does not have back-date posting privileges",
+      "System date restriction prevents posting to prior years"
+    ],
+    "businessRules": ["BR-FIN-017", "BR-FIN-018", "BR-APR-006"],
+    "resolution": [
+      "Change the voucher date to an open financial year",
+      "Request year-end reopening from the administrator if audit permits",
+      "Ensure the user has proper back-date posting permissions",
+      "Create the voucher in the current period with a memo to prior year"
+    ],
+    "relatedScreens": ["SCR-FIN-VCH-001", "SCR-FIN-CLOS-001"],
+    "relatedReports": ["RPT-FIN-OPEN-PERIODS"],
+    "modules": ["Finance", "Period Closure"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-023",
+    "error": "Reversal without reason",
+    "possibleCauses": [
+      "Reversal initiated without selecting a reason code",
+      "Reason code field was optional in the reversal form",
+      "User bypassed mandatory reason by using a system override",
+      "Reversal reason not captured in audit trail"
+    ],
+    "businessRules": ["BR-APR-002", "BR-APR-004", "BR-FIN-019"],
+    "resolution": [
+      "Cancel the reversal and re-submit with a valid reason code",
+      "Set reason code as mandatory in the reversal workflow",
+      "Audit all reversals without reasons and log compliance issues",
+      "Implement hard block on reversals without selected reason"
+    ],
+    "relatedScreens": ["SCR-FIN-REV-001", "SCR-FIN-VCH-003"],
+    "relatedReports": ["RPT-FIN-REV-AUDIT"],
+    "modules": ["Finance", "Approval Workflow"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-024",
+    "error": "Report showing wrong values",
+    "possibleCauses": [
+      "Unposted transactions not included in report filters",
+      "Report date range filter set incorrectly",
+      "Wrong report variant or template selected",
+      "Data cache not refreshed after recent entries"
+    ],
+    "businessRules": ["BR-RPT-001", "BR-RPT-002", "BR-RPT-003"],
+    "resolution": [
+      "Include unposted data in the report filter options",
+      "Verify the date range and reselect correct period",
+      "Choose the correct report variant from the report catalog",
+      "Clear the report cache and regenerate the report"
+    ],
+    "relatedScreens": ["SCR-RPT-VIEW-001", "SCR-RPT-CFG-001"],
+    "relatedReports": ["RPT-SYS-DATAAUDIT"],
+    "modules": ["Reports", "System"],
+    "severity": "Medium"
+  },
+  {
+    "id": "ERR-025",
+    "error": "Export failing",
+    "possibleCauses": [
+      "Export triggered while a modal or popup is open",
+      "Unsaved data in the current form blocking the export process",
+      "File size exceeds the export limit",
+      "Browser download permission or popup blocker interfering"
+    ],
+    "businessRules": ["BR-RPT-004", "BR-RPT-005", "BR-TEC-001"],
+    "resolution": [
+      "Close all open modals and popups before exporting",
+      "Save or discard pending form changes and retry export",
+      "Reduce the data range or split the export into multiple files",
+      "Check browser download settings and disable popup blocker"
+    ],
+    "relatedScreens": ["SCR-RPT-VIEW-001", "SCR-SYS-HLP-001"],
+    "relatedReports": ["RPT-SYS-EXPORT-LOG"],
+    "modules": ["Reports", "System"],
+    "severity": "Low"
+  },
+  {
+    "id": "ERR-026",
+    "error": "Dashboard widget not loading",
+    "possibleCauses": [
+      "Underlying module or data source not configured",
+      "User does not have permission to view the widget data",
+      "Dashboard configuration corrupted or missing",
+      "Backend service for the widget is down or timing out"
+    ],
+    "businessRules": ["BR-DSH-001", "BR-DSH-002", "BR-SEC-001"],
+    "resolution": [
+      "Verify the module configuration and enable missing data sources",
+      "Check user role and permission settings for the widget",
+      "Reinitialize the dashboard configuration from the template",
+      "Restart the backend service or check connectivity logs"
+    ],
+    "relatedScreens": ["SCR-DSH-CFG-001", "SCR-DSH-VIEW-001"],
+    "relatedReports": ["RPT-SYS-DSH-HEALTH"],
+    "modules": ["Dashboard", "System"],
+    "severity": "Low"
+  },
+  {
+    "id": "ERR-027",
+    "error": "Go-Live readiness check failed",
+    "possibleCauses": [
+      "One or more preconditions not met for production launch",
+      "Configuration checklist items remain unresolved",
+      "Data migration validation failed",
+      "Required approvals not obtained for go-live"
+    ],
+    "businessRules": ["BR-GOL-001", "BR-GOL-002", "BR-GOL-003"],
+    "resolution": [
+      "Review the go-live readiness checklist and identify failures",
+      "Resolve each failed precondition in sequence",
+      "Re-run the data migration and validation steps",
+      "Obtain all necessary signoffs and retry the readiness check"
+    ],
+    "relatedScreens": ["SCR-GOL-CHK-001", "SCR-GOL-DSH-001"],
+    "relatedReports": ["RPT-GOL-READINESS"],
+    "modules": ["Go-Live", "System Administration"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-028",
+    "error": "Reset blocked by open transactions",
+    "possibleCauses": [
+      "Active supply orders exist in the system preventing reset",
+      "Pending payments or invoices not yet processed",
+      "Open financial periods with unposted vouchers",
+      "Inventory transactions in transit or partially completed"
+    ],
+    "businessRules": ["BR-SYS-001", "BR-SYS-002", "BR-OPR-001"],
+    "resolution": [
+      "Close or cancel all open supply orders before reset",
+      "Process or reverse all pending payments and invoices",
+      "Post or reverse unposted vouchers and close open periods",
+      "Complete or cancel all in-transit inventory transactions"
+    ],
+    "relatedScreens": ["SCR-SYS-RST-001", "SCR-SYS-STS-001"],
+    "relatedReports": ["RPT-SYS-OPEN-TRANS"],
+    "modules": ["System Administration", "Operations"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-029",
+    "error": "Environment already production",
+    "possibleCauses": [
+      "Go-Live attempted on an environment already marked as live",
+      "Environment classification not reset after previous go-live",
+      "Multiple go-live processes running concurrently",
+      "Environment flag incorrectly set in system configuration"
+    ],
+    "businessRules": ["BR-GOL-004", "BR-GOL-005", "BR-SYS-003"],
+    "resolution": [
+      "Verify the current environment status in system configuration",
+      "Reset the environment flag if a re-launch is intended",
+      "Ensure only one go-live process runs at a time",
+      "Contact system administrator to correct environment classification"
+    ],
+    "relatedScreens": ["SCR-GOL-CFG-001", "SCR-SYS-CFG-001"],
+    "relatedReports": ["RPT-SYS-ENV-STATUS"],
+    "modules": ["Go-Live", "System Administration"],
+    "severity": "High"
+  },
+  {
+    "id": "ERR-030",
+    "error": "Health center diagnostic failed",
+    "possibleCauses": [
+      "Runtime path to a critical module is broken or misconfigured",
+      "Database connection pool exhausted or server unreachable",
+      "Required API endpoint returning 5xx errors",
+      "Background job processor not responding"
+    ],
+    "businessRules": ["BR-TEC-002", "BR-TEC-003", "BR-TEC-004"],
+    "resolution": [
+      "Check runtime configuration paths in the system settings",
+      "Verify database connection strings and restart the connection pool",
+      "Test API endpoints and restart failed services",
+      "Restart the job scheduler and review error logs"
+    ],
+    "relatedScreens": ["SCR-SYS-DGN-001", "SCR-SYS-LOG-001"],
+    "relatedReports": ["RPT-SYS-HEALTH"],
+    "modules": ["System Administration", "Infrastructure"],
+    "severity": "High"
+  }
+]

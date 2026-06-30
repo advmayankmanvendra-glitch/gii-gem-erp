@@ -49,7 +49,7 @@ export function NavigationSidebar({
           const groupActive = groupItems.some(([key]) => key === view || key === effectiveView);
           return (
             <div className={`nav-group ${isExpanded ? "expanded" : ""}`} key={group.id}>
-              <button type="button" className={`nav-group-trigger ${groupActive ? "active-group" : ""} ${isExpanded ? "expanded-group" : ""}`} title={group.label} onClick={() => onSetExpandedGroups((current) => current[group.id] ? {} : { [group.id]: true })}>
+              <button type="button" className={`nav-group-trigger ${groupActive ? "active-group" : ""} ${isExpanded ? "expanded-group" : ""}`} title={group.label} onClick={() => onSetExpandedGroups((current) => { if (current[group.id]) { const next = { ...current }; delete next[group.id]; return next; } return { [group.id]: true }; })}>
                 <Icon name={group.icon} />
                 <span>{group.label}</span>
                 <strong>{isExpanded ? "-" : "+"}</strong>
@@ -60,7 +60,7 @@ export function NavigationSidebar({
                     const sectionKey = `${group.id}:${section.id}`;
                     const sectionItems = Array.isArray(section.items) ? section.items : [];
                     const sectionActive = sectionItems.some(([key]) => key === view || key === effectiveView);
-                    const sectionExpanded = !section.label || Boolean(navSearch) || sectionActive || expandedGroups[sectionKey];
+                    const sectionExpanded = !section.label || Boolean(navSearch) || (expandedGroups[sectionKey] !== undefined ? expandedGroups[sectionKey] : sectionActive);
                     return (
                       <div className={`nav-subgroup ${sectionExpanded ? "expanded" : ""}`} key={sectionKey}>
                         {section.label && (

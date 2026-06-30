@@ -1,0 +1,978 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-06-30T00:00:00.000Z",
+  "description": "GII GeM ERP - Government e-Marketplace Enterprise Resource Planning Workflow Repository",
+  "workflows": [
+    {
+      "id": "Wf-SupplyOrderToClosure",
+      "name": "Supply Order to Closure",
+      "purpose": "End-to-end lifecycle management of a government supply order from creation through fulfillment, invoicing, payment, and final closure with full audit trail for GeM compliance.",
+      "prerequisites": ["Valid GeM contract reference", "Approved budget allocation", "Supplier empanelment verification", "GST registration validation"],
+      "nextStep": null,
+      "previousStep": null,
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "SO-Create",
+          "name": "Supply Order Creation",
+          "type": "document",
+          "description": "Create supply order against a GeM contract with item details, quantities, delivery schedule, and terms.",
+          "actor": "Procurement Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "Contract reference must be active and valid",
+            "Order value must not exceed allocated budget",
+            "All mandatory fields must be filled",
+            "GST and TDS applicability must be determined",
+            "Delivery location must be a valid government entity"
+          ],
+          "compliance": ["GeM Public Procurement Policy 2020", "GFR 2017", "GeM Contract Terms"],
+          "outputDocuments": ["Supply Order (SO)", "Order Acceptance Letter"]
+        },
+        {
+          "sequence": 2,
+          "id": "SO-StockReservation",
+          "name": "Stock Reservation",
+          "type": "inventory",
+          "description": "Reserve required stock from available inventory based on supply order items to ensure availability.",
+          "actor": "Inventory Manager",
+          "duration": "Same day",
+          "validationRules": [
+            "Sufficient stock must be available for reservation",
+            "Reservation must be against specific batch/lot where applicable",
+            "Expiry date check for consumable items"
+          ],
+          "compliance": ["Inventory Management Policy"],
+          "outputDocuments": ["Stock Reservation Slip"]
+        },
+        {
+          "sequence": 3,
+          "id": "SO-ProcurementInitiation",
+          "name": "Procurement Initiation",
+          "type": "process",
+          "description": "Initiate procurement process if reserved stock is insufficient; create purchase requisition for shortfall.",
+          "actor": "Procurement Officer",
+          "duration": "3-5 days",
+          "validationRules": [
+            "Procurement must follow GeM marketplace or L1 bidding",
+            "Value above threshold requires tender committee approval",
+            "Make or buy decision must be documented"
+          ],
+          "compliance": ["GeM Procurement Rules", "CPPP Guidelines"],
+          "outputDocuments": ["Purchase Requisition (PR)", "Tender Document (if applicable)"]
+        },
+        {
+          "sequence": 4,
+          "id": "SO-GRN",
+          "name": "Goods Receipt Note (GRN)",
+          "type": "document",
+          "description": "Receive goods against supply order or purchase order; inspect quantity, quality, and condition.",
+          "actor": "Store Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "GRN must reference valid PO or SO",
+            "Received quantity must not exceed ordered quantity unless allowed",
+            "Quality inspection must pass for all items",
+            "Photographic evidence for high-value items",
+            "DRP (Defect Reporting Period) must be noted"
+          ],
+          "compliance": ["Material Receipt Policy", "Quality Assurance Standards"],
+          "outputDocuments": ["Goods Receipt Note (GRN)", "Inspection Report", "Defect Note (if applicable)"]
+        },
+        {
+          "sequence": 5,
+          "id": "SO-StockReceipt",
+          "name": "Stock Receipt & Inward",
+          "type": "inventory",
+          "description": "Update inventory system with received stock; assign bin location, batch number, and update stock ledger.",
+          "actor": "Inventory Manager",
+          "duration": "Same day",
+          "validationRules": [
+            "GRN must be approved before stock receipt",
+            "Stock must be physically verified before system entry",
+            "Batch and serial number capture for trackable items",
+            "Location assignment must follow warehouse zoning"
+          ],
+          "compliance": ["Warehouse Management Policy"],
+          "outputDocuments": ["Stock Inward Entry", "Bin Card Update"]
+        },
+        {
+          "sequence": 6,
+          "id": "SO-DeliveryChallan",
+          "name": "Delivery Challan Generation",
+          "type": "document",
+          "description": "Generate delivery challan for dispatch of goods to the consignee location as per supply order.",
+          "actor": "Logistics Officer",
+          "duration": "1 day",
+          "validationRules": [
+            "Delivery challan must reference supply order",
+            "Transport mode must be specified",
+            "Insurance details for high-value consignments",
+            "E-way bill generation if applicable"
+          ],
+          "compliance": ["Logistics & Dispatch Policy", "GST E-Way Bill Rules"],
+          "outputDocuments": ["Delivery Challan (DC)", "E-Way Bill", "Packing List"]
+        },
+        {
+          "sequence": 7,
+          "id": "SO-StockIssue",
+          "name": "Stock Issue / Dispatch",
+          "type": "inventory",
+          "description": "Physically issue stock from warehouse and update inventory records for dispatched quantities.",
+          "actor": "Store Officer",
+          "duration": "Same day",
+          "validationRules": [
+            "Delivery challan must be printed and signed",
+            "Stock must be issued against reserved inventory",
+            "FIFO/FEFO method must be followed for issue",
+            "Gate pass must be generated for physical movement"
+          ],
+          "compliance": ["Inventory Management Policy", "FIFO Guidelines"],
+          "outputDocuments": ["Stock Issue Voucher", "Gate Pass"]
+        },
+        {
+          "sequence": 8,
+          "id": "SO-COGS",
+          "name": "Cost of Goods Sold (COGS) Recognition",
+          "type": "accounting",
+          "description": "Calculate and record COGS based on actual cost of inventory issued; match against valuation method.",
+          "actor": "Cost Accountant",
+          "duration": "Same day",
+          "validationRules": [
+            "Cost valuation method must be consistent (FIFO/Weighted Average)",
+            "All associated costs must be included (purchase cost, freight, insurance)",
+            "COGS must match inventory valuation report"
+          ],
+          "compliance": ["AS-2 / Ind AS-2", "Cost Accounting Standards"],
+          "outputDocuments": ["COGS Journal Entry", "Inventory Valuation Report"]
+        },
+        {
+          "sequence": 9,
+          "id": "SO-Billing",
+          "name": "Billing / Invoice Generation",
+          "type": "document",
+          "description": "Generate invoice against delivered supply order with applicable taxes, deductions, and payment terms.",
+          "actor": "Billing Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "Invoice must reference supply order and delivery challan",
+            "GST calculation must match applicable rate",
+            "TDS deduction as per applicable section",
+            "Invoice value must match order value less deductions",
+            "Digital signature required for e-invoice"
+          ],
+          "compliance": ["GST Act 2017", "E-Invoice Mandate", "GeM Payment Terms"],
+          "outputDocuments": ["Tax Invoice", "E-Invoice JSON", "Credit/Debit Note (if applicable)"]
+        },
+        {
+          "sequence": 10,
+          "id": "SO-Receivable",
+          "name": "Receivable Recognition",
+          "type": "accounting",
+          "description": "Record invoice as receivable in the financial system; update customer ledger and aging report.",
+          "actor": "Accounts Receivable",
+          "duration": "Same day",
+          "validationRules": [
+            "Invoice must be posted before receivable recognition",
+            "Receivable must match invoice value",
+            "Due date must be calculated as per payment terms"
+          ],
+          "compliance": ["Ind AS 109", "Government Payment Terms"],
+          "outputDocuments": ["Receivable Entry", "Aging Report Update"]
+        },
+        {
+          "sequence": 11,
+          "id": "SO-PaymentCollection",
+          "name": "Payment Collection",
+          "type": "financial",
+          "description": "Track and reconcile incoming payments from government department against invoices.",
+          "actor": "Accounts Receivable",
+          "duration": "Variable (as per payment terms)",
+          "validationRules": [
+            "Payment must be matched against specific invoice(s)",
+            "Partial payments must be properly allocated",
+            "Payment reference (PFMS/CPPP) must be captured"
+          ],
+          "compliance": ["PFMS Guidelines", "Government Payment Processing"],
+          "outputDocuments": ["Payment Receipt", "Remittance Advice Match"]
+        },
+        {
+          "sequence": 12,
+          "id": "SO-Profitability",
+          "name": "Profitability Analysis",
+          "type": "analysis",
+          "description": "Compute profit margin for the order by comparing revenue against COGS and other direct costs.",
+          "actor": "Finance Manager",
+          "duration": "1 day",
+          "validationRules": [
+            "All costs must be fully captured before profitability calculation",
+            "Overhead allocation must follow policy",
+            "Margin must be within approved thresholds"
+          ],
+          "compliance": ["Management Reporting Policy"],
+          "outputDocuments": ["Order Profitability Report", "Margin Analysis"]
+        },
+        {
+          "sequence": 13,
+          "id": "SO-OrderClosure",
+          "name": "Order Closure",
+          "type": "process",
+          "description": "Final closure of supply order after all deliverables, payments, and compliance checks are complete.",
+          "actor": "Procurement Officer",
+          "duration": "1 day",
+          "validationRules": [
+            "All items must be delivered and accepted",
+            "Full payment must be received",
+            "No pending claims or disputes",
+            "All documents must be archived",
+            "Contract closure must be updated on GeM portal"
+          ],
+          "compliance": ["GeM Contract Closure Policy", "Record Retention Policy"],
+          "outputDocuments": ["Order Closure Certificate", "Contract Completion Report", "GeM Portal Update"]
+        }
+      ],
+      "relatedReports": [
+        "Supply Order Tracking Report",
+        "Order Fulfillment Dashboard",
+        "Aging Report - Supply Orders",
+        "Profitability by Order Report",
+        "GeM Compliance Status Report"
+      ],
+      "commonMistakes": [
+        "GRN created before physical inspection of goods",
+        "Invoice generated without proper delivery challan reference",
+        "TDS not deducted at applicable rate leading to penalties",
+        "Stock issued from wrong batch/lot violating FIFO",
+        "Order closure initiated before full payment reconciliation"
+      ],
+      "businessRules": [
+        "Supply order cannot exceed allocated budget without re-approval",
+        "All high-value orders (>₹25L) require two-tier approval",
+        "GRN must be completed within 48 hours of physical receipt",
+        "Invoice must be raised within 7 days of delivery confirmation",
+        "Order closure requires all linked documents to be in 'Approved' status"
+      ],
+      "modules": ["Procurement", "Inventory", "Finance", "Accounts Receivable", "Logistics", "Compliance"]
+    },
+    {
+      "id": "Wf-ProcurementToPayment",
+      "name": "Procurement to Payment",
+      "purpose": "Manage the complete procurement cycle from purchase requisition through supplier payment and financial closure for government supplies.",
+      "prerequisites": ["Approved budget availability", "Vendor empanelment on GeM", "Valid purchase requisition"],
+      "nextStep": "Wf-SupplyOrderToClosure",
+      "previousStep": null,
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "PP-Procurement",
+          "name": "Procurement / Purchase Order",
+          "type": "document",
+          "description": "Create purchase order against approved requisition; select supplier via GeM or L1 process.",
+          "actor": "Procurement Officer",
+          "duration": "3-7 days",
+          "validationRules": [
+            "PO must reference valid PR",
+            "Supplier must be GeM registered",
+            "PO value must be within approved procurement budget",
+            "Terms and conditions must align with GeM contract",
+            "Delivery schedule must be realistic and agreed"
+          ],
+          "compliance": ["GeM Public Procurement Policy", "GFR 2017"],
+          "outputDocuments": ["Purchase Order (PO)", "Rate Contract Reference"]
+        },
+        {
+          "sequence": 2,
+          "id": "PP-GRN",
+          "name": "Goods Receipt Note (GRN)",
+          "type": "document",
+          "description": "Receive and inspect goods against purchase order; record quantity, quality, and document discrepancies.",
+          "actor": "Store Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "GRN must link to valid PO",
+            "Quantity received must be physically counted",
+            "Quality inspection certificate must be attached",
+            "Rejected items must be documented with reason",
+            "DRP start date must be recorded"
+          ],
+          "compliance": ["Material Receipt Policy"],
+          "outputDocuments": ["Goods Receipt Note", "Inspection Checklist", "Rejection Note"]
+        },
+        {
+          "sequence": 3,
+          "id": "PP-StockReceipt",
+          "name": "Stock Receipt / Inventory Update",
+          "type": "inventory",
+          "description": "Update inventory system with received stock quantities, values, and bin location details.",
+          "actor": "Inventory Manager",
+          "duration": "Same day",
+          "validationRules": [
+            "GRN must be approved before stock entry",
+            "Valuation must match PO rate",
+            "Batch/serial numbers captured for tracked items"
+          ],
+          "compliance": ["Inventory Management Policy"],
+          "outputDocuments": ["Stock Inward Entry"]
+        },
+        {
+          "sequence": 4,
+          "id": "PP-Payable",
+          "name": "Payable Recognition",
+          "type": "accounting",
+          "description": "Record supplier payable based on GRN; capture liability in financial system.",
+          "actor": "Accounts Payable",
+          "duration": "Same day",
+          "validationRules": [
+            "GRN must be fully approved",
+            "Payable amount must equal received quantity × PO rate",
+            "GST input credit eligibility must be determined",
+            "TDS must be computed and deducted"
+          ],
+          "compliance": ["Ind AS 37", "GST Act 2017", "TDS Rules"],
+          "outputDocuments": ["Payable Journal Entry", "Vendor Ledger Update"]
+        },
+        {
+          "sequence": 5,
+          "id": "PP-SupplierPayment",
+          "name": "Supplier Payment Processing",
+          "type": "financial",
+          "description": "Process payment to supplier as per agreed terms; generate payment advice and release funds.",
+          "actor": "Accounts Payable",
+          "duration": "2-5 days",
+          "validationRules": [
+            "Payment must be within due date to avoid interest",
+            "3-way match (PO-GRN-Invoice) must be completed",
+            "Bank details must be verified against vendor master",
+            "Payment approval within delegated authority limits"
+          ],
+          "compliance": ["Payment Policy", "PFMS Integration Rules"],
+          "outputDocuments": ["Payment Advice", "Bank Transfer Confirmation", "Vendor Payment Report"]
+        },
+        {
+          "sequence": 6,
+          "id": "PP-Allocation",
+          "name": "Payment Allocation & Reconciliation",
+          "type": "accounting",
+          "description": "Allocate payment to outstanding invoices; update vendor ledger and clear aging entries.",
+          "actor": "Accounts Payable",
+          "duration": "1 day",
+          "validationRules": [
+            "Payment must be fully allocated against open items",
+            "Partial payments must follow allocation rules (oldest first)",
+            "Discount or penalty adjustments must be documented"
+          ],
+          "compliance": ["AP Allocation Policy"],
+          "outputDocuments": ["Allocation Report", "Updated Vendor Aging"]
+        },
+        {
+          "sequence": 7,
+          "id": "PP-Closure",
+          "name": "Procurement Cycle Closure",
+          "type": "process",
+          "description": "Close procurement cycle after all payments, reconciliations, and compliance documentation are complete.",
+          "actor": "Procurement Officer",
+          "duration": "1 day",
+          "validationRules": [
+            "All POs linked to the cycle must be fully delivered",
+            "All invoices must be paid",
+            "Vendor balance must be zero or reconciled",
+            "All documents must be archived per retention policy"
+          ],
+          "compliance": ["Procurement Closure Policy"],
+          "outputDocuments": ["Procurement Closure Report", "Vendor Performance Evaluation"]
+        }
+      ],
+      "relatedReports": [
+        "Procurement Cycle Time Report",
+        "Vendor Payment Aging",
+        "3-Way Match Exception Report",
+        "Procurement Budget Utilization",
+        "Supplier Performance Dashboard"
+      ],
+      "commonMistakes": [
+        "GRN created before physical verification of goods",
+        "Payable recorded without proper TDS computation",
+        "Payment processed without 3-way match validation",
+        "Allocation of payments to wrong invoices",
+        "Procurement closure before all linked documents are finalized"
+      ],
+      "businessRules": [
+        "All procurements above ₹5L must go through GeM marketplace",
+        "GRN must be processed within 1 working day of receipt",
+        "Payment must be processed within 30 days of invoice receipt",
+        "3-way match is mandatory before any payment release",
+        "TDS must be deducted at source as per applicable section"
+      ],
+      "modules": ["Procurement", "Inventory", "Accounts Payable", "Finance", "Vendor Management"]
+    },
+    {
+      "id": "Wf-BillingToCollection",
+      "name": "Billing to Collection",
+      "purpose": "Manage the complete billing lifecycle from invoice generation through payment collection, receipt allocation, and statutory deduction compliance.",
+      "prerequisites": ["Delivered goods or services confirmed", "Valid contract/order reference", "Approved rate card or pricing"],
+      "nextStep": "Wf-BankReconciliation",
+      "previousStep": "Wf-SupplyOrderToClosure",
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "BC-Billing",
+          "name": "Invoice / Billing",
+          "type": "document",
+          "description": "Generate tax invoice for delivered goods/services with correct HSN/SAC, GST, and other statutory details.",
+          "actor": "Billing Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "Invoice must reference valid supply order and delivery challan",
+            "HSN/SAC code must be correctly applied",
+            "GST rate must match product/service classification",
+            "Invoice value must not exceed order value",
+            "E-invoice JSON must be generated for B2G transactions"
+          ],
+          "compliance": ["GST Act 2017", "E-Invoice Rules", "GeM Billing Policy"],
+          "outputDocuments": ["Tax Invoice", "E-Invoice (JSON/XML)", "Invoice Register"]
+        },
+        {
+          "sequence": 2,
+          "id": "BC-Receivable",
+          "name": "Receivable Booking",
+          "type": "accounting",
+          "description": "Book invoice as trade receivable in financial system with proper debtor identification and aging classification.",
+          "actor": "Accounts Receivable",
+          "duration": "Same day",
+          "validationRules": [
+            "Invoice must be in 'Posted' status",
+            "Customer must be correctly identified in master data",
+            "Receivable amount must equal invoice total",
+            "Due date must be computed per payment terms"
+          ],
+          "compliance": ["Ind AS 109", "Revenue Recognition Policy"],
+          "outputDocuments": ["Receivable Entry", "Debtor Ledger Update"]
+        },
+        {
+          "sequence": 3,
+          "id": "BC-PaymentReceipt",
+          "name": "Payment Receipt",
+          "type": "financial",
+          "description": "Receive and record incoming payment from government department via PFMS, RTGS, NEFT, or cheque.",
+          "actor": "Accounts Receivable",
+          "duration": "1 day",
+          "validationRules": [
+            "Payment reference (PFMS/UTR) must be captured",
+            "Amount must match expected or be accepted as partial",
+            "Payment mode must be recorded correctly",
+            "Cheque must be deposited on same day for clearance tracking"
+          ],
+          "compliance": ["PFMS Guidelines", "RBI Payment Instructions"],
+          "outputDocuments": ["Payment Receipt Voucher", "Bank Deposit Slip", "Receipt Register"]
+        },
+        {
+          "sequence": 4,
+          "id": "BC-ReceiptAllocation",
+          "name": "Receipt Allocation",
+          "type": "accounting",
+          "description": "Allocate received payment against outstanding invoices; handle partial, on-account, and advance payments.",
+          "actor": "Accounts Receivable",
+          "duration": "Same day",
+          "validationRules": [
+            "Receipt must be cleared in bank before allocation",
+            "Allocation must match receipt amount (or leave balance as on-account)",
+            "Oldest invoice must be cleared first per policy",
+            "Discount or write-off must be approved"
+          ],
+          "compliance": ["Receipt Allocation Policy", "AS 9 / Ind AS 115"],
+          "outputDocuments": ["Allocation Statement", "Customer Aging Update"]
+        },
+        {
+          "sequence": 5,
+          "id": "BC-TDSGSTTDS",
+          "name": "TDS / GST TDS Deduction",
+          "type": "compliance",
+          "description": "Record TDS deducted by government department on payment; claim credit in GST returns and income tax.",
+          "actor": "Tax Accountant",
+          "duration": "1-2 days",
+          "validationRules": [
+            "TDS certificate must be obtained from deductor",
+            "TDS rate must match applicable section (e.g., 194Q, 194C)",
+            "GST TDS must be claimed in GSTR-7",
+            "Income Tax TDS must be claimed in Form 26AS"
+          ],
+          "compliance": ["Income Tax Act 1961", "GST Act 2017", "TDS Return Rules"],
+          "outputDocuments": ["TDS Certificate Record", "GSTR-7 Filing", "Form 26AS Reconciliation"]
+        },
+        {
+          "sequence": 6,
+          "id": "BC-Closure",
+          "name": "Billing-to-Collection Closure",
+          "type": "process",
+          "description": "Close the billing cycle after full collection, allocation, and statutory compliance for the invoice.",
+          "actor": "Finance Manager",
+          "duration": "1 day",
+          "validationRules": [
+            "Invoice must be fully paid",
+            "All TDS credits must be claimed",
+            "No disputes or claims pending",
+            "All documents must be archived"
+          ],
+          "compliance": ["Record Retention Policy", "Audit Compliance"],
+          "outputDocuments": ["Invoice Closure Certificate", "Collection Summary Report"]
+        }
+      ],
+      "relatedReports": [
+        "Accounts Receivable Aging",
+        "Collection Efficiency Report",
+        "TDS Credit Reconciliation",
+        "DSO (Days Sales Outstanding) Report",
+        "Invoice Aging Dashboard"
+      ],
+      "commonMistakes": [
+        "Incorrect GST rate applied leading to mismatch in returns",
+        "E-invoice schema validation errors not caught before generation",
+        "Receipt allocated to wrong invoice causing aging distortion",
+        "TDS credit not tracked properly leading to cash leakage",
+        "Partial payments not allocated correctly leaving residuals"
+      ],
+      "businessRules": [
+        "Invoice must be raised within 7 days of delivery confirmation",
+        "Credit period for government departments is 30-45 days as per GeM terms",
+        "All payments above ₹1L must be through banking channels only",
+        "TDS must be tracked at invoice level for accurate credit claiming",
+        "Overdue invoices (>90 days) must be escalated to management"
+      ],
+      "modules": ["Billing", "Accounts Receivable", "Finance", "Tax Compliance", "Customer Management"]
+    },
+    {
+      "id": "Wf-BankReconciliation",
+      "name": "Bank Reconciliation",
+      "purpose": "Reconcile bank statements with book entries to ensure accuracy of cash and bank balances, identify discrepancies, and post corrective vouchers.",
+      "prerequisites": ["Bank statement received (manual or auto-import)", "Bank ledger maintained in system", "Previous month reconciliation completed"],
+      "nextStep": "Wf-YearEndClosing",
+      "previousStep": "Wf-BillingToCollection",
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "BR-Import",
+          "name": "Bank Statement Import",
+          "type": "process",
+          "description": "Import bank statement from bank portal (auto-API or manual Excel/PDF upload) into reconciliation system.",
+          "actor": "Accounts Executive",
+          "duration": "1 day",
+          "validationRules": [
+            "Statement must be in supported format (BAI2, CSV, PDF)",
+            "Opening balance must match previous closing balance",
+            "All transactions within the statement period must be included",
+            "Statement must be authenticated (digital signature or verified source)"
+          ],
+          "compliance": ["Bank Statement Policy"],
+          "outputDocuments": ["Bank Statement Import Log", "Statement Summary"]
+        },
+        {
+          "sequence": 2,
+          "id": "BR-DuplicateCheck",
+          "name": "Duplicate & Anomaly Check",
+          "type": "validation",
+          "description": "Scan imported transactions for duplicates, missing entries, or anomalies before proceeding to matching.",
+          "actor": "System (Auto)",
+          "duration": "Automated real-time",
+          "validationRules": [
+            "Duplicate transaction detection based on UTR/cheque number + amount + date",
+            "Missing sequential cheque number alert",
+            "Negative balance or unusual large transactions flagged",
+            "Date range validity check"
+          ],
+          "compliance": ["Internal Audit Controls"],
+          "outputDocuments": ["Transaction Exception Report", "Duplicate Flag Report"]
+        },
+        {
+          "sequence": 3,
+          "id": "BR-Matching",
+          "name": "Transaction Matching",
+          "type": "process",
+          "description": "Match bank statement lines with book entries using auto-matching rules and manual intervention for exceptions.",
+          "actor": "Accounts Executive",
+          "duration": "1-3 days",
+          "validationRules": [
+            "Auto-matching on UTR, cheque number, amount, and date proximity",
+            "Partial matching allowed for consolidated payments",
+            "Unmatched items must be investigated within TAT",
+            "Match confidence score must exceed threshold (80%)"
+          ],
+          "compliance": ["Bank Reconciliation Policy"],
+          "outputDocuments": ["Matching Report", "Unmatched Items List", "Match Exception Log"]
+        },
+        {
+          "sequence": 4,
+          "id": "BR-VoucherProposal",
+          "name": "Journal Voucher Proposal",
+          "type": "accounting",
+          "description": "Propose journal vouchers for unmatched differences such as bank charges, interest, errors, or missing entries.",
+          "actor": "Accounts Executive",
+          "duration": "1 day",
+          "validationRules": [
+            "Each difference must have a documented reason",
+            "Bank charges must be under authorized limits",
+            "Interest entries must be verified against bank rate",
+            "Suspense entries require additional approval"
+          ],
+          "compliance": ["Journal Voucher Policy", "Suspense Account Policy"],
+          "outputDocuments": ["Proposed Journal Vouchers", "Suspense Entry Summary"]
+        },
+        {
+          "sequence": 5,
+          "id": "BR-Approval",
+          "name": "Manager Approval",
+          "type": "approval",
+          "description": "Review proposed vouchers and reconciliation adjustments by manager before final posting.",
+          "actor": "Finance Manager",
+          "duration": "1 day",
+          "validationRules": [
+            "All proposed entries must have supporting evidence",
+            "Material differences must be explained",
+            "Suspense account entries need written justification"
+          ],
+          "compliance": ["Delegation of Authority Policy", "Internal Controls"],
+          "outputDocuments": ["Approved Voucher List", "Rejection Note (if any)"]
+        },
+        {
+          "sequence": 6,
+          "id": "BR-Posting",
+          "name": "Final Posting & Reconciliation Closure",
+          "type": "accounting",
+          "description": "Post approved vouchers and finalize reconciliation for the period; update bank ledger balance.",
+          "actor": "Accounts Executive",
+          "duration": "Same day",
+          "validationRules": [
+            "All approved vouchers must be posted",
+            "Closing balance must match bank statement ending balance",
+            "Reconciliation summary must be printed and archived"
+          ],
+          "compliance": ["Month-End Closing Policy"],
+          "outputDocuments": ["Bank Reconciliation Statement (BRS)", "Posted Journal Report", "Monthly Reconciliation Certificate"]
+        }
+      ],
+      "relatedReports": [
+        "Bank Reconciliation Statement",
+        "Outstanding Entry Aging",
+        "Suspense Account Analysis",
+        "Bank Charges Report",
+        "Reconciliation Efficiency Dashboard"
+      ],
+      "commonMistakes": [
+        "Duplicate entries not detected leading to double counting",
+        "Unmatched items carried forward without investigation",
+        "Bank charges booked without verifying actual charge",
+        "Suspense entries not cleared within the month",
+        "Final reconciliation posted before all bank entries are captured"
+      ],
+      "businessRules": [
+        "Bank reconciliation must be completed within 7 days of month end",
+        "Unmatched items older than 30 days must be escalated",
+        "Suspense account must be zero at month end",
+        "All bank charges must be verified against bank schedule",
+        "Auto-matching confidence threshold is 80%; below requires manual review"
+      ],
+      "modules": ["Finance", "Accounts", "Treasury", "Audit"]
+    },
+    {
+      "id": "Wf-YearEndClosing",
+      "name": "Year-End Closing",
+      "purpose": "Execute the annual financial closing process including trial balance review, outstanding clearance, financial year lock, closing entries, and balance carry forward for government audit readiness.",
+      "prerequisites": ["All monthly closings completed", "Bank reconciliations done for all months", "Fixed asset depreciation posted", "All inter-departmental reconciliations completed"],
+      "nextStep": null,
+      "previousStep": "Wf-BankReconciliation",
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "YE-TrialBalanceReview",
+          "name": "Trial Balance Review",
+          "type": "review",
+          "description": "Review annual trial balance for anomalies, unusual balances, or missing entries before proceeding to closing.",
+          "actor": "Finance Controller",
+          "duration": "3-5 days",
+          "validationRules": [
+            "Trial balance must balance (debits = credits)",
+            "All control accounts must be reconciled (AP, AR, Inventory)",
+            "Suspense accounts must be zero",
+            "Inter-branch accounts must match",
+            "Budget vs actual variance must be analyzed"
+          ],
+          "compliance": ["Financial Reporting Standards", "Audit Requirements"],
+          "outputDocuments": ["Annual Trial Balance", "TB Exception Report", "Suspense Account Clearance Report"]
+        },
+        {
+          "sequence": 2,
+          "id": "YE-PostingQueueClear",
+          "name": "Posting Queue Clearance",
+          "type": "process",
+          "description": "Clear any pending posting queues including stock transactions, invoices, and pending journal entries.",
+          "actor": "Accounts Executive",
+          "duration": "2-3 days",
+          "validationRules": [
+            "No pending stock transactions in queue",
+            "All invoices must be posted",
+            "All journal entries in draft must be finalized or deleted",
+            "Recurring entries must be posted for the period"
+          ],
+          "compliance": ["Month-End / Year-End Closing Policy"],
+          "outputDocuments": ["Posting Queue Status Report", "Pending Entries Log"]
+        },
+        {
+          "sequence": 3,
+          "id": "YE-ApprovalQueueClear",
+          "name": "Approval Queue Clearance",
+          "type": "process",
+          "description": "Ensure all pending approvals (POs, invoices, payments, vouchers) are resolved before year-end lock.",
+          "actor": "Finance Manager",
+          "duration": "2-3 days",
+          "validationRules": [
+            "No PO pending approval beyond authority",
+            "All invoices must be in approved or rejected state",
+            "Payment proposals must be resolved",
+            "Employee reimbursement claims must be cleared"
+          ],
+          "compliance": ["Delegation of Authority Policy"],
+          "outputDocuments": ["Approval Queue Status", "Pending Resolution Report"]
+        },
+        {
+          "sequence": 4,
+          "id": "YE-FinancialYearLock",
+          "name": "Financial Year Lock",
+          "type": "system",
+          "description": "Lock the financial year to prevent any new transactions or modifications to historical data.",
+          "actor": "System Admin",
+          "duration": "1 day",
+          "validationRules": [
+            "All prior period entries must be finalized",
+            "No open periods in sub-ledgers (Inventory, AP, AR)",
+            "Backup must be taken before lock",
+            "Audit trail must be enabled before lock",
+            "Lock must be authorized by CFO or equivalent"
+          ],
+          "compliance": ["IT General Controls", "Data Retention Policy"],
+          "outputDocuments": ["Year Lock Confirmation", "System Backup Report", "Audit Trail Certificate"]
+        },
+        {
+          "sequence": 5,
+          "id": "YE-ClosingEntries",
+          "name": "Closing Entries Posting",
+          "type": "accounting",
+          "description": "Post year-end closing entries including P&L transfer to retained earnings, provisions, and adjustments.",
+          "actor": "Finance Controller",
+          "duration": "2-3 days",
+          "validationRules": [
+            "All closing entries must have documentary evidence",
+            "P&L balance must be transferred to retained earnings",
+            "Provisions must be booked as per policy",
+            "Deferred tax assets/liabilities must be computed",
+            "Closing entries must be approved by CFO"
+          ],
+          "compliance": ["Ind AS / AS Standards", "Income Tax Act", "Audit Requirements"],
+          "outputDocuments": ["Closing Journal Entries", "P&L Transfer Entry", "Provision Schedule", "Deferred Tax Computation"]
+        },
+        {
+          "sequence": 6,
+          "id": "YE-CarryForward",
+          "name": "Carry Forward Balances",
+          "type": "process",
+          "description": "Carry forward closing balances of balance sheet accounts to the new financial year as opening balances.",
+          "actor": "System (Auto)",
+          "duration": "1 day",
+          "validationRules": [
+            "All balance sheet accounts must carry forward",
+            "Opening balances must equal previous year closing balances",
+            "New year budget must be loaded (if applicable)",
+            "Statutory registers must be updated for new year"
+          ],
+          "compliance": ["Financial Year Transition Policy", "DOP Guidelines"],
+          "outputDocuments": ["Opening Balance Sheet", "New Year Initiation Report", "Statutory Register Reset"]
+        }
+      ],
+      "relatedReports": [
+        "Year-End Closing Checklist Report",
+        "Annual Financial Statements",
+        "Audit Readiness Report",
+        "Budget vs Actual Annual Report",
+        "Statutory Compliance Report"
+      ],
+      "commonMistakes": [
+        "Year lock applied before all pending transactions are cleared",
+        "Closing entries not approved by appropriate authority",
+        "Inter-branch accounts not reconciled before carry forward",
+        "Deferred tax computation errors",
+        "Carry forward balances differing from audited closing figures"
+      ],
+      "businessRules": [
+        "Year-end closing must be completed within 45 days of financial year end",
+        "No transactions can be posted to a locked year without special admin authority",
+        "All closing entries must be approved by Finance Controller and CFO",
+        "System backup must be taken before and after year-end lock",
+        "Audit trail must be enabled and verified before closure"
+      ],
+      "modules": ["Finance", "Accounts", "Audit", "Treasury", "Compliance", "IT"]
+    },
+    {
+      "id": "Wf-StockLifecycle",
+      "name": "Stock Lifecycle",
+      "purpose": "Manage the complete lifecycle of inventory from procurement requirement identification through procurement, receipt, storage, reservation, issue, and cost recognition for government supplies.",
+      "prerequisites": ["Valid stock item master", "Approved procurement budget", "Warehouse/bin location master configured"],
+      "nextStep": "Wf-SupplyOrderToClosure",
+      "previousStep": null,
+      "steps": [
+        {
+          "sequence": 1,
+          "id": "SL-ProcurementRequirement",
+          "name": "Procurement Requirement Identification",
+          "type": "planning",
+          "description": "Identify stock requirements based on reorder levels, demand forecasting, or specific supply orders.",
+          "actor": "Inventory Planner",
+          "duration": "1-2 days",
+          "validationRules": [
+            "Requirement must consider current stock levels and committed orders",
+            "Lead time must be factored into requirement date",
+            "Minimum order quantity (MOQ) must be respected",
+            "Budget allocation must exist for the procurement"
+          ],
+          "compliance": ["Inventory Planning Policy"],
+          "outputDocuments": ["Stock Requirement Plan", "Reorder Report", "MRP Run Output"]
+        },
+        {
+          "sequence": 2,
+          "id": "SL-Procurement",
+          "name": "Procurement Execution",
+          "type": "procurement",
+          "description": "Execute procurement through GeM marketplace or approved procurement process to fulfill stock requirements.",
+          "actor": "Procurement Officer",
+          "duration": "5-15 days",
+          "validationRules": [
+            "Procurement must follow GeM or tendering rules",
+            "Supplier must be GeM empaneled or approved",
+            "Rate must be within approved price list or L1"
+          ],
+          "compliance": ["GeM Procurement Rules", "GFR 2017"],
+          "outputDocuments": ["Purchase Order", "Rate Contract"]
+        },
+        {
+          "sequence": 3,
+          "id": "SL-GRN",
+          "name": "Goods Receipt Note (GRN)",
+          "type": "receiving",
+          "description": "Receive and inspect incoming stock against purchase order with quality verification.",
+          "actor": "Store Officer",
+          "duration": "1-2 days",
+          "validationRules": [
+            "GRN must reference valid PO",
+            "Physical count must match received quantity",
+            "Quality inspection must pass for acceptance"
+          ],
+          "compliance": ["Goods Receipt Policy"],
+          "outputDocuments": ["Goods Receipt Note", "Inspection Report"]
+        },
+        {
+          "sequence": 4,
+          "id": "SL-StockInward",
+          "name": "Stock Inward / Putaway",
+          "type": "inventory",
+          "description": "Move accepted stock to designated bin locations and update inventory records with accurate quantities and values.",
+          "actor": "Store Officer",
+          "duration": "Same day",
+          "validationRules": [
+            "GRN must be approved before inward movement",
+            "Bin location must follow ABC classification",
+            "Batch/serial numbers must be recorded",
+            "Stock valuation must match PO rate"
+          ],
+          "compliance": ["Warehouse Operations Policy"],
+          "outputDocuments": ["Putaway List", "Bin Card Update", "Stock Ledger Update"]
+        },
+        {
+          "sequence": 5,
+          "id": "SL-Reservation",
+          "name": "Stock Reservation / Allocation",
+          "type": "inventory",
+          "description": "Reserve stock against supply orders or internal requisitions to ensure availability at time of issue.",
+          "actor": "Inventory Manager",
+          "duration": "Same day",
+          "validationRules": [
+            "Reservation against specific supply order/requisition",
+            "FIFO batch selection for perishable/dated items",
+            "Reservation must not exceed available quantity",
+            "Expiry date validation for consumables"
+          ],
+          "compliance": ["Inventory Allocation Policy"],
+          "outputDocuments": ["Stock Reservation Note", "Pick List"]
+        },
+        {
+          "sequence": 6,
+          "id": "SL-StockOutward",
+          "name": "Stock Outward / Issue",
+          "type": "inventory",
+          "description": "Physically pick and issue stock from warehouse against delivery challan or material requisition.",
+          "actor": "Store Officer",
+          "duration": "Same day",
+          "validationRules": [
+            "Pick list must match delivery challan items",
+            "Reserved stock must be picked first",
+            "FIFO/FEFO must be followed for issue",
+            "Gate pass must be generated for outward movement"
+          ],
+          "compliance": ["Inventory Issue Policy", "FIFO Guidelines"],
+          "outputDocuments": ["Stock Issue Voucher", "Pick List Report", "Gate Pass"]
+        },
+        {
+          "sequence": 7,
+          "id": "SL-DeliveryChallan",
+          "name": "Delivery Challan",
+          "type": "logistics",
+          "description": "Generate and manage delivery challan for dispatched stock with transportation and recipient details.",
+          "actor": "Logistics Officer",
+          "duration": "1 day",
+          "validationRules": [
+            "Delivery challan must reference issue voucher",
+            "Transport details must be complete",
+            "E-way bill generated if required"
+          ],
+          "compliance": ["Logistics Policy", "GST E-Way Bill Rules"],
+          "outputDocuments": ["Delivery Challan", "E-Way Bill", "Transport Document"]
+        },
+        {
+          "sequence": 8,
+          "id": "SL-COGS",
+          "name": "COGS Recognition",
+          "type": "accounting",
+          "description": "Recognize cost of goods sold based on valuation method (FIFO/Weighted Average) for issued stock.",
+          "actor": "Cost Accountant",
+          "duration": "Same day",
+          "validationRules": [
+            "Cost valuation method must be consistently applied",
+            "All issue-related costs must be included",
+            "COGS must reconcile with inventory movement report"
+          ],
+          "compliance": ["AS-2 / Ind AS-2", "Cost Accounting Standards"],
+          "outputDocuments": ["COGS Journal", "Inventory Movement Report"]
+        }
+      ],
+      "relatedReports": [
+        "Stock Status Report",
+        "Inventory Aging Analysis",
+        "Stock Movement Register",
+        "ABC Analysis Report",
+        "Inventory Turnover Ratio Report",
+        "Dead Stock / Slow Moving Report"
+      ],
+      "commonMistakes": [
+        "GRN processed without physical inspection of goods",
+        "Stock inward to wrong bin location causing picking errors",
+        "FIFO not followed for batch-managed items",
+        "COGS recognized before stock issue is physically confirmed",
+        "Delivery challan generated without stock issue voucher reference"
+      ],
+      "businessRules": [
+        "All inward stock must be GRNed within 24 hours of receipt",
+        "Stock valuation method cannot be changed mid-year without approval",
+        "Reservation must be released if not consumed within 15 days",
+        "Obsolete stock (>2 years) must be identified and provisioned",
+        "Physical stock count must be done quarterly and reconciled"
+      ],
+      "modules": ["Inventory", "Procurement", "Logistics", "Finance", "Warehouse Management"]
+    }
+  ]
+}

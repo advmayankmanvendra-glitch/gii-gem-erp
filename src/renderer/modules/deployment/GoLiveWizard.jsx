@@ -76,7 +76,8 @@ function GoLiveWizard({ apiClient }) {
       const result = await apiClient.checkGoLivePreconditions();
       setPreconditions(result);
       if (!result.allPassed) {
-        handleError("Precondition check failed — see details below", 1);
+        const failedPreconditions = result.issues.filter(i => !i.passed).map(i => `${i.label}${i.detail ? ` (${i.detail})` : ""}`);
+        handleError(`Precondition check failed: ${failedPreconditions.join("; ")}`, 1);
       } else {
         enterStep(2);
       }

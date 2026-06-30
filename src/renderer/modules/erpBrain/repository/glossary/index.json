@@ -1,0 +1,522 @@
+[
+  {
+    "id": "TERM-001",
+    "term": "CRAC",
+    "definition": "Consignee Receipt and Acceptance Certificate. A document signed by the consignee (government department) confirming receipt and acceptance of goods or services, which triggers the invoice and payment process.",
+    "usedIn": ["Procurement", "Supply Order", "Finance", "Inventory"],
+    "relatedModules": ["GRN", "Invoice Processing", "Payment"],
+    "examples": [
+      "CRAC no. GEM/2026/12345 issued against supply order SO-2026-0089",
+      "CRAC pending for invoice generation on completed supply order"
+    ],
+    "aliases": ["Consignee Receipt Certificate", "Acceptance Certificate"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-002",
+    "term": "GRN",
+    "definition": "Goods Receipt Note. A warehouse or store document recording the receipt of goods into inventory, verifying quantity and quality against the purchase order.",
+    "usedIn": ["Inventory", "Warehouse", "Procurement"],
+    "relatedModules": ["Purchase Order", "Stock", "Inspection"],
+    "examples": [
+      "GRN-2026-0456 created for PO-2026-0234",
+      "Partial GRN raised for 50 units against PO for 100 units"
+    ],
+    "aliases": ["Goods Received Note", "Material Receipt Note"],
+    "category": "Inventory Management"
+  },
+  {
+    "id": "TERM-003",
+    "term": "OEM",
+    "definition": "Original Equipment Manufacturer. The entity that manufactures the product or system being supplied, distinct from resellers or value-added partners.",
+    "usedIn": ["Vendor Management", "Catalog", "Procurement"],
+    "relatedModules": ["Supplier", "Item Master", "Compliance"],
+    "examples": [
+      "OEM certificate uploaded for vendor M/s ABC Electronics",
+      "OEM authorization letter required for brand-specific procurement"
+    ],
+    "aliases": ["Manufacturer", "Producer"],
+    "category": "Vendor Management"
+  },
+  {
+    "id": "TERM-004",
+    "term": "Receivable",
+    "definition": "Amount recoverable from a government department against posted invoice for goods or services supplied. Recorded as an asset in the books of accounts.",
+    "usedIn": ["Accounts Receivable", "Finance", "Invoice Processing"],
+    "relatedModules": ["Billing", "Payment", "Ledger"],
+    "examples": [
+      "Receivable of INR 5,00,000 against invoice INV-2026-0098 from Ministry of Defence",
+      "Ageing analysis shows 60-day overdue receivable of INR 2,30,000"
+    ],
+    "aliases": ["Accounts Receivable", "Trade Receivable", "Dues from Department"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-005",
+    "term": "Payable",
+    "definition": "Amount payable to supplier or party after purchase or expense entry. Recorded as a liability in the books of accounts.",
+    "usedIn": ["Accounts Payable", "Finance", "Procurement"],
+    "relatedModules": ["Purchase Invoice", "Payment", "Ledger"],
+    "examples": [
+      "Payable of INR 3,50,000 due to M/s XYZ Suppliers against Bill No. 7890",
+      "Payable ageing report generated for month-end closing"
+    ],
+    "aliases": ["Accounts Payable", "Trade Payable", "Creditor"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-006",
+    "term": "Stock Reservation",
+    "definition": "Operational hold on a specific quantity of stock for a particular supply order before dispatch. Ensures committed stock is not diverted to other orders.",
+    "usedIn": ["Inventory", "Supply Order", "Order Management"],
+    "relatedModules": ["Stock", "Dispatch", "Warehouse"],
+    "examples": [
+      "Stock reserved: 200 units of Item A against supply order SO-2026-0102",
+      "Reservation released due to order cancellation"
+    ],
+    "aliases": ["Inventory Reservation", "Allocated Stock"],
+    "category": "Inventory Management"
+  },
+  {
+    "id": "TERM-007",
+    "term": "L1",
+    "definition": "Lowest qualified bidder in government procurement. The bidder who meets all qualification criteria and has quoted the lowest price, eligible for the Letter of Award.",
+    "usedIn": ["e-Procurement", "Bidding", "Tendering"],
+    "relatedModules": ["Vendor Evaluation", "LOA", "Contract"],
+    "examples": [
+      "M/s Techno Solutions declared L1 in tender GEM/2026/RFP/0045",
+      "L1 price of INR 12,50,000 used for rate contract negotiation"
+    ],
+    "aliases": ["Lowest Bidder", "L-1"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-008",
+    "term": "LOA",
+    "definition": "Letter of Acceptance / Letter of Award. A formal document issued by the procuring entity to the L1 bidder confirming the award of the contract or purchase order.",
+    "usedIn": ["e-Procurement", "Contract Management", "Tendering"],
+    "relatedModules": ["L1", "Purchase Order", "Supplier"],
+    "examples": [
+      "LOA issued to M/s Delta Corp on 15-Jun-2026 for supply of IT equipment",
+      "LOA reference number GEM/LOA/2026/3342"
+    ],
+    "aliases": ["Letter of Award", "Award Letter", "Acceptance Letter"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-009",
+    "term": "COGS",
+    "definition": "Cost of Goods Sold. The direct costs attributable to the goods supplied, including purchase cost, freight, insurance, and other directly allocable expenses.",
+    "usedIn": ["Finance", "Inventory", "Profitability Analysis"],
+    "relatedModules": ["P&L", "Stock Valuation", "Billing"],
+    "examples": [
+      "COGS for the quarter Q1 2026-27 computed at INR 85,00,000",
+      "Average COGS per unit calculated using weighted average method"
+    ],
+    "aliases": ["Cost of Sales", "Cost of Revenue"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-010",
+    "term": "GST",
+    "definition": "Goods and Services Tax. A comprehensive indirect tax levied on supply of goods and services in India, comprising CGST, SGST, and IGST components.",
+    "usedIn": ["Tax", "Finance", "Billing", "Compliance"],
+    "relatedModules": ["CGST", "SGST", "IGST", "GST Returns"],
+    "examples": [
+      "GST rate of 18% applied on invoice INV-2026-0078",
+      "GST return GSTR-3B filed for May 2026"
+    ],
+    "aliases": ["Goods and Services Tax"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-011",
+    "term": "CGST",
+    "definition": "Central Goods and Services Tax. The central government component of GST levied on intra-state supplies. Half of the total GST rate for intra-state transactions.",
+    "usedIn": ["Tax", "Finance", "Billing", "Compliance"],
+    "relatedModules": ["GST", "SGST", "IGST", "GST Returns"],
+    "examples": [
+      "CGST 9% charged on intra-state supply of INR 1,00,000",
+      "CGST output tax liability set off against CGST input tax credit"
+    ],
+    "aliases": ["Central GST"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-012",
+    "term": "SGST",
+    "definition": "State Goods and Services Tax. The state government component of GST levied on intra-state supplies. Half of the total GST rate for intra-state transactions.",
+    "usedIn": ["Tax", "Finance", "Billing", "Compliance"],
+    "relatedModules": ["GST", "CGST", "IGST", "GST Returns"],
+    "examples": [
+      "SGST 9% charged on intra-state supply of INR 1,00,000",
+      "SGST output tax liability set off against SGST input tax credit"
+    ],
+    "aliases": ["State GST"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-013",
+    "term": "IGST",
+    "definition": "Integrated Goods and Services Tax. The GST component levied on inter-state supplies and imports. Collected by the central government and apportioned between centre and states.",
+    "usedIn": ["Tax", "Finance", "Billing", "Compliance"],
+    "relatedModules": ["GST", "CGST", "SGST", "GST Returns"],
+    "examples": [
+      "IGST 18% charged on inter-state supply from Delhi to Karnataka",
+      "IGST credit used first to pay IGST liability, then CGST/SGST in cross-utilization"
+    ],
+    "aliases": ["Integrated GST"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-014",
+    "term": "TDS",
+    "definition": "Tax Deducted at Source. Income tax deducted by the payer (government department) on payments made to suppliers as per Income Tax Act provisions, typically under Section 194C, 194J, etc.",
+    "usedIn": ["Tax", "Finance", "Payment", "Compliance"],
+    "relatedModules": ["TDS Return", "Ledger", "Vendor Payment"],
+    "examples": [
+      "TDS @ 2% under Section 194C deducted on contractor payment of INR 5,00,000",
+      "TDS certificate Form 16A issued to supplier for FY 2025-26"
+    ],
+    "aliases": ["Tax Deducted at Source"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-015",
+    "term": "GST TDS",
+    "definition": "GST deducted at source under Section 194Q of the Income Tax Act, or under GST TDS provisions (Section 51 of CGST Act) where specified government departments deduct TDS on supplies exceeding threshold.",
+    "usedIn": ["Tax", "Finance", "Payment", "Compliance"],
+    "relatedModules": ["TDS", "GST", "GST Returns"],
+    "examples": [
+      "GST TDS @ 2% (1% CGST + 1% SGST) deducted on supply value exceeding INR 2,50,000",
+      "GST TDS certificate uploaded on the GST portal"
+    ],
+    "aliases": ["GST TDS under Section 194Q", "Section 51 TDS"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-016",
+    "term": "HSN",
+    "definition": "Harmonized System of Nomenclature code for item classification. A standardized numerical system used to classify traded products for customs and GST purposes.",
+    "usedIn": ["Catalog", "Tax", "Billing", "Inventory"],
+    "relatedModules": ["Item Master", "GST", "Invoice"],
+    "examples": [
+      "HSN code 8471.30 for laptop computers",
+      "HSN summary required in GSTR-1 for supplies exceeding INR 5,000 per invoice"
+    ],
+    "aliases": ["HSN Code", "HSN/SAC", "Tariff Code"],
+    "category": "Taxation"
+  },
+  {
+    "id": "TERM-017",
+    "term": "UTR",
+    "definition": "Unique Transaction Reference for bank payments. A unique alphanumeric code assigned by the banking system (NEFT/RTGS/IMPS) to identify a specific fund transfer transaction.",
+    "usedIn": ["Payment", "Finance", "Banking", "Reconciliation"],
+    "relatedModules": ["Vendor Payment", "Receipt", "Bank Statement"],
+    "examples": [
+      "UTR SBIN123456789012 for NEFT payment of INR 2,00,000",
+      "Payment reconciled using UTR mapped to bank statement line"
+    ],
+    "aliases": ["Transaction Reference", "Bank Reference", "NEFT UTR"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-018",
+    "term": "EMD",
+    "definition": "Earnest Money Deposit. A refundable deposit submitted by bidders along with their tender to guarantee their commitment to the bidding process. Forfeited if the bidder withdraws or fails to honour the award.",
+    "usedIn": ["e-Procurement", "Tendering", "Bidding"],
+    "relatedModules": ["Vendor Evaluation", "LOA", "Contract"],
+    "examples": [
+      "EMD of INR 50,000 submitted via bank guarantee with tender GEM/2026/0112",
+      "EMD refunded to unsuccessful bidders after LOA issuance"
+    ],
+    "aliases": ["Bid Security", "Tender Fee Deposit", "Bid Bond"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-019",
+    "term": "GeM",
+    "definition": "Government e-Marketplace. The online platform for public procurement in India, operated by the Government of India, enabling government departments to purchase goods and services from registered sellers.",
+    "usedIn": ["Procurement", "e-Procurement", "Supply Order", "Catalog"],
+    "relatedModules": ["Vendor Onboarding", "Order Management", "Contract"],
+    "examples": [
+      "Supply order raised through GeM portal for office stationery",
+      "GeM contract no. GEMC-2026-IT-005678"
+    ],
+    "aliases": ["Government e-Marketplace", "GeM Portal"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-020",
+    "term": "Voucher",
+    "definition": "Accounting document recording a financial transaction. Types include payment, receipt, journal, contra, credit note, debit note, and purchase/sales vouchers.",
+    "usedIn": ["Finance", "Accounting", "Ledger"],
+    "relatedModules": ["Voucher Entry", "Trial Balance", "Audit Log"],
+    "examples": [
+      "Payment voucher PV-2026-0034 for INR 1,75,000 to M/s XYZ",
+      "Journal voucher JV-2026-0021 for depreciation adjustment"
+    ],
+    "aliases": ["Accounting Voucher", "Transaction Voucher"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-021",
+    "term": "Ledger",
+    "definition": "Account-wise record of financial transactions. Each ledger aggregates all debits and credits for a specific account head such as bank, supplier, customer, or expense.",
+    "usedIn": ["Finance", "Accounting", "Reporting"],
+    "relatedModules": ["Voucher", "Trial Balance", "Balance Sheet"],
+    "examples": [
+      "Bank of India ledger shows balance of INR 15,00,000 as on 30-Jun-2026",
+      "Supplier ledger for M/s ABC Corp extracted for reconciliation"
+    ],
+    "aliases": ["Account Ledger", "General Ledger Account"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-022",
+    "term": "Trial Balance",
+    "definition": "List of all ledger balances at a given date to verify the accounting equation debit equals credit. Used as a basis for preparing financial statements.",
+    "usedIn": ["Finance", "Accounting", "Reporting"],
+    "relatedModules": ["Ledger", "Balance Sheet", "P&L"],
+    "examples": [
+      "Trial Balance as on 30-Jun-2026 shows total debits of INR 2,50,00,000",
+      "Trial Balance generated for branch office for quarterly closing"
+    ],
+    "aliases": ["TB", "List of Balances"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-023",
+    "term": "Posting Queue",
+    "definition": "Control view for source records (such as purchase orders, invoices, payments) that are waiting to create accounting impact. Allows users to review and post vouchers in batch.",
+    "usedIn": ["Finance", "Accounting", "Workflow"],
+    "relatedModules": ["Voucher", "Approval Queue", "Audit Log"],
+    "examples": [
+      "25 pending purchase invoices in posting queue awaiting GL mapping",
+      "Posting queue cleared for month-end closing"
+    ],
+    "aliases": ["Posting Pending Queue", "Accounting Queue"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-024",
+    "term": "Approval Queue",
+    "definition": "Maker-checker view for sensitive transaction approval. Sensitive operations require one user to create (maker) and another to approve (checker) before execution.",
+    "usedIn": ["Finance", "Workflow", "Compliance"],
+    "relatedModules": ["Posting Queue", "Audit Log", "Voucher"],
+    "examples": [
+      "Journal voucher JV-2026-0015 pending in approval queue for CFO approval",
+      "Three payment proposals awaiting checker approval in approval queue"
+    ],
+    "aliases": ["Maker-Checker Queue", "Approval Pending"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-025",
+    "term": "Audit Log",
+    "definition": "System evidence of critical create, edit, delete, and post actions. Records who performed what action, at what time, and from which IP, providing non-repudiation for audit trails.",
+    "usedIn": ["Security", "Compliance", "Finance", "System Administration"],
+    "relatedModules": ["Logs", "Approval Queue", "Compliance Report"],
+    "examples": [
+      "Audit log shows user admin@org modified supplier bank details on 15-Jun-2026",
+      "Audit trail extracted for statutory audit of FY 2025-26"
+    ],
+    "aliases": ["Activity Log", "Audit Trail", "Change Log"],
+    "category": "System Administration"
+  },
+  {
+    "id": "TERM-026",
+    "term": "Bill-wise Outstanding",
+    "definition": "Invoice-wise receivable or payable position showing the remaining amount for each individual bill after partial payments, credits, or allocations.",
+    "usedIn": ["Accounts Receivable", "Accounts Payable", "Finance"],
+    "relatedModules": ["Receipt Allocation", "Supplier Allocation", "Ageing"],
+    "examples": [
+      "Bill-wise outstanding report shows INV-2026-0045 has INR 50,000 remaining",
+      "Partial payment of INR 75,000 applied leaving bill-wise outstanding of INR 25,000"
+    ],
+    "aliases": ["Invoice-wise Outstanding", "Bill-wise Balance"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-027",
+    "term": "Receipt Allocation",
+    "definition": "Linking a receipt (payment received) to specific invoices to close outstanding receivables. Enables accurate tracking of which bills are paid and which remain due.",
+    "usedIn": ["Accounts Receivable", "Finance", "Payment"],
+    "relatedModules": ["Bill-wise Outstanding", "Receipt", "Ledger"],
+    "examples": [
+      "Receipt of INR 1,00,000 allocated to INV-2026-0032 and INV-2026-0033",
+      "Auto-allocation of receipt against oldest outstanding invoices"
+    ],
+    "aliases": ["Receipt Mapping", "Invoice Allocation"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-028",
+    "term": "Supplier Allocation",
+    "definition": "Linking supplier payment to specific purchase bills to close payables. Ensures each purchase invoice is tracked for payment status and ageing.",
+    "usedIn": ["Accounts Payable", "Finance", "Payment"],
+    "relatedModules": ["Bill-wise Outstanding", "Vendor Payment", "Ledger"],
+    "examples": [
+      "Payment of INR 2,00,000 allocated to purchase bills PB-2026-0012 and PB-2026-0014",
+      "Supplier allocation report generated for monthly closing"
+    ],
+    "aliases": ["Payment Allocation", "Bill Payment Mapping"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-029",
+    "term": "Contra Voucher",
+    "definition": "Cash to bank or bank to bank movement without profit and loss impact. Used for fund transfers between accounts, cash deposits, and withdrawals.",
+    "usedIn": ["Finance", "Accounting", "Banking"],
+    "relatedModules": ["Voucher", "Ledger", "Reconciliation"],
+    "examples": [
+      "Contra voucher CV-2026-0010 for transfer from SBI to Bank of India of INR 5,00,000",
+      "Cash deposited INR 50,000 recorded via contra voucher"
+    ],
+    "aliases": ["Contra Entry", "Transfer Voucher"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-030",
+    "term": "Credit Note",
+    "definition": "Voucher reducing sales, receivable, and GST liability due to return of goods, rate difference, or invoice correction. Issued by the supplier to the buyer.",
+    "usedIn": ["Finance", "Sales", "GST", "Accounts Receivable"],
+    "relatedModules": ["Debit Note", "GST Returns", "Invoice"],
+    "examples": [
+      "Credit note CN-2026-0015 issued for return of defective items worth INR 25,000",
+      "Credit note for rate difference adjustment in GST portal"
+    ],
+    "aliases": ["CN", "Sales Credit Note"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-031",
+    "term": "Debit Note",
+    "definition": "Voucher reducing supplier payable due to return of goods, rate difference, or purchase invoice correction. Issued by the buyer to the supplier.",
+    "usedIn": ["Finance", "Purchase", "GST", "Accounts Payable"],
+    "relatedModules": ["Credit Note", "GST Returns", "Purchase Invoice"],
+    "examples": [
+      "Debit note DN-2026-0008 raised against supplier for short delivery",
+      "Debit note adjustment reflected in GSTR-2A"
+    ],
+    "aliases": ["DN", "Purchase Debit Note"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-032",
+    "term": "Financial Year",
+    "definition": "Annual accounting period for financial reporting. In India, the financial year runs from 1 April to 31 March. All books of accounts are maintained and closed per financial year.",
+    "usedIn": ["Finance", "Accounting", "Tax", "Reporting"],
+    "relatedModules": ["Carry Forward", "Opening Balance", "Trial Balance"],
+    "examples": [
+      "Books closed for FY 2025-26 on 31-Mar-2026",
+      "Financial year 2026-27 opened with opening balances as on 01-Apr-2026"
+    ],
+    "aliases": ["FY", "Accounting Year", "Fiscal Year"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-033",
+    "term": "Carry Forward",
+    "definition": "Moving closing balances of all ledgers from one financial year to the next as opening balances. Includes assets, liabilities, income, expense, and reserves.",
+    "usedIn": ["Finance", "Accounting", "Reporting"],
+    "relatedModules": ["Financial Year", "Opening Balance", "Trial Balance"],
+    "examples": [
+      "Profit and Loss balance carried forward to retained earnings for FY 2026-27",
+      "All ledger balances carried forward from FY 2025-26 to FY 2026-27"
+    ],
+    "aliases": ["Balance Carry Forward", "Year-end Carry Forward"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-034",
+    "term": "Opening Balance",
+    "definition": "Starting balance brought into the system at the time of ERP go-live for each ledger account. Represents the financial position as on the go-live date.",
+    "usedIn": ["Finance", "Accounting", "ERP Implementation"],
+    "relatedModules": ["Go-Live", "Carry Forward", "Ledger"],
+    "examples": [
+      "Opening balance of INR 10,00,000 entered for Bank of India account at go-live",
+      "Opening stock balance of 500 units entered for Item A during migration"
+    ],
+    "aliases": ["Opening Entry", "Opening Ledger Balance"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-035",
+    "term": "Delivery Challan",
+    "definition": "Dispatch document for supply to department or consignee. Accompanies the physical movement of goods and records item details, quantity, and destination.",
+    "usedIn": ["Inventory", "Dispatch", "Logistics", "Supply Order"],
+    "relatedModules": ["GRN", "CRAC", "Supply Order"],
+    "examples": [
+      "Delivery challan DC-2026-0089 generated for dispatch of 100 laptops",
+      "e-Way bill linked to delivery challan for goods movement above threshold"
+    ],
+    "aliases": ["DC", "Dispatch Challan", "Goods Challan"],
+    "category": "Inventory Management"
+  },
+  {
+    "id": "TERM-036",
+    "term": "Procurement Requirement",
+    "definition": "Shortage identified from order demand versus available stock. A system-generated or manual trigger to initiate the procurement cycle for items falling below reorder level.",
+    "usedIn": ["Procurement", "Inventory", "Planning"],
+    "relatedModules": ["Purchase Order", "Stock Reservation", "Supply Order"],
+    "examples": [
+      "Procurement requirement raised for 300 units of Item B based on reorder point alert",
+      "MRP-driven procurement requirement for production of 500 units"
+    ],
+    "aliases": ["Purchase Requirement", "Requisition", "Indent"],
+    "category": "Procurement Documentation"
+  },
+  {
+    "id": "TERM-037",
+    "term": "Reservation Ageing",
+    "definition": "Duration for which stock has been reserved for a specific order. Helps identify stale reservations that need review, release, or escalation.",
+    "usedIn": ["Inventory", "Order Management", "Warehouse"],
+    "relatedModules": ["Stock Reservation", "Supply Order", "Dispatch"],
+    "examples": [
+      "Reservation ageing report showing 30-day-old reservation for SO-2026-0056",
+      "Stale reservation of 45 days flagged for manager review"
+    ],
+    "aliases": ["Reservation Age", "Hold Ageing"],
+    "category": "Inventory Management"
+  },
+  {
+    "id": "TERM-038",
+    "term": "Profitability",
+    "definition": "Comparison of billing value against costs showing net margin for a supply order, contract, or business unit. Includes material cost, overheads, and indirect expenses.",
+    "usedIn": ["Finance", "Business Analysis", "Management Reporting"],
+    "relatedModules": ["COGS", "Billing", "P&L"],
+    "examples": [
+      "Supply order SO-2026-0089 shows profitability of 12.5% net margin",
+      "Contract profitability report generated for management review"
+    ],
+    "aliases": ["Margin Analysis", "Profit Analysis"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-039",
+    "term": "Voucher Proposal",
+    "definition": "Draft accounting suggestion generated from bank import or operational event. Requires review and promotion to a formal voucher before posting.",
+    "usedIn": ["Finance", "Accounting", "Automation"],
+    "relatedModules": ["Voucher", "Posting Queue", "Approval Queue"],
+    "examples": [
+      "Voucher proposal generated from bank statement import for 25 transactions",
+      "Auto-generated voucher proposal for salary disbursement reviewed by accountant"
+    ],
+    "aliases": ["Proposed Voucher", "Draft Voucher", "Accounting Proposal"],
+    "category": "Financial Accounting"
+  },
+  {
+    "id": "TERM-040",
+    "term": "Go-Live",
+    "definition": "Process of transitioning from setup and development to live production operation of the ERP system. Includes data migration, user training, and cutover from legacy systems.",
+    "usedIn": ["ERP Implementation", "Project Management", "IT"],
+    "relatedModules": ["Opening Balance", "Financial Year", "User Management"],
+    "examples": [
+      "Go-live scheduled for 01-Apr-2026 with opening balance migration",
+      "Post go-live support period of 30 days for issue resolution"
+    ],
+    "aliases": ["Cutover", "Live Launch", "Production Deployment"],
+    "category": "System Administration"
+  }
+]

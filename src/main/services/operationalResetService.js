@@ -170,7 +170,17 @@ export function rebuildZeroState(db) {
     { key: "receivables", label: "Receivables", table: "receivables" },
     { key: "supplierPayments", label: "Supplier payments", table: "supplier_payments" },
     { key: "supplierPaymentAllocations", label: "Supplier payment allocations", table: "supplier_payment_allocations" },
-    { key: "stockLedger", label: "Stock ledger", table: "stock_ledger" }
+    { key: "stockLedger", label: "Stock ledger", table: "stock_ledger" },
+    { key: "paymentAllocations", label: "Payment allocations", table: "payment_allocations" },
+    { key: "inventoryMovements", label: "Inventory movements", table: "inventory_movements" },
+    { key: "stockInwards", label: "Stock inwards", table: "stock_inwards" },
+    { key: "stockOutwards", label: "Stock outwards", table: "stock_outwards" },
+    { key: "stockAdjustments", label: "Stock adjustments", table: "stock_adjustments" },
+    { key: "stockReturns", label: "Stock returns", table: "stock_returns" },
+    { key: "invoices", label: "Invoices", table: "invoices" },
+    { key: "procurements", label: "Procurements", table: "procurements" },
+    { key: "supplyOrders", label: "Supply orders", table: "supply_orders" },
+    { key: "orderItems", label: "Order items", table: "order_items" }
   ];
 
   for (const check of zeroChecks) {
@@ -183,15 +193,31 @@ export function rebuildZeroState(db) {
     }
   }
 
-  const orphanTables = ["voucher_lines", "ledger_entries"];
-  const orphanLabels = { voucher_lines: "Voucher lines without voucher", ledger_entries: "Ledger entries without voucher" };
-  for (const table of orphanTables) {
+  const orphanRules = {
+    voucher_lines: { fk: "voucher_id", parent: "vouchers", label: "Voucher lines without voucher" },
+    ledger_entries: { fk: "voucher_id", parent: "vouchers", label: "Ledger entries without voucher" },
+    payment_allocations: { fk: "payment_id", parent: "payments", label: "Payment allocations without payment" },
+    supplier_payment_allocations: { fk: "supplier_payment_id", parent: "supplier_payments", label: "Supplier payment allocations without supplier payment" },
+    stock_inwards: { fk: "order_id", parent: "supply_orders", label: "Stock inwards without order" },
+    stock_outwards: { fk: "order_id", parent: "supply_orders", label: "Stock outwards without order" },
+    stock_adjustments: { fk: "id", parent: null, label: "Stock adjustments without reference" },
+    stock_returns: { fk: "id", parent: null, label: "Stock returns without reference" },
+    inventory_movements: { fk: "voucher_id", parent: "vouchers", label: "Inventory movements without voucher" },
+    procurement_items: { fk: "procurement_id", parent: "procurements", label: "Procurement items without procurement" },
+    order_items: { fk: "order_id", parent: "supply_orders", label: "Order items without order" }
+  };
+  for (const [table, rule] of Object.entries(orphanRules)) {
     if (!tables.has(table)) continue;
+    if (!rule.parent) continue;
+    if (!tables.has(rule.parent)) continue;
     const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
+    if (!cols.includes(rule.fk)) continue;
     const isDeletedWhere = cols.includes("is_deleted") ? "COALESCE(is_deleted, 0) = 0 AND " : "";
-    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}" WHERE ${isDeletedWhere}voucher_id NOT IN (SELECT id FROM vouchers WHERE COALESCE(is_deleted, 0) = 0)`).get();
+    const parentCols = db.prepare(`PRAGMA table_info("${rule.parent}")`).all().map(r => r.name);
+    const parentDeletedWhere = parentCols.includes("is_deleted") ? "WHERE COALESCE(is_deleted, 0) = 0" : "";
+    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}" WHERE ${isDeletedWhere}"${rule.fk}" IS NOT NULL AND "${rule.fk}" NOT IN (SELECT id FROM "${rule.parent}" ${parentDeletedWhere})`).get();
     const count = Number(row?.count || 0);
-    if (count > 0) results.warnings.push(`${orphanLabels[table]}: ${count} orphans`);
+    if (count > 0) results.warnings.push(`${rule.label}: ${count} orphans`);
   }
 
   return results;

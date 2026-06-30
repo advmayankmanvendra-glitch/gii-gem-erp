@@ -89,7 +89,7 @@ const MANAGEMENT_INTELLIGENCE_CARDS = [
   { id: "unposted", label: "Unposted Vouchers", icon: "receipt", target: "posting_control", drilldownTarget: "unposted_drilldown", dataSource: "Posting Control", valueKey: "unpostedVouchers", fallbackKey: "draftVouchers", format: "number" }
 ];
 
-const CUSTOM_CARDS = [];
+const CUSTOM_CARDS = EXECUTIVE_CARDS.map((c) => ({ ...c }));
 
 export const MODE_CARDS = {
   executive: EXECUTIVE_CARDS,
