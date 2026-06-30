@@ -24,6 +24,7 @@
     "verify:voucher-inventory": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-voucher-workflows-inventory.js",
     "verify:phase10": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-phase10-inventory-automation.js",
     "verify:flow": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-operational-flow.js",
+    "verify:knowledge": "node scripts/verify-knowledge.js",
     "test-data:pack-v1": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/create-erp-test-data-pack-v1.js"
   },
   "dependencies": {
