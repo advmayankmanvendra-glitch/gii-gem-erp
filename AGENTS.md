@@ -514,7 +514,7 @@ Every implementation phase must:
 4. Update affected graphs if the phase changes any architecture element.
 5. Verify all active graphs pass their audit packs after the phase.
 
-## 26. Major Program Baseline Rule
+## 26. Major Program Baseline Rule v2
 
 Every major architectural program must begin by establishing a named baseline.
 
@@ -529,17 +529,56 @@ This rule applies to:
 - **AI Program** — any future AI integration phase group
 - **Mobile Program** — any future mobile platform phase group
 
-### 26.2 Baseline Requirements
+### 26.2 Baseline Sequence
 
-Before the first subphase of any major program begins, all three must be true:
+Before the first subphase of any major program begins, execute this exact sequence:
 
-1. **Named baseline tag** — A git tag recording the exact state before any changes. Tag format: `<program-name>-baseline-<YYYY-MM-DD>`. Example: `renderer-baseline-2026-07-01`.
+```
+Step 1: Git Working Tree
+        ↓
+        Clean (git status — no uncommitted changes)
 
-2. **Clean verification run** — `npm run verify:erp` (or the applicable verification suite for the program) must pass cleanly against the baseline. The verification report is archived alongside the tag.
+Step 2: Verification
+        ↓
+        PASS (npm run verify:erp or applicable suite)
 
-3. **External backup** — A backup of the SQLite database and the full repository must exist outside the working directory before any changes begin. The backup location and timestamp are recorded in the phase report.
+Step 3: Named Git Tag
+        ↓
+        Program Baseline (e.g. renderer-baseline-2026-07-01)
 
-### 26.3 Why
+Step 4: Remote Push
+        ↓
+        GitHub synchronized (git push --tags)
+
+Step 5: External Backup
+        ↓
+        Offline copy (SQLite DB + full repo outside working directory)
+```
+
+All five steps must complete before any code change for the program begins.
+
+### 26.3 Tag Naming Convention
+
+All baseline tags follow this format:
+
+```
+<program>-baseline-<YYYY-MM-DD>
+```
+
+Standard program identifiers:
+
+| Program   | Example Tag                          |
+|-----------|--------------------------------------|
+| Renderer  | `renderer-baseline-2026-07-01`       |
+| Database  | `database-baseline-2026-08-15`       |
+| Workflow  | `workflow-baseline-2026-09-25`       |
+| CRM       | `crm-baseline-2026-09-01`            |
+| AI        | `ai-baseline-2026-10-10`             |
+| Mobile    | `mobile-baseline-2027-01-15`         |
+
+Tags are always lowercase, hyphen-separated. The date is the actual baseline date (not the planning date).
+
+### 26.4 Why
 
 A named baseline ensures that:
 
@@ -548,7 +587,8 @@ A named baseline ensures that:
 - Future auditors can identify exactly where a program began.
 - The program's end state can be measured against its start.
 - External backup protects against data loss during structural changes.
+- Tag naming is predictable across all future programs.
 
-### 26.4 Exception
+### 26.5 Exception
 
 Minor subphases within an already-baselined program (e.g., 17C.2 after 17C.1 is complete) do not require a new baseline. The original program baseline remains valid until the program concludes.
