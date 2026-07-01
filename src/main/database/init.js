@@ -959,7 +959,13 @@ function addRuntimeSoftDeleteColumns(db) {
     "credit_terms",
     "bank_statement_imports",
     "bank_statement_entries",
-    "voucher_proposals"
+    "voucher_proposals",
+    "bank_reconciliation_matches",
+    "voucher_proposal_audit",
+    "inventory_movements",
+    "stock_reservations",
+    "allocation_audit",
+    "approval_queue"
   ].forEach((table) => {
     if (!tableExists(db, table)) return;
     addColumnIfMissing(db, table, "is_deleted", "INTEGER NOT NULL DEFAULT 0");
@@ -1324,6 +1330,9 @@ function addPhase8BankStatementTables(db) {
       matched_by INTEGER,
       matched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       remarks TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (bank_entry_id) REFERENCES bank_statement_entries(id)
     );
@@ -1389,6 +1398,9 @@ function addPhase8BVoucherProposalTables(db) {
       old_value TEXT,
       new_value TEXT,
       remarks TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id),
@@ -1444,6 +1456,9 @@ function addBusinessVoucherInventoryTables(db) {
       order_id INTEGER,
       remarks TEXT,
       voucher_id INTEGER,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (item_id) REFERENCES items(id),
@@ -1463,6 +1478,9 @@ function addBusinessVoucherInventoryTables(db) {
       issued_quantity REAL NOT NULL DEFAULT 0,
       balance_reserved REAL NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'Reserved',
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       cancelled_at TEXT,
@@ -1720,6 +1738,9 @@ function addAllocationWorkflowTables(db) {
       old_value TEXT,
       new_value TEXT,
       reason TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id)
@@ -1803,6 +1824,9 @@ function addPhase5AccountingControls(db) {
       approved_at TEXT,
       rejected_at TEXT,
       remarks TEXT,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_at TEXT,
+      deleted_by INTEGER REFERENCES users(id),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(module_name, record_id),
@@ -7235,7 +7259,7 @@ function inventoryReservations(db, companyId) {
     LEFT JOIN items it ON it.id = sr.item_id
     LEFT JOIN warehouses w ON w.id = sr.warehouse_id
     LEFT JOIN supply_orders so ON so.id = sr.order_id
-    WHERE sr.company_id = ?
+    WHERE sr.company_id = ? AND COALESCE(sr.is_deleted, 0) = 0
     ORDER BY sr.updated_at DESC, sr.id DESC
   `).all(companyId);
 }
@@ -7250,7 +7274,7 @@ function inventoryMovements(db, companyId, dateFrom, dateTo) {
     LEFT JOIN warehouses tw ON tw.id = im.to_warehouse_id
     LEFT JOIN supply_orders so ON so.id = im.order_id
     LEFT JOIN vouchers v ON v.id = im.voucher_id
-    WHERE im.company_id = ? AND im.movement_date BETWEEN ? AND ?
+    WHERE im.company_id = ? AND im.movement_date BETWEEN ? AND ? AND COALESCE(im.is_deleted, 0) = 0
     ORDER BY im.movement_date DESC, im.id DESC
   `).all(companyId, dateFrom, dateTo);
 }
@@ -7263,7 +7287,7 @@ function procurementRequirementReport(db, companyId) {
     LEFT JOIN supply_orders so ON so.id = sr.order_id
     LEFT JOIN items it ON it.id = sr.item_id
     LEFT JOIN warehouses w ON w.id = sr.warehouse_id
-    WHERE sr.company_id = ? AND sr.procurement_required = 1 AND sr.status != 'Cancelled'
+    WHERE sr.company_id = ? AND sr.procurement_required = 1 AND sr.status != 'Cancelled' AND COALESCE(sr.is_deleted, 0) = 0
     ORDER BY so.order_date, it.item_name
   `).all(companyId);
 }
@@ -7333,7 +7357,7 @@ function reservationAgeingReport(db, companyId) {
     LEFT JOIN supply_orders so ON so.id = sr.order_id
     LEFT JOIN items it ON it.id = sr.item_id
     LEFT JOIN warehouses w ON w.id = sr.warehouse_id
-    WHERE sr.company_id = ? AND sr.status NOT IN ('Cancelled','Fully Issued')
+    WHERE sr.company_id = ? AND sr.status NOT IN ('Cancelled','Fully Issued') AND COALESCE(sr.is_deleted, 0) = 0
     ORDER BY days_reserved DESC, sr.created_at
   `).all(companyId);
 }
@@ -8949,7 +8973,7 @@ function approvalQueueReport(db, companyId) {
     FROM approval_queue aq
     LEFT JOIN users u ON u.id = aq.maker_id
     LEFT JOIN users c ON c.id = aq.checker_id
-    WHERE aq.company_id = ?
+    WHERE aq.company_id = ? AND COALESCE(aq.is_deleted, 0) = 0
     ORDER BY aq.updated_at DESC, aq.id DESC
   `).all(companyId).map((row) => {
     const pending = row.approval_status === "Pending Approval";
