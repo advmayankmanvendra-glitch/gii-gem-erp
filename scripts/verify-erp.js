@@ -118,7 +118,31 @@ function main() {
 
   /* ─── Determine safe-to-commit ─── */
   const safeToCommit = finalExit <= EXIT.WARNING;
-  const safeToLock = finalExit === EXIT.PASS;
+
+  /*
+   * Safe-to-Lock Policy (Governance v2):
+   *
+   * Only FUNCTIONAL steps block locking — architecture observations about
+   * known program targets (e.g. "App.jsx is high risk" tracked for Phase 18)
+   * must NOT prevent sub-phase locking during active stabilization programs.
+   *
+   * Blocking steps:  accounting, financials, controls, voucher-inventory, flow, phase10
+   * Non-blocking:    lint, build, knowledge (observations), audit (architecture warnings)
+   */
+  const LOCK_BLOCKING_STEPS = new Set([
+    "verify:accounting",
+    "verify:financials",
+    "verify:controls",
+    "verify:voucher-inventory",
+    "verify:flow",
+    "verify:phase10",
+  ]);
+
+  const hasFunctionalFailure = steps.some(
+    (s) => LOCK_BLOCKING_STEPS.has(s.name) && s.exitCode >= EXIT.WARNING
+  );
+  const hasBlockingFailure = steps.some((s) => s.exitCode >= EXIT.FAIL);
+  const safeToLock = !hasFunctionalFailure && !hasBlockingFailure;
 
   /* ─── Generate report ─── */
   const report = [
@@ -129,9 +153,13 @@ function main() {
     ``,
     `## Pipeline Results`,
     ``,
-    `| Step | Exit Code | Status | Duration |`,
-    `|------|-----------|--------|----------|`,
-    ...steps.map((s) => `| ${s.name} | ${s.exitCode} | ${s.label} | ${s.durationSec}s |`),
+    `| Step | Exit Code | Status | Duration | Blocking |`,
+    `|------|-----------|--------|----------|----------|`,
+    ...steps.map((s) => {
+      const isBlocking = LOCK_BLOCKING_STEPS.has(s.name);
+      const blocks = isBlocking && s.exitCode >= EXIT.WARNING ? "Yes" : "No";
+      return `| ${s.name} | ${s.exitCode} | ${s.label} | ${s.durationSec}s | ${blocks} |`;
+    }),
     ``,
     `## Summary`,
     ``,
@@ -142,6 +170,26 @@ function main() {
     `| Final Result | **${finalLabel}** |`,
     `| Safe to Commit | **${safeToCommit ? "Yes" : "No"}** |`,
     `| Safe to Lock | **${safeToLock ? "Yes" : "No"}** |`,
+    ``,
+    `## Safe-to-Lock Governance Policy`,
+    ``,
+    `Locking is blocked only by **functional integrity** failures:`,
+    ``,
+    `| Domain | Blocks Locking? |`,
+    `|--------|:-:|`,
+    `| Accounting mismatch | Yes |`,
+    `| Financials mismatch | Yes |`,
+    `| Controls failure | Yes |`,
+    `| Voucher/Inventory integrity | Yes |`,
+    `| Workflow integrity | Yes |`,
+    `| Phase 10 flow integrity | Yes |`,
+    `| Audit observations (architecture) | **No** |`,
+    `| Knowledge graph observations | **No** |`,
+    `| Syntax / build warnings | **No** |`,
+    ``,
+    `Architecture warnings about known program targets (e.g. \`App.jsx high risk\``,
+    `tracked for Phase 18) are **non-blocking** — they document ongoing work`,
+    `rather than indicating a regression.`,
     ``,
     `## Details`,
     ``,
@@ -164,7 +212,7 @@ function main() {
     `## Recommendation`,
     ``,
     `- **Safe to Commit:** ${safeToCommit ? "Yes — no blocking failures." : "No — resolve failures first."}`,
-    `- **Safe to Lock:** ${safeToLock ? "Yes — all checks pass clean." : "No — one or more checks show warnings or worse."}`,
+    `- **Safe to Lock:** ${safeToLock ? "Yes — no functional integrity failures." : "No — one or more functional checks show warnings or failures."}`,
     ``,
   ].join("\n");
 

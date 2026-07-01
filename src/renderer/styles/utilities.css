@@ -1,0 +1,256 @@
+.user-pill button,
+.ghost-btn,
+.backup-row button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.period-presets {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.period-presets .ghost-btn {
+  font-size: 12px;
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.period-presets .ghost-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-kbd {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #f5f5f5;
+  margin-left: 6px;
+  line-height: 1.4;
+}
+
+.smart-enter-next {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  transition: outline-color 0.2s;
+}
+
+.icon-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 5px;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn.danger:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+
+.ghost-btn.danger {
+  border-color: #efb8b2;
+  color: var(--bad);
+}
+
+.panel-head,
+.records-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.panel-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+input, select, textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  padding: 8px 10px;
+  color: var(--ink);
+  outline: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.primary-btn {
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #111;
+  font-weight: 800;
+  padding: 0 16px;
+}
+
+.primary-btn:disabled,
+.ghost-btn:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.primary-btn:disabled {
+  background: #d6dee6;
+  color: #647789;
+}
+
+.entry-form .primary-btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.operations-timeline-step.clickable {
+  cursor: pointer;
+}
+
+.operations-timeline-step.clickable:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.small-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.empty-state {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-state strong {
+  color: var(--ink);
+}
+
+.profit {
+  color: var(--ok);
+}
+
+.loss {
+  color: var(--bad);
+}
+
+.print-page-content .panel,
+.print-page-content section {
+  box-shadow: none;
+  break-inside: avoid;
+}
+
+.print-page-content .panel {
+  border: 1px solid #d7e2ea;
+  margin-bottom: 14px;
+}
+
+.print-page-content .table-wrap,
+.print-page-content .billing-grid-scroll,
+.print-page-content .invoice-grid-wrap {
+  max-width: 100%;
+  overflow: visible;
+}
+
+.print-page-content table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.print-page-content th,
+.print-page-content td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #d7e2ea;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.print-page-content th {
+  background: #f5f8fb;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.print-page-content .billing-layout,
+.print-page-content .billing-main-layout,
+.print-page-content .voucher-layout,
+.print-page-content .transaction-layout,
+.print-page-content .workflow-layout,
+.print-page-content .dashboard-grid {
+  display: block;
+}
+
+.print-field-value {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #f8fbfd;
+  white-space: pre-wrap;
+}
+
+.status-pill {
+  background: #edf3f8;
+  border-radius: 999px;
+  color: #31485b;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+}
+
+.status-pill.pass {
+  background: #dff4e8;
+  color: var(--ok);
+}
+
+.status-pill.warn {
+  background: #fff0d8;
+  color: #8a4b00;
+}
+
+.status-pill.fail {
+  background: #fde2df;
+  color: var(--bad);
+}
