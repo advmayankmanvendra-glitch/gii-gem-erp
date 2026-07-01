@@ -48,7 +48,7 @@ export function assessFoundation(db) {
 export function assessAccounting(db) {
   const checks = [];
   const tbRows = hasTable(db, "accounts") && hasTable(db, "ledger_entries")
-    ? db.prepare("SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE a.is_deleted=0").get()
+    ? db.prepare("SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE COALESCE(a.is_deleted,0)=0 AND COALESCE(le.is_deleted,0)=0").get()
     : { debit: 0, credit: 0 };
   const tbDiff = Math.round((Number(tbRows.debit || 0) - Number(tbRows.credit || 0)) * 100) / 100;
   checks.push({ key: "trialBalance", label: "Trial balance difference is zero", passed: tbDiff === 0, detail: `Difference: ${tbDiff}` });
@@ -79,7 +79,7 @@ export function assessGst(db) {
   const gstRows = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
     ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
       COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
-      FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE v.is_deleted=0`).get()
+      FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE COALESCE(v.is_deleted,0)=0 AND COALESCE(vl.is_deleted,0)=0 AND COALESCE(a.is_deleted,0)=0`).get()
     : { input: 0, output: 0 };
   const netGst = Math.round((Number(gstRows.output || 0) - Number(gstRows.input || 0)) * 100) / 100;
   checks.push({ key: "gstReconciled", label: "GST input/output reconciled", passed: netGst >= 0, detail: `Net: ${netGst}` });

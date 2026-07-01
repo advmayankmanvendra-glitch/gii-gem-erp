@@ -29,16 +29,16 @@ export function generateCertificate(db, runtimeRoot) {
   const invoiceCount = hasTable(db, "invoices") ? count(db, "invoices", "WHERE COALESCE(is_deleted,0)=0") : 0;
   const procurementCount = hasTable(db, "procurements") ? count(db, "procurements", "WHERE COALESCE(is_deleted,0)=0") : 0;
   const paymentCount = hasTable(db, "payments") ? count(db, "payments", "WHERE COALESCE(is_deleted,0)=0") : 0;
-  const voucherCount = hasTable(db, "vouchers") ? count(db, "vouchers", "WHERE is_deleted=0") : 0;
-  const receivableCount = hasTable(db, "receivables") ? count(db, "receivables", "WHERE is_deleted=0") : 0;
-  const payableCount = hasTable(db, "procurements") ? count(db, "procurements", "WHERE is_deleted=0 AND posting_status='Posted'") : 0;
+  const voucherCount = hasTable(db, "vouchers") ? count(db, "vouchers", "WHERE COALESCE(is_deleted,0)=0") : 0;
+  const receivableCount = hasTable(db, "receivables") ? count(db, "receivables", "WHERE COALESCE(is_deleted,0)=0") : 0;
+  const payableCount = hasTable(db, "procurements") ? count(db, "procurements", "WHERE COALESCE(is_deleted,0)=0 AND posting_status='Posted'") : 0;
 
   const trialBalanceRows = hasTable(db, "accounts") && hasTable(db, "ledger_entries")
     ? db.prepare(`
       SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit
       FROM ledger_entries le
       JOIN accounts a ON a.id=le.account_id
-      WHERE a.is_deleted=0
+      WHERE COALESCE(a.is_deleted, 0) = 0 AND COALESCE(le.is_deleted, 0) = 0
     `).get()
     : { debit: 0, credit: 0 };
 
@@ -53,7 +53,7 @@ export function generateCertificate(db, runtimeRoot) {
       FROM voucher_lines vl
       JOIN accounts a ON a.id=vl.account_id
       JOIN vouchers v ON v.id=vl.voucher_id
-      WHERE v.is_deleted=0
+      WHERE COALESCE(v.is_deleted, 0) = 0 AND COALESCE(vl.is_deleted, 0) = 0 AND COALESCE(a.is_deleted, 0) = 0
     `).get()
     : { input: 0, output: 0 };
 
