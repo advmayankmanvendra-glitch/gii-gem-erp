@@ -106,7 +106,7 @@ import {
 } from "./services/masterDataToolsService.js";
 import { createSupportBundle } from "./services/supportBundleService.js";
 import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
-import { PROFILES } from "../../scripts/lib/verificationProfiles.js";
+import { PROFILES } from "./config/verificationConfig.js";
 import { calculateReadinessScore } from "./services/deployment/readinessService.js";
 import { generateGoLiveCertificate, getCertificateHistory } from "./services/deployment/certificationService.js";
 import { checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";

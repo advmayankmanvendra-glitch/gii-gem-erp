@@ -1,5 +1,5 @@
 import { accountingData, initializeDatabase } from "../src/main/database/init.js";
-import { parseProfileArgs, PROFILES } from "./lib/verificationProfiles.js";
+import { parseProfileArgs, PROFILES } from "../src/main/config/verificationConfig.js";
 
 const profile = parseProfileArgs();
 const db = initializeDatabase();
