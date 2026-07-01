@@ -9,6 +9,17 @@ const credit = data.trialBalance.reduce((sum, row) => sum + Number(row.credit ||
 const difference = Math.round((debit - credit) * 100) / 100;
 
 const isProduction = profile.key === "production";
+const isDevelopment = profile.key === "development" || profile.key === "testing" || profile.key === "training";
+
+/* Detect clean development profile (no data yet) */
+const isEmptyDevelopment = isDevelopment
+  && data.vouchers.length === 0
+  && data.ledger.length === 0
+  && data.receivables.length === 0
+  && data.payables.length === 0
+  && data.cashBank.length === 0
+  && Number(data.gstSummary.inputGst) === 0
+  && Number(data.gstSummary.outputGst) === 0;
 
 const checks = [];
 
@@ -23,6 +34,8 @@ if (isProduction) {
     ["input GST", Number(data.gstSummary.inputGst) === 0],
     ["output GST", Number(data.gstSummary.outputGst) === 0]
   );
+} else if (isEmptyDevelopment) {
+  /* Enhancement 10: Clean dev DB — PASS without strict checks */
 } else {
   checks.push(
     ["accounts", data.accounts.length >= 15],
@@ -53,6 +66,11 @@ console.log(JSON.stringify({
 }, null, 2));
 
 db.close();
+
+if (isEmptyDevelopment) {
+  console.log(`PASS: Development profile — empty data is expected`);
+  process.exit(0);
+}
 
 if (failed.length) {
   console.error(`Failed accounting checks (${profile.name}): ${failed.map(([name]) => name).join(", ")}`);

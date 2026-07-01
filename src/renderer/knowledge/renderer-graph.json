@@ -1,0 +1,6004 @@
+{
+  "schemaVersion": "1.0.0",
+  "graphId": "RG-1",
+  "generatedAt": "2026-07-01T11:05:33.661Z",
+  "sourceRoot": "src/renderer/",
+  "filesScanned": 153,
+  "meta": {
+    "graphId": "RG-1",
+    "name": "Renderer Dependency Graph",
+    "version": "2.0",
+    "generated": "2026-07-01T11:05:33.662Z",
+    "source": "src/renderer/",
+    "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
+    "fileCount": 153,
+    "totalLines": 34513,
+    "totalImports": 349
+  },
+  "statistics": {
+    "filesByCategory": {
+      "api": 1,
+      "app": 1,
+      "component": 24,
+      "config": 8,
+      "feature": 20,
+      "knowledge": 13,
+      "module": 25,
+      "print": 17,
+      "screen": 36,
+      "stability": 5,
+      "util": 3
+    },
+    "filesByRisk": {
+      "low": 132,
+      "medium": 20,
+      "high": 1
+    },
+    "filesByCriticality": {
+      "Critical": 7,
+      "Low": 55,
+      "High": 70,
+      "Medium": 21
+    },
+    "filesByOwner": {
+      "Utilities": 4,
+      "Renderer Shell": 20,
+      "Accounting": 3,
+      "CRAC": 11,
+      "Dashboard": 22,
+      "Other": 1,
+      "Health Center": 17,
+      "Help": 23,
+      "Inventory": 3,
+      "Operations": 3,
+      "Settings": 2,
+      "Master Data": 3,
+      "Reports": 3,
+      "Knowledge": 15,
+      "Deployment": 5,
+      "Print": 17,
+      "Profitability": 1
+    },
+    "filesByChangeFrequency": {
+      "Stable": 39,
+      "Frequently Modified": 3,
+      "Occasionally Modified": 111
+    },
+    "avgImportsPerScreen": 3,
+    "avgComponentReuse": 1,
+    "largestComponent": {
+      "path": "components/helpProductivity/index.jsx",
+      "lines": 626
+    },
+    "largestScreen": {
+      "path": "screens/EnvironmentManager/EnvironmentManagerScreen.jsx",
+      "lines": 961
+    },
+    "layerCount": 11,
+    "architectureDensity": 2.28,
+    "mostConnected": [
+      {
+        "path": "App.jsx",
+        "importCount": 45,
+        "lines": 13290,
+        "category": "app",
+        "owner": "Renderer Shell"
+      },
+      {
+        "path": "print/PrintTemplateHost.jsx",
+        "importCount": 14,
+        "lines": 55,
+        "category": "print",
+        "owner": "Print"
+      },
+      {
+        "path": "modules/helpAssistant/HelpAssistant.jsx",
+        "importCount": 11,
+        "lines": 147,
+        "category": "module",
+        "owner": "Help"
+      },
+      {
+        "path": "knowledge/registry.js",
+        "importCount": 10,
+        "lines": 156,
+        "category": "knowledge",
+        "owner": "Knowledge"
+      },
+      {
+        "path": "screens/DashboardScreen.jsx",
+        "importCount": 10,
+        "lines": 286,
+        "category": "screen",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "components/helpProductivity/index.jsx",
+        "importCount": 9,
+        "lines": 626,
+        "category": "component",
+        "owner": "Help"
+      },
+      {
+        "path": "screens/HealthCenter/HealthCenterScreen.jsx",
+        "importCount": 9,
+        "lines": 144,
+        "category": "screen",
+        "owner": "Health Center"
+      },
+      {
+        "path": "modules/erpBrain/loaders/repositoryLoader.js",
+        "importCount": 8,
+        "lines": 73,
+        "category": "module",
+        "owner": "Knowledge"
+      },
+      {
+        "path": "modules/helpAssistant/helpAssistantUtils.js",
+        "importCount": 7,
+        "lines": 302,
+        "category": "module",
+        "owner": "Help"
+      },
+      {
+        "path": "screens/CRAC/CRACManagementScreen.jsx",
+        "importCount": 5,
+        "lines": 100,
+        "category": "screen",
+        "owner": "CRAC"
+      },
+      {
+        "path": "screens/DocumentsScreen.jsx",
+        "importCount": 5,
+        "lines": 406,
+        "category": "screen",
+        "owner": "Operations"
+      },
+      {
+        "path": "screens/HelpTrainingScreen.jsx",
+        "importCount": 5,
+        "lines": 66,
+        "category": "screen",
+        "owner": "Help"
+      },
+      {
+        "path": "screens/InventoryStockSummaryReport.jsx",
+        "importCount": 5,
+        "lines": 209,
+        "category": "screen",
+        "owner": "Inventory"
+      },
+      {
+        "path": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+        "importCount": 5,
+        "lines": 111,
+        "category": "screen",
+        "owner": "Renderer Shell"
+      },
+      {
+        "path": "components/inventoryReports/index.jsx",
+        "importCount": 4,
+        "lines": 326,
+        "category": "component",
+        "owner": "Inventory"
+      },
+      {
+        "path": "components/inventoryReports/InventoryDashboardPanel.jsx",
+        "importCount": 4,
+        "lines": 165,
+        "category": "component",
+        "owner": "Inventory"
+      },
+      {
+        "path": "components/operations/index.jsx",
+        "importCount": 4,
+        "lines": 489,
+        "category": "component",
+        "owner": "Operations"
+      },
+      {
+        "path": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+        "importCount": 4,
+        "lines": 73,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "modules/deployment/ProductionReadinessScreen.jsx",
+        "importCount": 4,
+        "lines": 99,
+        "category": "module",
+        "owner": "Deployment"
+      },
+      {
+        "path": "print/printUtils.js",
+        "importCount": 4,
+        "lines": 135,
+        "category": "print",
+        "owner": "Print"
+      }
+    ],
+    "mostDepended": [
+      {
+        "name": "react",
+        "count": 99
+      },
+      {
+        "name": "utils/formatters.js",
+        "count": 29
+      },
+      {
+        "name": "./TemplateSections.jsx",
+        "count": 13
+      },
+      {
+        "name": "forms/index.jsx",
+        "count": 11
+      },
+      {
+        "name": "./DrilldownBase.jsx",
+        "count": 10
+      },
+      {
+        "name": "../common.jsx",
+        "count": 9
+      },
+      {
+        "name": "utils/uiHelpers.js",
+        "count": 7
+      },
+      {
+        "name": "components/common.jsx",
+        "count": 7
+      },
+      {
+        "name": "config/navigation.js",
+        "count": 6
+      },
+      {
+        "name": "./healthCenterConfig.js",
+        "count": 4
+      },
+      {
+        "name": "config/storageKeys.js",
+        "count": 3
+      },
+      {
+        "name": "stability/rendererStabilityUtils.js",
+        "count": 3
+      },
+      {
+        "name": "./helpAssistantIntentMap.js",
+        "count": 3
+      },
+      {
+        "name": "crac/CRACStatusCard.jsx",
+        "count": 3
+      },
+      {
+        "name": "./rendererStabilityUtils.js",
+        "count": 3
+      }
+    ],
+    "highRiskFiles": [
+      {
+        "path": "App.jsx",
+        "lines": 13290,
+        "imports": 45,
+        "owner": "Renderer Shell",
+        "criticality": "Critical"
+      }
+    ],
+    "totalRoutes": 114,
+    "totalScreens": 36,
+    "totalComponents": 24,
+    "totalFeatures": 20,
+    "totalModules": 25,
+    "totalConfigFiles": 8,
+    "circularImports": 0,
+    "circularImportDetails": [],
+    "approximateTokenSavings": "~14186 tokens per AI operation"
+  },
+  "heatMap": {
+    "mostConnected": [
+      {
+        "path": "App.jsx",
+        "importCount": 45,
+        "lines": 13290,
+        "category": "app",
+        "owner": "Renderer Shell"
+      },
+      {
+        "path": "print/PrintTemplateHost.jsx",
+        "importCount": 14,
+        "lines": 55,
+        "category": "print",
+        "owner": "Print"
+      },
+      {
+        "path": "modules/helpAssistant/HelpAssistant.jsx",
+        "importCount": 11,
+        "lines": 147,
+        "category": "module",
+        "owner": "Help"
+      },
+      {
+        "path": "knowledge/registry.js",
+        "importCount": 10,
+        "lines": 156,
+        "category": "knowledge",
+        "owner": "Knowledge"
+      },
+      {
+        "path": "screens/DashboardScreen.jsx",
+        "importCount": 10,
+        "lines": 286,
+        "category": "screen",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "components/helpProductivity/index.jsx",
+        "importCount": 9,
+        "lines": 626,
+        "category": "component",
+        "owner": "Help"
+      },
+      {
+        "path": "screens/HealthCenter/HealthCenterScreen.jsx",
+        "importCount": 9,
+        "lines": 144,
+        "category": "screen",
+        "owner": "Health Center"
+      },
+      {
+        "path": "modules/erpBrain/loaders/repositoryLoader.js",
+        "importCount": 8,
+        "lines": 73,
+        "category": "module",
+        "owner": "Knowledge"
+      },
+      {
+        "path": "modules/helpAssistant/helpAssistantUtils.js",
+        "importCount": 7,
+        "lines": 302,
+        "category": "module",
+        "owner": "Help"
+      },
+      {
+        "path": "screens/CRAC/CRACManagementScreen.jsx",
+        "importCount": 5,
+        "lines": 100,
+        "category": "screen",
+        "owner": "CRAC"
+      }
+    ],
+    "mostDepended": [
+      {
+        "name": "react",
+        "count": 99
+      },
+      {
+        "name": "utils/formatters.js",
+        "count": 29
+      },
+      {
+        "name": "./TemplateSections.jsx",
+        "count": 13
+      },
+      {
+        "name": "forms/index.jsx",
+        "count": 11
+      },
+      {
+        "name": "./DrilldownBase.jsx",
+        "count": 10
+      },
+      {
+        "name": "../common.jsx",
+        "count": 9
+      },
+      {
+        "name": "utils/uiHelpers.js",
+        "count": 7
+      },
+      {
+        "name": "components/common.jsx",
+        "count": 7
+      },
+      {
+        "name": "config/navigation.js",
+        "count": 6
+      },
+      {
+        "name": "./healthCenterConfig.js",
+        "count": 4
+      }
+    ],
+    "highestFanOut": [
+      {
+        "path": "App.jsx",
+        "fanOut": 45,
+        "category": "app"
+      },
+      {
+        "path": "print/PrintTemplateHost.jsx",
+        "fanOut": 14,
+        "category": "print"
+      },
+      {
+        "path": "modules/helpAssistant/HelpAssistant.jsx",
+        "fanOut": 11,
+        "category": "module"
+      },
+      {
+        "path": "knowledge/registry.js",
+        "fanOut": 10,
+        "category": "knowledge"
+      },
+      {
+        "path": "screens/DashboardScreen.jsx",
+        "fanOut": 10,
+        "category": "screen"
+      },
+      {
+        "path": "components/helpProductivity/index.jsx",
+        "fanOut": 9,
+        "category": "component"
+      },
+      {
+        "path": "screens/HealthCenter/HealthCenterScreen.jsx",
+        "fanOut": 9,
+        "category": "screen"
+      },
+      {
+        "path": "modules/erpBrain/loaders/repositoryLoader.js",
+        "fanOut": 8,
+        "category": "module"
+      },
+      {
+        "path": "modules/helpAssistant/helpAssistantUtils.js",
+        "fanOut": 7,
+        "category": "module"
+      },
+      {
+        "path": "screens/CRAC/CRACManagementScreen.jsx",
+        "fanOut": 5,
+        "category": "screen"
+      }
+    ],
+    "highestFanIn": [
+      {
+        "name": "react",
+        "count": 99
+      },
+      {
+        "name": "index",
+        "count": 38
+      },
+      {
+        "name": "formatters",
+        "count": 29
+      },
+      {
+        "name": "common",
+        "count": 16
+      },
+      {
+        "name": "TemplateSections",
+        "count": 13
+      },
+      {
+        "name": "DrilldownBase",
+        "count": 10
+      },
+      {
+        "name": "uiHelpers",
+        "count": 7
+      },
+      {
+        "name": "navigation",
+        "count": 6
+      },
+      {
+        "name": "rendererStabilityUtils",
+        "count": 6
+      },
+      {
+        "name": "healthCenterConfig",
+        "count": 4
+      }
+    ],
+    "mostCritical": [
+      {
+        "path": "api/client.js",
+        "lines": 98,
+        "imports": 0
+      },
+      {
+        "path": "App.jsx",
+        "lines": 13290,
+        "imports": 45
+      },
+      {
+        "path": "components/common.jsx",
+        "lines": 135,
+        "imports": 2
+      },
+      {
+        "path": "components/forms/index.jsx",
+        "lines": 364,
+        "imports": 1
+      },
+      {
+        "path": "config/navigation.js",
+        "lines": 321,
+        "imports": 0
+      },
+      {
+        "path": "config/viewDefinitions.js",
+        "lines": 302,
+        "imports": 0
+      },
+      {
+        "path": "screens/DashboardScreen.jsx",
+        "lines": 286,
+        "imports": 10
+      }
+    ],
+    "mostSharedComponents": [
+      {
+        "name": "CRACStatusCard",
+        "reuseCount": 3
+      },
+      {
+        "name": "ClosureChecklist",
+        "reuseCount": 1
+      },
+      {
+        "name": "CRACDocumentPanel",
+        "reuseCount": 1
+      },
+      {
+        "name": "PaymentReadinessTable",
+        "reuseCount": 1
+      },
+      {
+        "name": "MasterRecordsPanel",
+        "reuseCount": 1
+      },
+      {
+        "name": "StockAdjustmentControlPanel",
+        "reuseCount": 1
+      },
+      {
+        "name": "CertificationHistory",
+        "reuseCount": 1
+      },
+      {
+        "name": "GoLiveChecklist",
+        "reuseCount": 1
+      },
+      {
+        "name": "GoLiveWizard",
+        "reuseCount": 1
+      },
+      {
+        "name": "ProductionReadinessScreen",
+        "reuseCount": 1
+      }
+    ]
+  },
+  "routes": [
+    {
+      "key": "dashboard",
+      "category": "general",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "dedicated screen"
+    },
+    {
+      "key": "billing_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "collections_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "receivables_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "profit_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "orders_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "treasury_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "gst_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "trial_balance_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "unposted_drilldown",
+      "category": "drilldown",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "settings",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "dedicated screen"
+    },
+    {
+      "key": "environment_manager",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "health_center",
+      "category": "general",
+      "workflowReference": "Health Center Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "safe_mode",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "production_readiness",
+      "category": "general",
+      "workflowReference": "Deployment Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "go_live_wizard",
+      "category": "general",
+      "workflowReference": "Deployment Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "invoices",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "profitability",
+      "category": "general",
+      "workflowReference": "Profitability Workflow",
+      "screen": "dedicated screen"
+    },
+    {
+      "key": "voucher_dashboard",
+      "category": "voucher",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "manual_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "documents",
+      "category": "general",
+      "workflowReference": "Document Workflow",
+      "screen": "dedicated screen"
+    },
+    {
+      "key": "master_data_tools",
+      "category": "tool",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "master_import_templates",
+      "category": "tool",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "tally_migration_assistant",
+      "category": "tool",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "tally_xml_import",
+      "category": "tool",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "crac_management",
+      "category": "crac",
+      "workflowReference": "CRAC Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "crac_entry",
+      "category": "crac",
+      "workflowReference": "CRAC Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "crac_tracker",
+      "category": "crac",
+      "workflowReference": "CRAC Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "payment_readiness",
+      "category": "crac",
+      "workflowReference": "CRAC Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_closure_tracking",
+      "category": "crac",
+      "workflowReference": "CRAC Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "help_assistant",
+      "category": "help",
+      "workflowReference": "Help & Training Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "help_keyboard",
+      "category": "help",
+      "workflowReference": "Help & Training Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "help_training",
+      "category": "help",
+      "workflowReference": "Help & Training Workflow",
+      "screen": "dedicated screen"
+    },
+    {
+      "key": "supply_orders",
+      "category": "general",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "procurement_workflow",
+      "category": "general",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "billing_workflow",
+      "category": "operations",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "companies",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "employees",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "government_departments",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "suppliers",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "items",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "banks",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "warehouses",
+      "category": "general",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "accounting_ledgers",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "accounting_groups",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "purchase_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "sales_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "receipt_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "payment_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "journal_voucher",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "credit_note",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "debit_note",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "operations_dashboard",
+      "category": "operations",
+      "workflowReference": "Dashboard Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_items",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_lifecycle",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "purchase_bills",
+      "category": "operations",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "grn_status",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "expense_posting_status",
+      "category": "operations",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "billing_pending",
+      "category": "operations",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_documents",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "invoice_documents",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "payment_documents",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "missing_documents",
+      "category": "general",
+      "workflowReference": "Document Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "pending_procurement",
+      "category": "general",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "pending_billing",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "pending_payment",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_posting_status_report",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_issue_vs_billing",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "order_profitability_exceptions",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "grn_pending_report",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "inventory_dashboard",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_summary",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_ledger",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_movement",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "inventory_movements",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_reservations",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "procurement_requirements",
+      "category": "general",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "grn_report",
+      "category": "operations",
+      "workflowReference": "Operations Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "delivery_challans",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "warehouse_transfers",
+      "category": "general",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "cogs_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "reservation_ageing",
+      "category": "general",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "low_stock",
+      "category": "general",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "serial_register",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "batch_register",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "stock_valuation",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "inventory_profitability",
+      "category": "inventory",
+      "workflowReference": "Inventory Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "voucher_register",
+      "category": "general",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "general_ledger",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "trial_balance",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "profit_loss",
+      "category": "general",
+      "workflowReference": "Profitability Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "balance_sheet",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "day_book",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "cash_bank_book",
+      "category": "bank",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "receivables_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "payables_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "gst_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "tds_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "gst_tds_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "party_ledger",
+      "category": "general",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "accounting_reports",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "bank_statement_import",
+      "category": "bank",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "bank_reconciliation",
+      "category": "bank",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "unmatched_bank_entries",
+      "category": "bank",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "duplicate_bank_entries",
+      "category": "bank",
+      "workflowReference": "Master Data Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "imported_statement_report",
+      "category": "general",
+      "workflowReference": "General",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "voucher_proposal_queue",
+      "category": "proposal",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "voucher_proposal_report",
+      "category": "proposal",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "pending_proposal_report",
+      "category": "proposal",
+      "workflowReference": "Voucher Proposal Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "approved_proposal_report",
+      "category": "proposal",
+      "workflowReference": "Voucher Proposal Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "rejected_proposal_report",
+      "category": "proposal",
+      "workflowReference": "Voucher Proposal Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "posted_bank_voucher_report",
+      "category": "voucher",
+      "workflowReference": "Voucher Workflow",
+      "screen": "in-App.jsx rendering"
+    },
+    {
+      "key": "proposal_audit_report",
+      "category": "proposal",
+      "workflowReference": "Voucher Proposal Workflow",
+      "screen": "in-App.jsx rendering"
+    }
+  ],
+  "screens": [
+    {
+      "path": "screens/EnvironmentManager/EnvironmentManagerScreen.jsx",
+      "components": [
+        "StatCard",
+        "SectionCard",
+        "VerificationBadge",
+        "ResetPreviewTable",
+        "EnvironmentManagerScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 961,
+      "riskLevel": "medium",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Moderate complexity",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EnvironmentManagerScreen",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/MasterDataTools/MasterDataToolsScreen.jsx",
+      "components": [
+        "MasterDataToolsScreen",
+        "loadData",
+        "downloadErrorReport"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../utils/formatters.js"
+      ],
+      "lines": 485,
+      "riskLevel": "medium",
+      "ownerModule": "Master Data",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "MasterDataToolsScreen",
+        "relatedScreens": [
+          "MasterDataToolsScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/ReadOnlyReportFamilyScreen.jsx",
+      "components": [
+        "buildReadOnlyReportFamilyConfig",
+        "ReadOnlyReportFamilyTable"
+      ],
+      "exports": [
+        "isReadOnlyReportFamilyView",
+        "buildReadOnlyReportFamilyConfig",
+        "ReadOnlyReportFamilyTable"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../features/reports/accountingIntelligence.jsx",
+        "../utils/formatters.js"
+      ],
+      "lines": 469,
+      "riskLevel": "medium",
+      "ownerModule": "Reports",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ReadOnlyReportFamilyScreen",
+        "relatedScreens": [
+          "ReadOnlyReportFamilyScreen",
+          "ReadOnlySummaryReports"
+        ],
+        "relatedReports": [
+          "Accounting Reports",
+          "Cash Flow",
+          "GST Summary",
+          "Employee Performance"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/DocumentsScreen.jsx",
+      "components": [
+        "recordLabel",
+        "buildChecklist",
+        "exportDocumentRow",
+        "DocumentsScreen"
+      ],
+      "exports": [
+        "DocumentsScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../components/forms/index.jsx",
+        "../utils/formatters.js",
+        "../utils/uiHelpers.js"
+      ],
+      "lines": 406,
+      "riskLevel": "medium",
+      "ownerModule": "Operations",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Document Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "DocumentsScreen",
+        "relatedScreens": [
+          "DocumentsScreen",
+          "OperationsDrilldownPanel"
+        ],
+        "relatedReports": [
+          "Operations Dashboard",
+          "Order Lifecycle",
+          "Purchase Bills",
+          "GRN Status"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "OperationalPrints",
+          "DeliveryChallanPrint",
+          "PurchaseVoucherPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke (documents)"
+        ]
+      }
+    },
+    {
+      "path": "screens/DashboardScreen.jsx",
+      "components": [
+        "DashboardScreen"
+      ],
+      "exports": [
+        "DashboardScreen"
+      ],
+      "imports": [
+        "react",
+        "../features/dashboards/dashboardConfig.js",
+        "../features/dashboards/dashboardService.js",
+        "../features/dashboards/widgetFramework.jsx",
+        "../features/dashboards/dashboardContext.jsx",
+        "../features/dashboards/treasuryOverview.jsx",
+        "../config/storageKeys.js",
+        "../components/dashboard/index.jsx",
+        "../stability/rendererStabilityUtils.js",
+        "../utils/uiHelpers.js"
+      ],
+      "lines": 286,
+      "riskLevel": "low",
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Critical",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "DashboardScreen",
+        "relatedScreens": [
+          "DashboardScreen"
+        ],
+        "relatedReports": [
+          "Dashboard Summary"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/InventoryStockSummaryReport.jsx",
+      "components": [
+        "InteractiveStockSummaryReport",
+        "buildStockItemSummary"
+      ],
+      "exports": [
+        "InteractiveStockSummaryReport"
+      ],
+      "imports": [
+        "react",
+        "../components/inventoryReports/index.jsx",
+        "../features/reports/accountingIntelligence.jsx",
+        "../utils/formatters.js",
+        "../utils/uiHelpers.js"
+      ],
+      "lines": 209,
+      "riskLevel": "low",
+      "ownerModule": "Inventory",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Inventory Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "InventoryStockSummaryReport",
+        "relatedScreens": [
+          "InventoryStockSummaryReport"
+        ],
+        "relatedReports": [
+          "Stock Summary",
+          "Stock Ledger",
+          "Stock Movement",
+          "Stock Valuation",
+          "Inventory Profitability"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "StockReportPrint",
+          "DeliveryChallanPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/SettingsScreen.jsx",
+      "components": [
+        "SettingsScreen"
+      ],
+      "exports": [
+        "SettingsScreen"
+      ],
+      "imports": [
+        "react",
+        "../api/client.js",
+        "../components/settings/index.jsx"
+      ],
+      "lines": 156,
+      "riskLevel": "low",
+      "ownerModule": "Settings",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Settings Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SettingsScreen",
+        "relatedScreens": [
+          "SettingsScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "components": [
+        "HealthCenterScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../components/health/index.jsx",
+        "./ErrorGuidancePanel.jsx",
+        "./PhaseLockRegistry.jsx",
+        "./RecoveryCenterScreen.jsx",
+        "./RuntimeDiagnosticsPanel.jsx",
+        "./SafeModeScreen.jsx",
+        "./SupportBundlePanel.jsx",
+        "./VerificationConsole.jsx"
+      ],
+      "lines": 144,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "HealthCenterScreen",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "components": [
+        "SafeModeRecoveryScreen"
+      ],
+      "exports": [
+        "SafeModeRecoveryScreen"
+      ],
+      "imports": [
+        "react",
+        "../../stability/rendererCrashRegistry.js",
+        "../../stability/safeFallbackConfig.js",
+        "../../stability/rendererStabilityUtils.js",
+        "./RendererCrashReportPanel.jsx"
+      ],
+      "lines": 111,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Recovery Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Safe Mode)",
+        "extractionCandidate": "Safe Mode Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SafeModeRecoveryScreen",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/CRACManagementScreen.jsx",
+      "components": [
+        "CRACManagementScreen"
+      ],
+      "exports": [
+        "CRACManagementScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/crac/CRACStatusCard.jsx",
+        "../../components/crac/CRACTimeline.jsx",
+        "../../components/crac/CRACDocumentPanel.jsx",
+        "../../components/forms/index.jsx"
+      ],
+      "lines": 100,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACManagementScreen",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/ReadOnlySummaryReports.jsx",
+      "components": [
+        "EmployeePerformanceSummary",
+        "CashFlowSummary",
+        "GstSummary"
+      ],
+      "exports": [
+        "EmployeePerformanceSummary",
+        "CashFlowSummary",
+        "GstSummary",
+        "AccountingReportsIndex"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx"
+      ],
+      "lines": 85,
+      "riskLevel": "low",
+      "ownerModule": "Reports",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ReadOnlySummaryReports",
+        "relatedScreens": [
+          "ReadOnlyReportFamilyScreen",
+          "ReadOnlySummaryReports"
+        ],
+        "relatedReports": [
+          "Accounting Reports",
+          "Cash Flow",
+          "GST Summary",
+          "Employee Performance"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/CRACTrackerScreen.jsx",
+      "components": [
+        "CRACTrackerScreen"
+      ],
+      "exports": [
+        "CRACTrackerScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/forms/index.jsx",
+        "../../components/crac/CRACTimeline.jsx",
+        "../../components/crac/CRACStatusCard.jsx"
+      ],
+      "lines": 80,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACTrackerScreen",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/VerificationConsole.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [
+        "react",
+        "./healthCenterConfig.js",
+        "./VerificationCommandCard.jsx",
+        "./VerificationHistoryPanel.jsx"
+      ],
+      "lines": 80,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "VerificationConsole",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/healthCenterConfig.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 78,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "healthCenterConfig",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/OrderClosureScreen.jsx",
+      "components": [
+        "OrderClosureScreen"
+      ],
+      "exports": [
+        "OrderClosureScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/forms/index.jsx",
+        "../../components/crac/ClosureChecklist.jsx"
+      ],
+      "lines": 76,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "OrderClosureScreen",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/ProfitabilityScreen.jsx",
+      "components": [
+        "ProfitabilityScreen"
+      ],
+      "exports": [
+        "ProfitabilityScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../components/forms/index.jsx",
+        "../utils/formatters.js"
+      ],
+      "lines": 76,
+      "riskLevel": "low",
+      "ownerModule": "Profitability",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Profitability Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ProfitabilityScreen",
+        "relatedScreens": [
+          "ProfitabilityScreen"
+        ],
+        "relatedReports": [
+          "Profitability Report",
+          "Order Profitability"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/CRACEntryScreen.jsx",
+      "components": [
+        "CRACEntryScreen"
+      ],
+      "exports": [
+        "CRACEntryScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/crac/CRACStatusCard.jsx"
+      ],
+      "lines": 66,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACEntryScreen",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HelpTrainingScreen.jsx",
+      "components": [
+        "HelpTrainingScreen"
+      ],
+      "exports": [
+        "HelpTrainingScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/helpTraining/index.jsx",
+        "../config/helpContent.js",
+        "../config/navigation.js",
+        "../utils/uiHelpers.js"
+      ],
+      "lines": 66,
+      "riskLevel": "low",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "HelpTrainingScreen",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/KeyboardShortcutScreen.jsx",
+      "components": [
+        "KeyboardShortcutScreen"
+      ],
+      "exports": [
+        "KeyboardShortcutScreen"
+      ],
+      "imports": [
+        "react",
+        "../config/keyboardShortcuts.js"
+      ],
+      "lines": 66,
+      "riskLevel": "low",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "KeyboardShortcutScreen",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/PaymentReadinessScreen.jsx",
+      "components": [
+        "PaymentReadinessScreen",
+        "loadReport"
+      ],
+      "exports": [
+        "PaymentReadinessScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/forms/index.jsx",
+        "../../components/crac/PaymentReadinessTable.jsx"
+      ],
+      "lines": 47,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "PaymentReadinessScreen",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/RuntimeDiagnosticsPanel.jsx",
+      "components": [
+        "RuntimeDiagnosticsPanel"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../components/health/index.jsx"
+      ],
+      "lines": 47,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "RuntimeDiagnosticsPanel",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/SupportBundlePanel.jsx",
+      "components": [
+        "SupportBundlePanel"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 46,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SupportBundlePanel",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/BankRowsTable.jsx",
+      "components": [
+        "BankRowsTable"
+      ],
+      "exports": [
+        "BankRowsTable"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../utils/formatters.js"
+      ],
+      "lines": 40,
+      "riskLevel": "low",
+      "ownerModule": "Accounting",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "BankRowsTable",
+        "relatedScreens": [
+          "BankRowsTable",
+          "AllCompaniesReadOnlyScreen",
+          "ReadOnlyReportFamilyScreen",
+          "ReadOnlySummaryReports"
+        ],
+        "relatedReports": [
+          "Trial Balance",
+          "P&L",
+          "Balance Sheet",
+          "Day Book",
+          "Cash/Bank Book",
+          "GST Report",
+          "Receivables",
+          "Payables"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "SalesInvoicePrint",
+          "PurchaseVoucherPrint",
+          "ReceiptVoucherPrint",
+          "PaymentVoucherPrint",
+          "JournalVoucherPrint",
+          "DebitNotePrint",
+          "CreditNotePrint",
+          "FinancialReportPrints",
+          "GstReportPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/ErrorGuidancePanel.jsx",
+      "components": [
+        "ErrorGuidancePanel"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "./healthCenterConfig.js"
+      ],
+      "lines": 37,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ErrorGuidancePanel",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/RecoveryCenterScreen.jsx",
+      "components": [
+        "RecoveryCenterScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "./healthCenterConfig.js"
+      ],
+      "lines": 35,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "RecoveryCenterScreen",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/VerificationHistoryPanel.jsx",
+      "components": [
+        "VerificationHistoryPanel"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 35,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "VerificationHistoryPanel",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/SafeMode/RendererCrashReportPanel.jsx",
+      "components": [
+        "RendererCrashReportPanel"
+      ],
+      "exports": [
+        "RendererCrashReportPanel"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 34,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Recovery Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Safe Mode)",
+        "extractionCandidate": "Safe Mode Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "RendererCrashReportPanel",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/SafeModeScreen.jsx",
+      "components": [
+        "SafeModeScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 33,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SafeModeScreen",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/VerificationCommandCard.jsx",
+      "components": [
+        "VerificationCommandCard"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 30,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "VerificationCommandCard",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/PhaseLockRegistry.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [
+        "react",
+        "./healthCenterConfig.js"
+      ],
+      "lines": 27,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "PhaseLockRegistry",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/AllCompaniesReadOnlyScreen.jsx",
+      "components": [
+        "AllCompaniesReadOnlyScreen"
+      ],
+      "exports": [
+        "AllCompaniesReadOnlyScreen"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 22,
+      "riskLevel": "low",
+      "ownerModule": "Accounting",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "AllCompaniesReadOnlyScreen",
+        "relatedScreens": [
+          "BankRowsTable",
+          "AllCompaniesReadOnlyScreen",
+          "ReadOnlyReportFamilyScreen",
+          "ReadOnlySummaryReports"
+        ],
+        "relatedReports": [
+          "Trial Balance",
+          "P&L",
+          "Balance Sheet",
+          "Day Book",
+          "Cash/Bank Book",
+          "GST Report",
+          "Receivables",
+          "Payables"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "SalesInvoicePrint",
+          "PurchaseVoucherPrint",
+          "ReceiptVoucherPrint",
+          "PaymentVoucherPrint",
+          "JournalVoucherPrint",
+          "DebitNotePrint",
+          "CreditNotePrint",
+          "FinancialReportPrints",
+          "GstReportPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/OperationsDrilldownPanel.jsx",
+      "components": [
+        "OperationsDrilldownPanel"
+      ],
+      "exports": [
+        "OperationsDrilldownPanel"
+      ],
+      "imports": [
+        "react",
+        "../components/operations/index.jsx"
+      ],
+      "lines": 7,
+      "riskLevel": "low",
+      "ownerModule": "Operations",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "OperationsDrilldownPanel",
+        "relatedScreens": [
+          "DocumentsScreen",
+          "OperationsDrilldownPanel"
+        ],
+        "relatedReports": [
+          "Operations Dashboard",
+          "Order Lifecycle",
+          "Purchase Bills",
+          "GRN Status"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "OperationalPrints",
+          "DeliveryChallanPrint",
+          "PurchaseVoucherPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/CRAC/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 6,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "18 (CRAC Module)",
+        "extractionCandidate": "CRAC Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/SafeMode/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 3,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Recovery Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Safe Mode)",
+        "extractionCandidate": "Safe Mode Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/HealthCenter/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 2,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Health Module)",
+        "extractionCandidate": "Health Center Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/MasterDataTools/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 2,
+      "riskLevel": "low",
+      "ownerModule": "Master Data",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "MasterDataToolsScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    }
+  ],
+  "components": [
+    {
+      "path": "components/helpProductivity/index.jsx",
+      "components": [
+        "ContextShortcutPanel",
+        "ProductivityLearnDialog",
+        "ShortcutHelpDialog",
+        "UserPreferencesDialog",
+        "ContextHelpDialog",
+        "ContextShortcutOverlay"
+      ],
+      "exports": [
+        "ContextShortcutPanel",
+        "ProductivityLearnDialog",
+        "productivityScopeForView",
+        "roleAllowsAction",
+        "ShortcutHelpDialog",
+        "UserPreferencesDialog",
+        "FirstTimeTour",
+        "ContextHelpDialog",
+        "matchesHelpQuery",
+        "helpForView",
+        "ContextShortcutOverlay"
+      ],
+      "imports": [
+        "react",
+        "../../config/keyboardShortcuts.js",
+        "../FocusTrap.jsx",
+        "../../config/navigation.js",
+        "../../config/viewDefinitions.js",
+        "../../modules/helpAssistant/screenHelpCatalog.js",
+        "../../stability/rendererStabilityUtils.js",
+        "../../utils/formatters.js",
+        "../helpTraining/index.jsx"
+      ],
+      "lines": 626,
+      "riskLevel": "medium",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Moderate complexity",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/operations/index.jsx",
+      "components": [
+        "OperationsAttentionQueueTable",
+        "OperationsDrilldownSummary",
+        "OperationsIntelligenceSummary",
+        "OperationsExceptionSummary",
+        "OperationsEvidenceTable"
+      ],
+      "exports": [
+        "OperationsAttentionQueueTable",
+        "OperationsDrilldownContent",
+        "OperationsEvidenceJumpBar",
+        "OperationsActionCenter",
+        "OperationsDrilldownSummary",
+        "OperationsIntelligenceSummary",
+        "OperationsStatusTimeline",
+        "OperationsExceptionSummary",
+        "OperationsRecommendations",
+        "OperationsClosureReadiness",
+        "OperationsEvidenceSections",
+        "OperationsEvidenceTable"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../forms/index.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 489,
+      "riskLevel": "medium",
+      "ownerModule": "Operations",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "DocumentsScreen",
+          "OperationsDrilldownPanel"
+        ],
+        "relatedReports": [
+          "Operations Dashboard",
+          "Order Lifecycle",
+          "Purchase Bills",
+          "GRN Status"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "OperationalPrints",
+          "DeliveryChallanPrint",
+          "PurchaseVoucherPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/forms/index.jsx",
+      "components": [
+        "SelectBox",
+        "ReadOnlyBox",
+        "FormRow",
+        "StatusBadge",
+        "CardHeader",
+        "SectionHeader",
+        "InfoBanner",
+        "WarningBanner"
+      ],
+      "exports": [
+        "SelectField",
+        "SelectBox",
+        "SearchableSelect",
+        "ReadOnlyBox",
+        "MetricLine",
+        "Field",
+        "FormRow",
+        "FormSection",
+        "FormActions",
+        "StatusBadge",
+        "FilterBar",
+        "ReportDateFilters",
+        "ReportSelectFilter",
+        "ShortcutHint",
+        "ReportActionButtons",
+        "ReportToolbar",
+        "ViewTabs",
+        "SimpleActionBar",
+        "CardHeader",
+        "SectionHeader",
+        "InfoBanner",
+        "WarningBanner"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 364,
+      "riskLevel": "medium",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Critical",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Presentation Extraction)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/inventoryReports/index.jsx",
+      "components": [
+        "StockSummaryInteractiveTable",
+        "StockMonthlyMovementTable",
+        "StockItemLedgerTable",
+        "InventoryReadOnlyReportPanel"
+      ],
+      "exports": [
+        "InventoryReportToolbar",
+        "StockDrillNote",
+        "StockReportTotals",
+        "StockSummaryInteractiveTable",
+        "StockMonthlyMovementTable",
+        "StockItemLedgerTable",
+        "InventoryReadOnlyReportPanel"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../forms/index.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 326,
+      "riskLevel": "medium",
+      "ownerModule": "Inventory",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Inventory Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "InventoryStockSummaryReport"
+        ],
+        "relatedReports": [
+          "Stock Summary",
+          "Stock Ledger",
+          "Stock Movement",
+          "Stock Valuation",
+          "Inventory Profitability"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "StockReportPrint",
+          "DeliveryChallanPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/dashboard/index.jsx",
+      "components": [
+        "DashboardCardGrid",
+        "DashboardSetupChecklist"
+      ],
+      "exports": [
+        "DashboardViewToolbar",
+        "ContextBar",
+        "DashboardCustomizer",
+        "DashboardCardGrid",
+        "DashboardSetupChecklist"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx"
+      ],
+      "lines": 293,
+      "riskLevel": "low",
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "DashboardScreen"
+        ],
+        "relatedReports": [
+          "Dashboard Summary"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/overlays/index.jsx",
+      "components": [
+        "ModalPanel",
+        "AlertPanel",
+        "ReasonEntry",
+        "PrintPreviewDialog",
+        "ConfirmDialog",
+        "GlobalSearchOverlay"
+      ],
+      "exports": [
+        "ModalBackdrop",
+        "ModalPanel",
+        "AlertPanel",
+        "ReasonEntry",
+        "ModalActions",
+        "ConfirmationActions",
+        "PrintPreviewDialog",
+        "ConfirmDialog",
+        "GlobalSearchOverlay"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../../print/printUtils.js"
+      ],
+      "lines": 241,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [
+          "ConfirmDialog",
+          "GlobalSearchOverlay",
+          "PrintPreviewDialog"
+        ],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/layout/index.jsx",
+      "components": [
+        "NavigationSidebar",
+        "WorkspaceFrame",
+        "RightUtilitySidebar"
+      ],
+      "exports": [
+        "NavigationSidebar",
+        "WorkspaceFrame",
+        "RightUtilitySidebar"
+      ],
+      "imports": [
+        "react",
+        "../../config/navigation.js",
+        "../common.jsx"
+      ],
+      "lines": 233,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/helpTraining/index.jsx",
+      "components": [
+        "HelpSearchPanel",
+        "HelpList"
+      ],
+      "exports": [
+        "HelpHero",
+        "HelpSearchPanel",
+        "CurrentScreenHelpSection",
+        "KeyboardProductivityGuide",
+        "ErpUserManualSection",
+        "WorkflowGuideSection",
+        "TrainingModeSection",
+        "FaqTroubleshootingSection",
+        "KnowledgeRoleSection",
+        "ModuleGuidanceSection",
+        "HelpList"
+      ],
+      "imports": [
+        "react",
+        "../forms/index.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 197,
+      "riskLevel": "low",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/inventoryReports/InventoryDashboardPanel.jsx",
+      "components": [
+        "InventoryDashboardPanel"
+      ],
+      "exports": [
+        "InventoryDashboardPanel"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../forms/index.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 165,
+      "riskLevel": "low",
+      "ownerModule": "Inventory",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Inventory Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "InventoryDashboardPanel",
+        "relatedScreens": [
+          "InventoryStockSummaryReport"
+        ],
+        "relatedReports": [
+          "Stock Summary",
+          "Stock Ledger",
+          "Stock Movement",
+          "Stock Valuation",
+          "Inventory Profitability"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "StockReportPrint",
+          "DeliveryChallanPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/common.jsx",
+      "components": [
+        "IntelligenceCard",
+        "MiniDataTable",
+        "SummaryTable"
+      ],
+      "exports": [
+        "IntelligenceCard",
+        "MetricRows",
+        "MiniDataTable",
+        "SummaryTable",
+        "Metric",
+        "EmptyState",
+        "Icon"
+      ],
+      "imports": [
+        "react",
+        "../utils/formatters.js"
+      ],
+      "lines": 135,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Critical",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Presentation Extraction)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "common",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/settings/index.jsx",
+      "components": [
+        "SettingsPanel",
+        "SettingsHeader",
+        "SettingsOverview",
+        "SettingsCard"
+      ],
+      "exports": [
+        "SettingsPanel",
+        "SettingsHeader",
+        "SettingsOverview",
+        "UpdaterSection",
+        "BackupRestoreSection",
+        "SettingsCard"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx"
+      ],
+      "lines": 120,
+      "riskLevel": "low",
+      "ownerModule": "Settings",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Settings Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "SettingsScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/accountingControls/index.jsx",
+      "components": [
+        "FinancialControlOverview",
+        "AccountingControlReportTable"
+      ],
+      "exports": [
+        "FinancialControlOverview",
+        "LockedYearControlNotice",
+        "AccountingControlReportTable"
+      ],
+      "imports": [
+        "../common.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 110,
+      "riskLevel": "low",
+      "ownerModule": "Accounting",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Accounting Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "BankRowsTable",
+          "AllCompaniesReadOnlyScreen",
+          "ReadOnlyReportFamilyScreen",
+          "ReadOnlySummaryReports"
+        ],
+        "relatedReports": [
+          "Trial Balance",
+          "P&L",
+          "Balance Sheet",
+          "Day Book",
+          "Cash/Bank Book",
+          "GST Report",
+          "Receivables",
+          "Payables"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [
+          "SalesInvoicePrint",
+          "PurchaseVoucherPrint",
+          "ReceiptVoucherPrint",
+          "PaymentVoucherPrint",
+          "JournalVoucherPrint",
+          "DebitNotePrint",
+          "CreditNotePrint",
+          "FinancialReportPrints",
+          "GstReportPrint"
+        ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/tables/MasterRecordsPanel.jsx",
+      "components": [
+        "MasterRecordsPanel"
+      ],
+      "exports": [
+        "MasterRecordsPanel"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx"
+      ],
+      "lines": 88,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "MasterRecordsPanel",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/crac/PaymentReadinessTable.jsx",
+      "components": [
+        "PaymentReadinessTable"
+      ],
+      "exports": [
+        "PaymentReadinessTable"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js"
+      ],
+      "lines": 50,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "PaymentReadinessTable",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/crac/CRACDocumentPanel.jsx",
+      "components": [
+        "CRACDocumentPanel"
+      ],
+      "exports": [
+        "CRACDocumentPanel"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 39,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACDocumentPanel",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/FocusTrap.jsx",
+      "components": [],
+      "exports": [
+        "FocusTrap"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 37,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "FocusTrap",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/crac/CRACStatusCard.jsx",
+      "components": [
+        "CRACStatusCard"
+      ],
+      "exports": [
+        "CRACStatusCard"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 33,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACStatusCard",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/crac/ClosureChecklist.jsx",
+      "components": [
+        "ClosureChecklist"
+      ],
+      "exports": [
+        "ClosureChecklist"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 31,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ClosureChecklist",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/health/HealthCheckCard.jsx",
+      "components": [
+        "HealthCheckCard"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 28,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "HealthCheckCard",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/crac/CRACTimeline.jsx",
+      "components": [],
+      "exports": [
+        "CRACTimeline"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 26,
+      "riskLevel": "low",
+      "ownerModule": "CRAC",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "CRAC Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "CRACTimeline",
+        "relatedScreens": [
+          "CRACManagementScreen",
+          "CRACEntryScreen",
+          "CRACTrackerScreen",
+          "PaymentReadinessScreen",
+          "OrderClosureScreen"
+        ],
+        "relatedReports": [
+          "CRAC Tracker",
+          "Order Closure Report",
+          "Payment Readiness"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/health/RuntimePathStatus.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 20,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "RuntimePathStatus",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/health/VerificationResultBox.jsx",
+      "components": [
+        "VerificationResultBox"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 17,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "VerificationResultBox",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/health/DiagnosticRow.jsx",
+      "components": [
+        "DiagnosticRow"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 15,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "DiagnosticRow",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/health/index.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 5,
+      "riskLevel": "low",
+      "ownerModule": "Health Center",
+      "businessCriticality": "Low",
+      "changeFrequency": "Stable",
+      "workflowReference": "Health Center Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "HealthCenterScreen",
+          "RecoveryCenterScreen",
+          "SafeModeScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    }
+  ],
+  "features": [
+    {
+      "path": "features/dashboards/dashboardConfig.js",
+      "components": [],
+      "exports": [
+        "DASHBOARD_MODE_LABELS",
+        "MODE_CARDS",
+        "MODE_DEFAULT_VISIBLE",
+        "CARD_FORMATTERS"
+      ],
+      "imports": [],
+      "lines": 119,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/dashboardContext.jsx",
+      "components": [
+        "DashboardProvider",
+        "useDashboardContext"
+      ],
+      "exports": [
+        "DashboardProvider",
+        "useDashboardContext"
+      ],
+      "imports": [
+        "react",
+        "../../config/storageKeys.js",
+        "../../utils/uiHelpers.js"
+      ],
+      "lines": 68,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/dashboardService.js",
+      "components": [
+        "formatPeriodLabel",
+        "formatComparisonLabel",
+        "useDashboardData",
+        "buildExportContext"
+      ],
+      "exports": [
+        "PERIOD_OPTIONS",
+        "COMPARISON_OPTIONS",
+        "getFinancialYear",
+        "getFinancialYearOptions",
+        "useFinancialYear",
+        "usePeriod",
+        "useComparison",
+        "useDashboardData",
+        "resolveCardValue",
+        "buildExportContext"
+      ],
+      "imports": [
+        "react",
+        "../../utils/uiHelpers.js",
+        "./treasuryService.js"
+      ],
+      "lines": 374,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/BillingDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "BillingDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 74,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/CollectionsDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "CollectionsDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 69,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/DrilldownBase.jsx",
+      "components": [],
+      "exports": [
+        "DrilldownBase"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 60,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/GstDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "GstDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 42,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 12,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/OrdersDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "OrdersDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 47,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/ProfitDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "ProfitDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 79,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/ReceivablesDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "ReceivablesDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 83,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/StockDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "StockDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 44,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Inventory Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "TreasuryDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "../treasuryService.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 73,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/TrialBalanceDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "TrialBalanceDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 55,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/drilldowns/UnpostedDrilldown.jsx",
+      "components": [],
+      "exports": [
+        "UnpostedDrilldown"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "./DrilldownBase.jsx"
+      ],
+      "lines": 59,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/treasuryOverview.jsx",
+      "components": [
+        "TreasuryOverview"
+      ],
+      "exports": [
+        "TreasuryOverview"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js"
+      ],
+      "lines": 87,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/treasuryService.js",
+      "components": [
+        "buildTreasuryOverview"
+      ],
+      "exports": [
+        "buildTreasuryOverview"
+      ],
+      "imports": [],
+      "lines": 54,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/dashboards/widgetFramework.jsx",
+      "components": [
+        "ComparisonRow",
+        "WidgetGrid"
+      ],
+      "exports": [
+        "WidgetContainer",
+        "WorkQueueWidget",
+        "WidgetGrid",
+        "WidgetToolbar"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 183,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
+      "path": "features/inventory/StockAdjustmentControlPanel.jsx",
+      "components": [
+        "selectedLabel",
+        "StockAdjustmentControlPanel"
+      ],
+      "exports": [
+        "getStockAdjustmentBalance",
+        "buildStockAdjustmentWarnings",
+        "validateStockAdjustmentDraft",
+        "StockAdjustmentControlPanel"
+      ],
+      "imports": [
+        "../../utils/formatters.js"
+      ],
+      "lines": 109,
+      "ownerModule": "Master Data",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Inventory Workflow"
+    },
+    {
+      "path": "features/reports/accountingIntelligence.jsx",
+      "components": [
+        "AccountingStructureSummary",
+        "StockAccountingStructureSummary"
+      ],
+      "exports": [
+        "classifyAccountGroup",
+        "enrichAccountingRows",
+        "AccountingStructureSummary",
+        "StockAccountingStructureSummary"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js"
+      ],
+      "lines": 241,
+      "ownerModule": "Reports",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    }
+  ],
+  "contexts": [
+    {
+      "name": "CompanyContext",
+      "source": "App.jsx (state)",
+      "consumers": [
+        "AllCompaniesReadOnlyScreen",
+        "DashboardScreen",
+        "BillingVoucherScreen",
+        "BusinessVoucherScreen",
+        "VoucherEntryScreen",
+        "DocumentsScreen",
+        "CRAC screens",
+        "HealthCenterScreen",
+        "ProfitabilityScreen",
+        "MasterDataToolsScreen",
+        "Tally screens"
+      ]
+    },
+    {
+      "name": "Session/Role",
+      "source": "App.jsx (state)",
+      "consumers": [
+        "HealthCenterScreen",
+        "EnvironmentManagerScreen",
+        "BusinessVoucherScreen",
+        "MasterDataToolsScreen",
+        "Tally screens"
+      ]
+    },
+    {
+      "name": "Theme/View",
+      "source": "App.jsx (effectiveView state)",
+      "consumers": "All screens via App.jsx rendering"
+    }
+  ],
+  "dialogs": [
+    {
+      "name": "ConfirmDialog",
+      "source": "components/overlays/index.jsx",
+      "consumers": [
+        "App.jsx (all confirm actions)"
+      ]
+    },
+    {
+      "name": "GlobalSearchOverlay",
+      "source": "components/overlays/index.jsx",
+      "consumers": [
+        "App.jsx"
+      ]
+    },
+    {
+      "name": "PrintPreviewDialog",
+      "source": "components/overlays/index.jsx",
+      "consumers": [
+        "App.jsx"
+      ]
+    }
+  ],
+  "print": {
+    "host": "print/PrintTemplateHost.jsx",
+    "config": "print/printTemplateConfig.js",
+    "utils": "print/printUtils.js",
+    "templates": [
+      "CreditNotePrint",
+      "DebitNotePrint",
+      "DeliveryChallanPrint",
+      "FinancialReportPrints",
+      "GstReportPrint",
+      "JournalVoucherPrint",
+      "OperationalPrints",
+      "OutstandingReportPrints",
+      "PaymentVoucherPrint",
+      "PurchaseVoucherPrint",
+      "ReceiptVoucherPrint",
+      "SalesInvoicePrint",
+      "StockReportPrint",
+      "TemplateSections"
+    ]
+  },
+  "knowledge": {
+    "brain": {
+      "path": "modules/erpBrain/",
+      "type": "ERP Knowledge Repository",
+      "references": [],
+      "status": "active"
+    },
+    "kg": {
+      "path": "knowledge/",
+      "type": "Metadata Registry",
+      "entries": 167,
+      "status": "active"
+    }
+  },
+  "dependencies": {
+    "apiClient": "src/renderer/api/client.js",
+    "database": "src/main/database/init.js (via main process)",
+    "preload": "src/preload/preload.cjs (via contextBridge)",
+    "electron": "Electron shell"
+  },
+  "ipcReferences": [
+    "ipcRenderer.invoke",
+    "ipcRenderer.on",
+    "ipcRenderer.send"
+  ],
+  "risk": {
+    "highRiskCount": 1,
+    "highRiskPaths": [
+      "App.jsx"
+    ],
+    "complexityScore": 491,
+    "suggestedExtractionOrder": [
+      "1. Presentation-only components (components/common.jsx, overslays)",
+      "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
+      "3. Print system (standalone template host)",
+      "4. Knowledge graphs (already separate)",
+      "5. Feature drilldowns (dashboard sub-screens)",
+      "6. Help/assistant modules",
+      "7. Health center and stability modules",
+      "8. Screens by domain (CRAC → master tools → settings → documents)",
+      "9. Core business voucher screens (highest risk — last)"
+    ]
+  },
+  "intelligenceLayer": {
+    "brain": {
+      "path": "modules/erpBrain/",
+      "type": "ERP Knowledge Repository",
+      "references": [],
+      "status": "active"
+    },
+    "kg": {
+      "path": "knowledge/",
+      "type": "Metadata Registry",
+      "entries": 167,
+      "status": "active"
+    }
+  },
+  "metadata": {
+    "name": "Renderer Dependency Graph",
+    "version": "2.0",
+    "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
+    "totalLines": 34513,
+    "totalImports": 349
+  },
+  "externalDependencies": {
+    "apiClient": "src/renderer/api/client.js",
+    "ipcChannels": [
+      "ipcRenderer.invoke",
+      "ipcRenderer.on",
+      "ipcRenderer.send"
+    ],
+    "database": "src/main/database/init.js (via main process)",
+    "preload": "src/preload/preload.cjs (via contextBridge)",
+    "electron": "Electron shell"
+  },
+  "riskAssessment": {
+    "highRiskCount": 1,
+    "highRiskPaths": [
+      "App.jsx"
+    ],
+    "complexityScore": 491,
+    "suggestedExtractionOrder": [
+      "1. Presentation-only components (components/common.jsx, overslays)",
+      "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
+      "3. Print system (standalone template host)",
+      "4. Knowledge graphs (already separate)",
+      "5. Feature drilldowns (dashboard sub-screens)",
+      "6. Help/assistant modules",
+      "7. Health center and stability modules",
+      "8. Screens by domain (CRAC → master tools → settings → documents)",
+      "9. Core business voucher screens (highest risk — last)"
+    ]
+  },
+  "evolution": {
+    "current": {
+      "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
+      "appJsxLines": 13290,
+      "cssLines": 7042,
+      "style": "Monolithic"
+    },
+    "phase17": {
+      "description": "CSS segmentation, presentation extraction, config isolation, knowledge graph stabilization",
+      "expectedReduction": "200-500 App.jsx lines, ~6,700 CSS lines",
+      "style": "Stabilized"
+    },
+    "phase18": {
+      "description": "Route registry, dialog manager, nav controller, context providers, API service layer",
+      "style": "Architecture Separated"
+    },
+    "future": {
+      "description": "DG-1 database graph, WG-1 workflow graph, AG-1 audit graph, full structured intelligence layer",
+      "graphsActive": 6,
+      "style": "Intelligence-Driven"
+    }
+  },
+  "edges": [
+    {
+      "from": "App.jsx",
+      "to": "react"
+    },
+    {
+      "from": "App.jsx",
+      "to": "react-dom/client"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./api/client.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./utils/formatters.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./utils/navigationScroll.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./utils/uiHelpers.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./config/storageKeys.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./config/viewDefinitions.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./config/importTemplates.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./config/navigation.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./print/printTemplateConfig.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./print/printUtils.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/common.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/forms/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/tables/MasterRecordsPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/layout/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/overlays/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/operations/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/inventoryReports/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/accountingControls/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/inventory/StockAdjustmentControlPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/AllCompaniesReadOnlyScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/BankRowsTable.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/DashboardScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/dashboards/drilldowns/index.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/DocumentsScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/EnvironmentManager/EnvironmentManagerScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/HealthCenter/index.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/HelpTrainingScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/KeyboardShortcutScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./modules/helpAssistant/HelpAssistant.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/InventoryStockSummaryReport.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/MasterDataTools/index.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/OperationsDrilldownPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/ProfitabilityScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/ReadOnlyReportFamilyScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/CRAC/index.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/ReadOnlySummaryReports.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/SettingsScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/SafeMode/index.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./modules/deployment/ProductionReadinessScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./modules/deployment/GoLiveWizard.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./stability/RendererErrorBoundary.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./stability/startupSelfTest.js"
+    },
+    {
+      "from": "components/accountingControls/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/accountingControls/index.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/common.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/common.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "components/crac/ClosureChecklist.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/crac/CRACDocumentPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/crac/CRACStatusCard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/crac/CRACTimeline.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/crac/PaymentReadinessTable.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/crac/PaymentReadinessTable.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/dashboard/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/dashboard/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/FocusTrap.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/forms/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/health/DiagnosticRow.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/health/HealthCheckCard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/health/RuntimePathStatus.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/health/VerificationResultBox.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../config/keyboardShortcuts.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../FocusTrap.jsx"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../config/navigation.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../config/viewDefinitions.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../modules/helpAssistant/screenHelpCatalog.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../stability/rendererStabilityUtils.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/helpProductivity/index.jsx",
+      "to": "../helpTraining/index.jsx"
+    },
+    {
+      "from": "components/helpTraining/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/helpTraining/index.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/helpTraining/index.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/inventoryReports/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/inventoryReports/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/inventoryReports/index.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/inventoryReports/index.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/inventoryReports/InventoryDashboardPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/inventoryReports/InventoryDashboardPanel.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/inventoryReports/InventoryDashboardPanel.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/inventoryReports/InventoryDashboardPanel.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/layout/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/layout/index.jsx",
+      "to": "../../config/navigation.js"
+    },
+    {
+      "from": "components/layout/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/operations/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/operations/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/operations/index.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/operations/index.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/overlays/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/overlays/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/overlays/index.jsx",
+      "to": "../../print/printUtils.js"
+    },
+    {
+      "from": "components/settings/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/settings/index.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/tables/MasterRecordsPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/tables/MasterRecordsPanel.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "features/dashboards/dashboardContext.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/dashboardContext.jsx",
+      "to": "../../config/storageKeys.js"
+    },
+    {
+      "from": "features/dashboards/dashboardContext.jsx",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/dashboards/dashboardService.js",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/dashboardService.js",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/dashboards/dashboardService.js",
+      "to": "./treasuryService.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/BillingDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/BillingDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/BillingDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/CollectionsDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/CollectionsDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/CollectionsDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/DrilldownBase.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/GstDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/GstDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/GstDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/OrdersDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/OrdersDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/OrdersDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ProfitDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ProfitDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ProfitDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ReceivablesDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ReceivablesDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/ReceivablesDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/StockDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/StockDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/StockDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+      "to": "../treasuryService.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TrialBalanceDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TrialBalanceDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/TrialBalanceDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/drilldowns/UnpostedDrilldown.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/drilldowns/UnpostedDrilldown.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/drilldowns/UnpostedDrilldown.jsx",
+      "to": "./DrilldownBase.jsx"
+    },
+    {
+      "from": "features/dashboards/treasuryOverview.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/treasuryOverview.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/dashboards/widgetFramework.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/widgetFramework.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/dashboards/widgetFramework.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/inventory/StockAdjustmentControlPanel.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/reports/accountingIntelligence.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/reports/accountingIntelligence.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/masters.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/operations.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/inventory.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/accounting.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/gstTax.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/receivablesPayables.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/reports.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/dashboards.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/utilities.js"
+    },
+    {
+      "from": "knowledge/registry.js",
+      "to": "./modules/helpTraining.js"
+    },
+    {
+      "from": "modules/deployment/CertificationHistory.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/deployment/GoLiveChecklist.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/deployment/GoLiveWizard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/deployment/ProductionReadinessScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/deployment/ProductionReadinessScreen.jsx",
+      "to": "./ReadinessScoreCard.jsx"
+    },
+    {
+      "from": "modules/deployment/ProductionReadinessScreen.jsx",
+      "to": "./GoLiveChecklist.jsx"
+    },
+    {
+      "from": "modules/deployment/ProductionReadinessScreen.jsx",
+      "to": "./CertificationHistory.jsx"
+    },
+    {
+      "from": "modules/deployment/ReadinessScoreCard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./loaders/repositoryLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./services/repositorySearchService.js"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/modules/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/workflows/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/reports/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/screens/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/rules/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/glossary/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/navigation/index.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/repositoryLoader.js",
+      "to": "../repository/errors/index.json"
+    },
+    {
+      "from": "modules/erpBrain/services/repositorySearchService.js",
+      "to": "../loaders/repositoryLoader.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./helpAssistantKnowledge.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./helpAssistantUtils.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantAnswer.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantCoach.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantDataMode.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantOnboarding.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantSearch.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./HelpAssistantSuggestions.jsx"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./helpAssistantConversation.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "./helpAssistantReadiness.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantAnswer.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantCoach.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantDataMode.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantIntents.js",
+      "to": "./helpAssistantIntentMap.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantKnowledge.js",
+      "to": "../../config/helpContent.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantKnowledge.js",
+      "to": "../../config/navigation.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantOnboarding.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantScoring.js",
+      "to": "./helpAssistantIntentMap.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantSearch.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistantSuggestions.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantIntents.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantConversation.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantEntities.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantIntentMap.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantScoring.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantReadiness.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./screenHelpAnswer.js"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/CreditNotePrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/DebitNotePrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/DeliveryChallanPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/FinancialReportPrints.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/GstReportPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/JournalVoucherPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/OperationalPrints.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/OutstandingReportPrints.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/PaymentVoucherPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/PurchaseVoucherPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/ReceiptVoucherPrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/SalesInvoicePrint.jsx"
+    },
+    {
+      "from": "print/PrintTemplateHost.jsx",
+      "to": "./templates/StockReportPrint.jsx"
+    },
+    {
+      "from": "print/printUtils.js",
+      "to": "react"
+    },
+    {
+      "from": "print/printUtils.js",
+      "to": "react-dom/server"
+    },
+    {
+      "from": "print/printUtils.js",
+      "to": "./printTemplateConfig.js"
+    },
+    {
+      "from": "print/printUtils.js",
+      "to": "./PrintTemplateHost.jsx"
+    },
+    {
+      "from": "print/templates/CreditNotePrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/CreditNotePrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/DebitNotePrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/DebitNotePrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/DeliveryChallanPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/DeliveryChallanPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/FinancialReportPrints.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/FinancialReportPrints.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/GstReportPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/GstReportPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/JournalVoucherPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/JournalVoucherPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/OperationalPrints.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/OperationalPrints.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/OutstandingReportPrints.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/OutstandingReportPrints.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/PaymentVoucherPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/PaymentVoucherPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/PurchaseVoucherPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/PurchaseVoucherPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/ReceiptVoucherPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/ReceiptVoucherPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/SalesInvoicePrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/SalesInvoicePrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/StockReportPrint.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/StockReportPrint.jsx",
+      "to": "./TemplateSections.jsx"
+    },
+    {
+      "from": "print/templates/TemplateSections.jsx",
+      "to": "react"
+    },
+    {
+      "from": "print/templates/TemplateSections.jsx",
+      "to": "../printUtils.js"
+    },
+    {
+      "from": "screens/AllCompaniesReadOnlyScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/BankRowsTable.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/BankRowsTable.jsx",
+      "to": "../components/common.jsx"
+    },
+    {
+      "from": "screens/BankRowsTable.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "screens/CRAC/CRACEntryScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/CRAC/CRACEntryScreen.jsx",
+      "to": "../../components/crac/CRACStatusCard.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACManagementScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/CRAC/CRACManagementScreen.jsx",
+      "to": "../../components/crac/CRACStatusCard.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACManagementScreen.jsx",
+      "to": "../../components/crac/CRACTimeline.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACManagementScreen.jsx",
+      "to": "../../components/crac/CRACDocumentPanel.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACManagementScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACTrackerScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/CRAC/CRACTrackerScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACTrackerScreen.jsx",
+      "to": "../../components/crac/CRACTimeline.jsx"
+    },
+    {
+      "from": "screens/CRAC/CRACTrackerScreen.jsx",
+      "to": "../../components/crac/CRACStatusCard.jsx"
+    },
+    {
+      "from": "screens/CRAC/OrderClosureScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/CRAC/OrderClosureScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/CRAC/OrderClosureScreen.jsx",
+      "to": "../../components/crac/ClosureChecklist.jsx"
+    },
+    {
+      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
+      "to": "../../components/crac/PaymentReadinessTable.jsx"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../features/dashboards/dashboardConfig.js"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../features/dashboards/dashboardService.js"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../features/dashboards/widgetFramework.jsx"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../features/dashboards/dashboardContext.jsx"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../features/dashboards/treasuryOverview.jsx"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../config/storageKeys.js"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../components/dashboard/index.jsx"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../stability/rendererStabilityUtils.js"
+    },
+    {
+      "from": "screens/DashboardScreen.jsx",
+      "to": "../utils/uiHelpers.js"
+    },
+    {
+      "from": "screens/DocumentsScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/DocumentsScreen.jsx",
+      "to": "../components/common.jsx"
+    },
+    {
+      "from": "screens/DocumentsScreen.jsx",
+      "to": "../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/DocumentsScreen.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "screens/DocumentsScreen.jsx",
+      "to": "../utils/uiHelpers.js"
+    },
+    {
+      "from": "screens/EnvironmentManager/EnvironmentManagerScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/ErrorGuidancePanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/ErrorGuidancePanel.jsx",
+      "to": "./healthCenterConfig.js"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "../../components/health/index.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./ErrorGuidancePanel.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./PhaseLockRegistry.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./RecoveryCenterScreen.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./RuntimeDiagnosticsPanel.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./SafeModeScreen.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./SupportBundlePanel.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
+      "to": "./VerificationConsole.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/PhaseLockRegistry.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/PhaseLockRegistry.jsx",
+      "to": "./healthCenterConfig.js"
+    },
+    {
+      "from": "screens/HealthCenter/RecoveryCenterScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/RecoveryCenterScreen.jsx",
+      "to": "./healthCenterConfig.js"
+    },
+    {
+      "from": "screens/HealthCenter/RuntimeDiagnosticsPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/RuntimeDiagnosticsPanel.jsx",
+      "to": "../../components/health/index.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/SafeModeScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/SupportBundlePanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationCommandCard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationConsole.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationConsole.jsx",
+      "to": "./healthCenterConfig.js"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationConsole.jsx",
+      "to": "./VerificationCommandCard.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationConsole.jsx",
+      "to": "./VerificationHistoryPanel.jsx"
+    },
+    {
+      "from": "screens/HealthCenter/VerificationHistoryPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HelpTrainingScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/HelpTrainingScreen.jsx",
+      "to": "../components/helpTraining/index.jsx"
+    },
+    {
+      "from": "screens/HelpTrainingScreen.jsx",
+      "to": "../config/helpContent.js"
+    },
+    {
+      "from": "screens/HelpTrainingScreen.jsx",
+      "to": "../config/navigation.js"
+    },
+    {
+      "from": "screens/HelpTrainingScreen.jsx",
+      "to": "../utils/uiHelpers.js"
+    },
+    {
+      "from": "screens/InventoryStockSummaryReport.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/InventoryStockSummaryReport.jsx",
+      "to": "../components/inventoryReports/index.jsx"
+    },
+    {
+      "from": "screens/InventoryStockSummaryReport.jsx",
+      "to": "../features/reports/accountingIntelligence.jsx"
+    },
+    {
+      "from": "screens/InventoryStockSummaryReport.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "screens/InventoryStockSummaryReport.jsx",
+      "to": "../utils/uiHelpers.js"
+    },
+    {
+      "from": "screens/KeyboardShortcutScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/KeyboardShortcutScreen.jsx",
+      "to": "../config/keyboardShortcuts.js"
+    },
+    {
+      "from": "screens/MasterDataTools/MasterDataToolsScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/MasterDataTools/MasterDataToolsScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "screens/OperationsDrilldownPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/OperationsDrilldownPanel.jsx",
+      "to": "../components/operations/index.jsx"
+    },
+    {
+      "from": "screens/ProfitabilityScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/ProfitabilityScreen.jsx",
+      "to": "../components/common.jsx"
+    },
+    {
+      "from": "screens/ProfitabilityScreen.jsx",
+      "to": "../components/forms/index.jsx"
+    },
+    {
+      "from": "screens/ProfitabilityScreen.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
+      "to": "../components/common.jsx"
+    },
+    {
+      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
+      "to": "../features/reports/accountingIntelligence.jsx"
+    },
+    {
+      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "screens/ReadOnlySummaryReports.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/ReadOnlySummaryReports.jsx",
+      "to": "../components/common.jsx"
+    },
+    {
+      "from": "screens/SafeMode/RendererCrashReportPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "to": "../../stability/rendererCrashRegistry.js"
+    },
+    {
+      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "to": "../../stability/safeFallbackConfig.js"
+    },
+    {
+      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "to": "../../stability/rendererStabilityUtils.js"
+    },
+    {
+      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
+      "to": "./RendererCrashReportPanel.jsx"
+    },
+    {
+      "from": "screens/SettingsScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "screens/SettingsScreen.jsx",
+      "to": "../api/client.js"
+    },
+    {
+      "from": "screens/SettingsScreen.jsx",
+      "to": "../components/settings/index.jsx"
+    },
+    {
+      "from": "stability/rendererCrashRegistry.js",
+      "to": "./rendererStabilityUtils.js"
+    },
+    {
+      "from": "stability/RendererErrorBoundary.jsx",
+      "to": "react"
+    },
+    {
+      "from": "stability/RendererErrorBoundary.jsx",
+      "to": "./rendererCrashRegistry.js"
+    },
+    {
+      "from": "stability/RendererErrorBoundary.jsx",
+      "to": "./rendererStabilityUtils.js"
+    },
+    {
+      "from": "stability/startupSelfTest.js",
+      "to": "../config/navigation.js"
+    },
+    {
+      "from": "stability/startupSelfTest.js",
+      "to": "./rendererStabilityUtils.js"
+    }
+  ]
+}

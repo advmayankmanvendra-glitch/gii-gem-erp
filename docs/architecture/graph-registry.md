@@ -10,7 +10,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 |----------|------|-------|---------|---------------|--------------|------------|--------------|------------|--------|
 | BRAIN-1 | ERP Knowledge Graph | BRAIN-1 | Structured ERP knowledge — modules, workflows, reports, screens, rules, glossary, navigation, errors | `src/renderer/modules/erpBrain/repository/` | `repository/*/index.json` | Read-only | erpBrain | verify:audit --phase=brain-1 | **Active** |
 | KG-1 | Metadata / Impact Graph | KG-1 | Metadata registry — source/impact, risk, permissions, correction policies | `src/renderer/knowledge/modules/` | `knowledge/modules/*.js` | Read-only | knowledge | verify:audit --phase=kg-1 | **Active** |
-| RG-1 | Renderer Dependency Graph | 17L | Renderer import/screen/component/IPC/database dependency map | `src/renderer/` | `knowledge/renderer-graph.json` | Read-only | knowledge | verify:audit --phase=17-l | **Planned** |
+| RG-1 | Renderer Dependency Graph | 17L | Renderer import/screen/component/IPC/database dependency map | `src/renderer/` | `knowledge/renderer-graph.json`, `knowledge/renderer-graph.md`, `knowledge/renderer-summary.md` | Read-only | knowledge | verify:audit --phase=17-l | **Active** |
 | DG-1 | Database Graph | Future | Database tables, columns, relationships, triggers, indices | `src/main/database/` | TBD | Read-only | TBD | verify:audit --phase=dg-1 | Planned |
 | WG-1 | Workflow Graph | Future | Business workflow state machines, transitions, pre/post conditions | TBD | TBD | Read-only | TBD | verify:audit --phase=wg-1 | Planned |
 | AG-1 | Audit Graph | Future | Audit event lineage — events → modules → screens → data mutations → users | TBD | TBD | Read-only | TBD | verify:audit --phase=ag-1 | Planned |

@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:rg-1:schema:1.0.0",
+  "title": "RG-1 Renderer Dependency Graph Schema",
+  "description": "Versioned JSON Schema for the RG-1 Renderer Dependency Graph. Frozen at schemaVersion 1.0.0.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "graphId",
+    "generatedAt",
+    "sourceRoot",
+    "filesScanned",
+    "statistics",
+    "routes",
+    "screens",
+    "components",
+    "contexts",
+    "dialogs",
+    "print",
+    "dependencies",
+    "ipcReferences",
+    "risk",
+    "intelligenceLayer",
+    "metadata"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the RG-1 schema. Must be '1.0.0' for this version.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier. Must be 'RG-1'.",
+      "enum": ["RG-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of graph generation."
+    },
+    "sourceRoot": {
+      "type": "string",
+      "description": "Relative source root directory (e.g. 'src/renderer/')."
+    },
+    "filesScanned": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of source files scanned for this graph."
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Aggregate statistics about the renderer source tree.",
+      "required": [
+        "filesByCategory",
+        "filesByRisk",
+        "filesByCriticality",
+        "filesByOwner",
+        "filesByChangeFrequency",
+        "avgImportsPerScreen",
+        "avgComponentReuse",
+        "largestComponent",
+        "largestScreen",
+        "layerCount",
+        "architectureDensity",
+        "mostConnected",
+        "mostDepended",
+        "highRiskFiles",
+        "totalRoutes",
+        "totalScreens",
+        "totalComponents",
+        "totalFeatures",
+        "totalModules",
+        "totalConfigFiles",
+        "circularImports",
+        "circularImportDetails",
+        "approximateTokenSavings"
+      ],
+      "properties": {
+        "filesByCategory": { "type": "object", "description": "File count grouped by category." },
+        "filesByRisk": { "type": "object", "description": "File count grouped by risk level (low/medium/high)." },
+        "filesByCriticality": { "type": "object", "description": "File count grouped by business criticality." },
+        "filesByOwner": { "type": "object", "description": "File count grouped by owner module." },
+        "filesByChangeFrequency": { "type": "object", "description": "File count grouped by change frequency." },
+        "avgImportsPerScreen": { "type": "number", "description": "Average import statements per screen file." },
+        "avgComponentReuse": { "type": "number", "description": "Average reuse count across shared components." },
+        "largestComponent": { "type": "object", "description": "Largest component file by line count." },
+        "largestScreen": { "type": "object", "description": "Largest screen file by line count." },
+        "layerCount": { "type": "integer", "description": "Number of distinct renderer layers." },
+        "architectureDensity": { "type": "number", "description": "Average imports per file across all scanned files." },
+        "mostConnected": { "type": "array", "description": "Files with the highest import counts." },
+        "mostDepended": { "type": "array", "description": "Modules most frequently imported by other files." },
+        "highRiskFiles": { "type": "array", "description": "Files flagged as high risk." },
+        "totalRoutes": { "type": "integer", "description": "Total defined route keys." },
+        "totalScreens": { "type": "integer", "description": "Total dedicated screen files." },
+        "totalComponents": { "type": "integer", "description": "Total shared component files." },
+        "totalFeatures": { "type": "integer", "description": "Total feature module files." },
+        "totalModules": { "type": "integer", "description": "Total subsystem module files." },
+        "totalConfigFiles": { "type": "integer", "description": "Total configuration files." },
+        "circularImports": { "type": "integer", "description": "Count of detected circular import pairs." },
+        "circularImportDetails": { "type": "array", "description": "Details of each circular import pair." },
+        "approximateTokenSavings": { "type": "string", "description": "Estimated AI token savings from using the graph." }
+      }
+    },
+    "routes": {
+      "type": "array",
+      "description": "List of all route keys with metadata.",
+      "items": {
+        "type": "object",
+        "required": ["key", "category", "workflowReference", "screen"],
+        "properties": {
+          "key": { "type": "string" },
+          "category": { "type": "string" },
+          "workflowReference": { "type": "string" },
+          "screen": { "type": "string" }
+        }
+      }
+    },
+    "screens": {
+      "type": "array",
+      "description": "Dedicated screen files with full metadata.",
+      "items": {
+        "type": "object",
+        "required": ["path", "components", "exports", "imports", "lines", "riskLevel", "ownerModule", "businessCriticality", "changeFrequency", "workflowReference", "riskMetadata", "aiNavigation"],
+        "properties": {
+          "path": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "imports": { "type": "array", "items": { "type": "string" } },
+          "lines": { "type": "integer" },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+          "ownerModule": { "type": "string" },
+          "businessCriticality": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+          "changeFrequency": { "type": "string", "enum": ["Frequently Modified", "Occasionally Modified", "Stable"] },
+          "workflowReference": { "type": "string" },
+          "riskMetadata": { "type": "object" },
+          "aiNavigation": { "type": "object" }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "description": "Shared component files with metadata.",
+      "items": {
+        "type": "object",
+        "required": ["path", "components", "exports", "imports", "lines", "riskLevel", "ownerModule", "businessCriticality", "changeFrequency", "workflowReference", "riskMetadata", "aiNavigation"],
+        "properties": {
+          "path": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "imports": { "type": "array", "items": { "type": "string" } },
+          "lines": { "type": "integer" },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+          "ownerModule": { "type": "string" },
+          "businessCriticality": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+          "changeFrequency": { "type": "string", "enum": ["Frequently Modified", "Occasionally Modified", "Stable"] },
+          "workflowReference": { "type": "string" },
+          "riskMetadata": { "type": "object" },
+          "aiNavigation": { "type": "object" }
+        }
+      }
+    },
+    "contexts": {
+      "type": "array",
+      "description": "React contexts used in the renderer.",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "consumers"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "consumers": { "type": ["string", "array"] }
+        }
+      }
+    },
+    "dialogs": {
+      "type": "array",
+      "description": "Shared dialog components.",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "consumers"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "consumers": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "print": {
+      "type": "object",
+      "description": "Print template system structure.",
+      "required": ["host", "config", "utils", "templates"],
+      "properties": {
+        "host": { "type": "string" },
+        "config": { "type": "string" },
+        "utils": { "type": "string" },
+        "templates": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Core external dependencies used by the renderer.",
+      "required": ["apiClient", "database", "preload", "electron"],
+      "properties": {
+        "apiClient": { "type": "string" },
+        "database": { "type": "string" },
+        "preload": { "type": "string" },
+        "electron": { "type": "string" }
+      }
+    },
+    "ipcReferences": {
+      "type": "array",
+      "description": "IPC channels referenced by the renderer.",
+      "items": { "type": "string" }
+    },
+    "risk": {
+      "type": "object",
+      "description": "Risk assessment for the renderer source tree.",
+      "required": ["highRiskCount", "highRiskPaths", "complexityScore", "suggestedExtractionOrder"],
+      "properties": {
+        "highRiskCount": { "type": "integer" },
+        "highRiskPaths": { "type": "array", "items": { "type": "string" } },
+        "complexityScore": { "type": "integer" },
+        "suggestedExtractionOrder": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "intelligenceLayer": {
+      "type": "object",
+      "description": "Integration with BRAIN-1, KG-1, and future intelligence graphs.",
+      "required": ["brain", "kg"],
+      "properties": {
+        "brain": { "type": "object", "description": "BRAIN-1 ERP Knowledge Repository reference." },
+        "kg": { "type": "object", "description": "KG-1 Metadata Registry reference." }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Graph metadata including name, description, and generation context.",
+      "required": ["name", "version", "description", "totalLines", "totalImports"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "totalLines": { "type": "integer" },
+        "totalImports": { "type": "integer" }
+      }
+    }
+  }
+}

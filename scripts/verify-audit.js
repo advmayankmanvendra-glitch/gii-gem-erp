@@ -54,12 +54,13 @@ const VALID_CATEGORIES = new Set([
 ]);
 
 /* ─── Results accumulator ─── */
-const results = { passed: 0, warnings: 0, failed: 0, critical: 0, details: [] };
+const results = { passed: 0, warnings: 0, failed: 0, critical: 0, info: 0, details: [] };
 
 function pass(msg) { results.passed++; results.details.push({ level: "PASS", msg }); console.log(`  PASS: ${msg}`); }
 function warn(msg) { results.warnings++; results.details.push({ level: "WARN", msg }); console.log(`  WARN: ${msg}`); }
 function fail(msg) { results.failed++; results.details.push({ level: "FAIL", msg }); console.log(`  FAIL: ${msg}`); }
 function critical(msg) { results.critical++; results.details.push({ level: "CRITICAL", msg }); console.log(`  CRITICAL: ${msg}`); }
+function info(msg) { results.info++; results.details.push({ level: "INFO", msg }); console.log(`  INFO: ${msg}`); }
 
 function shouldRun(phase) {
   return !REQUESTED_PHASE || REQUESTED_PHASE === phase;
@@ -100,8 +101,11 @@ function resolvedCategory() {
 function findPhaseReportFiles(phaseId) {
   if (!existsSync(REPORTS_DIR)) return [];
   const files = readdirSync(REPORTS_DIR).filter((f) => f.endsWith(".md"));
-  const id = phaseId.toLowerCase().replace(/[^a-z0-9-]/g, "");
-  return files.filter((f) => f.toLowerCase().includes(id));
+  const searchIds = [
+    phaseId.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+    phaseId.toLowerCase().replace(/[^a-z0-9]/g, ""), // without dashes
+  ];
+  return [...new Set(searchIds.flatMap((id) => files.filter((f) => f.toLowerCase().includes(id))))];
 }
 
 const SECTION_CHECKS = [
@@ -319,67 +323,130 @@ async function auditRg1() {
   console.log("\n=== RG-1 Audit Pack ===");
 
   const graphPath = "src/renderer/knowledge/renderer-graph.json";
-  const graphExists = existsSync(resolve(ROOT, graphPath));
+  const graphMdPath = "src/renderer/knowledge/renderer-graph.md";
+  const graphSummaryPath = "src/renderer/knowledge/renderer-summary.md";
 
-  if (!graphExists) {
-    warn("RG-1: Renderer graph not yet generated (Phase 17L planned)");
-    console.log("\nRG-1: Skipping detailed checks — graph not present");
-    return;
-  }
+  // Check all three RG-1 deliverables exist
+  const jsonExists = existsSync(resolve(ROOT, graphPath));
+  const mdExists = existsSync(resolve(ROOT, graphMdPath));
+  const summaryExists = existsSync(resolve(ROOT, graphSummaryPath));
+
+  if (!jsonExists) { fail("RG-1: renderer-graph.json not found"); return; }
+  pass("RG-1: renderer-graph.json exists");
+
+  if (!mdExists) { fail("RG-1: renderer-graph.md not found"); return; }
+  pass("RG-1: renderer-graph.md exists");
+
+  if (!summaryExists) { fail("RG-1: renderer-summary.md not found"); return; }
+  pass("RG-1: renderer-summary.md exists");
 
   const graph = loadJSON(graphPath);
-  if (!graph) { fail("RG-1: Renderer graph file is invalid JSON"); return; }
-  pass("RG-1: Renderer graph exists and is valid JSON");
+  if (!graph) { fail("RG-1: renderer-graph.json is invalid JSON"); return; }
+  pass("RG-1: renderer-graph.json is valid JSON");
 
-  // App.jsx dependency count
-  if (graph.appJsxDependencies) {
-    pass(`RG-1: App.jsx has ${graph.appJsxDependencies.length} direct dependencies`);
-  } else {
-    warn("RG-1: appJsxDependencies not mapped in graph");
+  // Schema Contract (v1.0.0)
+  if (graph.schemaVersion === "1.0.0") pass("RG-1: Schema version 1.0.0 frozen");
+  else fail(`RG-1: Unexpected schemaVersion: ${graph.schemaVersion}`);
+  if (graph.graphId === "RG-1") pass("RG-1: graphId verified");
+  else fail(`RG-1: Unexpected graphId: ${graph.graphId}`);
+  if (graph.generatedAt) pass("RG-1: Generation timestamp present");
+  if (graph.sourceRoot) pass(`RG-1: Source root: ${graph.sourceRoot}`);
+  if (graph.filesScanned && graph.filesScanned > 0) pass(`RG-1: ${graph.filesScanned} files scanned`);
+  else warn("RG-1: filesScanned not reported");
+
+  // Schema-mandated top-level fields
+  if (graph.dependencies) pass("RG-1: Dependencies section present");
+  if (graph.ipcReferences && Array.isArray(graph.ipcReferences)) pass(`RG-1: ${graph.ipcReferences.length} IPC references documented`);
+  if (graph.risk) pass("RG-1: Risk assessment section present");
+  if (graph.intelligenceLayer) pass("RG-1: Intelligence layer section present");
+  if (graph.metadata) pass("RG-1: Metadata section present");
+
+  // Backward-compatible meta (kept for legacy consumers)
+  if (graph.meta && graph.meta.graphId === "RG-1") pass("RG-1: Legacy meta.graphId present");
+  if (graph.meta && graph.meta.version) pass(`RG-1: Graph version: ${graph.meta.version}`);
+
+  // Statistics
+  if (graph.statistics) {
+    pass(`RG-1: ${graph.statistics.totalRoutes} routes mapped`);
+    pass(`RG-1: ${graph.statistics.totalScreens || graph.screens.length} screens mapped`);
+    pass(`RG-1: ${graph.statistics.totalComponents || graph.components.length} components mapped`);
+    if (graph.statistics.circularImports === 0) pass("RG-1: No circular imports detected");
+    else if (graph.statistics.circularImports > 0) for (const c of graph.statistics.circularImportDetails || []) warn(`RG-1: Circular import: ${c.a} ↔ ${c.b}`);
+    if (graph.statistics.complexityScore) pass(`RG-1: Complexity score: ${graph.statistics.complexityScore}`);
+    /* Enhancement 8: Expanded statistics checks */
+    if (graph.statistics.filesByCriticality) pass("RG-1: Business criticality distribution documented");
+    if (graph.statistics.filesByOwner) pass("RG-1: Component ownership distribution documented");
+    if (graph.statistics.filesByChangeFrequency) pass("RG-1: Change frequency distribution documented");
+    if (graph.statistics.avgImportsPerScreen) pass(`RG-1: Avg imports per screen: ${graph.statistics.avgImportsPerScreen}`);
+    if (graph.statistics.architectureDensity) pass(`RG-1: Architecture density: ${graph.statistics.architectureDensity} imports/file`);
+    if (graph.statistics.largestComponent && graph.statistics.largestComponent.path) pass(`RG-1: Largest component: ${graph.statistics.largestComponent.path} (${graph.statistics.largestComponent.lines} lines)`);
+    if (graph.statistics.largestScreen && graph.statistics.largestScreen.path) pass(`RG-1: Largest screen: ${graph.statistics.largestScreen.path} (${graph.statistics.largestScreen.lines} lines)`);
   }
 
-  // Screen/component/module map
-  if (graph.screens) pass(`RG-1: ${graph.screens.length} screens mapped`);
-  else warn("RG-1: No screen mapping in graph");
-  if (graph.components) pass(`RG-1: ${graph.components.length} component directories mapped`);
-  if (graph.modules) pass(`RG-1: ${graph.modules.length} module directories mapped`);
+  // Screens, components, features
+  if (graph.screens && graph.screens.length > 0) pass(`RG-1: ${graph.screens.length} screen entries documented`);
+  else warn("RG-1: No screen entries in graph");
+  if (graph.components && graph.components.length > 0) pass(`RG-1: ${graph.components.length} component entries documented`);
+  if (graph.features && graph.features.length > 0) pass(`RG-1: ${graph.features.length} feature entries documented`);
 
-  // Circular imports
-  if (graph.circularImports && graph.circularImports.length > 0) {
-    for (const c of graph.circularImports) {
-      warn(`RG-1: Circular import detected: ${c}`);
+  /* Enhancement 1-6: Verify metadata on screen nodes */
+  if (graph.screens && graph.screens.length > 0) {
+    const s = graph.screens[0];
+    if (s.ownerModule) pass("RG-1: Screen nodes include ownerModule");
+    else warn("RG-1: Screen nodes missing ownerModule");
+    if (s.businessCriticality) pass("RG-1: Screen nodes include businessCriticality");
+    else warn("RG-1: Screen nodes missing businessCriticality");
+    if (s.changeFrequency) pass("RG-1: Screen nodes include changeFrequency");
+    else warn("RG-1: Screen nodes missing changeFrequency");
+    if (s.workflowReference) pass("RG-1: Screen nodes include workflowReference");
+    else warn("RG-1: Screen nodes missing workflowReference");
+    if (s.riskMetadata) pass("RG-1: Screen nodes include riskMetadata (reason, futurePhase, extractionCandidate)");
+    if (s.aiNavigation) pass("RG-1: Screen nodes include aiNavigation (entryPoint, relatedScreens, etc.)");
+  }
+
+  // Contexts, dialogs, print
+  if (graph.contexts && graph.contexts.length > 0) pass(`RG-1: ${graph.contexts.length} contexts documented`);
+  else warn("RG-1: No contexts documented");
+  if (graph.dialogs && graph.dialogs.length > 0) pass(`RG-1: ${graph.dialogs.length} dialogs documented`);
+  if (graph.print && graph.print.host) pass("RG-1: Print system documented");
+
+  // Knowledge integration
+  if (graph.intelligenceLayer && graph.intelligenceLayer.brain && graph.intelligenceLayer.kg) pass("RG-1: BRAIN-1 and KG-1 references in intelligenceLayer");
+  else if (graph.knowledge && graph.knowledge.brain && graph.knowledge.kg) pass("RG-1: BRAIN-1 and KG-1 references in legacy knowledge");
+  else warn("RG-1: Knowledge layer references missing");
+
+  // External dependencies
+  if (graph.externalDependencies) pass("RG-1: External dependencies (IPC, database, preload) documented");
+
+  // Risk assessment
+  if (graph.riskAssessment) {
+    pass(`RG-1: Risk assessment present (${graph.riskAssessment.highRiskCount} high-risk files)`);
+    if (graph.riskAssessment.suggestedExtractionOrder && graph.riskAssessment.suggestedExtractionOrder.length > 0) pass(`RG-1: ${graph.riskAssessment.suggestedExtractionOrder.length} extraction priorities documented`);
+    if (graph.riskAssessment.highRiskPaths && graph.riskAssessment.highRiskPaths.length > 0) {
+      for (const f of graph.riskAssessment.highRiskPaths) warn(`RG-1: High-risk file: ${f}`);
     }
-  } else {
-    pass("RG-1: No circular imports detected");
   }
 
-  // Large files
-  if (graph.largeFiles) {
-    for (const f of graph.largeFiles) {
-      warn(`RG-1: Large file: ${f.path} (${f.lines} lines)`);
-    }
+  /* Enhancement 7: Dependency Heat Map */
+  if (graph.heatMap) {
+    pass("RG-1: Dependency heat map present");
+    if (graph.heatMap.mostCritical && graph.heatMap.mostCritical.length > 0) pass(`RG-1: ${graph.heatMap.mostCritical.length} critical files identified`);
+    if (graph.heatMap.mostSharedComponents && graph.heatMap.mostSharedComponents.length > 0) pass(`RG-1: ${graph.heatMap.mostSharedComponents.length} most shared components identified`);
+    if (graph.heatMap.highestFanOut) pass(`RG-1: Fan-out analysis present`);
+    if (graph.heatMap.highestFanIn) pass(`RG-1: Fan-in analysis present`);
   }
 
-  // Direct renderer → main/database imports
-  if (graph.directDbImports && graph.directDbImports.length > 0) {
-    for (const d of graph.directDbImports) {
-      critical(`RG-1: Direct renderer→database import: ${d}`);
-    }
-  } else {
-    pass("RG-1: No direct renderer→database imports");
+  /* Enhancement 11: Evolution Map */
+  if (graph.evolution) {
+    pass("RG-1: Renderer evolution map present");
+    if (graph.evolution.current) pass("RG-1: Current architecture stage documented");
+    if (graph.evolution.phase17) pass("RG-1: Phase 17 target documented");
+    if (graph.evolution.phase18) pass("RG-1: Phase 18 target documented");
   }
 
-  // Safe extraction candidates
-  if (graph.safeExtractionCandidates) {
-    pass(`RG-1: ${graph.safeExtractionCandidates.length} safe extraction candidates identified`);
-  }
-
-  // High-risk files
-  if (graph.highRiskFiles) {
-    for (const f of graph.highRiskFiles) {
-      warn(`RG-1: High-risk file: ${f}`);
-    }
-  }
+  // Edges
+  if (graph.edges && graph.edges.length > 0) pass(`RG-1: ${graph.edges.length} import edges captured`);
+  else warn("RG-1: No edges in graph");
 }
 
 /* ═══════════════════════════════════════════
@@ -389,7 +456,7 @@ async function auditDg1() {
   if (!shouldRun("dg-1")) return;
   console.log("\n=== DG-1 Audit Pack ===");
 
-  warn("DG-1: Database graph not yet implemented (future phase)");
+  info("DG-1: Database graph not yet implemented — planned future phase");
   console.log("DG-1: Expected source: src/main/database/init.js");
   console.log("DG-1: Expected output: TBD");
 }
@@ -401,7 +468,7 @@ async function auditWg1() {
   if (!shouldRun("wg-1")) return;
   console.log("\n=== WG-1 Audit Pack ===");
 
-  warn("WG-1: Workflow graph not yet implemented (future phase)");
+  info("WG-1: Workflow graph not yet implemented — planned future phase");
   console.log("WG-1: Expected source: erpBrain repository/workflows/ + BRAIN-1 workflow definitions");
   console.log("WG-1: Expected output: TBD");
 }
@@ -413,7 +480,7 @@ async function auditAg1() {
   if (!shouldRun("ag-1")) return;
   console.log("\n=== AG-1 Audit Pack ===");
 
-  warn("AG-1: Audit graph not yet implemented (future phase)");
+  info("AG-1: Audit graph not yet implemented — planned future phase");
   console.log("AG-1: Expected source: audit log system, KG-1 metadata");
   console.log("AG-1: Expected output: TBD");
 }
@@ -468,6 +535,7 @@ async function main() {
   console.log("\n============================================");
   console.log("Audit Summary:");
   console.log(`  PASS:     ${results.passed}`);
+  console.log(`  INFO:     ${results.info}`);
   console.log(`  WARNING:  ${results.warnings}`);
   console.log(`  FAIL:     ${results.failed}`);
   console.log(`  CRITICAL: ${results.critical}`);
