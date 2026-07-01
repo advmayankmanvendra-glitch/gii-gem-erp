@@ -486,6 +486,49 @@ async function auditAg1() {
 }
 
 /* ═══════════════════════════════════════════
+   23a. Enterprise Intelligence Layer Registry Check
+   ═══════════════════════════════════════════ */
+async function checkEnterpriseIntelligenceLayerRegistry() {
+  console.log("\n=== Enterprise Intelligence Layer Registry Check ===");
+  const registryPath = resolve(ROOT, "repository", "graph-registry.json");
+  if (existsSync(registryPath)) {
+    const registry = JSON.parse(readFileSync(registryPath, "utf-8"));
+    pass(`EIL: Graph registry found (v${registry.registryVersion})`);
+    if (registry.enterpriseIntelligenceLayer) pass(`EIL: Platform version ${registry.enterpriseIntelligenceLayer}`);
+    if (registry.compatibilityMatrix) pass(`EIL: Compatibility matrix present (${Object.keys(registry.compatibilityMatrix).length} graphs)`);
+    if (registry.graphs && Array.isArray(registry.graphs)) {
+      pass(`EIL: ${registry.graphs.length} graphs registered`);
+      const active = registry.graphs.filter((g) => g.status === "Active");
+      pass(`EIL: ${active.length} active graphs (${active.map((g) => g.graphId).join(", ")})`);
+      const planned = registry.graphs.filter((g) => g.status === "Planned");
+      if (planned.length) pass(`EIL: ${planned.length} planned graphs (${planned.map((g) => g.graphId).join(", ")})`);
+
+      for (const g of registry.graphs) {
+        if (g.status !== "Active") continue;
+        if (g.location !== "TBD") {
+          const loc = resolve(ROOT, g.location.replace(/\/[^/]*\.\w+$/, ""));
+          if (existsSync(loc)) pass(`EIL: ${g.graphId} source location exists`);
+          else warn(`EIL: ${g.graphId} location missing: ${loc}`);
+        }
+      }
+
+      const ids = new Set(registry.graphs.map((g) => g.graphId));
+      if (registry.dependencies) {
+        for (const [gid, info] of Object.entries(registry.dependencies)) {
+          if (info.dependsOn) {
+            for (const dep of info.dependsOn) {
+              if (!ids.has(dep) && dep !== "") warn(`EIL: ${gid} depends on unknown graph: ${dep}`);
+            }
+          }
+        }
+      }
+    }
+  } else {
+    warn("EIL: graph-registry.json not found");
+  }
+}
+
+/* ═══════════════════════════════════════════
    23. Unified Graph Registry Check
    ═══════════════════════════════════════════ */
 async function checkRegistry() {
@@ -518,6 +561,7 @@ async function main() {
   console.log("============================================\n");
 
   await checkRegistry();
+  await checkEnterpriseIntelligenceLayerRegistry();
 
   // Run graph audit packs
   await auditBrain1();

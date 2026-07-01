@@ -1,0 +1,245 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:rg-1:schema:1.0.0",
+  "schemaVersion": "1.0.0",
+  "graphId": "RG-1",
+  "title": "RG-1 Renderer Dependency Graph Schema",
+  "description": "Versioned JSON Schema for the RG-1 Renderer Dependency Graph. Frozen at schemaVersion 1.0.0. Part of the Enterprise Intelligence Layer.",
+  "type": "object",
+  "required": [
+    "schemaVersion", "graphId", "generatedAt", "owner", "description",
+    "dependencies", "relationships", "risk", "metadata", "statistics",
+    "compatibility", "futureExtensions",
+    "sourceRoot", "filesScanned", "routes", "screens", "components",
+    "contexts", "dialogs", "print", "ipcReferences", "intelligenceLayer"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the RG-1 schema.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier.",
+      "enum": ["RG-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of graph generation."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owning team or module."
+    },
+    "description": {
+      "type": "string",
+      "description": "Purpose of this graph."
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Core external dependencies used by the renderer.",
+      "required": ["apiClient", "database", "preload", "electron"],
+      "properties": {
+        "apiClient": { "type": "string" },
+        "database": { "type": "string" },
+        "preload": { "type": "string" },
+        "electron": { "type": "string" }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "Cross-graph relationships.",
+      "properties": {
+        "referencesBRAIN1": { "type": "boolean" },
+        "referencesKG1": { "type": "boolean" },
+        "dependedByDG1": { "type": "boolean" },
+        "dependedByWG1": { "type": "boolean" },
+        "dependedByAG1": { "type": "boolean" }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "description": "Risk assessment for the renderer source tree.",
+      "required": ["highRiskCount", "highRiskPaths", "complexityScore", "suggestedExtractionOrder"],
+      "properties": {
+        "highRiskCount": { "type": "integer" },
+        "highRiskPaths": { "type": "array", "items": { "type": "string" } },
+        "complexityScore": { "type": "integer" },
+        "suggestedExtractionOrder": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Graph metadata including name, description, and generation context.",
+      "required": ["name", "version", "description", "totalLines", "totalImports"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "totalLines": { "type": "integer" },
+        "totalImports": { "type": "integer" }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Aggregate statistics about the renderer source tree.",
+      "required": [
+        "filesByCategory", "filesByRisk", "filesByCriticality", "filesByOwner", "filesByChangeFrequency",
+        "avgImportsPerScreen", "avgComponentReuse", "largestComponent", "largestScreen",
+        "layerCount", "architectureDensity", "mostConnected", "mostDepended", "highRiskFiles",
+        "totalRoutes", "totalScreens", "totalComponents", "totalFeatures", "totalModules", "totalConfigFiles",
+        "circularImports", "circularImportDetails", "approximateTokenSavings"
+      ],
+      "properties": {
+        "filesByCategory": { "type": "object" },
+        "filesByRisk": { "type": "object" },
+        "filesByCriticality": { "type": "object" },
+        "filesByOwner": { "type": "object" },
+        "filesByChangeFrequency": { "type": "object" },
+        "avgImportsPerScreen": { "type": "number" },
+        "avgComponentReuse": { "type": "number" },
+        "largestComponent": { "type": "object" },
+        "largestScreen": { "type": "object" },
+        "layerCount": { "type": "integer" },
+        "architectureDensity": { "type": "number" },
+        "mostConnected": { "type": "array" },
+        "mostDepended": { "type": "array" },
+        "highRiskFiles": { "type": "array" },
+        "totalRoutes": { "type": "integer" },
+        "totalScreens": { "type": "integer" },
+        "totalComponents": { "type": "integer" },
+        "totalFeatures": { "type": "integer" },
+        "totalModules": { "type": "integer" },
+        "totalConfigFiles": { "type": "integer" },
+        "circularImports": { "type": "integer" },
+        "circularImportDetails": { "type": "array" },
+        "approximateTokenSavings": { "type": "string" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility and versioning policy.",
+      "properties": {
+        "schemaVersion": { "type": "string" },
+        "backwardCompatible": { "type": "boolean" },
+        "allowedChanges": { "type": "array", "items": { "type": "string" } },
+        "breakingChanges": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "futureExtensions": {
+      "type": "object",
+      "description": "Planned future additions.",
+      "properties": {
+        "nextVersion": { "type": "string" },
+        "plannedAdditions": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "sourceRoot": { "type": "string" },
+    "filesScanned": { "type": "integer", "minimum": 0 },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "category", "workflowReference", "screen"],
+        "properties": {
+          "key": { "type": "string" },
+          "category": { "type": "string" },
+          "workflowReference": { "type": "string" },
+          "screen": { "type": "string" }
+        }
+      }
+    },
+    "screens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "components", "exports", "imports", "lines", "riskLevel", "ownerModule", "businessCriticality", "changeFrequency", "workflowReference", "riskMetadata", "aiNavigation"],
+        "properties": {
+          "path": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "imports": { "type": "array", "items": { "type": "string" } },
+          "lines": { "type": "integer" },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+          "ownerModule": { "type": "string" },
+          "businessCriticality": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+          "changeFrequency": { "type": "string", "enum": ["Frequently Modified", "Occasionally Modified", "Stable"] },
+          "workflowReference": { "type": "string" },
+          "riskMetadata": { "type": "object" },
+          "aiNavigation": { "type": "object" }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "components", "exports", "imports", "lines", "riskLevel", "ownerModule", "businessCriticality", "changeFrequency", "workflowReference", "riskMetadata", "aiNavigation"],
+        "properties": {
+          "path": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } },
+          "exports": { "type": "array", "items": { "type": "string" } },
+          "imports": { "type": "array", "items": { "type": "string" } },
+          "lines": { "type": "integer" },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+          "ownerModule": { "type": "string" },
+          "businessCriticality": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+          "changeFrequency": { "type": "string", "enum": ["Frequently Modified", "Occasionally Modified", "Stable"] },
+          "workflowReference": { "type": "string" },
+          "riskMetadata": { "type": "object" },
+          "aiNavigation": { "type": "object" }
+        }
+      }
+    },
+    "contexts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "consumers"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "consumers": { "type": ["string", "array"] }
+        }
+      }
+    },
+    "dialogs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "consumers"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "consumers": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "print": {
+      "type": "object",
+      "required": ["host", "config", "utils", "templates"],
+      "properties": {
+        "host": { "type": "string" },
+        "config": { "type": "string" },
+        "utils": { "type": "string" },
+        "templates": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ipcReferences": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "intelligenceLayer": {
+      "type": "object",
+      "description": "Integration with BRAIN-1, KG-1, and future intelligence graphs.",
+      "required": ["brain", "kg"],
+      "properties": {
+        "brain": { "type": "object" },
+        "kg": { "type": "object" }
+      }
+    }
+  }
+}

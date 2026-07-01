@@ -467,3 +467,49 @@ Before final response, confirm:
 - [ ] production readiness classification recorded
 - [ ] production readiness gate result recorded
 - [ ] safe to lock stated clearly
+- [ ] Enterprise Intelligence Layer referenced where applicable
+- [ ] graph-registry.json updated if graph structure changed
+- [ ] relevant graph schemas remain backward compatible
+
+## 25. Enterprise Intelligence Layer Governance
+
+The Enterprise Intelligence Layer is a controlled architectural asset defined in `docs/architecture/enterprise-intelligence-layer.md`.
+
+### 25.1 Definition
+
+The Enterprise Intelligence Layer consists of all structured knowledge graphs (BRAIN-1, KG-1, RG-1, DG-1, WG-1, AG-1) and is documented in `repository/graph-registry.json`.
+
+### 25.2 AI Consumption Rules
+
+Future AI tools shall:
+
+1. Read `repository/graph-registry.json` first to discover available graphs.
+2. Determine which graph(s) are required for the current task.
+3. Load only required graph(s) — avoid loading all graphs when one suffices.
+4. Avoid repository-wide source scans whenever graph data is sufficient.
+
+### 25.3 Schema Changes Require Governance Approval
+
+- No graph schema may change without version increment.
+- Breaking changes (remove/rename required fields, change semantics) require Major version increment and full review.
+- Additive changes (new optional fields, new enums) are allowed in minor versions.
+- The `compatibility` section of each schema documents allowed vs. breaking changes.
+
+### 25.4 Every Future Graph Must
+
+1. Register itself in `repository/graph-registry.json`
+2. Declare dependencies on existing graphs
+3. Declare compatibility with existing graph schemas
+4. Provide a validation audit pack in `scripts/verify-audit.js`
+5. Provide regeneration instructions in its schema documentation
+6. Follow the Enterprise Intelligence Layer schema contract (include all required top-level fields: `schemaVersion`, `graphId`, `generatedAt`, `owner`, `description`, `dependencies`, `relationships`, `risk`, `metadata`, `statistics`, `compatibility`, `futureExtensions`)
+
+### 25.5 Phase Requirements
+
+Every implementation phase must:
+
+1. Load the graph registry to understand current architecture state.
+2. Load relevant graphs for navigation and analysis before modifying any source code.
+3. Reference the Enterprise Intelligence Layer in the phase report.
+4. Update affected graphs if the phase changes any architecture element.
+5. Verify all active graphs pass their audit packs after the phase.

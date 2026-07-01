@@ -1,6 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:gii-gem-erp:rg-1:schema:1.0.0",
+  "schemaVersion": "1.0.0",
+  "graphId": "RG-1",
   "title": "RG-1 Renderer Dependency Graph Schema",
   "description": "Versioned JSON Schema for the RG-1 Renderer Dependency Graph. Frozen at schemaVersion 1.0.0.",
   "type": "object",

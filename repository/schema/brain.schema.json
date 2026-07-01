@@ -1,0 +1,310 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:brain-1:schema:1.0.0",
+  "title": "BRAIN-1 ERP Knowledge Repository Schema",
+  "description": "Versioned JSON Schema for the BRAIN-1 ERP Knowledge Repository. Frozen at schemaVersion 1.0.0.",
+  "type": "object",
+  "schemaVersion": "1.0.0",
+  "graphId": "BRAIN-1",
+  "required": [
+    "schemaVersion", "graphId", "generatedAt", "owner", "description",
+    "dependencies", "relationships", "risk", "metadata", "statistics",
+    "compatibility", "futureExtensions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the BRAIN-1 schema.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier.",
+      "enum": ["BRAIN-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owning team or module."
+    },
+    "description": {
+      "type": "string",
+      "description": "Purpose of this repository."
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Dependencies on other intelligence layers.",
+      "properties": {
+        "references": {
+          "type": "array",
+          "description": "List of graph IDs that BRAIN-1 depends on.",
+          "items": { "type": "string" }
+        },
+        "dependedBy": {
+          "type": "array",
+          "description": "List of graph IDs that depend on BRAIN-1.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "Internal cross-references between sub-repositories.",
+      "properties": {
+        "moduleToWorkflow": { "type": "array", "items": { "type": "string" } },
+        "moduleToReport": { "type": "array", "items": { "type": "string" } },
+        "moduleToScreen": { "type": "array", "items": { "type": "string" } },
+        "moduleToRule": { "type": "array", "items": { "type": "string" } },
+        "moduleToError": { "type": "array", "items": { "type": "string" } },
+        "screenToReport": { "type": "array", "items": { "type": "string" } },
+        "screenToWorkflow": { "type": "array", "items": { "type": "string" } },
+        "screenToRule": { "type": "array", "items": { "type": "string" } },
+        "screenToError": { "type": "array", "items": { "type": "string" } },
+        "ruleToRule": { "type": "array", "items": { "type": "string" } },
+        "reportToReport": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "description": "Risk metadata for the repository.",
+      "properties": {
+        "overallRiskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "highRiskEntries": { "type": "array", "items": { "type": "string" } },
+        "entryRiskDistribution": { "type": "object" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Repository metadata.",
+      "required": ["name", "version", "lastUpdated", "totalEntries", "subRepositories"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "totalEntries": { "type": "integer" },
+        "subRepositories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "entryCount": { "type": "integer" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Aggregate statistics for the repository.",
+      "properties": {
+        "entriesByCategory": { "type": "object" },
+        "entriesByModule": { "type": "object" },
+        "entriesByPriority": { "type": "object" },
+        "entriesBySeverity": { "type": "object" },
+        "totalCrossReferences": { "type": "integer" },
+        "orphanEntries": { "type": "integer" },
+        "orphanDetails": { "type": "array" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility and versioning policy.",
+      "properties": {
+        "schemaVersion": { "type": "string" },
+        "backwardCompatible": { "type": "boolean" },
+        "allowedChanges": { "type": "array", "items": { "type": "string" } },
+        "breakingChanges": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "futureExtensions": {
+      "type": "object",
+      "description": "Planned future additions.",
+      "properties": {
+        "nextVersion": { "type": "string" },
+        "plannedAdditions": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "subRepositories": {
+      "type": "object",
+      "description": "Individual sub-repository schemas.",
+      "properties": {
+        "modules": {
+          "type": "object",
+          "description": "Module definitions.",
+          "required": ["id", "name", "purpose", "relatedModules"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^MOD-\\d{3}$" },
+            "name": { "type": "string" },
+            "purpose": { "type": "string" },
+            "prerequisites": { "type": "array", "items": { "type": "string" } },
+            "inputs": { "type": "array", "items": { "type": "string" } },
+            "outputs": { "type": "array", "items": { "type": "string" } },
+            "creates": { "type": "array", "items": { "type": "string" } },
+            "updates": { "type": "array", "items": { "type": "string" } },
+            "relatedModules": { "type": "array", "items": { "type": "string" } },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "commonErrors": { "type": "array", "items": { "type": "string" } },
+            "faq": { "type": "array", "items": { "type": "string" } },
+            "examples": { "type": "array", "items": { "type": "string" } },
+            "businessRules": { "type": "array", "items": { "type": "string" } },
+            "navigation": { "type": "string" },
+            "permissions": { "type": "array", "items": { "type": "string" } },
+            "references": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "workflows": {
+          "type": "object",
+          "required": ["id", "name", "purpose", "steps"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "purpose": { "type": "string" },
+            "prerequisites": { "type": "array", "items": { "type": "string" } },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sequence", "id", "name", "description", "actor"],
+                "properties": {
+                  "sequence": { "type": "integer" },
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "type": { "type": "string" },
+                  "description": { "type": "string" },
+                  "actor": { "type": "string" },
+                  "duration": { "type": "string" },
+                  "validationRules": { "type": "array", "items": { "type": "string" } },
+                  "compliance": { "type": "array", "items": { "type": "string" } },
+                  "outputDocuments": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "commonMistakes": { "type": "array", "items": { "type": "string" } },
+            "businessRules": { "type": "array", "items": { "type": "string" } },
+            "modules": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "reports": {
+          "type": "object",
+          "required": ["id", "name", "purpose", "module"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "purpose": { "type": "string" },
+            "inputs": { "type": "array", "items": { "type": "string" } },
+            "outputs": { "type": "array", "items": { "type": "string" } },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "usedBy": { "type": "array", "items": { "type": "string" } },
+            "typicalUsers": { "type": "array", "items": { "type": "string" } },
+            "commonQuestions": { "type": "array", "items": { "type": "string" } },
+            "drilldownTargets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "viewKey": { "type": "string" }
+                }
+              }
+            },
+            "relatedKPIs": { "type": "array", "items": { "type": "string" } },
+            "module": { "type": "string" },
+            "navigation": { "type": "string" }
+          }
+        },
+        "screens": {
+          "type": "object",
+          "required": ["id", "name", "purpose", "module", "viewKey"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "purpose": { "type": "string" },
+            "fields": { "type": "array", "items": { "type": "string" } },
+            "buttons": { "type": "array", "items": { "type": "string" } },
+            "actions": { "type": "array", "items": { "type": "string" } },
+            "validation": { "type": "array", "items": { "type": "string" } },
+            "shortcuts": { "type": "array", "items": { "type": "string" } },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "relatedWorkflows": { "type": "array", "items": { "type": "string" } },
+            "relatedBusinessRules": { "type": "array", "items": { "type": "string" } },
+            "commonErrors": { "type": "array", "items": { "type": "string" } },
+            "module": { "type": "string" },
+            "navigationPath": { "type": "string" },
+            "viewKey": { "type": "string" }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "required": ["id", "name", "description", "priority", "category"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "condition": { "type": "string" },
+            "exceptions": { "type": "array", "items": { "type": "string" } },
+            "modules": { "type": "array", "items": { "type": "string" } },
+            "reports": { "type": "array", "items": { "type": "string" } },
+            "relatedRules": { "type": "array", "items": { "type": "string" } },
+            "workflowImpact": { "type": "string" },
+            "priority": { "type": "string", "enum": ["Critical", "High", "Medium", "Low"] },
+            "category": { "type": "string" }
+          }
+        },
+        "glossary": {
+          "type": "object",
+          "required": ["id", "term", "definition", "category"],
+          "properties": {
+            "id": { "type": "string" },
+            "term": { "type": "string" },
+            "definition": { "type": "string" },
+            "usedIn": { "type": "array", "items": { "type": "string" } },
+            "relatedModules": { "type": "array", "items": { "type": "string" } },
+            "examples": { "type": "array", "items": { "type": "string" } },
+            "aliases": { "type": "array", "items": { "type": "string" } },
+            "category": { "type": "string" }
+          }
+        },
+        "navigation": {
+          "type": "object",
+          "required": ["id", "name", "path", "viewKey"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "path": { "type": "array", "items": { "type": "string" } },
+            "purpose": { "type": "string" },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "relatedScreens": { "type": "array", "items": { "type": "string" } },
+            "permissions": { "type": "array", "items": { "type": "string" } },
+            "groupId": { "type": "string" },
+            "sectionId": { "type": "string" },
+            "viewKey": { "type": "string" },
+            "icon": { "type": "string" }
+          }
+        },
+        "errors": {
+          "type": "object",
+          "required": ["id", "error", "possibleCauses", "severity"],
+          "properties": {
+            "id": { "type": "string" },
+            "error": { "type": "string" },
+            "possibleCauses": { "type": "array", "items": { "type": "string" } },
+            "businessRules": { "type": "array", "items": { "type": "string" } },
+            "resolution": { "type": "array", "items": { "type": "string" } },
+            "relatedScreens": { "type": "array", "items": { "type": "string" } },
+            "relatedReports": { "type": "array", "items": { "type": "string" } },
+            "modules": { "type": "array", "items": { "type": "string" } },
+            "severity": { "type": "string", "enum": ["High", "Medium", "Low"] }
+          }
+        }
+      }
+    }
+  }
+}
