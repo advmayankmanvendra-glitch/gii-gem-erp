@@ -513,3 +513,42 @@ Every implementation phase must:
 3. Reference the Enterprise Intelligence Layer in the phase report.
 4. Update affected graphs if the phase changes any architecture element.
 5. Verify all active graphs pass their audit packs after the phase.
+
+## 26. Major Program Baseline Rule
+
+Every major architectural program must begin by establishing a named baseline.
+
+### 26.1 Programs Covered
+
+This rule applies to:
+
+- **Renderer Program** — any phase group that structurally modifies the renderer (CSS segmentation, presentation extraction, route registry, navigation, App.jsx reduction, dead code removal)
+- **Database Program** — DG-1 implementation or any schema-level database restructuring
+- **Workflow Program** — WG-1 implementation or workflow engine changes
+- **CRM Program** — any future CRM integration phase group
+- **AI Program** — any future AI integration phase group
+- **Mobile Program** — any future mobile platform phase group
+
+### 26.2 Baseline Requirements
+
+Before the first subphase of any major program begins, all three must be true:
+
+1. **Named baseline tag** — A git tag recording the exact state before any changes. Tag format: `<program-name>-baseline-<YYYY-MM-DD>`. Example: `renderer-baseline-2026-07-01`.
+
+2. **Clean verification run** — `npm run verify:erp` (or the applicable verification suite for the program) must pass cleanly against the baseline. The verification report is archived alongside the tag.
+
+3. **External backup** — A backup of the SQLite database and the full repository must exist outside the working directory before any changes begin. The backup location and timestamp are recorded in the phase report.
+
+### 26.3 Why
+
+A named baseline ensures that:
+
+- Every major program can be rolled back to its starting state if needed.
+- Verification regressions can be compared against a known-good reference.
+- Future auditors can identify exactly where a program began.
+- The program's end state can be measured against its start.
+- External backup protects against data loss during structural changes.
+
+### 26.4 Exception
+
+Minor subphases within an already-baselined program (e.g., 17C.2 after 17C.1 is complete) do not require a new baseline. The original program baseline remains valid until the program concludes.
