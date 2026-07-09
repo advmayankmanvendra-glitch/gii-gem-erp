@@ -901,3 +901,4 @@ Future AI shall explain accounting concepts using AIR before consulting ERP-spec
 | Date | Severity | Phase | Summary | File |
 |------|----------|-------|---------|------|
 | 2026-07-09 | MEDIUM | 6 (Database init.js Audit) | `init.js` is 9,277-line monolith — 40+ internal reports hidden, no section headers, no `//` comments. Safe to refactor only after `database-baseline` tag. | `reports/audit-database-init-architecture.md` |
+| 2026-07-09 | LOW | 7A (Extract Report Builders) | Extracted 43 internal report builders from `init.js` into `reportBuilders.js`. init.js reduced from 8,763 → 7,978 lines (−785). Baseline `database-baseline-2026-07-09` created. Restore tag `init-refactor-phase-7a-restore-2026-07-09`. | `reports/init-refactor-phase-7a-report-builders-extraction-report.md` |
