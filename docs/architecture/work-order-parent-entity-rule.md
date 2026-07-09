@@ -1,4 +1,4 @@
-# Work Order Parent Entity Rule
+# Permanent Architecture Rule 29 - Work Order / Supply Order Parent Entity Rule
 
 Date: 2026-07-09
 

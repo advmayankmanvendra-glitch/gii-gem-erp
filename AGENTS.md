@@ -755,3 +755,81 @@ Progress shall instead be measured by:
 - Production-ready programmes
 
 A completed programme is one that has been implemented, stabilized, certified and locked, not merely coded.
+
+## 28. GII Operational Chain of Command Governance Rule
+
+All current government supply modules must follow the approved operational lifecycle before future module changes are made.
+
+Approved core workflow:
+
+```text
+Lead / Tender
+  -> Query / Requirement
+  -> Quotation
+  -> Negotiation
+  -> Purchase Order / GeM Order
+  -> Work Order
+  -> Procurement Planning
+  -> Supplier Purchase Orders
+  -> Goods Receipt / GRN
+  -> Inventory Reservation
+  -> Delivery Challan
+  -> Installation
+  -> CRAC
+  -> Sales Invoice / GST Invoice
+  -> Department Receivable
+  -> Receipt
+  -> Order Closure
+  -> Profitability Analysis
+```
+
+This rule is defined in `docs/architecture/gii-operational-chain-of-command-rule.md`.
+
+No module may bypass the approved lifecycle without a documented exception.
+
+## 29. Work Order / Supply Order Parent Entity Rule
+
+For the current GII government supply lifecycle, Work Order / Supply Order is the parent operational entity.
+
+In current implementation terms:
+
+- Business parent concept: `WORK_ORDER`
+- Current code parent entity: `SUPPLY_ORDER`
+- Current table: `supply_orders`
+- Current line table: `order_items`
+- Current primary route: `supply_orders`
+
+Work Order / Supply Order is operational, not accounting.
+
+Work Order / Supply Order must not post ledger entries by itself.
+
+All downstream government supply modules must preserve traceability back to Work Order / Supply Order where applicable.
+
+This rule is defined in `docs/architecture/work-order-parent-entity-rule.md`.
+
+## 30. Workflow Governance Registry Rule
+
+Every workflow-bearing ERP domain must define or comply with a workflow registry entry.
+
+Each workflow must declare:
+
+- workflow_id
+- workflow_name
+- business_domain
+- parent_entity
+- lifecycle_stages
+- required_stage_order
+- optional_stages
+- allowed_skip_rules
+- accounting_start_stage
+- inventory_start_stage
+- GST_start_stage
+- closure_stage
+- reporting_stage
+- future_extension_notes
+
+The current registered workflow is `GOVERNMENT_SUPPLY_LIFECYCLE`.
+
+The registry must remain future-proof for Payroll, AMC / Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing and Internal Expense lifecycles.
+
+This rule is defined in `docs/architecture/workflow-governance-registry.md`.

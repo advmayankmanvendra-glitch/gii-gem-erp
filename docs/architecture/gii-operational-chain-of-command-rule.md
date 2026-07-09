@@ -1,4 +1,4 @@
-# GII Operational Chain Of Command Governance Rule
+# Permanent Architecture Rule 28 - GII Operational Chain Of Command Governance Rule
 
 Date: 2026-07-09
 

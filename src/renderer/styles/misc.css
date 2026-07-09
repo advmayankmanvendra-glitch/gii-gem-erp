@@ -953,6 +953,11 @@
   border-color: #f2d4a7;
 }
 
+.voucher-selector-section.origination-section {
+  background: #f4fbf6;
+  border-color: #b9dfc3;
+}
+
 .voucher-section-head {
   display: flex;
   align-items: flex-start;
@@ -984,6 +989,37 @@
 .accounting-voucher-grid .accounting-voucher-btn:hover {
   border-color: var(--accent);
   background: #fff6e6;
+}
+
+.origination-voucher-grid button {
+  border-color: #86c49a;
+  background: #fff;
+  font-weight: 900;
+}
+
+.origination-voucher-grid button:hover {
+  border-color: #2f8f50;
+  background: #eef9f1;
+}
+
+.voucher-flow-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.voucher-flow-path span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voucher-flow-path span:not(:last-child)::after {
+  content: ">";
+  color: #6f8796;
 }
 
 .voucher-intelligence-panel {

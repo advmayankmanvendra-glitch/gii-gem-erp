@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EmptyState, MetricRows } from "../common.jsx";
 import { Field, MetricLine, SelectBox } from "../forms/index.jsx";
-import { formatCurrency } from "../../utils/formatters.js";
+import { formatCurrency, formatNumber } from "../../utils/formatters.js";
 
 export function PhasePanel({ title, note }) {
   return (
@@ -51,13 +51,14 @@ export function SupplyOrderFieldSection({ title, note, hasError = false, childre
   );
 }
 
-export function SupplyOrderSummaryCard({ totals, form }) {
+export function SupplyOrderSummaryCard({ totals, form, orderItems, references }) {
+  const hasItems = orderItems?.some((line) => ["item_id", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "quoted_rate", "gst_rate", "required_delivery_date", "remarks"].some((key) => String(line[key] ?? "").trim()));
   return (
     <section className="supply-order-summary-card">
       <div className="section-header">
         <div>
           <h2>Order Summary</h2>
-          <span>Item details captured</span>
+          <span>{hasItems ? "Item details captured" : "Item details pending"}</span>
         </div>
       </div>
       <div className="summary-card-grid">
@@ -247,9 +248,4 @@ export function VoucherProposalTable({ rows, selectedId, onSelect, reportOnly = 
       </table>
     </div>
   );
-}
-
-function formatNumber(value) {
-  const number = Number(value || 0);
-  return Number.isInteger(number) ? String(number) : number.toFixed(2);
 }

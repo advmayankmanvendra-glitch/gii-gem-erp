@@ -1,4 +1,4 @@
-# Workflow Governance Registry
+# Permanent Architecture Rule 30 - Workflow Governance Registry Rule
 
 Date: 2026-07-09
 

@@ -1,0 +1,97 @@
+flowchart TD
+  subgraph "Master Data Layer"
+    Company["Company"]
+    FY["Financial Year"]
+    Department["Department / Customer"]
+    Supplier["Supplier"]
+    Item["Item"]
+    Ledger["Ledger / Chart of Accounts"]
+    GST["GST / HSN / TDS Metadata"]
+    Warehouse["Warehouse"]
+    Bank["Bank / Cash"]
+  end
+
+  subgraph "Origination Layer"
+    WO["Work Order / Supply Order"]
+  end
+
+  subgraph "Operations Layer"
+    PR["Procurement Requirement"]
+    PP["Procurement / Purchase"]
+    SI["Stock Inward / GRN"]
+    SO["Delivery / Stock Outward"]
+    INV["Sales Invoice / Billing"]
+  end
+
+  subgraph "Accounting Posting Layer"
+    VH["Voucher Header"]
+    VL["Voucher Lines"]
+    LE["Ledger Entries"]
+    CBL["Cash Bank Ledger"]
+    AR["Receivables"]
+    AP["Payables"]
+  end
+
+  subgraph "Statutory Layer"
+    GI["GST Input"]
+    GO["GST Output"]
+    TDS["TDS / GST TDS"]
+  end
+
+  subgraph "Reporting Layer"
+    Party["Party Ledger"]
+    Stock["Stock Summary"]
+    GSTSummary["GST Summary"]
+    TDSSummary["TDS Summary"]
+    TB["Trial Balance"]
+    PL["Profit and Loss"]
+    BS["Balance Sheet"]
+    Dash["Dashboard"]
+  end
+
+  subgraph "Control Layer"
+    Approval["Approval"]
+    FYLock["Financial Year Lock"]
+    Audit["Audit Log"]
+    Reversal["Reversal"]
+    Reset["Reset Consistency"]
+    Backup["Backup"]
+  end
+
+  Company --> WO
+  FY --> WO
+  Department --> WO
+  Item --> WO
+  GST --> WO
+  Warehouse --> PR
+  Supplier --> PP
+  Ledger --> VH
+  Bank --> CBL
+
+  WO --> PR --> PP --> SI --> AP --> VH
+  PP --> GI
+  AP --> CBL
+  WO --> SO --> INV --> AR --> VH
+  INV --> GO
+  AR --> CBL
+  AR --> TDS
+  VH --> VL --> LE
+  LE --> Party
+  LE --> TB --> PL --> BS
+  SI --> Stock
+  SO --> Stock
+  GI --> GSTSummary
+  GO --> GSTSummary
+  TDS --> TDSSummary
+  Party --> Dash
+  Stock --> Dash
+  GSTSummary --> Dash
+  TB --> Dash
+
+  Approval --> VH
+  FYLock --> VH
+  VH --> Reversal
+  WO --> Audit
+  VH --> Audit
+  Reset --> Audit
+  Backup --> Audit
