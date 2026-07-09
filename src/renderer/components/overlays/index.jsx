@@ -194,6 +194,8 @@ export function ConfirmDialog({ dialog, onResolve }) {
   );
 }
 
+export { QuickCreateMasterDialog, quickCreateRecords } from "./QuickCreateMasterDialog.jsx";
+
 export function GlobalSearchOverlay({ query, setQuery, results, onNavigate, onClose }) {
   const firstResult = results.find((group) => group.items.length)?.items[0];
   useEffect(() => {

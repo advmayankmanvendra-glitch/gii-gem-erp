@@ -121,6 +121,8 @@ import {
 } from "./services/cracService.js";
 import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
+import { assertDeleteSafe, assertBulkDeleteSafe } from "./services/safeDeleteService.js";
+import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -775,7 +777,10 @@ function registerIpc() {
   ipcMain.handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
   ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
   ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
-  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => {
+    assertDeleteSafe(db, table, id);
+    return deleteRecord(db, table, id);
+  }));
   ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
 
   ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
@@ -1009,6 +1014,10 @@ function registerIpc() {
   ipcMain.handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
   ipcMain.handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
   ipcMain.handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
+
+  ipcMain.handle("feedback:submit", (_event, payload) => submitFeedback(db, payload));
+  ipcMain.handle("feedback:list", (_event, filters) => listFeedback(db, filters));
+  ipcMain.handle("feedback:export", (_event, format) => exportFeedback(db, format));
 }
 
 app.whenReady().then(() => {

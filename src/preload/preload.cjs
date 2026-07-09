@@ -154,7 +154,10 @@ const api = {
   getPaymentDelayedOrders: (filters) => ipcRenderer.invoke("crac:payment-delayed", filters),
   computeOrderClosure: (orderId) => ipcRenderer.invoke("crac:closure-compute", orderId),
   markOrderOperationallyClosed: (orderId) => ipcRenderer.invoke("crac:closure-mark", orderId),
-  getClosurePendingOrders: (filters) => ipcRenderer.invoke("crac:closure-pending", filters)
+  getClosurePendingOrders: (filters) => ipcRenderer.invoke("crac:closure-pending", filters),
+  submitFeedback: (payload) => ipcRenderer.invoke("feedback:submit", payload),
+  listFeedback: (filters) => ipcRenderer.invoke("feedback:list", filters),
+  exportFeedback: (format) => ipcRenderer.invoke("feedback:export", format)
 };
 
 contextBridge.exposeInMainWorld("giiGemErp", api);

@@ -6,6 +6,11 @@ export function formatCurrency(value) {
   }).format(value);
 }
 
+export function formatNumber(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(2);
+}
+
 function safeExportFileName(value, extension = "csv") {
   const base = String(value || "export")
     .trim()

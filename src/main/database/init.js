@@ -13,6 +13,7 @@ import {
   setRuntimeRoot,
   sourceProjectRoot
 } from "./connection.js";
+import { assertBulkDeleteSafe } from "../services/safeDeleteService.js";
 
 export {
   APP_FOLDERS,
@@ -2218,6 +2219,22 @@ function createAccountingTables(db) {
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS feedback_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER,
+      user_id INTEGER,
+      user_name TEXT,
+      category TEXT NOT NULL DEFAULT 'suggestion' CHECK(category IN ('suggestion','bug','question','improvement','other')),
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','acknowledged','resolved','closed')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TEXT,
+      resolution_notes TEXT,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 }
 
@@ -3074,7 +3091,7 @@ function masterRecordIsReferenced(db, table, id) {
     employees: [["supply_orders", "employee_id"]],
     government_departments: [["supply_orders", "department_id"], ["receivables", "department_id"], ["stock_outwards", "department_id"], ["stock_returns", "department_id"]],
     suppliers: [["procurements", "supplier_id"], ["supplier_payments", "supplier_id"], ["stock_inwards", "supplier_id"], ["stock_returns", "supplier_id"], ["batches", "supplier_id"]],
-    items: [["order_items", "item_id"], ["procurement_items", "item_id"], ["invoice_items", "item_id"], ["stock_inwards", "item_id"], ["stock_outwards", "item_id"], ["stock_adjustments", "item_id"], ["stock_returns", "item_id"], ["stock_ledger", "item_id"], ["serial_numbers", "item_id"], ["batches", "item_id"]],
+    items: [["order_items", "item_id"], ["procurement_items", "item_id"], ["invoice_items", "item_id"], ["stock_inwards", "item_id"], ["stock_outwards", "item_id"], ["stock_adjustments", "item_id"], ["stock_returns", "item_id"], ["stock_ledger", "item_id"], ["serial_numbers", "item_id"], ["batches", "item_id"], ["inventory_movements", "item_id"], ["stock_reservations", "item_id"], ["goods_receipt_items", "item_id"], ["delivery_challan_items", "item_id"], ["warehouse_transfers", "item_id"]],
     warehouses: [["stock_inwards", "warehouse_id"], ["stock_outwards", "warehouse_id"], ["stock_adjustments", "warehouse_id"], ["stock_returns", "warehouse_id"], ["stock_ledger", "warehouse_id"], ["serial_numbers", "warehouse_id"], ["batches", "warehouse_id"]],
     expense_heads: [["expense_entries", "expense_head_id"]],
     banks: [["payments", "bank_id"], ["supplier_payments", "bank_account_id"], ["expense_entries", "bank_account_id"], ["cash_bank_ledger", "bank_account_id"], ["bank_statement_imports", "bank_id"], ["bank_statement_entries", "bank_id"]]
@@ -4029,16 +4046,7 @@ export function deleteItemImportBatch(db, batchId) {
   const items = db.prepare("SELECT id, item_name FROM items WHERE import_batch_id = ?").all(batchId);
   if (!items.length) throw new Error("No items found for this import batch");
   const ids = items.map((item) => item.id);
-  const placeholders = ids.map(() => "?").join(",");
-  const usage = {
-    orderItems: db.prepare(`SELECT COUNT(*) count FROM order_items WHERE item_id IN (${placeholders}) AND COALESCE(is_deleted, 0) = 0`).get(...ids).count,
-    procurementItems: db.prepare(`SELECT COUNT(*) count FROM procurement_items WHERE item_id IN (${placeholders}) AND COALESCE(is_deleted, 0) = 0`).get(...ids).count,
-    invoiceItems: db.prepare(`SELECT COUNT(*) count FROM invoice_items WHERE item_id IN (${placeholders}) AND COALESCE(is_deleted, 0) = 0`).get(...ids).count
-  };
-  const used = usage.orderItems + usage.procurementItems + usage.invoiceItems;
-  if (used) {
-    throw new Error(`Cannot bulk delete: ${used} imported item reference(s) already exist in order/procurement/invoice lines`);
-  }
+  assertBulkDeleteSafe(db, "items", ids);
   const transaction = db.transaction(() => {
     const deleted = db.prepare("DELETE FROM items WHERE import_batch_id = ?").run(batchId).changes;
     db.prepare("UPDATE import_batches SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(batchId);
@@ -4059,6 +4067,30 @@ export function deleteUnusedImportedItems(db) {
     SELECT item_id FROM procurement_items WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
     UNION
     SELECT item_id FROM invoice_items WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_inwards WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_outwards WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_adjustments WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_returns WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_ledger WHERE item_id IS NOT NULL
+    UNION
+    SELECT item_id FROM serial_numbers WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM batches WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM inventory_movements WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM stock_reservations WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
+    UNION
+    SELECT item_id FROM goods_receipt_items WHERE item_id IS NOT NULL
+    UNION
+    SELECT item_id FROM delivery_challan_items WHERE item_id IS NOT NULL
+    UNION
+    SELECT item_id FROM warehouse_transfers WHERE item_id IS NOT NULL AND COALESCE(is_deleted, 0) = 0
   `).all();
   const protectedIds = new Set(referencedRows.map((row) => Number(row.item_id)));
   const seed = db.prepare("SELECT id FROM items WHERE item_name = 'Office Workstation' ORDER BY id LIMIT 1").get();
@@ -4066,6 +4098,7 @@ export function deleteUnusedImportedItems(db) {
   const items = db.prepare("SELECT id FROM items").all();
   const deleteIds = items.map((item) => Number(item.id)).filter((id) => !protectedIds.has(id));
   if (!deleteIds.length) return { deleted: 0, protected: protectedIds.size };
+  assertBulkDeleteSafe(db, "items", deleteIds);
   const placeholders = deleteIds.map(() => "?").join(",");
   const transaction = db.transaction(() => {
     const deleted = db.prepare(`DELETE FROM items WHERE id IN (${placeholders})`).run(...deleteIds).changes;
@@ -6120,7 +6153,9 @@ export function createOpeningBalance(db, payload) {
   const debit = Number(payload.opening_debit || 0);
   const credit = Number(payload.opening_credit || 0);
   if ((debit <= 0 && credit <= 0) || (debit > 0 && credit > 0)) throw new Error("Enter either opening debit or opening credit");
-  const suspense = accountId(db, companyId, "Capital");
+  const capitalAccount = db.prepare("SELECT id, account_name FROM accounts WHERE company_id = ? AND account_name = 'Capital' AND is_deleted = 0").get(companyId);
+  if (!capitalAccount) throw new Error("Opening balances require a 'Capital' account in the chart of accounts. Create a ledger account named 'Capital' under your company setup, then retry.");
+  const suspense = capitalAccount.id;
   const account = payload.account_id ? Number(payload.account_id) : accountId(db, companyId, payload.balance_type === "Bank" ? "Bank" : payload.balance_type === "Cash" ? "Cash" : "Trade Receivables");
   const voucher = createBalancedVoucher(db, {
     company_id: companyId,
@@ -6270,7 +6305,9 @@ export function closeFinancialYear(db, payload = {}) {
     });
 
     if (Math.abs(pl.netProfit || 0) > 0) {
-      const retainedAccount = accountId(db, companyId, "Capital");
+      const capitalAccount = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = 'Capital' AND is_deleted = 0").get(companyId);
+      if (!capitalAccount) throw new Error("Year-end closing requires a 'Capital' account. Create a ledger account named 'Capital' under your company setup, then retry.");
+      const retainedAccount = capitalAccount.id;
       db.prepare(`
         INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_balance_created, approved_by, status)
         VALUES (?, ?, ?, ?, ?, 0, ?, 'Approved')

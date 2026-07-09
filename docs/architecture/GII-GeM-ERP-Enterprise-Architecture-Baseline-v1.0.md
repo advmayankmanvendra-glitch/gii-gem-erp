@@ -60,6 +60,17 @@ GII GeM ERP is a **Windows Electron desktop ERP** purpose-built for Government e
 - **Database:** 27 accounts, 12 vouchers, ₹44,53,508.28 balanced
 - **Phase readiness:** Go-Live Preparation Programme complete — ERP ready for first controlled production initialization
 
+### 1.5 GI-EGS Compliance Reference
+
+Apply GI-EGS (Gesture India Engineering Standards) standards.
+
+Canonical GI-EGS repository:
+https://github.com/advmayankmanvendra-glitch/GI-ENGINEERING-STANDARDS
+
+Refer to the GI-EGS master governance rules for engineering standards, documentation discipline, audit procedure, architecture control, naming conventions, acronym expansion, Codex/OpenCode review process, and clearance protocol.
+
+Do not redefine, duplicate, override, or maintain separate engineering standards inside this project. This project must only consume and comply with GI-EGS standards.
+
 ---
 
 ## 2. Governance Layer Hierarchy

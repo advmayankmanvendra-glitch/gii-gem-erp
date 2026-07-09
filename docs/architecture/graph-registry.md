@@ -1,5 +1,16 @@
 # GII GeM ERP — Unified Graph Registry
 
+## GI-EGS Compliance Reference
+
+Apply GI-EGS (Gesture India Engineering Standards) standards.
+
+Canonical GI-EGS repository:
+https://github.com/advmayankmanvendra-glitch/GI-ENGINEERING-STANDARDS
+
+Refer to the GI-EGS master governance rules for engineering standards, documentation discipline, audit procedure, architecture control, naming conventions, acronym expansion, Codex/OpenCode review process, and clearance protocol.
+
+Do not redefine, duplicate, override, or maintain separate engineering standards inside this project. This project must only consume and comply with GI-EGS standards.
+
 ## Purpose
 
 The Graph Registry is the single source of truth for every structured knowledge graph in the GII GeM ERP ecosystem. Each graph is a versioned, auditable, read-only knowledge artifact that enables AI tools (Codex, OpenCode, ChatGPT) and human developers to navigate the project without scanning raw source files.

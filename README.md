@@ -2,6 +2,17 @@
 
 Windows-based offline desktop ERP foundation for Gesture India Infrastructure's GeM/eProc government supply business.
 
+## GI-EGS Compliance Reference
+
+Apply GI-EGS (Gesture India Engineering Standards) standards.
+
+Canonical GI-EGS repository:
+https://github.com/advmayankmanvendra-glitch/GI-ENGINEERING-STANDARDS
+
+Refer to the GI-EGS master governance rules for engineering standards, documentation discipline, audit procedure, architecture control, naming conventions, acronym expansion, Codex/OpenCode review process, and clearance protocol.
+
+Do not redefine, duplicate, override, or maintain separate engineering standards inside this project. This project must only consume and comply with GI-EGS standards.
+
 ## Phase 1 Scope
 
 - Electron + React + Node.js + SQLite + Vite foundation

@@ -2,6 +2,17 @@
 
 Version: 3.1
 
+## GI-EGS Compliance Reference
+
+Apply GI-EGS (Gesture India Engineering Standards) standards.
+
+Canonical GI-EGS repository:
+https://github.com/advmayankmanvendra-glitch/GI-ENGINEERING-STANDARDS
+
+Refer to the GI-EGS master governance rules for engineering standards, documentation discipline, audit procedure, architecture control, naming conventions, acronym expansion, Codex/OpenCode review process, and clearance protocol.
+
+Do not redefine, duplicate, override, or maintain separate engineering standards inside this project. This project must only consume and comply with GI-EGS standards.
+
 Apply these rules before implementing any new phase.
 
 ## Governance Layer Hierarchy
@@ -592,3 +603,155 @@ A named baseline ensures that:
 ### 26.5 Exception
 
 Minor subphases within an already-baselined program (e.g., 17C.2 after 17C.1 is complete) do not require a new baseline. The original program baseline remains valid until the program concludes.
+
+## 27. Programme Stabilization and Certification Law
+
+Note: This rule was submitted as "Permanent Architecture Rule 25 - Programme Stabilization & Certification Law". It is stored here as Rule 27 to preserve existing Rule 25, Enterprise Intelligence Layer Governance, and Rule 26, Major Program Baseline Rule v2.
+
+### 27.1 Principle
+
+No major programme shall directly transition into another major programme.
+
+Every programme must complete the following mandatory lifecycle:
+
+```text
+Implementation
+        |
+        v
+Stabilization Programme
+        |
+        v
+Certification Programme
+        |
+        v
+Lock Report
+        |
+        v
+Architecture Gate Decision
+        |
+        v
+Next Programme
+```
+
+No step may be skipped.
+
+### 27.2 Mandatory Sequence
+
+Every major programme shall follow:
+
+1. Programme Implementation
+2. Programme Stabilization
+3. Programme Certification
+4. Programme Lock Report
+5. Executive Architecture Gate Decision
+6. Begin Next Programme
+
+### 27.3 Stabilization Programme
+
+Purpose:
+
+- Remove implementation defects
+- Correct inconsistencies
+- Complete unfinished workflows
+- Verify operational behaviour
+- Resolve integration issues
+- Complete desktop smoke testing
+- Eliminate regression risks
+
+No feature expansion shall occur during stabilization.
+
+### 27.4 Certification Programme
+
+Purpose:
+
+Certify that the implemented programme satisfies:
+
+- Accounting integrity
+- Inventory integrity
+- GST integrity
+- Report integrity
+- Dashboard integrity
+- Document integrity
+- Navigation integrity
+- Security
+- Performance
+- Verification
+- Production readiness
+
+Certification is evidence-based.
+
+Verification reports alone do not constitute certification.
+
+### 27.5 Lock Report
+
+A Lock Report shall record:
+
+- Scope completed
+- Verification results
+- Certification status
+- Known limitations
+- Outstanding risks
+- Safe-to-lock decision
+- Next recommended programme
+
+The Lock Report becomes the permanent historical reference for that programme.
+
+### 27.6 Executive Architecture Gate
+
+Before any new programme begins, an Executive Architecture Gate Audit shall determine:
+
+- Safe to Proceed
+- Proceed After Fixing Blockers
+- Do Not Proceed
+
+Only one decision shall be issued.
+
+### 27.7 Deployment Cautions
+
+Beginning a new programme without completing Stabilization, Certification and Lock shall be considered an architectural governance violation.
+
+Potential consequences include:
+
+1. Architecture Drift - unfinished work accumulates across multiple programmes, making ownership and responsibility unclear.
+2. Hidden Regression - features appear to work individually but fail when interacting with other modules because integration was never stabilized.
+3. Certification Debt - verification reports may pass while operational workflows remain uncertified, leading to false confidence.
+4. Technical Debt Growth - large files, duplicated logic, inconsistent UI behaviour and undocumented dependencies accumulate rapidly.
+5. Knowledge Repository Divergence - KG, ERP Brain, Help Assistant and documentation begin describing different system behaviour.
+6. Dashboard Mismatch - dashboards may diverge from certified accounting reports if source certification is skipped.
+7. Operational Inconsistency - Reset, Go-Live, Imports, Documents, Reports and Accounting may produce conflicting results because cross-programme stabilization never occurred.
+8. Audit Weakness - government, GST, statutory or internal audits become more difficult because certification history is incomplete.
+9. User Confidence Loss - users lose trust when recently completed features behave inconsistently despite successful builds.
+10. AI Reliability Reduction - future ERP Brain and AI assistants depend upon certified system knowledge; uncertified modules reduce reasoning quality and may produce incorrect guidance.
+
+### 27.8 Mandatory Stop Rule
+
+If any of the following remain unresolved:
+
+- Verification failure
+- Production readiness failure
+- Reset inconsistency
+- Dashboard/source mismatch
+- Accounting imbalance
+- Database inconsistency
+- Dirty architecture baseline
+- Failed desktop certification
+- Missing Lock Report
+
+then:
+
+No subsequent major programme shall begin.
+
+Only stabilization, certification or corrective work is permitted.
+
+### 27.9 Executive Principle
+
+The ERP shall never measure progress by the number of implemented features.
+
+Progress shall instead be measured by:
+
+- Stabilized programmes
+- Certified programmes
+- Locked programmes
+- Production-ready programmes
+
+A completed programme is one that has been implemented, stabilized, certified and locked, not merely coded.

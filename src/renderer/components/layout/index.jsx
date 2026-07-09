@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { flatNavItems } from "../../config/navigation.js";
 import { Icon } from "../common.jsx";
+import FeedbackLogPanel from "../../features/feedback/FeedbackLogPanel.jsx";
 
 export function NavigationSidebar({
   compactSidebar,
@@ -139,8 +140,10 @@ export function RightUtilitySidebar({
   onSettings,
   onShortcutPanelToggle,
   productivityPanel,
-  extension
+  extension,
+  api
 }) {
+  const [showFeedback, setShowFeedback] = useState(false);
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   if (collapsed) {
@@ -152,6 +155,7 @@ export function RightUtilitySidebar({
         <button type="button" className={`utility-compact-action ${trainingMode ? "active" : ""}`} onClick={onTraining} title={trainingMode ? "Training Mode On" : "Training"}>T</button>
         <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
         <button type="button" className="utility-compact-action" onClick={onShortcutPanelToggle} title="Productivity Panel">P</button>
+        <button type="button" className="utility-compact-action" onClick={() => setShowFeedback(true)} title="Feedback & Improvement Log">F</button>
         <button type="button" className="utility-compact-action" onClick={onLogout} title="Logout">L</button>
       </aside>
     );
@@ -180,6 +184,10 @@ export function RightUtilitySidebar({
           <Icon name="help" />
           <span>Ask ERP Help</span>
         </button>
+        <button type="button" className={`ghost-btn help-btn ${showFeedback ? "active" : ""}`} title="Submit feedback, suggestions, and improvement requests" onClick={() => setShowFeedback(true)}>
+          <Icon name="edit" />
+          <span>Feedback</span>
+        </button>
       </div>
 
       <div className="company-context utility-section" title="Current company context controls">
@@ -207,6 +215,15 @@ export function RightUtilitySidebar({
 
       {productivityPanel}
       {extension}
+
+      {showFeedback && (
+        <FeedbackLogPanel
+          session={session}
+          companyContext={companyContext}
+          onClose={() => setShowFeedback(false)}
+          api={api}
+        />
+      )}
     </aside>
   );
 }

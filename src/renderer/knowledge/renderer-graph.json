@@ -1,25 +1,25 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-01T11:05:33.661Z",
+  "generatedAt": "2026-07-01T12:00:00.000Z",
   "sourceRoot": "src/renderer/",
-  "filesScanned": 153,
+  "filesScanned": 155,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-01T11:05:33.662Z",
+    "generated": "2026-07-01T12:00:00.000Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "fileCount": 153,
-    "totalLines": 34513,
-    "totalImports": 349
+    "fileCount": 155,
+    "totalLines": 33965,
+    "totalImports": 353
   },
   "statistics": {
     "filesByCategory": {
       "api": 1,
       "app": 1,
-      "component": 24,
+      "component": 26,
       "config": 8,
       "feature": 20,
       "knowledge": 13,
@@ -57,7 +57,8 @@
       "Knowledge": 15,
       "Deployment": 5,
       "Print": 17,
-      "Profitability": 1
+      "Profitability": 1,
+      "Presentation": 2
     },
     "filesByChangeFrequency": {
       "Stable": 39,
@@ -79,8 +80,8 @@
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 45,
-        "lines": 13290,
+        "importCount": 47,
+        "lines": 12671,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -283,15 +284,15 @@
     "highRiskFiles": [
       {
         "path": "App.jsx",
-        "lines": 13290,
-        "imports": 45,
+        "lines": 12671,
+        "imports": 47,
         "owner": "Renderer Shell",
         "criticality": "Critical"
       }
     ],
     "totalRoutes": 114,
     "totalScreens": 36,
-    "totalComponents": 24,
+    "totalComponents": 26,
     "totalFeatures": 20,
     "totalModules": 25,
     "totalConfigFiles": 8,
@@ -303,8 +304,8 @@
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 45,
-        "lines": 13290,
+        "importCount": 47,
+        "lines": 12671,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -417,7 +418,7 @@
     "highestFanOut": [
       {
         "path": "App.jsx",
-        "fanOut": 45,
+        "fanOut": 47,
         "category": "app"
       },
       {
@@ -516,8 +517,8 @@
       },
       {
         "path": "App.jsx",
-        "lines": 13290,
-        "imports": 45
+        "lines": 12671,
+        "imports": 47
       },
       {
         "path": "components/common.jsx",
@@ -4041,6 +4042,87 @@
           "ipcRenderer.invoke"
         ]
       }
+    },
+    {
+      "path": "components/workspace/index.jsx",
+      "components": [],
+      "exports": [
+        "RuntimeBanner",
+        "TrainingModeBanner",
+        "ToastNotification",
+        "SidebarScrim"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 22,
+      "riskLevel": "low",
+      "ownerModule": "Presentation",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17C.1 (Presentation Extraction)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/presentation/index.jsx",
+      "components": [],
+      "exports": [
+        "PanelHead",
+        "ImportResultSummary",
+        "TemplateFlowSteps",
+        "TemplateAuditNote",
+        "FileNameIndicator"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 49,
+      "riskLevel": "low",
+      "ownerModule": "Presentation",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17C.1 (Presentation Extraction)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
     }
   ],
   "features": [
@@ -4549,8 +4631,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 34513,
-    "totalImports": 349
+    "totalLines": 33965,
+    "totalImports": 353
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -4584,7 +4666,7 @@
   "evolution": {
     "current": {
       "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
-      "appJsxLines": 13290,
+      "appJsxLines": 12671,
       "cssLines": 7042,
       "style": "Monolithic"
     },
@@ -5999,6 +6081,14 @@
     {
       "from": "stability/startupSelfTest.js",
       "to": "./rendererStabilityUtils.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/workspace/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/presentation/index.jsx"
     }
   ]
 }
