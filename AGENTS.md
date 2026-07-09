@@ -833,3 +833,63 @@ The current registered workflow is `GOVERNMENT_SUPPLY_LIFECYCLE`.
 The registry must remain future-proof for Payroll, AMC / Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing and Internal Expense lifecycles.
 
 This rule is defined in `docs/architecture/workflow-governance-registry.md`.
+
+## 31. Accounting Intelligence Repository (AIR) Governance
+
+The Accounting Intelligence Repository (AIR) is the canonical accounting knowledge layer of GII GeM ERP.
+
+AIR defines accounting concepts independently of any ERP software.
+
+AIR shall derive accounting principles from authoritative accounting standards and regulations.
+
+ERP systems such as:
+
+- TallyPrime
+- Tally ERP9
+- SAP
+- Oracle
+- QuickBooks
+- Zoho Books
+- BUSY
+- Marg
+
+shall be treated as implementation references only, not as accounting authorities.
+
+AIR shall contain:
+
+- Universal accounting concepts
+- Accounting relationships
+- Accounting validation rules
+- Financial reporting concepts
+- Inventory accounting concepts
+- GST and taxation concepts
+- Internal control concepts
+- Audit concepts
+- ERP implementation mappings
+- Migration intelligence
+- AI reasoning metadata
+
+Every AIR concept shall define:
+
+- Definition
+- Purpose
+- Business meaning
+- Accounting rules
+- Validation rules
+- Relationships
+- Workflow impact
+- Database mapping
+- Report impact
+- AI explanation
+- Migration notes
+- References
+
+AIR shall integrate with:
+
+- Enterprise Intelligence Layer
+- ERP Brain
+- Knowledge Graph
+- Help Assistant
+- Future Data Assistant
+
+Future AI shall explain accounting concepts using AIR before consulting ERP-specific implementations.
