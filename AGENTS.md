@@ -893,3 +893,11 @@ AIR shall integrate with:
 - Future Data Assistant
 
 Future AI shall explain accounting concepts using AIR before consulting ERP-specific implementations.
+
+---
+
+## Audit Log (AIR Rule 31)
+
+| Date | Severity | Phase | Summary | File |
+|------|----------|-------|---------|------|
+| 2026-07-09 | MEDIUM | 6 (Database init.js Audit) | `init.js` is 9,277-line monolith — 40+ internal reports hidden, no section headers, no `//` comments. Safe to refactor only after `database-baseline` tag. | `reports/audit-database-init-architecture.md` |
