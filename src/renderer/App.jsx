@@ -6,7 +6,7 @@ import { accountingTableConfig } from "./features/accounting/accountingTableConf
 import { inventoryTableConfig } from "./features/inventory/inventoryTableConfig.js";
 import { voucherPlainLanguage, voucherTooltips, businessVoucherValidationMessages, businessVoucherPreview } from "./features/accounting/businessVouchers/businessVoucherUtils.js";
 import { BusinessVoucherIntelligencePanel } from "./features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx";
-import { buildDrilldownActions, drilldownStatusInfo, viewForSourceModule, dedupeDrilldownActions } from "./features/accounting/drilldowns/drilldownUtils.js";
+import { buildDrilldownActions } from "./features/accounting/drilldowns/drilldownUtils.js";
 import { downloadText, exportRows, formatCurrency } from "./utils/formatters.js";
 import { resetWorkspaceScroll, scrollToNavigationTarget, scrollToSection } from "./utils/navigationScroll.js";
 import { isAdminUser, requestPrintPreview } from "./utils/uiHelpers.js";
