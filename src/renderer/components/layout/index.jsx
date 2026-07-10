@@ -221,6 +221,10 @@ export function RightUtilitySidebar({
           session={session}
           companyContext={companyContext}
           onClose={() => setShowFeedback(false)}
+          onOpenHelp={() => {
+            setShowFeedback(false);
+            onHelpAssistant();
+          }}
           api={api}
         />
       )}

@@ -688,12 +688,39 @@ The registry must remain future-proof for Payroll, AMC / Service Contract, Proje
 
 This rule is defined in `docs/architecture/workflow-governance-registry.md`.
 
+## 32. Navigation & Location Queries Are Always Safe
+
+The ERP Help Assistant must answer questions about where to find ERP features, screens, menus, reports, documents, workflows and record-entry areas.
+
+Questions such as "where is bill history", "how do I open purchase bills", or "which menu has GST reports" are navigation/help lookups. They do not require live database record inspection and must not be refused on that basis.
+
+The assistant must resolve these answers using route/view registry, navigation map, screen titles, help metadata and user-facing labels.
+
+The assistant must not expose internal governance terms such as H1-H5, safe summary, arbitrary live records, route registry, permission layer or capability boundary to end users.
+
+If the user asks to view actual records, totals, balances, pending bills, payments, customer-wise lists or company-specific live data, the assistant must explain the limitation in plain user language.
+
+Bad:
+
+```text
+The H1-H5 assistant is only allowed to answer guidance questions.
+```
+
+Good:
+
+```text
+You can find Bill History under Operations -> Purchase Bills. I can guide you to the screen, but I cannot show your specific bills from here yet.
+```
+
+The navigation answer must come first. Any limitation about live records must appear only when relevant.
+
 ---
 
 ## Version History
 
 | Version | Date | Description |
 | --- | --- | --- |
+| v3.3 | 2026-07-10 | Added Rule 32: Navigation & Location Queries Are Always Safe for Help Assistant user-facing guidance. |
 | v3.2 | 2026-07-09 | Added Enterprise Intelligence Layer Governance, Major Program Baseline Rule, Programme Stabilization and Certification Law, Operational Chain of Command, Work Order Parent Entity and Workflow Governance Registry rules. |
 | v3.1 | 2026-06-25 | Added Feature Classification, Dependency Assessment and Production Readiness Gate governance rules. |
 | v3.0 | 2026-06-25 | Integrated Product Governance, Git Governance, Verification Sequencing, Expanded Desktop Smoke Test and Governance Layer Hierarchy. |
