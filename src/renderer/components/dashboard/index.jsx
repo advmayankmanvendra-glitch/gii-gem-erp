@@ -120,7 +120,7 @@ export function ContextBar({
       {/* Row 2: Extended period presets + Custom date picker */}
       <div className="context-bar-row">
         <div className="context-bar-section context-bar-extended">
-          {periodOptions.slice(7).map((opt) => (
+          {periodOptions.slice(7, -1).map((opt) => (
             <button type="button" key={opt.value} className={period === opt.value ? "active" : ""} onClick={() => onPeriodChange(opt.value)}>
               {opt.label}
             </button>

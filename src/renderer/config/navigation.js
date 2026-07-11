@@ -13,7 +13,7 @@ const viewTitles = {
   department_profitability: ["Department Profitability", "Department-focused profitability review."],
   supplier_profitability: ["Supplier Profitability", "Supplier-focused purchase and profitability review."],
   employee_performance: ["Employee Profitability", "Employee-wise order value, collections, profit and incentive summary."],
-  profit_simulator: ["Profit Simulator", "Scenario review for billing, procurement, expenses and incentive impact."],
+  profit_simulator: ["Profit Simulator", "What-if scenario modeling: adjust billing, cost, expenses, incentive and GST rate to see impact on net profit and ROI."],
   receivables: ["Receivables", "Order-wise billing, receipts, balance and days outstanding."],
   payables: ["Payables", "Supplier-wise purchase value, amount paid and balance due."],
   cash_flow: ["Cash Flow", "Opening balance, receipts, payouts and closing cash visibility."],
@@ -291,7 +291,7 @@ const routeAliases = {
   reversal_voucher: "voucher_register",
   department_profitability: "profitability",
   supplier_profitability: "profitability",
-  profit_simulator: "profitability",
+
   profitability_reports: "reports",
   gst_reports: "reports",
   outstanding_reports: "reports",

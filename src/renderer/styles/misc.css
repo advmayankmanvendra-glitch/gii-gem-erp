@@ -1531,6 +1531,117 @@
   color: #b42318;
 }
 
+.simulator-controls-panel,
+.simulator-results-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.simulator-params-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.simulator-param .param-label {
+  display: block;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #344052;
+}
+
+.simulator-param input {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  width: 100%;
+}
+
+.simulator-param small {
+  color: #6b7a8a;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.simulator-comparison-grid {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.simulator-compare-header,
+.simulator-compare-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.2fr;
+  gap: 8px;
+  padding: 10px 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.simulator-compare-header {
+  background: #f0f4f8;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: #4a5a6a;
+  letter-spacing: 0.3px;
+}
+
+.simulator-compare-row:nth-child(even) {
+  background: #f8fbfd;
+}
+
+.comp-metric {
+  font-weight: 600;
+  color: #244456;
+}
+
+.comp-baseline,
+.comp-scenario {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.comp-baseline {
+  color: #6b7a8a;
+}
+
+.comp-scenario {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.comp-delta {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.comp-delta small {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.delta-positive {
+  color: #1e7e34;
+}
+
+.delta-negative {
+  color: #b42318;
+}
+
 .entry-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
