@@ -175,7 +175,7 @@ export function createAccountingService(deps) {
       if (line.debit && line.credit) throw new Error("A voucher line cannot have both debit and credit");
     });
 
-    const voucher = createBalancedVoucher({
+    const voucher = createBalancedVoucher(db, {
       company_id: companyId,
       voucher_number: payload.voucher_number || null,
       voucher_date: voucherDate,
@@ -263,7 +263,7 @@ export function createAccountingService(deps) {
     const payload = JSON.parse(row.payload_json || "{}");
     const voucherPayload = businessVoucherPayload(db, row.company_id, row.voucher_kind, { ...payload, voucher_date: row.voucher_date });
     const tx = db.transaction(() => {
-      const voucher = createBalancedVoucher({ ...voucherPayload, source_module: "guided_vouchers", source_id: row.id });
+      const voucher = createBalancedVoucher(db, { ...voucherPayload, source_module: "guided_vouchers", source_id: row.id });
       if (voucherPayload.cashBankLine) {
         updateCashBankLedger(db, {
           company_id: row.company_id,
@@ -324,7 +324,7 @@ export function createAccountingService(deps) {
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
 
     const reversal = db.transaction(() => {
-      const reversalVoucher = createBalancedVoucher({
+      const reversalVoucher = createBalancedVoucher(db, {
         company_id: original.company_id,
         voucher_date: new Date().toISOString().slice(0, 10),
         voucher_type: "Journal",
@@ -431,7 +431,7 @@ export function createAccountingService(deps) {
       const outputGst = lines.length ? lines.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) : Number(invoice.billing_value || 0) * Number(invoice.gst_rate || 0) / 100;
       const gross = taxable + outputGst;
       assertPositive(gross, "Invoice amount");
-      const voucher = createBalancedVoucher({
+      const voucher = createBalancedVoucher(db, {
         company_id: companyId,
         voucher_date: invoice.invoice_date,
         voucher_type: invoice.invoice_type === "Credit Note" ? "Credit Note" : "Sales",
@@ -465,7 +465,7 @@ export function createAccountingService(deps) {
       const inputGst = lines.length ? lines.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) : Number(procurement.purchase_gst || 0);
       const gross = taxable + inputGst;
       assertPositive(gross, "Purchase amount");
-      const voucher = createBalancedVoucher({
+      const voucher = createBalancedVoucher(db, {
         company_id: companyId,
         voucher_date: procurement.purchase_date,
         voucher_type: "Purchase",
@@ -498,7 +498,7 @@ export function createAccountingService(deps) {
       const gstTds = Number(deductions.gst_tds_deducted || 0);
       const other = Number(deductions.other_deductions || 0);
       assertPositive(amount + tds + gstTds + other, "Receipt allocation");
-      const voucher = createBalancedVoucher({
+      const voucher = createBalancedVoucher(db, {
         company_id: payment.company_id,
         voucher_date: payment.payment_date,
         voucher_type: "Receipt",
@@ -532,7 +532,7 @@ export function createAccountingService(deps) {
     if (!payment) throw new Error("Supplier payment not found");
     const amount = Number(payment.amount_paid || 0);
     assertPositive(amount, "Supplier payment");
-    const voucher = createBalancedVoucher({
+    const voucher = createBalancedVoucher(db, {
       company_id: payment.company_id,
       voucher_date: payment.payment_date,
       voucher_type: "Payment",
@@ -770,7 +770,7 @@ export function createAccountingService(deps) {
     if ((amountDebit <= 0 && amountCredit <= 0) || (amountDebit > 0 && amountCredit > 0)) throw new Error("Enter either opening debit or opening credit");
     const partyAccount = partyControlAccount(db, companyId, payload.party_type);
     const suspense = accountId(db, companyId, "Opening Balance Suspense");
-    const voucher = createBalancedVoucher({
+    const voucher = createBalancedVoucher(db, {
       company_id: companyId,
       voucher_date: payload.opening_date,
       voucher_type: "Journal",
@@ -847,7 +847,7 @@ export function createAccountingService(deps) {
     if (!capitalAccount) throw new Error("Opening balances require a 'Capital' account in the chart of accounts. Create a ledger account named 'Capital' under your company setup, then retry.");
     const suspense = capitalAccount.id;
     const account = payload.account_id ? Number(payload.account_id) : accountId(db, companyId, payload.balance_type === "Bank" ? "Bank" : payload.balance_type === "Cash" ? "Cash" : "Trade Receivables");
-    const voucher = createBalancedVoucher({
+    const voucher = createBalancedVoucher(db, {
       company_id: companyId,
       voucher_date: year.start_date,
       voucher_type: "Journal",
