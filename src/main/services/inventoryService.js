@@ -1,0 +1,669 @@
+export function createInventoryService(deps) {
+  const {
+    auditLog, activeRowClause, accountId, createBalancedVoucher,
+    autoReserveOrderStock, listRecords, referenceData
+  } = deps;
+
+  function stockBalance(db, companyId, itemId, warehouseId) {
+    const item = db.prepare("SELECT opening_stock, opening_rate, opening_value FROM items WHERE id = ?").get(itemId) || {};
+    const openingQuantity = Number(item.opening_stock || 0);
+    const openingValue = Number(item.opening_value || 0) || openingQuantity * Number(item.opening_rate || 0);
+    const movement = db.prepare(`
+      SELECT COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
+        COALESCE(SUM(CASE WHEN transaction_type IN ('Inward','Adjustment Increase','Department Return') THEN value ELSE -value END), 0) value
+      FROM stock_ledger
+      WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
+    `).get(companyId, itemId, warehouseId);
+    const quantity = openingQuantity + Number(movement?.quantity || 0);
+    const value = openingValue + Number(movement?.value || 0);
+    return { quantity, value: Math.max(0, value), rate: quantity > 0 ? Math.max(0, value) / quantity : Number(item.opening_rate || 0) };
+  }
+
+  function weightedAverageCost(db, companyId, itemId, warehouseId) {
+    return stockBalance(db, companyId, itemId, warehouseId).rate;
+  }
+
+  function insertStockLedger(db, payload) {
+    const balanceBefore = stockBalance(db, payload.company_id, payload.item_id, payload.warehouse_id);
+    const inwardQuantity = Number(payload.inward_quantity || 0);
+    const outwardQuantity = Number(payload.outward_quantity || 0);
+    const nextQuantity = balanceBefore.quantity + inwardQuantity - outwardQuantity;
+    if (nextQuantity < -0.0001) throw new Error("Stock cannot go negative");
+    const rate = Number(payload.rate || balanceBefore.rate || 0);
+    const value = Number(payload.value || (inwardQuantity || outwardQuantity) * rate);
+    const nextValue = Math.max(0, Number(balanceBefore.value || 0) + (inwardQuantity ? value : -value));
+    db.prepare(`
+      INSERT INTO stock_ledger (
+        company_id, item_id, warehouse_id, transaction_date, document_number, transaction_type,
+        inward_quantity, outward_quantity, balance_quantity, rate, value, order_id, supplier_id,
+        department_id, source_module, source_id, procurement_id, billing_id, quantity_in, quantity_out,
+        running_quantity, running_value, valuation_method, remarks, voucher_id
+      ) VALUES (
+        @company_id, @item_id, @warehouse_id, @transaction_date, @document_number, @transaction_type,
+        @inward_quantity, @outward_quantity, @balance_quantity, @rate, @value, @order_id, @supplier_id,
+        @department_id, @source_module, @source_id, @procurement_id, @billing_id, @quantity_in, @quantity_out,
+        @running_quantity, @running_value, @valuation_method, @remarks, @voucher_id
+      )
+    `).run({
+      ...payload,
+      inward_quantity: inwardQuantity,
+      outward_quantity: outwardQuantity,
+      balance_quantity: nextQuantity,
+      quantity_in: inwardQuantity,
+      quantity_out: outwardQuantity,
+      running_quantity: nextQuantity,
+      running_value: nextValue,
+      valuation_method: payload.valuation_method || "Weighted Average",
+      rate,
+      value,
+      order_id: payload.order_id || null,
+      procurement_id: payload.procurement_id || null,
+      billing_id: payload.billing_id || null,
+      supplier_id: payload.supplier_id || null,
+      department_id: payload.department_id || null,
+      remarks: payload.remarks || null,
+      voucher_id: payload.voucher_id || null
+    });
+    const info = db.prepare("SELECT last_insert_rowid() id").get();
+    db.prepare(`
+      INSERT INTO inventory_movements (company_id, movement_date, movement_type, from_warehouse_id, to_warehouse_id, item_id, quantity, rate, value, source_module, source_id, order_id, remarks, voucher_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      payload.company_id,
+      payload.transaction_date,
+      payload.transaction_type,
+      outwardQuantity ? payload.warehouse_id : null,
+      inwardQuantity ? payload.warehouse_id : null,
+      payload.item_id,
+      inwardQuantity || outwardQuantity,
+      rate,
+      value,
+      payload.source_module,
+      payload.source_id,
+      payload.order_id || null,
+      payload.remarks || null,
+      payload.voucher_id || null
+    );
+    return info.id;
+  }
+
+  function ensureStockNotPosted(row) {
+    if (!row) throw new Error("Stock record not found");
+    if (row.posting_status === "Posted") throw new Error("Stock record is already posted");
+  }
+
+  function serialWarrantyExpiry(date, warrantyMonths) {
+    if (!date || !warrantyMonths) return null;
+    const expiry = new Date(`${date}T00:00:00`);
+    expiry.setMonth(expiry.getMonth() + Number(warrantyMonths || 0));
+    return expiry.toISOString().slice(0, 10);
+  }
+
+  function syncSerialInward(db, row) {
+    if (!row.serial_number) return;
+    const item = db.prepare("SELECT warranty_period FROM items WHERE id = ?").get(row.item_id) || {};
+    const existing = db.prepare("SELECT * FROM serial_numbers WHERE company_id = ? AND item_id = ? AND serial_number = ? AND COALESCE(is_deleted, 0) = 0")
+      .get(row.company_id, row.item_id, row.serial_number);
+    if (existing && existing.status !== "Draft") throw new Error("Duplicate serial number is not allowed");
+    db.prepare(`
+      INSERT OR IGNORE INTO serial_numbers (
+        company_id, item_id, supplier_id, procurement_id, purchase_invoice_number, serial_number,
+        warehouse_id, warranty_expiry, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'In Stock')
+    `).run(row.company_id, row.item_id, row.supplier_id || null, row.procurement_id || null, row.purchase_invoice_number || null, row.serial_number, row.warehouse_id, serialWarrantyExpiry(row.inward_date, item.warranty_period));
+    db.prepare("UPDATE serial_numbers SET warehouse_id = ?, status = 'In Stock', updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND serial_number = ?")
+      .run(row.warehouse_id, row.company_id, row.item_id, row.serial_number);
+  }
+
+  function syncBatchInward(db, row) {
+    if (!row.batch_number) return;
+    const existing = db.prepare("SELECT id, quantity, balance_quantity FROM batches WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0")
+      .get(row.company_id, row.item_id, row.warehouse_id, row.batch_number);
+    if (existing) {
+      db.prepare("UPDATE batches SET quantity = quantity + ?, balance_quantity = balance_quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(row.quantity, row.quantity, existing.id);
+    } else {
+      db.prepare(`
+        INSERT INTO batches (company_id, item_id, supplier_id, procurement_id, batch_number, quantity, balance_quantity, purchase_date, warehouse_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(row.company_id, row.item_id, row.supplier_id || null, row.procurement_id || null, row.batch_number, row.quantity, row.quantity, row.inward_date, row.warehouse_id);
+    }
+  }
+
+  function syncSerialOutward(db, row) {
+    if (!row.serial_number) return;
+    const serial = db.prepare("SELECT * FROM serial_numbers WHERE company_id = ? AND item_id = ? AND serial_number = ? AND COALESCE(is_deleted, 0) = 0")
+      .get(row.company_id, row.item_id, row.serial_number);
+    if (!serial || serial.status !== "In Stock") throw new Error("Serial number is not available for issue");
+    db.prepare("UPDATE serial_numbers SET status = 'Issued', order_id = ?, department_id = ?, delivery_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(row.order_id, row.department_id || null, row.issue_date, serial.id);
+  }
+
+  function syncBatchOutward(db, row) {
+    if (!row.batch_number) return;
+    const batch = db.prepare("SELECT * FROM batches WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0")
+      .get(row.company_id, row.item_id, row.warehouse_id, row.batch_number);
+    if (!batch || Number(batch.balance_quantity || 0) < Number(row.quantity_issued || row.quantity || 0)) throw new Error("Batch quantity is not available");
+    db.prepare("UPDATE batches SET balance_quantity = balance_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(Number(row.quantity_issued || row.quantity || 0), batch.id);
+  }
+
+  function postStockInward(db, id) {
+    const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    ensureStockNotPosted(row);
+    if (Number(row.quantity || 0) <= 0) throw new Error("Inward quantity must be positive");
+    const value = Number(row.landed_cost || 0) || Number(row.quantity || 0) * Number(row.rate || 0);
+    const tx = db.transaction(() => {
+      insertStockLedger(db, {
+        company_id: row.company_id,
+        item_id: row.item_id,
+        warehouse_id: row.warehouse_id,
+        transaction_date: row.inward_date,
+        document_number: row.purchase_invoice_number,
+        transaction_type: "Inward",
+        inward_quantity: row.quantity,
+        outward_quantity: 0,
+        rate: Number(row.quantity || 0) ? value / Number(row.quantity || 1) : Number(row.rate || 0),
+        value,
+        order_id: row.order_id,
+        supplier_id: row.supplier_id,
+        department_id: null,
+        source_module: "stock_inwards",
+        source_id: row.id
+      });
+      syncSerialInward(db, row);
+      syncBatchInward(db, row);
+      db.prepare("UPDATE stock_inwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      if (row.order_id) autoReserveOrderStock(db, row.order_id);
+      auditLog(db, { company_id: row.company_id, action: "stock_inward_posted", table_name: "stock_inwards", record_id: id, new_value: JSON.stringify(row) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_inwards WHERE id = ?").get(id);
+  }
+
+  function postStockOutward(db, id) {
+    const row = db.prepare("SELECT * FROM stock_outwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    ensureStockNotPosted(row);
+    if (Number(row.quantity_issued || 0) <= 0) throw new Error("Outward quantity must be positive");
+    const available = stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity;
+    if (Number(row.quantity_issued || 0) > available) throw new Error("Outward quantity exceeds available stock");
+    const rate = weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const tx = db.transaction(() => {
+      syncSerialOutward(db, row);
+      syncBatchOutward(db, row);
+      const issueValue = Number(row.quantity_issued || 0) * rate;
+      const voucher = issueValue > 0 ? createBalancedVoucher(db, {
+        company_id: row.company_id,
+        voucher_date: row.issue_date,
+        voucher_type: "Journal",
+        narration: `COGS stock issue ${row.delivery_challan_number || row.id}`,
+        source_module: "stock_outwards",
+        source_id: row.id,
+        lines: [
+          { account_id: accountId(db, row.company_id, "Cost of Goods Sold"), debit: issueValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: issueValue }
+        ]
+      }) : null;
+      insertStockLedger(db, {
+        company_id: row.company_id,
+        item_id: row.item_id,
+        warehouse_id: row.warehouse_id,
+        transaction_date: row.issue_date,
+        document_number: row.delivery_challan_number,
+        transaction_type: "Outward",
+        inward_quantity: 0,
+        outward_quantity: row.quantity_issued,
+        rate,
+        value: Number(row.quantity_issued || 0) * rate,
+        order_id: row.order_id,
+        supplier_id: null,
+        department_id: row.department_id,
+        source_module: "stock_outwards",
+        source_id: row.id,
+        voucher_id: voucher?.id || null,
+        remarks: "Issue for supply"
+      });
+      db.prepare("UPDATE stock_outwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher?.id || null, id);
+      db.prepare(`
+        UPDATE stock_reservations
+        SET issued_quantity = issued_quantity + ?,
+          balance_reserved = MAX(0, balance_reserved - ?),
+          status = CASE WHEN MAX(0, balance_reserved - ?) <= 0 THEN 'Fully Issued' ELSE 'Partially Issued' END,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status IN ('Reserved','Partially Issued')
+      `).run(row.quantity_issued, row.quantity_issued, row.quantity_issued, row.order_id, row.item_id, row.warehouse_id);
+      auditLog(db, { company_id: row.company_id, action: "stock_outward_posted", table_name: "stock_outwards", record_id: id, new_value: JSON.stringify(row) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_outwards WHERE id = ?").get(id);
+  }
+
+  function postStockAdjustment(db, id) {
+    const row = db.prepare("SELECT * FROM stock_adjustments WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    ensureStockNotPosted(row);
+    if (row.approval_status !== "Approved") throw new Error("Stock adjustment requires approval before posting");
+    if (Number(row.quantity || 0) <= 0) throw new Error("Adjustment quantity must be positive");
+    const isIncrease = row.adjustment_type === "Increase";
+    if (!isIncrease && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Adjustment decrease exceeds available stock");
+    const rate = Number(row.rate || 0) || weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const tx = db.transaction(() => {
+      insertStockLedger(db, {
+        company_id: row.company_id,
+        item_id: row.item_id,
+        warehouse_id: row.warehouse_id,
+        transaction_date: row.adjustment_date,
+        document_number: `ADJ-${row.id}`,
+        transaction_type: isIncrease ? "Adjustment Increase" : "Adjustment Decrease",
+        inward_quantity: isIncrease ? row.quantity : 0,
+        outward_quantity: isIncrease ? 0 : row.quantity,
+        rate,
+        value: Number(row.quantity || 0) * rate,
+        source_module: "stock_adjustments",
+        source_id: row.id
+      });
+      db.prepare("UPDATE stock_adjustments SET posting_status = 'Posted', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_adjustment_posted", table_name: "stock_adjustments", record_id: id, new_value: JSON.stringify(row) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_adjustments WHERE id = ?").get(id);
+  }
+
+  function approveStockAdjustment(db, id, userId = null, remarks = "Approved") {
+    const row = db.prepare("SELECT * FROM stock_adjustments WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    if (!row) throw new Error("Stock adjustment not found");
+    if (row.posting_status === "Posted") throw new Error("Posted adjustment cannot be re-approved");
+    db.prepare("UPDATE stock_adjustments SET approval_status = 'Approved', remarks = COALESCE(NULLIF(remarks, ''), ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(remarks, id);
+    auditLog(db, { company_id: row.company_id, user_id: userId, action: "stock_adjustment_approved", table_name: "stock_adjustments", record_id: id, new_value: remarks });
+    return db.prepare("SELECT * FROM stock_adjustments WHERE id = ?").get(id);
+  }
+
+  function postStockReturn(db, id) {
+    const row = db.prepare("SELECT * FROM stock_returns WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    ensureStockNotPosted(row);
+    if (Number(row.quantity || 0) <= 0) throw new Error("Return quantity must be positive");
+    const isDepartmentReturn = row.return_type === "Department";
+    if (!isDepartmentReturn && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Supplier return exceeds available stock");
+    const rate = weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const tx = db.transaction(() => {
+      insertStockLedger(db, {
+        company_id: row.company_id,
+        item_id: row.item_id,
+        warehouse_id: row.warehouse_id,
+        transaction_date: row.return_date,
+        document_number: `RET-${row.id}`,
+        transaction_type: isDepartmentReturn ? "Department Return" : "Supplier Return",
+        inward_quantity: isDepartmentReturn ? row.quantity : 0,
+        outward_quantity: isDepartmentReturn ? 0 : row.quantity,
+        rate,
+        value: Number(row.quantity || 0) * rate,
+        order_id: row.order_id,
+        supplier_id: row.supplier_id,
+        department_id: row.department_id,
+        source_module: "stock_returns",
+        source_id: row.id
+      });
+      db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify(row) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_returns WHERE id = ?").get(id);
+  }
+
+  function inventoryData(db, filters = {}) {
+    const companyId = Number(filters.company_id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0);
+    const dateFrom = filters.date_from || "1900-01-01";
+    const dateTo = filters.date_to || "2999-12-31";
+    const lowStockMode = filters.low_stock_mode || "stocked";
+    return {
+      company_id: companyId,
+      references: referenceData(db, { company_id: companyId }),
+      stockSummary: inventoryStockSummary(db, companyId),
+      stockLedger: inventoryStockLedger(db, companyId, dateFrom, dateTo),
+      stockMovement: inventoryStockMovement(db, companyId, dateFrom, dateTo),
+      lowStock: inventoryLowStockReport(db, companyId, lowStockMode),
+      serialNumbers: db.prepare(`
+        SELECT sn.*, it.item_name, w.warehouse_name, so.order_number, gd.department_name
+        FROM serial_numbers sn
+        LEFT JOIN items it ON it.id = sn.item_id
+        LEFT JOIN warehouses w ON w.id = sn.warehouse_id
+        LEFT JOIN supply_orders so ON so.id = sn.order_id
+        LEFT JOIN government_departments gd ON gd.id = sn.department_id
+        WHERE sn.company_id = ? AND COALESCE(sn.is_deleted, 0) = 0
+        ORDER BY sn.updated_at DESC, sn.id DESC
+      `).all(companyId),
+      batches: db.prepare(`
+        SELECT b.*, it.item_name, s.supplier_name, w.warehouse_name
+        FROM batches b
+        LEFT JOIN items it ON it.id = b.item_id
+        LEFT JOIN suppliers s ON s.id = b.supplier_id
+        LEFT JOIN warehouses w ON w.id = b.warehouse_id
+        WHERE b.company_id = ? AND COALESCE(b.is_deleted, 0) = 0
+        ORDER BY b.updated_at DESC, b.id DESC
+      `).all(companyId),
+      valuation: inventoryValuationReport(db, companyId),
+      itemProfitability: inventoryItemProfitabilityReport(db, companyId),
+      dashboard: inventoryDashboard(db, companyId),
+      reservations: inventoryReservations(db, companyId),
+      movements: inventoryMovements(db, companyId, dateFrom, dateTo),
+      procurementRequirements: procurementRequirementReport(db, companyId),
+      goodsReceipts: grnReport(db, companyId, dateFrom, dateTo),
+      deliveryChallans: deliveryChallanReport(db, companyId, dateFrom, dateTo),
+      warehouseTransfers: warehouseTransferReport(db, companyId, dateFrom, dateTo),
+      cogsReport: cogsReport(db, companyId, dateFrom, dateTo),
+      reservationAgeing: reservationAgeingReport(db, companyId),
+      adjustments: listRecords(db, "stock_adjustments", { company_id: companyId }),
+      returns: listRecords(db, "stock_returns", { company_id: companyId }),
+      inwards: listRecords(db, "stock_inwards", { company_id: companyId }),
+      outwards: listRecords(db, "stock_outwards", { company_id: companyId }),
+      companies: db.prepare("SELECT id, company_name FROM companies WHERE status = 'active'").all()
+    };
+  }
+
+  function inventoryDashboard(db, companyId) {
+    const summary = inventoryStockSummary(db, companyId);
+    const totalStockValue = summary.reduce((sum, row) => sum + Number(row.stock_value || 0), 0);
+    const totalQuantity = summary.reduce((sum, row) => sum + Number(row.closing_quantity || 0), 0);
+    const lowStockItems = inventoryLowStockReport(db, companyId).length;
+    const reservations = inventoryReservations(db, companyId);
+    const reservedQuantity = reservations.reduce((sum, row) => sum + Number(row.balance_reserved || 0), 0);
+    const issuedQuantity = reservations.reduce((sum, row) => sum + Number(row.issued_quantity || 0), 0);
+    const reservedStockValue = reservations.reduce((sum, row) => sum + Number(row.balance_reserved || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
+    const procurementRequiredValue = reservations.reduce((sum, row) => sum + Number(row.short_quantity || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const pendingGrns = db.prepare("SELECT COUNT(*) count FROM goods_receipts WHERE company_id = ? AND status != 'Posted' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
+    const pendingDeliveries = db.prepare("SELECT COUNT(*) count FROM delivery_challans WHERE company_id = ? AND status != 'Confirmed' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
+    const stockIssuedToday = db.prepare("SELECT COALESCE(SUM(outward_quantity), 0) qty FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_date = ? AND transaction_type = 'Outward'").get(companyId, today).qty;
+    const transfersToday = db.prepare("SELECT COUNT(*) count FROM warehouse_transfers WHERE company_id = ? AND transfer_date = ? AND COALESCE(is_deleted, 0) = 0").get(companyId, today).count;
+    return [
+      { id: "stock_value", metric: "Total Stock Value", value: totalStockValue, note: "Weighted average", type: "money" },
+      { id: "reserved_value", metric: "Reserved Stock Value", value: reservedStockValue, note: "Open reservations", type: "money" },
+      { id: "procurement_value", metric: "Procurement Required Value", value: procurementRequiredValue, note: "Short quantity estimate", type: "money" },
+      { id: "pending_grns", metric: "Pending GRNs", value: pendingGrns, note: "Not posted" },
+      { id: "pending_deliveries", metric: "Pending Deliveries", value: pendingDeliveries, note: "Not confirmed" },
+      { id: "issued_today", metric: "Stock Issued Today", value: stockIssuedToday, note: today },
+      { id: "transfers_today", metric: "Warehouse Transfers Today", value: transfersToday, note: today },
+      { id: "stock_quantity", metric: "Stock Quantity", value: totalQuantity, note: "Closing quantity" },
+      { id: "reserved_quantity", metric: "Reserved Quantity", value: reservedQuantity, note: "Open supply commitments" },
+      { id: "issued_quantity", metric: "Issued Quantity", value: issuedQuantity, note: "Against reserved orders" },
+      { id: "low_stock", metric: "Low Stock Items", value: lowStockItems, note: "At or below reorder level" }
+    ];
+  }
+
+  function inventoryReservations(db, companyId) {
+    return db.prepare(`
+      SELECT sr.*, it.item_name, w.warehouse_name, so.order_number
+      FROM stock_reservations sr
+      LEFT JOIN items it ON it.id = sr.item_id
+      LEFT JOIN warehouses w ON w.id = sr.warehouse_id
+      LEFT JOIN supply_orders so ON so.id = sr.order_id
+      WHERE sr.company_id = ? AND COALESCE(sr.is_deleted, 0) = 0
+      ORDER BY sr.updated_at DESC, sr.id DESC
+    `).all(companyId);
+  }
+
+  function inventoryMovements(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT im.*, it.item_name, fw.warehouse_name from_warehouse, tw.warehouse_name to_warehouse, so.order_number,
+        v.voucher_number
+      FROM inventory_movements im
+      LEFT JOIN items it ON it.id = im.item_id
+      LEFT JOIN warehouses fw ON fw.id = im.from_warehouse_id
+      LEFT JOIN warehouses tw ON tw.id = im.to_warehouse_id
+      LEFT JOIN supply_orders so ON so.id = im.order_id
+      LEFT JOIN vouchers v ON v.id = im.voucher_id
+      WHERE im.company_id = ? AND im.movement_date BETWEEN ? AND ? AND COALESCE(im.is_deleted, 0) = 0
+      ORDER BY im.movement_date DESC, im.id DESC
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function procurementRequirementReport(db, companyId) {
+    return db.prepare(`
+      SELECT sr.*, so.order_number, it.item_name, w.warehouse_name,
+        sr.short_quantity procurement_required_quantity
+      FROM stock_reservations sr
+      LEFT JOIN supply_orders so ON so.id = sr.order_id
+      LEFT JOIN items it ON it.id = sr.item_id
+      LEFT JOIN warehouses w ON w.id = sr.warehouse_id
+      WHERE sr.company_id = ? AND sr.procurement_required = 1 AND sr.status != 'Cancelled' AND COALESCE(sr.is_deleted, 0) = 0
+      ORDER BY so.order_date, it.item_name
+    `).all(companyId);
+  }
+
+  function grnReport(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT grn.*, s.supplier_name, w.warehouse_name,
+        COUNT(gri.id) line_count,
+        COALESCE(SUM(gri.accepted_quantity), 0) accepted_quantity,
+        COALESCE(SUM(gri.landed_cost), 0) receipt_value
+      FROM goods_receipts grn
+      LEFT JOIN suppliers s ON s.id = grn.supplier_id
+      LEFT JOIN warehouses w ON w.id = grn.warehouse_id
+      LEFT JOIN goods_receipt_items gri ON gri.grn_id = grn.id
+      WHERE grn.company_id = ? AND grn.grn_date BETWEEN ? AND ? AND COALESCE(grn.is_deleted, 0) = 0
+      GROUP BY grn.id
+      ORDER BY grn.grn_date DESC, grn.id DESC
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function deliveryChallanReport(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT dc.*, so.order_number, gd.department_name,
+        COUNT(dci.id) line_count,
+        COALESCE(SUM(dci.quantity), 0) issued_quantity
+      FROM delivery_challans dc
+      LEFT JOIN supply_orders so ON so.id = dc.order_id
+      LEFT JOIN government_departments gd ON gd.id = dc.department_id
+      LEFT JOIN delivery_challan_items dci ON dci.delivery_challan_id = dc.id
+      WHERE dc.company_id = ? AND dc.dispatch_date BETWEEN ? AND ? AND COALESCE(dc.is_deleted, 0) = 0
+      GROUP BY dc.id
+      ORDER BY dc.dispatch_date DESC, dc.id DESC
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function warehouseTransferReport(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT wt.*, it.item_name, fw.warehouse_name from_warehouse, tw.warehouse_name to_warehouse,
+        wt.quantity * wt.rate transfer_value
+      FROM warehouse_transfers wt
+      LEFT JOIN items it ON it.id = wt.item_id
+      LEFT JOIN warehouses fw ON fw.id = wt.from_warehouse_id
+      LEFT JOIN warehouses tw ON tw.id = wt.to_warehouse_id
+      WHERE wt.company_id = ? AND wt.transfer_date BETWEEN ? AND ? AND COALESCE(wt.is_deleted, 0) = 0
+      ORDER BY wt.transfer_date DESC, wt.id DESC
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function cogsReport(db, companyId, dateFrom, dateTo) {
+    const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
+    return db.prepare(`
+      SELECT le.entry_date, v.voucher_number, v.source_module, v.source_id, a.account_name,
+        le.debit cogs_value, le.credit, v.narration
+      FROM ledger_entries le
+      JOIN accounts a ON a.id = le.account_id
+      JOIN vouchers v ON v.id = le.voucher_id
+      WHERE le.company_id = ? AND le.entry_date BETWEEN ? AND ? AND a.account_name = 'Cost of Goods Sold'${ledgerActiveWhere}
+      ORDER BY le.entry_date DESC, le.id DESC
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function reservationAgeingReport(db, companyId) {
+    return db.prepare(`
+      SELECT sr.*, so.order_number, it.item_name, w.warehouse_name,
+        CAST(julianday('now') - julianday(sr.created_at) AS INTEGER) days_reserved
+      FROM stock_reservations sr
+      LEFT JOIN supply_orders so ON so.id = sr.order_id
+      LEFT JOIN items it ON it.id = sr.item_id
+      LEFT JOIN warehouses w ON w.id = sr.warehouse_id
+      WHERE sr.company_id = ? AND sr.status NOT IN ('Cancelled','Fully Issued') AND COALESCE(sr.is_deleted, 0) = 0
+      ORDER BY days_reserved DESC, sr.created_at
+    `).all(companyId);
+  }
+
+  function inventoryStockSummary(db, companyId) {
+    return db.prepare(`
+      WITH first_warehouse AS (
+        SELECT id
+        FROM warehouses
+        WHERE status = 'active'
+          AND (company_id = @company_id OR company_id IS NULL OR company_id = 0)
+        ORDER BY id
+        LIMIT 1
+      ),
+      movement AS (
+        SELECT item_id, warehouse_id,
+          SUM(inward_quantity) inward_quantity,
+          SUM(outward_quantity) outward_quantity,
+          SUM(CASE WHEN inward_quantity > 0 THEN value ELSE 0 END) inward_value,
+          SUM(CASE WHEN outward_quantity > 0 THEN ABS(value) ELSE 0 END) outward_value,
+          SUM(CASE WHEN transaction_type IN ('Inward','Adjustment Increase','Department Return') THEN value ELSE -value END) net_value,
+          COUNT(*) movement_count
+        FROM stock_ledger
+        WHERE company_id = @company_id AND COALESCE(is_deleted, 0) = 0
+        GROUP BY item_id, warehouse_id
+      ),
+      item_warehouses AS (
+        SELECT item_id, warehouse_id FROM movement
+        UNION
+        SELECT it.id item_id, COALESCE(NULLIF(it.default_warehouse_id, 0), fw.id) warehouse_id
+        FROM items it
+        CROSS JOIN first_warehouse fw
+        WHERE it.status = 'active'
+          AND (
+            COALESCE(it.opening_stock, 0) != 0
+            OR COALESCE(it.opening_value, 0) != 0
+            OR COALESCE(it.default_warehouse_id, 0) != 0
+          )
+      )
+      SELECT it.id, it.id item_id, it.item_name, it.brand, it.model, it.unit, w.id warehouse_id, w.warehouse_name,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_stock, 0) ELSE 0 END opening_stock,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_stock, 0) ELSE 0 END opening_quantity,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_value, 0) ELSE 0 END opening_value,
+        COALESCE(m.inward_quantity, 0) inward_quantity,
+        COALESCE(m.inward_value, 0) inward_value,
+        COALESCE(m.outward_quantity, 0) outward_quantity,
+        COALESCE(m.outward_value, 0) outward_value,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_stock, 0) ELSE 0 END + COALESCE(m.inward_quantity, 0) - COALESCE(m.outward_quantity, 0) closing_quantity,
+        CASE WHEN CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_stock, 0) ELSE 0 END + COALESCE(m.inward_quantity, 0) - COALESCE(m.outward_quantity, 0) > 0
+          THEN (CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_value, 0) ELSE 0 END + COALESCE(m.net_value, 0)) /
+            (CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_stock, 0) ELSE 0 END + COALESCE(m.inward_quantity, 0) - COALESCE(m.outward_quantity, 0))
+          ELSE COALESCE(it.opening_rate, 0)
+        END weighted_rate,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) THEN COALESCE(it.opening_value, 0) ELSE 0 END + COALESCE(m.net_value, 0) stock_value,
+        it.reorder_level, it.minimum_stock_level, it.maximum_stock_level,
+        CASE WHEN COALESCE(m.movement_count, 0) > 0 THEN 1 ELSE 0 END has_stock_history,
+        CASE WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) AND (COALESCE(it.opening_stock, 0) != 0 OR COALESCE(it.opening_value, 0) != 0) THEN 1 ELSE 0 END has_confirmed_opening_stock,
+        CASE
+          WHEN COALESCE(m.movement_count, 0) > 0 THEN 'Stock ledger history'
+          WHEN iw.warehouse_id = COALESCE(NULLIF(it.default_warehouse_id, 0), (SELECT id FROM first_warehouse)) AND (COALESCE(it.opening_stock, 0) != 0 OR COALESCE(it.opening_value, 0) != 0) THEN 'Opening stock'
+          ELSE 'Assigned warehouse'
+        END stock_scope
+      FROM items it
+      JOIN item_warehouses iw ON iw.item_id = it.id
+      JOIN warehouses w ON w.id = iw.warehouse_id
+      LEFT JOIN movement m ON m.item_id = it.id AND m.warehouse_id = iw.warehouse_id
+      WHERE it.status = 'active' AND w.status = 'active'
+        AND (w.company_id = @company_id OR w.company_id IS NULL OR w.company_id = 0)
+      ORDER BY it.item_name, w.warehouse_name
+    `).all({ company_id: companyId });
+  }
+
+  function inventoryStockLedger(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT sl.*, it.item_name, w.warehouse_name, so.order_number, s.supplier_name, gd.department_name
+      FROM stock_ledger sl
+      LEFT JOIN items it ON it.id = sl.item_id
+      LEFT JOIN warehouses w ON w.id = sl.warehouse_id
+      LEFT JOIN supply_orders so ON so.id = sl.order_id
+      LEFT JOIN suppliers s ON s.id = sl.supplier_id
+      LEFT JOIN government_departments gd ON gd.id = sl.department_id
+      WHERE sl.company_id = ? AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_date BETWEEN ? AND ?
+      ORDER BY sl.transaction_date, sl.id
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function inventoryStockMovement(db, companyId, dateFrom, dateTo) {
+    return db.prepare(`
+      SELECT it.item_name, w.warehouse_name, sl.transaction_type, COUNT(*) documents,
+        SUM(sl.inward_quantity) inward_quantity, SUM(sl.outward_quantity) outward_quantity, SUM(sl.value) movement_value
+      FROM stock_ledger sl
+      JOIN items it ON it.id = sl.item_id
+      JOIN warehouses w ON w.id = sl.warehouse_id
+      WHERE sl.company_id = ? AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_date BETWEEN ? AND ?
+      GROUP BY it.item_name, w.warehouse_name, sl.transaction_type
+      ORDER BY it.item_name, sl.transaction_type
+    `).all(companyId, dateFrom, dateTo);
+  }
+
+  function inventoryLowStockReport(db, companyId = null, mode = "stocked") {
+    const scopedCompanyId = companyId || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0;
+    const stockedRows = inventoryStockSummary(db, scopedCompanyId)
+      .filter((row) => Number(row.closing_quantity || 0) <= Number(row.reorder_level || 0))
+      .map((row) => ({ ...row, stock_status: row.stock_scope || "Stocked item" }));
+    const neverStockedRows = inventoryNeverStockedLowStockRows(db, scopedCompanyId);
+    if (mode === "never_stocked") return neverStockedRows;
+    if (mode === "all") return [...stockedRows, ...neverStockedRows];
+    return stockedRows;
+  }
+
+  function inventoryNeverStockedLowStockRows(db, companyId) {
+    return db.prepare(`
+      SELECT it.id, it.id item_id, it.item_name, it.brand, it.model, it.unit,
+        NULL warehouse_id,
+        'Unassigned' warehouse_name,
+        0 opening_stock,
+        0 opening_quantity,
+        0 opening_value,
+        0 inward_quantity,
+        0 inward_value,
+        0 outward_quantity,
+        0 outward_value,
+        0 closing_quantity,
+        COALESCE(it.opening_rate, 0) weighted_rate,
+        0 stock_value,
+        it.reorder_level,
+        it.minimum_stock_level,
+        it.maximum_stock_level,
+        0 has_stock_history,
+        0 has_confirmed_opening_stock,
+        'Never stocked' stock_scope,
+        'Never stocked' stock_status
+      FROM items it
+      WHERE it.status = 'active'
+        AND COALESCE(it.opening_stock, 0) = 0
+        AND COALESCE(it.opening_value, 0) = 0
+        AND COALESCE(it.default_warehouse_id, 0) = 0
+        AND NOT EXISTS (
+          SELECT 1
+          FROM stock_ledger sl
+          WHERE sl.company_id = ? AND sl.item_id = it.id AND COALESCE(sl.is_deleted, 0) = 0
+        )
+      ORDER BY it.item_name
+    `).all(companyId);
+  }
+
+  function inventoryValuationReport(db, companyId) {
+    return inventoryStockSummary(db, companyId)
+      .filter((row) => Number(row.closing_quantity || 0) !== 0 || Number(row.stock_value || 0) !== 0)
+      .map((row) => ({ ...row, valuation_method: "Weighted Average" }));
+  }
+
+  function inventoryItemProfitabilityReport(db, companyId) {
+    return db.prepare(`
+      SELECT it.item_name, so.order_number,
+        SUM(ii.taxable_value) billing_value,
+        COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) issued_stock_cost,
+        SUM(ii.taxable_value) - COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) gross_margin
+      FROM invoice_items ii
+      JOIN items it ON it.id = ii.item_id
+      LEFT JOIN supply_orders so ON so.id = ii.order_id
+      WHERE ii.company_id = ? AND COALESCE(ii.is_deleted, 0) = 0
+      GROUP BY ii.item_id, ii.order_id
+      ORDER BY gross_margin DESC
+    `).all(companyId);
+  }
+
+  return {
+    stockBalance, weightedAverageCost, insertStockLedger,
+    inventoryStockSummary, inventoryLowStockReport,
+    postStockInward, postStockOutward, postStockAdjustment,
+    approveStockAdjustment, postStockReturn, inventoryData
+  };
+}
