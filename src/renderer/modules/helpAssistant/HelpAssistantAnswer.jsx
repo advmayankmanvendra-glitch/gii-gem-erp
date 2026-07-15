@@ -8,6 +8,7 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
         <div>
           <span>{answer.mode}</span>
           <h2>{answer.title}</h2>
+          {answer.brainBacked && <span className="brain-backed-badge">Brain-backed</span>}
           {answer.menuPath && <small>{answer.menuPath}</small>}
           {answer.sourceLabel && <small>{answer.sourceLabel}</small>}
         </div>
@@ -59,6 +60,54 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
               <p>{answer.recommendedNextStep}</p>
             </article>
           )}
+        </div>
+      )}
+      {answer.workflowStage && (
+        <div className="help-assistant-answer-block">
+          <h3>Workflow Stage</h3>
+          <p>{answer.workflowStage.stage}</p>
+          <p>{answer.workflowStage.guidance}</p>
+        </div>
+      )}
+      {!!answer.sourceReferences?.length && (
+        <div className="help-assistant-answer-block">
+          <h3>Knowledge Sources</h3>
+          <ul>
+            {[...new Set(answer.sourceReferences)].map((src) => <li key={src}>{src}</li>)}
+          </ul>
+        </div>
+      )}
+      {(answer.relatedTables?.length || answer.manualReferences?.length) && (
+        <div className="help-assistant-screen-guidance-grid">
+          {!!answer.relatedTables?.length && (
+            <article>
+              <span>Related tables</span>
+              <ul>{answer.relatedTables.map((item) => <li key={answerListKey(item)}>{answerListText(item)}</li>)}</ul>
+            </article>
+          )}
+          {!!answer.manualReferences?.length && (
+            <article>
+              <span>Manual references</span>
+              <ul>{answer.manualReferences.map((item) => <li key={item}>{item}</li>)}</ul>
+            </article>
+          )}
+        </div>
+      )}
+      {answer.needsReview && <div className="help-assistant-safety">Source confidence is low. Review the linked ERP screen or manual before acting.</div>}
+      {answer.accountingSafetyBoundary && (
+        <div className="help-assistant-answer-block warning">
+          <h3>Accounting Safety</h3>
+          <p>{answer.accountingSafetyBoundary.note}</p>
+          <ul>
+            {answer.accountingSafetyBoundary.rules.map((rule) => <li key={rule}>{rule}</li>)}
+          </ul>
+        </div>
+      )}
+      {answer.workOrderBoundary && (
+        <div className="help-assistant-answer-block">
+          <h3>Work Order Boundary</h3>
+          <p>{answer.workOrderBoundary.note}</p>
+          <small>{answer.workOrderBoundary.source}</small>
         </div>
       )}
       {!!answer.prerequisites?.length && (
@@ -192,6 +241,21 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
       {answer.noMatch && (
         <div className="help-assistant-answer-block">
           <h3>Try these instead</h3>
+          {!!answer.brainResults?.length && (
+            <div className="help-assistant-brain-results">
+              <p>Source-backed results from BRAIN-2 knowledge graphs:</p>
+              <div className="help-assistant-related">
+                {answer.brainResults.map((br, i) => (
+                  <article className="help-assistant-related-card" key={`brain-${i}`}>
+                    <span>{br.sourceKind}</span>
+                    <strong>{br.title}</strong>
+                    <small>{br.summary}</small>
+                    {br.graphId && <small>{br.graphId} graph</small>}
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
           {!!answer.alternativeKeywords?.length && (
             <div className="help-assistant-keyword-row">
               {answer.alternativeKeywords.map((keyword) => (

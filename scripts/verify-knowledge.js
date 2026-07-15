@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { flatNavItems, viewTitles } from "../src/renderer/config/navigation.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -97,6 +98,15 @@ async function main() {
   for (const r of fileResults) {
     const status = r.errors > 0 ? "FAILED" : "PASSED";
     console.log(`  ${r.file}: ${r.entries} entries, ${r.errors} errors - ${status}`);
+  }
+
+  const validRouteKeys = new Set([...flatNavItems.map((item) => item.key), ...Object.keys(viewTitles)]);
+  const staleRoutes = allEntries.filter((entry) => entry.routeKey && !validRouteKeys.has(entry.routeKey));
+  if (staleRoutes.length > 0) {
+    console.log(`  ERROR: Stale route keys: ${staleRoutes.map((entry) => `${entry.id}=${entry.routeKey}`).join(", ")}`);
+    totalErrors += staleRoutes.length;
+  } else {
+    console.log("  Route references: all metadata route keys resolve in navigation.");
   }
 
   console.log("\n====================================");

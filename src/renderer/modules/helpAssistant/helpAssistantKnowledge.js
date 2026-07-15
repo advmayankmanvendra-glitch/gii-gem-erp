@@ -160,4 +160,34 @@ function safeArray(value, fallback = []) {
   return Array.isArray(value) && value.length ? value : fallback;
 }
 
-export { HELP_ASSISTANT_SUGGESTIONS, buildHelpAssistantKnowledge };
+function brainSearchAsTopics(brainSearchFn, query) {
+  try {
+    const result = brainSearchFn(query);
+    if (!result || !result.results) return [];
+    return result.results.slice(0, 5).map((r, i) => ({
+      id: `brain-${r.sourceKind}-${i}`,
+      type: "Brain Source",
+      title: r.title || "Knowledge result",
+      summary: r.summary || "",
+      sourceKind: r.sourceKind,
+      sourcePath: r.sourcePath,
+      graphId: r.graphId,
+      menuPath: r.graphId ? `${r.graphId} graph` : "",
+      viewKey: "",
+      steps: [],
+      commonMistakes: [],
+      relatedTopics: [r.title, r.sourceKind].filter(Boolean),
+      keywords: [r.title, r.summary, r.sourceKind].filter(Boolean),
+      confidence: result.confidence === "high" ? 0.85 : result.confidence === "medium" ? 0.55 : 0.3,
+      needsReview: result.confidence === "low",
+      relatedTables: r.relatedTables || [],
+      relatedReports: r.relatedReports || [],
+      relatedWorkflowStages: r.relatedWorkflowStages || [],
+      manualReference: r.sourceKind === "manual" ? r.sourcePath : ""
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export { HELP_ASSISTANT_SUGGESTIONS, buildHelpAssistantKnowledge, brainSearchAsTopics };

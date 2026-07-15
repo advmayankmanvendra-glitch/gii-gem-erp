@@ -489,6 +489,9 @@ export function createCrudHelpers({
     updateRecord,
     deleteRecord,
     getRecord,
-    listRecords
+    listRecords,
+    supplyOrderNeedsItems,
+    hasSupplyOrderItemInput,
+    assertRecordEditable
   };
 }

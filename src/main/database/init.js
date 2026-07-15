@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import zlib from "node:zlib";
+
 import {
   APP_FOLDERS,
   DB_NAME,
@@ -22,6 +22,13 @@ import { createAccountingService } from "../services/accountingService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
 import { createInventoryService } from "../services/inventoryService.js";
 import { createTallyImportService } from "../services/tallyImportService.js";
+import { createImportParserService } from "../services/importParserService.js";
+import { createDocumentService } from "../services/documentService.js";
+import { createAuthService } from "../services/authService.js";
+import { createBillingService } from "../services/billingService.js";
+import { createDashboardService } from "../services/dashboardService.js";
+import { createOperationsService } from "../services/operationsService.js";
+import { createImportValidationService } from "../services/importValidationService.js";
 
 export {
   APP_FOLDERS,
@@ -161,7 +168,7 @@ const ACCOUNTING_TABLES = new Set([
   "batches"
 ]);
 
-const DOCUMENT_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".xlsx", ".xls", ".csv"]);
+
 const IMPORT_ROLLBACK_BLOCKED_TABLES = new Set(["vouchers", "voucher_lines", "ledger_entries", "cash_bank_ledger", "receivables", "payment_allocations", "supplier_payment_allocations", "stock_ledger"]);
 const DEFAULT_ACCOUNTS = [
   ["1000", "Cash", "Asset", "Debit", 0],
@@ -191,22 +198,6 @@ const DEFAULT_ACCOUNTS = [
   ["5170", "Other Deduction Ledger", "Expense", "Debit", 0],
   ["5990", "Profit and Loss", "Equity", "Credit", 0]
 ];
-const SECURITY = {
-  maxFailedLogins: 5,
-  sessionTimeoutMinutes: 30,
-  minPasswordLength: 8
-};
-
-export const ROLE_HIERARCHY = ["super_admin", "admin", "accountant", "manager", "data_entry_operator", "viewer"];
-const ROLE_PERMISSIONS = {
-  super_admin: new Set(["*"]),
-  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings"]),
-  accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup"]),
-  manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup"]),
-  data_entry_operator: new Set(["create", "edit", "import", "export", "backup"]),
-  viewer: new Set(["export", "view_reports"])
-};
-
 export const WRITE_POLICY = {
   master: new Set(Object.keys(MASTER_TABLES)),
   transaction: new Set(Object.keys(TRANSACTION_TABLES)),
@@ -224,71 +215,6 @@ export const WRITE_POLICY = {
     "schema_migrations"
   ])
 };
-
-export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-export function verifyPassword(password, stored) {
-  if (!stored || !stored.includes(":")) return false;
-  const [salt, expected] = stored.split(":");
-  const actual = crypto.scryptSync(password, salt, 64);
-  return crypto.timingSafeEqual(Buffer.from(expected, "hex"), actual);
-}
-
-function passwordStrengthErrors(password = "") {
-  const value = String(password || "");
-  const errors = [];
-  if (value.length < 8) errors.push("Password must be at least 8 characters.");
-  if (!/[A-Z]/.test(value)) errors.push("Password must include an uppercase letter.");
-  if (!/[a-z]/.test(value)) errors.push("Password must include a lowercase letter.");
-  if (!/[0-9]/.test(value)) errors.push("Password must include a number.");
-  return errors;
-}
-
-function markDefaultAdminPasswordForChange(db) {
-  const admin = db.prepare("SELECT id, password_hash, force_password_change FROM users WHERE username = 'admin'").get();
-  if (admin && verifyPassword("admin123", admin.password_hash) && !Number(admin.force_password_change || 0)) {
-    db.prepare("UPDATE users SET force_password_change = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(admin.id);
-  }
-}
-
-export function normalizeRole(role = "") {
-  const normalized = String(role || "").trim().toLowerCase().replaceAll(" ", "_").replaceAll("-", "_");
-  if (normalized === "data_entry") return "data_entry_operator";
-  if (normalized === "superadmin") return "super_admin";
-  return ROLE_HIERARCHY.includes(normalized) ? normalized : "viewer";
-}
-
-function roleCan(role, permission) {
-  const allowed = ROLE_PERMISSIONS[normalizeRole(role)] || ROLE_PERMISSIONS.viewer;
-  return allowed.has("*") || allowed.has(permission);
-}
-
-function userForPermission(db, userId) {
-  if (userId) return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(userId);
-  return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE status = 'active' ORDER BY CASE WHEN role IN ('super_admin','admin') THEN 0 ELSE 1 END, id LIMIT 1").get();
-}
-
-export function enforcePermission(db, permission, context = {}) {
-  const user = userForPermission(db, context.user_id || context.userId || context.created_by || context.uploaded_by || context.imported_by || null);
-  if (!user || user.status !== "active" || !roleCan(user.role, permission)) {
-    const role = user?.role || "anonymous";
-    auditLog(db, {
-      company_id: context.company_id || null,
-      user_id: user?.id || null,
-      user_role: role,
-      action: "permission_denied",
-      module: context.module || context.table_name || context.table || permission,
-      table_name: "security",
-      record_id: context.record_id || null,
-      new_value: JSON.stringify({ permission, role, reason: "backend permission enforcement" })
-    });
-    throw new Error(`Permission denied: ${permission}`);
-  }
-  return user;
-}
 
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
@@ -734,890 +660,12 @@ function seedAccounts(db, companyId = null) {
   });
 }
 
-export function parseImportFile(filePath) {
-  const extension = path.extname(filePath || "").toLowerCase();
-  if (extension === ".csv") return parseCsv(fs.readFileSync(filePath, "utf8"));
-  if (extension === ".xlsx") return parseXlsx(fs.readFileSync(filePath));
-  if (extension === ".xls") return parseLegacyXls(fs.readFileSync(filePath));
-  throw new Error("Only CSV, XLS and XLSX files are supported for import");
-}
-
-export function parseImportBuffer(fileName, bytes) {
-  const extension = path.extname(fileName || "").toLowerCase();
-  const buffer = Buffer.from(bytes || []);
-  if (extension === ".csv") return parseCsv(buffer.toString("utf8"));
-  if (extension === ".xlsx") return parseXlsx(buffer);
-  if (extension === ".xls") return parseLegacyXls(buffer);
-  throw new Error("Only CSV, XLS and XLSX files are supported for import");
-}
-
 function normalizeDuplicateKey(value) {
   return cleanTallyText(value).toLowerCase();
 }
 
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export function bulkImportRecords(db, table, rows = [], context = {}) {
-  assertWriteAllowed(table, "create");
-  enforcePermission(db, "import", { ...context, module: table, table_name: table });
-  const result = { totalRows: rows.length, successfulRows: 0, failedRows: 0, skippedDuplicates: 0, updatedRows: 0, errors: [] };
-  const validRows = [];
-  rows.forEach((row, index) => {
-    const validation = validateImportRow(db, table, row, context);
-    if (validation.status === "duplicate") {
-      result.skippedDuplicates += 1;
-      result.errors.push({ row: index + 1, status: "Duplicate", errors: validation.errors });
-      return;
-    }
-    if (validation.errors.length) {
-      result.failedRows += 1;
-      result.errors.push({ row: index + 1, status: "Failed", errors: validation.errors });
-      return;
-    }
-    validRows.push(validation.payload);
-  });
-
-  if (context.dry_run) {
-    result.successfulRows = validRows.length;
-    result.updatedRows = validRows.filter((payload) => payload.__update_id).length;
-    return result;
-  }
-
-  const transaction = db.transaction(() => {
-    const createRows = validRows.filter((payload) => !payload.__update_id);
-    const importBatchId = createRows.length ? `${table.toUpperCase().replaceAll("_", "-")}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}` : null;
-    if (importBatchId) {
-      db.prepare(`
-        INSERT INTO import_batches (id, table_name, module, file_name, total_rows, successful_rows, rows_imported, failed_rows, skipped_duplicates, created_by, imported_by, imported_at, status)
-        VALUES (@id, @table_name, @module, @file_name, @total_rows, @successful_rows, @rows_imported, @failed_rows, @skipped_duplicates, @created_by, @imported_by, CURRENT_TIMESTAMP, 'active')
-      `).run({
-        id: importBatchId,
-        table_name: table,
-        module: context.module || table,
-        file_name: context.file_name || "",
-        total_rows: result.totalRows,
-        successful_rows: validRows.length,
-        rows_imported: createRows.length,
-        failed_rows: result.failedRows,
-        skipped_duplicates: result.skippedDuplicates,
-        created_by: context.user_id || null,
-        imported_by: context.user_id || null
-      });
-    }
-    validRows.forEach((payload) => {
-      const updateId = payload.__update_id;
-      const cleanImportPayload = { ...payload };
-      delete cleanImportPayload.__update_id;
-      if (updateId) {
-        const existing = getRecord(db, table, updateId);
-        const incoming = Object.fromEntries(Object.entries(cleanImportPayload).filter(([, value]) => String(value ?? "").trim() !== ""));
-        updateRecord(db, table, updateId, { ...existing, ...incoming });
-        result.updatedRows += 1;
-        return;
-      }
-      const record = createRecord(db, table, cleanImportPayload);
-      if (!importBatchId) return;
-      db.prepare("INSERT INTO import_batch_records (batch_id, table_name, record_id) VALUES (?, ?, ?)").run(importBatchId, table, record.id);
-      if (columnExists(db, table, "import_batch_id")) {
-        db.prepare(`UPDATE ${table} SET import_batch_id = ? WHERE id = ?`).run(importBatchId, record.id);
-      }
-    });
-    auditLog(db, {
-      company_id: context.company_id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || null,
-      user_id: context.user_id || null,
-      user_role: userForPermission(db, context.user_id || null)?.role || null,
-      action: "bulk import",
-      module: table,
-      table_name: table,
-      new_value: JSON.stringify({ fileName: context.file_name || "", importBatchId, totalRows: result.totalRows, successfulRows: validRows.length, updatedRows: result.updatedRows, failedRows: result.failedRows, skippedDuplicates: result.skippedDuplicates, importMode: context.import_mode || "skip_existing" })
-    });
-    result.importBatchId = importBatchId;
-  });
-  transaction();
-  result.successfulRows = validRows.length;
-  return result;
-}
-
-export function listImportBatches(db, filters = {}) {
-  const params = {};
-  const where = ["COALESCE(status, 'active') != 'deleted'"];
-  if (filters.table_name || filters.table) {
-    where.push("ib.table_name = @table");
-    params.table = filters.table_name || filters.table;
-  }
-  return db.prepare(`
-    SELECT ib.*, COUNT(ibr.id) record_count
-    FROM import_batches ib
-    LEFT JOIN import_batch_records ibr ON ibr.batch_id = ib.id AND ibr.rolled_back_at IS NULL
-    WHERE ${where.join(" AND ")}
-    GROUP BY ib.id
-    ORDER BY COALESCE(ib.imported_at, ib.created_at) DESC
-  `).all(params);
-}
-
-export function previewImportRollback(db, batchId) {
-  const batch = db.prepare("SELECT * FROM import_batches WHERE id = ? AND COALESCE(status, 'active') = 'active'").get(batchId);
-  if (!batch) throw new Error("Import batch not found or already rolled back");
-  const rows = db.prepare("SELECT * FROM import_batch_records WHERE batch_id = ? AND rolled_back_at IS NULL ORDER BY id").all(batchId);
-  return {
-    batch,
-    records: rows.map((row) => ({
-      ...row,
-      record: tableExists(db, row.table_name) ? db.prepare(`SELECT * FROM ${row.table_name} WHERE id = ?`).get(row.record_id) : null
-    }))
-  };
-}
-
-export function rollbackImportBatch(db, batchId, context = {}) {
-  enforcePermission(db, "delete", { ...context, module: "imports", table_name: "import_batches", record_id: batchId });
-  const preview = previewImportRollback(db, batchId);
-  if (IMPORT_ROLLBACK_BLOCKED_TABLES.has(preview.batch.table_name)) throw new Error("Accounting import batches cannot be rolled back directly");
-  const blocked = preview.records.filter((row) => row.table_name === "items" && masterRecordIsReferenced(db, "items", row.record_id));
-  if (blocked.length) throw new Error("Cannot rollback import: one or more records are linked to posted or operational data");
-
-  const transaction = db.transaction(() => {
-    preview.records.forEach((row) => {
-      if (!tableExists(db, row.table_name)) return;
-      const hasDeleted = columnExists(db, row.table_name, "is_deleted");
-      if (hasDeleted) {
-        db.prepare(`UPDATE ${row.table_name} SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).run(row.record_id);
-      } else if (columnExists(db, row.table_name, "status")) {
-        db.prepare(`UPDATE ${row.table_name} SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(row.record_id);
-      } else {
-        db.prepare(`DELETE FROM ${row.table_name} WHERE id = ?`).run(row.record_id);
-      }
-      db.prepare("UPDATE import_batch_records SET rolled_back_at = CURRENT_TIMESTAMP WHERE id = ?").run(row.id);
-    });
-    db.prepare("UPDATE import_batches SET status = 'rolled_back', deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(batchId);
-    auditLog(db, {
-      company_id: context.company_id || null,
-      user_id: context.user_id || null,
-      user_role: userForPermission(db, context.user_id || null)?.role || null,
-      action: "rollback import",
-      module: "imports",
-      table_name: "import_batches",
-      record_id: null,
-      old_value: JSON.stringify({ batch: preview.batch, records: preview.records.length }),
-      new_value: JSON.stringify({ status: "rolled_back" })
-    });
-  });
-  transaction();
-  return { batchId, rolledBackRecords: preview.records.length };
-}
-
-export function uploadDocument(db, payload, root = projectRoot()) {
-  const sourcePath = payload.source_path;
-  if (!sourcePath || !fs.existsSync(sourcePath)) throw new Error("Selected file was not found");
-  const extension = path.extname(sourcePath).toLowerCase();
-  if (!DOCUMENT_EXTENSIONS.has(extension)) throw new Error("Unsupported file type");
-  const stat = fs.statSync(sourcePath);
-  const bytes = fs.readFileSync(sourcePath);
-  assertSafeFileContent(extension, bytes);
-  const fileHash = crypto.createHash("sha256").update(bytes).digest("hex");
-  const originalFileName = path.basename(sourcePath);
-  const moduleName = sanitizeFilePart(payload.linked_module || "documents");
-  const year = new Date().getFullYear().toString();
-  const companyId = Number(payload.company_id || 0) || null;
-  if (!companyId) throw new Error("Company context is required before uploading documents.");
-  const targetDir = path.join(root, "documents", String(companyId || "common"), moduleName, year);
-  fs.mkdirSync(targetDir, { recursive: true });
-  const storedFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${sanitizeFilePart(path.basename(originalFileName, extension))}${extension}`;
-  const targetPath = path.join(targetDir, storedFileName);
-  fs.copyFileSync(sourcePath, targetPath);
-  const result = db.prepare(`
-    INSERT INTO documents (company_id, linked_module, linked_record_id, document_type, original_file_name, stored_file_name, file_path, file_extension, file_size, file_hash, uploaded_by, remarks, status)
-    VALUES (@company_id, @linked_module, @linked_record_id, @document_type, @original_file_name, @stored_file_name, @file_path, @file_extension, @file_size, @file_hash, @uploaded_by, @remarks, 'active')
-  `).run({
-    company_id: companyId,
-    linked_module: payload.linked_module,
-    linked_record_id: payload.linked_record_id || null,
-    document_type: payload.document_type || "Supporting Document",
-    original_file_name: originalFileName,
-    stored_file_name: storedFileName,
-    file_path: targetPath,
-    file_extension: extension,
-    file_size: stat.size,
-    file_hash: fileHash,
-    uploaded_by: payload.uploaded_by || null,
-    remarks: payload.remarks || ""
-  });
-  auditLog(db, { company_id: companyId, user_id: payload.uploaded_by || null, action: "document upload", table_name: "documents", record_id: result.lastInsertRowid, new_value: JSON.stringify({ module: payload.linked_module, fileName: originalFileName, size: stat.size }) });
-  return db.prepare("SELECT * FROM documents WHERE id = ?").get(result.lastInsertRowid);
-}
-
-export function listDocuments(db, filters = {}) {
-  const companyId = Number(filters.company_id || 0);
-  const recordId = Number(filters.linked_record_id || 0);
-  const rows = db.prepare(`
-    SELECT *
-    FROM documents
-    WHERE status = 'active' AND deleted_at IS NULL
-      AND (@module = '' OR linked_module = @module)
-      AND (@company_id = 0 OR company_id = @company_id)
-      AND (@record_id = 0 OR linked_record_id = @record_id)
-    ORDER BY uploaded_at DESC, id DESC
-  `).all({ module: filters.module || "", company_id: companyId, record_id: recordId });
-  return rows;
-}
-
-export function deleteDocument(db, id, context = {}) {
-  const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
-  if (!doc) throw new Error("Document not found or already deleted");
-  db.prepare("UPDATE documents SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
-  auditLog(db, { company_id: doc.company_id, user_id: context.user_id || null, action: "document delete", table_name: "documents", record_id: id, old_value: JSON.stringify({ fileName: doc.original_file_name, filePath: doc.file_path }) });
-  return { id, status: "deleted" };
-}
-
-export function replaceDocument(db, payload, root = projectRoot(), context = {}) {
-  const oldId = payload.replace_document_id;
-  if (!oldId) throw new Error("replace_document_id is required");
-  const oldDoc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(oldId);
-  if (!oldDoc) throw new Error("Original document not found");
-  const newDoc = uploadDocument(db, { ...payload, company_id: oldDoc.company_id }, root);
-  db.prepare("UPDATE documents SET status = 'replaced' WHERE id = ?").run(oldId);
-  auditLog(db, { company_id: oldDoc.company_id, user_id: context.user_id || payload.uploaded_by || null, action: "document replace", table_name: "documents", record_id: oldId, old_value: JSON.stringify({ fileName: oldDoc.original_file_name }), new_value: JSON.stringify({ newId: newDoc.id, fileName: newDoc.original_file_name }) });
-  return { old: { id: oldId, status: "replaced" }, new: newDoc };
-}
-
-function assertSafeFileContent(extension, bytes) {
-  const header = bytes.subarray(0, 8);
-  const ascii = bytes.subarray(0, 512).toString("utf8");
-  const isZip = header[0] === 0x50 && header[1] === 0x4b;
-  const isPdf = ascii.startsWith("%PDF");
-  const isPng = header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47;
-  const isJpeg = header[0] === 0xff && header[1] === 0xd8;
-  const isXls = header[0] === 0xd0 && header[1] === 0xcf && header[2] === 0x11 && header[3] === 0xe0;
-  const isText = !bytes.subarray(0, Math.min(bytes.length, 2048)).includes(0);
-  const allowed = {
-    ".pdf": isPdf,
-    ".png": isPng,
-    ".jpg": isJpeg,
-    ".jpeg": isJpeg,
-    ".xlsx": isZip,
-    ".csv": isText,
-    ".xls": isXls
-  };
-  if (!allowed[extension]) throw new Error("Uploaded file content does not match the permitted file type");
-}
-
-export function listItemImportBatches(db) {
-  return db.prepare(`
-    SELECT ib.*,
-      (SELECT COUNT(*) FROM items i WHERE i.import_batch_id = ib.id) item_count
-    FROM import_batches ib
-    WHERE ib.table_name = 'items' AND ib.status = 'active'
-    ORDER BY ib.created_at DESC
-  `).all();
-}
-
-export function deleteItemImportBatch(db, batchId) {
-  if (!batchId) throw new Error("Import batch is required");
-  const batch = db.prepare("SELECT * FROM import_batches WHERE id = ? AND table_name = 'items' AND status = 'active'").get(batchId);
-  if (!batch) throw new Error("Item import batch not found");
-  const items = db.prepare("SELECT id, item_name FROM items WHERE import_batch_id = ?").all(batchId);
-  if (!items.length) throw new Error("No items found for this import batch");
-  const ids = items.map((item) => item.id);
-  assertBulkDeleteSafe(db, "items", ids);
-  const transaction = db.transaction(() => {
-    const deleted = db.prepare("DELETE FROM items WHERE import_batch_id = ?").run(batchId).changes;
-    db.prepare("UPDATE import_batches SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(batchId);
-    auditLog(db, {
-      action: "bulk delete imported items",
-      table_name: "items",
-      new_value: JSON.stringify({ batchId, deleted })
-    });
-    return { batchId, deleted };
-  });
-  return transaction();
-}
-
-export function deleteUnusedImportedItems(db) {
-  const referencedRows = db.prepare(`
-    SELECT item_id FROM order_items WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM procurement_items WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM invoice_items WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_inwards WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_outwards WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_adjustments WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_returns WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_ledger WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM serial_numbers WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM batches WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM inventory_movements WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM stock_reservations WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM goods_receipt_items WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM delivery_challan_items WHERE item_id IS NOT NULL
-    UNION
-    SELECT item_id FROM warehouse_transfers WHERE item_id IS NOT NULL
-  `).all();
-  const protectedIds = new Set(referencedRows.map((row) => Number(row.item_id)));
-  const seed = db.prepare("SELECT id FROM items WHERE item_name = 'Office Workstation' ORDER BY id LIMIT 1").get();
-  if (seed) protectedIds.add(Number(seed.id));
-  const items = db.prepare("SELECT id FROM items").all();
-  const deleteIds = items.map((item) => Number(item.id)).filter((id) => !protectedIds.has(id));
-  if (!deleteIds.length) return { deleted: 0, protected: protectedIds.size };
-  assertBulkDeleteSafe(db, "items", deleteIds);
-  const placeholders = deleteIds.map(() => "?").join(",");
-  const transaction = db.transaction(() => {
-    const deleted = db.prepare(`DELETE FROM items WHERE id IN (${placeholders})`).run(...deleteIds).changes;
-    auditLog(db, {
-      action: "bulk delete unused item masters",
-      table_name: "items",
-      new_value: JSON.stringify({ deleted, protected: protectedIds.size })
-    });
-    return { deleted, protected: protectedIds.size };
-  });
-  return transaction();
-}
-
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let value = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (char === '"' && quoted && next === '"') {
-      value += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      row.push(value.trim());
-      value = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(value.trim());
-      if (row.some((cell) => cell !== "")) rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += char;
-    }
-  }
-  row.push(value.trim());
-  if (row.some((cell) => cell !== "")) rows.push(row);
-  const headers = (rows.shift() || []).map(normalizeHeader);
-  return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
-}
-
-function parseLegacyXls(buffer) {
-  const text = buffer.toString("utf8").replace(/\0/g, "");
-  if (/<table|<tr|<td/i.test(text)) return parseHtmlTable(text);
-  if (text.includes("\t")) return parseDelimited(text, "\t");
-  return parseCsv(text);
-}
-
-function parseDelimited(text, delimiter) {
-  const rows = text.split(/\r?\n/).map((line) => line.split(delimiter).map((cell) => cell.trim())).filter((row) => row.some(Boolean));
-  const headers = (rows.shift() || []).map(normalizeHeader);
-  return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
-}
-
-function parseHtmlTable(text) {
-  const rows = [];
-  for (const rowMatch of text.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const cells = [];
-    for (const cellMatch of rowMatch[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
-      cells.push(cellMatch[1].replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
-    }
-    if (cells.some(Boolean)) rows.push(cells);
-  }
-  const headers = (rows.shift() || []).map(normalizeHeader);
-  return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
-}
-
-function parseXlsx(buffer) {
-  const files = unzipXlsx(buffer);
-  const sharedStrings = parseSharedStrings(files["xl/sharedStrings.xml"]?.toString("utf8") || "");
-  const workbook = files["xl/workbook.xml"]?.toString("utf8") || "";
-  const rels = files["xl/_rels/workbook.xml.rels"]?.toString("utf8") || "";
-  const firstSheetId = /<sheet[^>]*r:id="([^"]+)"/.exec(workbook)?.[1];
-  const target = firstSheetId ? new RegExp(`<Relationship[^>]*Id="${firstSheetId}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] : "worksheets/sheet1.xml";
-  const sheetPath = `xl/${(target || "worksheets/sheet1.xml").replace(/^\/xl\//, "")}`;
-  const sheetXml = files[sheetPath]?.toString("utf8") || files["xl/worksheets/sheet1.xml"]?.toString("utf8") || "";
-  const matrix = [];
-  for (const rowMatch of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
-    const row = [];
-    for (const cellMatch of rowMatch[1].matchAll(/<c([^>]*)>([\s\S]*?)<\/c>/g)) {
-      const attrs = cellMatch[1];
-      const body = cellMatch[2];
-      const ref = /r="([A-Z]+)(\d+)"/.exec(attrs)?.[1] || "";
-      const colIndex = excelColumnIndex(ref);
-      const type = /t="([^"]+)"/.exec(attrs)?.[1];
-      const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] || /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1] || "";
-      const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);
-      row[colIndex] = value;
-    }
-    if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
-  }
-  const headerIndex = matrix.findIndex((row) => {
-    const normalized = row.map(normalizeHeader);
-    return normalized.includes("supplier_name") ||
-      normalized.includes("beneficiary_account_name") ||
-      normalized.includes("item_name") ||
-      normalized.includes("order_number") ||
-      normalized.includes("company_name");
-  });
-  const sourceRows = headerIndex >= 0 ? matrix.slice(headerIndex) : matrix;
-  const headers = (sourceRows.shift() || []).map(normalizeHeader);
-  const headerEntries = headers.map((header, index) => [header, index]).filter(([header]) => header);
-  return sourceRows.map((cells) => Object.fromEntries(headerEntries.map(([header, index]) => [header, cells[index] ?? ""])));
-}
-
-function unzipXlsx(buffer) {
-  const files = {};
-  const eocd = findEndOfCentralDirectory(buffer);
-  const centralDirectoryOffset = buffer.readUInt32LE(eocd + 16);
-  const entries = buffer.readUInt16LE(eocd + 10);
-  let offset = centralDirectoryOffset;
-  for (let index = 0; index < entries; index += 1) {
-    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
-    const method = buffer.readUInt16LE(offset + 10);
-    const compressedSize = buffer.readUInt32LE(offset + 20);
-    const fileNameLength = buffer.readUInt16LE(offset + 28);
-    const extraLength = buffer.readUInt16LE(offset + 30);
-    const commentLength = buffer.readUInt16LE(offset + 32);
-    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
-    const name = buffer.slice(offset + 46, offset + 46 + fileNameLength).toString("utf8");
-    const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
-    const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
-    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
-    const compressed = buffer.slice(dataStart, dataStart + compressedSize);
-    files[name] = method === 0 ? compressed : zlib.inflateRawSync(compressed);
-    offset += 46 + fileNameLength + extraLength + commentLength;
-  }
-  return files;
-}
-
-function findEndOfCentralDirectory(buffer) {
-  for (let index = buffer.length - 22; index >= 0; index -= 1) {
-    if (buffer.readUInt32LE(index) === 0x06054b50) return index;
-  }
-  throw new Error("Invalid XLSX file");
-}
-
-function parseSharedStrings(xml) {
-  return [...xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g)].map((match) => decodeXml([...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => part[1]).join("")));
-}
-
-function excelColumnIndex(column) {
-  return column.split("").reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0) - 1;
-}
-
-function decodeXml(value) {
-  return String(value || "")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'");
-}
-
-function normalizeHeader(value) {
-  return String(value || "").trim().toLowerCase().replaceAll(" ", "_");
-}
-
-function sanitizeFilePart(value) {
-  return String(value || "file").replace(/[^a-z0-9._-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "file";
-}
-
-function validateImportRow(db, table, row, context) {
-  const errors = [];
-  row = normalizeImportObject(row);
-  const requiresCompanyContext = new Set(["warehouses", "banks", "supply_orders", "procurements", "expense_entries", "invoices", "payments"]);
-  const companyId = Number(context.company_id || 0);
-  if (requiresCompanyContext.has(table) && !companyId) {
-    errors.push("Company context is required before importing company-specific data");
-  }
-  const payload = {};
-  const value = (key) => String(row[key] ?? "").trim();
-  const requireValue = (key, label = key.replaceAll("_", " ")) => {
-    const item = value(key);
-    if (!item) errors.push(`${label} is required`);
-    return item;
-  };
-  const numberValue = (key, label, positive = false) => {
-    const raw = value(key);
-    if (!raw) return "";
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) errors.push(`${label} must be numeric`);
-    if (positive && parsed <= 0) errors.push(`${label} must be positive`);
-    return Number.isFinite(parsed) ? parsed : raw;
-  };
-  const dateValue = (key, label) => {
-    const raw = value(key);
-    if (!raw) return "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || Number.isNaN(new Date(`${raw}T00:00:00`).getTime())) errors.push(`${label} must be YYYY-MM-DD`);
-    return raw;
-  };
-  const findOne = (lookupTable, field, raw, label) => {
-    if (!raw) return "";
-    const hasDeleteFlag = db.prepare(`PRAGMA table_info(${lookupTable})`).all().some((column) => column.name === "is_deleted");
-    const found = db.prepare(`SELECT id FROM ${lookupTable} WHERE LOWER(${field}) = LOWER(?) ${hasDeleteFlag ? "AND COALESCE(is_deleted, 0) = 0" : ""} LIMIT 1`).get(raw);
-    if (!found) errors.push(`${label} does not exist`);
-    return found?.id || "";
-  };
-
-  if (table === "companies") {
-    payload.company_name = requireValue("company_name");
-    payload.gstin = value("gstin");
-    payload.pan = value("pan");
-    payload.address = value("address");
-    payload.bank_name = value("bank_name");
-    payload.account_number = value("account_number");
-    payload.ifsc = value("ifsc");
-    payload.status = value("status") || "active";
-    if (payload.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(payload.gstin)) errors.push("GSTIN format is invalid");
-    if (payload.pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(payload.pan)) errors.push("PAN format is invalid");
-  } else if (table === "government_departments") {
-    Object.assign(payload, pickRow(row, ["department_name", "contact_person", "contact_number", "address", "status"]));
-    if (!payload.department_name) errors.push("department_name is required");
-    payload.status ||= "active";
-  } else if (table === "suppliers") {
-    Object.assign(payload, pickRow(row, ["supplier_name", "supplier_type", "supplier_code", "date_of_activation", "supplier_account_name", "supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch", "supplier_contact", "remarks", "gstin", "contact_details", "bank_details", "status"]));
-    if (!payload.supplier_name && value("beneficiary_account_name")) {
-      payload.supplier_name = value("beneficiary_account_name");
-      payload.supplier_type = value("beneficiary_type") || payload.supplier_type;
-      payload.supplier_code = value("beneficiary_code") || payload.supplier_code;
-      payload.date_of_activation = value("date_of_activation") || payload.date_of_activation;
-      payload.supplier_account_name = value("beneficiary_account_name") || payload.supplier_account_name;
-      payload.supplier_account_number = value("beneficiary_account_number") || payload.supplier_account_number;
-      payload.supplier_bank_name = value("beneficiary_bank_name") || payload.supplier_bank_name;
-      payload.supplier_bank_ifsc_code = value("beneficiary_ifsc_code") || payload.supplier_bank_ifsc_code;
-      payload.supplier_branch = value("beneficiary_branch") || payload.supplier_branch;
-      payload.supplier_contact = value("beneficiary_contact") || payload.supplier_contact;
-      payload.remarks = value("remarks") || payload.remarks;
-      payload.contact_details = `Beneficiary Code: ${value("beneficiary_code") || "-"}; Type: ${value("beneficiary_type") || "-"}`;
-      payload.bank_details = [
-        `Account Name: ${value("beneficiary_account_name")}`,
-        `Account Number: ${value("beneficiary_account_number")}`,
-        `Bank: ${value("beneficiary_bank_name")}`,
-        `IFSC: ${value("beneficiary_ifsc_code")}`,
-        `Branch: ${value("beneficiary_branch")}`
-      ].join("; ");
-      payload.status = String(value("beneficiary_status") || value("status")).toLowerCase().includes("enabled") ? "active" : "inactive";
-    }
-    if (!payload.supplier_name && payload.supplier_account_name) payload.supplier_name = payload.supplier_account_name;
-    if (!payload.contact_details && payload.supplier_contact) payload.contact_details = payload.supplier_contact;
-    if (!payload.bank_details && (payload.supplier_account_number || payload.supplier_bank_name || payload.supplier_bank_ifsc_code || payload.supplier_branch)) {
-      payload.bank_details = [
-        `Account Name: ${payload.supplier_account_name || "-"}`,
-        `Account Number: ${payload.supplier_account_number || "-"}`,
-        `Bank: ${payload.supplier_bank_name || "-"}`,
-        `IFSC: ${payload.supplier_bank_ifsc_code || "-"}`,
-        `Branch: ${payload.supplier_branch || "-"}`
-      ].join("; ");
-    }
-    if (!payload.supplier_name) errors.push("supplier_name is required");
-    if (payload.date_of_activation) {
-      const normalizedDate = normalizeImportDate(payload.date_of_activation);
-      if (!normalizedDate) errors.push("date_of_activation format is invalid");
-      else payload.date_of_activation = normalizedDate;
-    }
-    if (payload.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(payload.gstin)) errors.push("GSTIN format is invalid");
-    payload.status ||= "active";
-  } else if (table === "employees") {
-    Object.assign(payload, pickRow(row, ["employee_name", "mobile_number", "designation", "status"]));
-    payload.incentive_percentage = numberValue("incentive_percentage", "incentive_percentage") || 15;
-    if (!payload.employee_name) errors.push("employee_name is required");
-    if (!payload.mobile_number) errors.push("mobile_number is required");
-    payload.status ||= "active";
-  } else if (table === "items") {
-    Object.assign(payload, pickRow(row, ["item_name", "brand", "model", "hsn_code", "unit", "category", "status"]));
-    payload.gst_rate = numberValue("gst_rate", "gst_rate");
-    if (!payload.item_name) errors.push("item_name is required");
-    if (payload.gst_rate === "") errors.push("gst_rate is required");
-    if (!payload.unit) errors.push("unit is required");
-    payload.status ||= "active";
-  } else if (table === "warehouses") {
-    Object.assign(payload, pickRow(row, ["warehouse_name", "location", "warehouse_type", "responsible_person", "status"]));
-    payload.company_id = companyId;
-    if (!payload.warehouse_name) errors.push("warehouse_name is required");
-    payload.status ||= "active";
-  } else if (table === "banks") {
-    Object.assign(payload, pickRow(row, ["bank_account_name", "bank_name", "account_number", "ifsc", "status"]));
-    payload.company_id = companyId;
-    payload.opening_balance = numberValue("opening_balance", "opening_balance") || 0;
-    if (!payload.bank_account_name) errors.push("bank_account_name is required");
-    if (!payload.bank_name) errors.push("bank_name is required");
-    payload.status ||= "active";
-  } else if (table === "expense_heads") {
-    Object.assign(payload, pickRow(row, ["expense_head_name", "default_calculation_method", "category", "status"]));
-    payload.default_percentage = numberValue("default_percentage", "default_percentage") || 0;
-    if (!payload.expense_head_name) errors.push("expense_head_name is required");
-    payload.default_calculation_method ||= "fixed";
-    payload.status ||= "active";
-  } else if (table === "supply_orders") {
-    payload.order_number = requireValue("order_number");
-    payload.supply_type = value("supply_type") || "GeM";
-    payload.gem_order_number = value("gem_order_number");
-    payload.gem_contract_number = value("gem_contract_number");
-    payload.order_date = dateValue("order_date", "order_date");
-    payload.department_id = findOne("government_departments", "department_name", requireValue("department"), "department");
-    payload.employee_id = findOne("employees", "employee_name", requireValue("employee_assigned"), "employee_assigned");
-    payload.institution_name = value("institution_name");
-    payload.buyer_name = value("buyer_name");
-    payload.buyer_designation = value("buyer_designation");
-    payload.buyer_mobile = value("buyer_mobile");
-    payload.buyer_email = value("buyer_email");
-    payload.consignee = value("consignee_name") || value("consignee");
-    payload.consignee_address = value("consignee_address");
-    payload.delivery_location = value("delivery_location");
-    payload.place_of_supply = value("place_of_supply");
-    payload.location = value("location");
-    payload.delivery_period = value("delivery_period");
-    payload.warranty_period = value("warranty_period");
-    payload.payment_terms = value("payment_terms");
-    payload.emd_amount = numberValue("emd_amount", "emd_amount") || 0;
-    payload.security_deposit_amount = numberValue("security_deposit_amount", "security_deposit_amount") || 0;
-    payload.supply_due_date = dateValue("supply_due_date", "supply_due_date");
-    payload.order_status = value("order_status") || "Received";
-    payload.remarks = value("remarks");
-    payload.company_id = companyId;
-    const itemName = value("item_name");
-    const item = itemName ? db.prepare("SELECT * FROM items WHERE LOWER(item_name) = LOWER(?) AND COALESCE(is_deleted, 0) = 0 LIMIT 1").get(itemName) : null;
-    const itemLine = {
-      item_id: item?.id || null,
-      item_description: value("item_description") || itemName,
-      brand: value("brand") || item?.brand || "",
-      model: value("model") || item?.model || "",
-      hsn_sac: value("hsn_sac") || value("hsn") || item?.hsn_code || "",
-      quantity: numberValue("quantity", "quantity", false),
-      unit: value("unit") || item?.unit || "",
-      quoted_rate: numberValue("rate", "rate", false) || numberValue("quoted_rate", "quoted_rate", false),
-      gst_rate: value("gst_rate") === "" ? (item?.gst_rate ?? "") : numberValue("gst_rate", "gst_rate", false),
-      required_delivery_date: dateValue("required_delivery_date", "required_delivery_date"),
-      remarks: value("item_remarks")
-    };
-    const hasItemLine = hasSupplyOrderItemInput(itemLine);
-    if (hasItemLine) payload.order_items = [itemLine];
-    if (supplyOrderNeedsItems(payload.order_status) && !hasItemLine) errors.push("At least one order item is required before moving this order beyond Received/Draft");
-    if (hasItemLine) {
-      if (Number(itemLine.quantity || 0) <= 0) errors.push("quantity must be greater than zero");
-      if (Number(itemLine.quoted_rate || 0) <= 0) errors.push("rate must be greater than zero");
-      if (!String(itemLine.hsn_sac || "").trim()) errors.push("hsn_sac is required for order item");
-      if (String(itemLine.gst_rate ?? "").trim() === "") errors.push("gst_rate is required for order item");
-    }
-    if (payload.order_number && db.prepare("SELECT id FROM supply_orders WHERE order_number = ? AND COALESCE(is_deleted, 0) = 0").get(payload.order_number)) return { status: "duplicate", errors: ["Duplicate order number"], payload };
-  } else if (table === "procurements") {
-    payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
-    payload.purchase_date = dateValue("purchase_date", "purchase_date");
-    payload.supplier_id = findOne("suppliers", "supplier_name", requireValue("supplier_name"), "supplier_name");
-    payload.purchase_invoice_number = requireValue("purchase_invoice_number");
-    payload.purchase_value = numberValue("purchase_value", "purchase_value", true);
-    payload.purchase_gst = numberValue("gst_amount", "gst_amount") || 0;
-    payload.freight = numberValue("freight", "freight") || 0;
-    payload.loading_charges = numberValue("loading_charges", "loading_charges") || 0;
-    payload.amount_paid = 0;
-    payload.remarks = value("remarks");
-    payload.company_id = companyId;
-  } else if (table === "expense_entries") {
-    payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
-    payload.expense_head_id = findOne("expense_heads", "expense_head_name", requireValue("expense_head"), "expense_head");
-    payload.expense_category = value("expense_category");
-    payload.calculation_method = value("calculation_method") || "fixed";
-    payload.percentage = numberValue("percentage", "percentage") || 0;
-    payload.fixed_amount = numberValue("fixed_amount", "fixed_amount") || numberValue("expense_amount", "expense_amount") || 0;
-    payload.remarks = value("remarks");
-    payload.company_id = companyId;
-  } else if (table === "invoices") {
-    payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
-    payload.invoice_number = requireValue("invoice_number");
-    payload.invoice_date = dateValue("invoice_date", "invoice_date");
-    payload.billing_value = numberValue("billing_value", "billing_value", true);
-    payload.gst_rate = numberValue("gst_rate", "gst_rate");
-    payload.invoice_type = value("invoice_type") || "Tax Invoice";
-    payload.remarks = value("remarks");
-    payload.company_id = companyId;
-    if (payload.invoice_number && db.prepare("SELECT id FROM invoices WHERE company_id = ? AND invoice_number = ? AND COALESCE(is_deleted, 0) = 0").get(companyId, payload.invoice_number)) return { status: "duplicate", errors: ["Duplicate invoice number per company"], payload };
-  } else if (table === "payments") {
-    payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
-    payload.payment_date = dateValue("payment_date", "payment_date");
-    payload.payment_amount = numberValue("payment_amount", "payment_amount", true);
-    payload.payment_mode = value("payment_mode") || "NEFT";
-    payload.utr_number = value("utr_number");
-    payload.bank_id = findOne("banks", "bank_account_name", value("bank_account"), "bank_account");
-    payload.remarks = value("remarks");
-    payload.company_id = companyId;
-    if (payload.utr_number && db.prepare("SELECT id FROM payments WHERE utr_number = ? AND COALESCE(is_deleted, 0) = 0").get(payload.utr_number)) return { status: "duplicate", errors: ["Duplicate UTR number"], payload };
-  }
-  if (MASTER_TABLES[table] && !errors.length) {
-    const duplicate = findMasterImportDuplicate(db, table, payload, companyId);
-    if (duplicate) {
-      if (String(context.import_mode || "skip_existing") === "update_existing") {
-        payload.__update_id = duplicate.id;
-      } else {
-        const reason = duplicate.duplicate_reason ? ` (${duplicate.duplicate_reason})` : "";
-        return { status: "duplicate", errors: [`Duplicate ${MASTER_TABLES[table].label}: ${duplicate.label}${reason}`], payload };
-      }
-    }
-  }
-  return { status: "valid", errors, payload };
-}
-
-function findMasterImportDuplicate(db, table, payload, companyId) {
-  const notDeleted = columnExists(db, table, "is_deleted") ? "AND COALESCE(is_deleted, 0) = 0" : "";
-  const byText = (field, value, labelField = field) => {
-    if (!String(value || "").trim()) return null;
-    const row = db.prepare(`SELECT id, ${labelField} label FROM ${table} WHERE LOWER(TRIM(COALESCE(${field}, ''))) = ? ${notDeleted} LIMIT 1`).get(normalizeDuplicateKey(value));
-    return row || null;
-  };
-  const byCompanyText = (field, value, labelField = field) => {
-    if (!String(value || "").trim()) return null;
-    const row = db.prepare(`SELECT id, ${labelField} label FROM ${table} WHERE company_id = ? AND LOWER(TRIM(COALESCE(${field}, ''))) = ? ${notDeleted} LIMIT 1`).get(companyId, normalizeDuplicateKey(value));
-    return row || null;
-  };
-
-  if (table === "companies") {
-    return byText("gstin", payload.gstin, "company_name") || byText("pan", payload.pan, "company_name") || byText("company_name", payload.company_name, "company_name");
-  }
-  if (table === "employees") {
-    return byText("mobile_number", payload.mobile_number, "employee_name") || byText("employee_name", payload.employee_name, "employee_name");
-  }
-  if (table === "government_departments") {
-    return byText("department_name", payload.department_name, "department_name");
-  }
-  if (table === "suppliers") {
-    return byText("gstin", payload.gstin, "supplier_name") ||
-      byText("supplier_code", payload.supplier_code, "supplier_name") ||
-      byText("supplier_account_number", payload.supplier_account_number, "supplier_name") ||
-      byText("supplier_name", payload.supplier_name, "supplier_name");
-  }
-  if (table === "items" && String(payload.item_name || "").trim()) {
-    return db.prepare(`
-      SELECT id, item_name label,
-        'Normalized item name, brand and model match' duplicate_reason
-      FROM items
-      WHERE LOWER(TRIM(COALESCE(item_name, ''))) = ?
-        AND LOWER(TRIM(COALESCE(brand, ''))) = ?
-        AND LOWER(TRIM(COALESCE(model, ''))) = ?
-        ${notDeleted}
-      LIMIT 1
-    `).get(normalizeDuplicateKey(payload.item_name), normalizeDuplicateKey(payload.brand), normalizeDuplicateKey(payload.model)) || null;
-  }
-  if (table === "warehouses") {
-    if (!String(payload.warehouse_name || "").trim()) return null;
-    return db.prepare(`
-      SELECT id, warehouse_name label,
-        CASE
-          WHEN company_id = @company_id THEN 'Mapped to existing warehouse in selected company'
-          ELSE 'Mapped to existing warehouse name to avoid duplicate warehouse master'
-        END duplicate_reason
-      FROM warehouses
-      WHERE LOWER(TRIM(COALESCE(warehouse_name, ''))) = @warehouse_name
-        ${notDeleted}
-      ORDER BY CASE WHEN company_id = @company_id THEN 0 ELSE 1 END, id
-      LIMIT 1
-    `).get({ company_id: companyId || null, warehouse_name: normalizeDuplicateKey(payload.warehouse_name) }) || null;
-  }
-  if (table === "expense_heads") {
-    return byText("expense_head_name", payload.expense_head_name, "expense_head_name");
-  }
-  if (table === "banks") {
-    return byText("account_number", payload.account_number, "bank_account_name") || byText("bank_account_name", payload.bank_account_name, "bank_account_name");
-  }
-  return null;
-}
-
-function normalizeImportObject(row) {
-  return Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [normalizeHeader(key), value]));
-}
-
-function normalizeImportDate(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
-  if (slash) {
-    const [, day, month, year] = slash;
-    const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    return Number.isNaN(Date.parse(iso)) ? "" : iso;
-  }
-  const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
-}
-
-function pickRow(row, keys) {
-  return Object.fromEntries(keys.map((key) => [key, String(row[key] ?? "").trim()]));
-}
-
-export function dashboardCounts(db, filters = {}) {
-  const companyId = Number(filters.company_id || 0);
-  const activeCompanySubquery = "(SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0)";
-  const companyWhere = companyId ? "company_id = @company_id" : `company_id IN ${activeCompanySubquery}`;
-  const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
-  const params = companyId ? { company_id: companyId } : {};
-  const count = (table, where = "", extraParams = {}) => db.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`).get(where.includes("@company_id") ? { ...params, ...extraParams } : extraParams).count;
-  const totalOrderValue = db.prepare(`SELECT COALESCE(SUM(billing_value), 0) AS value FROM invoices WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value;
-  const amountReceived = db.prepare(`SELECT COALESCE(SUM(payment_amount), 0) AS value FROM payments WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value;
-  const totalProfit = orderProfitability(db, companyId ? { company_id: companyId } : {}).reduce((sum, order) => sum + order.netCompanyProfit, 0);
-  const inventorySummary = dashboardInventorySummary(db, companyId);
-  const cracWhere = companyId ? "WHERE cr.company_id = @company_id AND cr.is_deleted = 0" : `WHERE cr.company_id IN ${activeCompanySubquery} AND cr.is_deleted = 0`;
-  const cracParams = companyId ? { company_id: companyId } : {};
-  const cracPending = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Pending'`).get(cracParams).count;
-  const cracGenerated = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Generated'`).get(cracParams).count;
-  const ordersWithGeneratedCrac = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Generated'`).get(cracParams).count;
-  const ordersWithInvoiceAndCrac = db.prepare(`
-    SELECT COUNT(*) AS count FROM supply_orders so
-    WHERE so.company_id IN ${activeCompanySubquery} AND so.is_deleted = 0
-      AND so.crac_status = 'Generated'
-      AND EXISTS (SELECT 1 FROM invoices i WHERE i.order_id = so.id AND i.is_deleted = 0)
-      AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id = so.id AND p.is_deleted = 0)
-  `).get({}).count;
-  return {
-    totalOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`),
-    activeOrders: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND order_status NOT IN ('Closed', 'Fully Received')`),
-    totalOrderValue,
-    amountReceived,
-    outstanding: totalOrderValue - amountReceived,
-    totalProfit,
-    suppliers: count("suppliers"),
-    companies: count("companies"),
-    employees: count("employees", "WHERE status = 'active'"),
-    departments: count("government_departments"),
-    items: count("items"),
-    expenseHeads: count("expense_heads"),
-    banks: count("banks", `WHERE ${companyWhere}`),
-    totalStockValue: inventorySummary.totalStockValue,
-    lowStockItems: inventorySummary.lowStockItems,
-    itemsInStock: inventorySummary.itemsInStock,
-    itemsIssued: db.prepare(`SELECT COALESCE(SUM(outward_quantity), 0) AS value FROM stock_ledger WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND transaction_type IN ('Outward','Supplier Return','Adjustment Decrease')`).get(params).value,
-    returnedItems: db.prepare(`SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_returns WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0`).get(params).value,
-    cracPending,
-    cracGenerated,
-    paymentReadyOrders: ordersWithInvoiceAndCrac,
-    readyForClosure: count("supply_orders", `WHERE ${companyWhere} AND COALESCE(is_deleted, 0) = 0 AND COALESCE(operationally_closed, 0) = 1`),
-    cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}${cashBankActiveWhere}`).get(params).balance
-  };
-}
-
-function dashboardInventorySummary(db, companyId = 0) {
-  const companies = companyId
-    ? [{ id: companyId }]
-    : db.prepare("SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0 AND status = 'active' ORDER BY id").all();
-  const rows = companies.flatMap((company) => inventoryStockSummary(db, company.id));
-  return {
-    totalStockValue: rows.reduce((sum, row) => sum + Number(row.stock_value || 0), 0),
-    lowStockItems: companies.reduce((sum, company) => sum + inventoryLowStockReport(db, company.id, "stocked").length, 0),
-    itemsInStock: new Set(rows.filter((row) => Number(row.closing_quantity || 0) > 0).map((row) => row.id)).size
-  };
 }
 
 export function referenceData(db, filters = {}) {
@@ -1647,436 +695,6 @@ export function referenceData(db, filters = {}) {
   };
 }
 
-export function billingVoucherData(db, filters = {}) {
-  const references = referenceData(db, filters);
-  const companyId = Number(filters.company_id || references.companies[0]?.id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0);
-  const financialYears = db.prepare("SELECT * FROM financial_years WHERE company_id = ? ORDER BY start_date DESC").all(companyId);
-  const institutionOptions = db.prepare(`
-    SELECT DISTINCT so.department_id, so.institution_name
-    FROM supply_orders so
-    WHERE so.company_id = ? AND COALESCE(so.institution_name, '') <> '' AND COALESCE(so.is_deleted, 0) = 0
-    ORDER BY so.institution_name
-  `).all(companyId);
-  const invoices = db.prepare(`
-    SELECT i.*, c.company_name, fy.financial_year_name, so.order_number, so.department_id,
-      so.institution_name, so.location, so.order_status, gd.department_name,
-      COALESCE(MAX(v.id), 0) voucher_id,
-      COALESCE(MAX(v.voucher_number), '') voucher_number,
-      COALESCE(MAX(v.status), '') voucher_status,
-      COALESCE(MAX(v.voucher_date), '') voucher_date,
-      COALESCE(r.invoice_amount, i.billing_value + (i.billing_value * i.gst_rate / 100)) invoice_value,
-      COALESCE(r.amount_received, 0) amount_received,
-      COALESCE(r.tds_deducted, 0) tds_deducted,
-      COALESCE(r.gst_tds_deducted, 0) gst_tds_deducted,
-      COALESCE((SELECT SUM(aa.adjusted_amount) FROM advance_adjustments aa WHERE aa.adjustment_type = 'receipt' AND aa.billing_id = i.id AND COALESCE(aa.is_deleted, 0) = 0 AND aa.status = 'Active'), 0) advance_adjusted,
-      COALESCE(r.balance_outstanding, i.billing_value + (i.billing_value * i.gst_rate / 100)) balance_outstanding
-    FROM invoices i
-    LEFT JOIN companies c ON c.id = i.company_id
-    LEFT JOIN financial_years fy ON fy.id = i.financial_year_id
-    LEFT JOIN supply_orders so ON so.id = i.order_id
-    LEFT JOIN government_departments gd ON gd.id = so.department_id
-    LEFT JOIN vouchers v ON v.source_module = 'billing' AND v.source_id = i.id AND v.is_deleted = 0
-    LEFT JOIN receivables r ON r.billing_id = i.id AND r.is_deleted = 0
-    WHERE i.company_id = ? AND COALESCE(i.is_deleted, 0) = 0
-    GROUP BY i.id
-    ORDER BY i.invoice_date DESC, i.id DESC
-  `).all(companyId);
-  const invoiceItems = db.prepare(`
-    SELECT ii.*, it.item_name, COALESCE(ii.hsn, it.hsn_code) hsn_code, COALESCE(ii.unit, it.unit) item_unit
-    FROM invoice_items ii
-    LEFT JOIN items it ON it.id = ii.item_id
-    WHERE ii.company_id = ? AND COALESCE(ii.is_deleted, 0) = 0
-    ORDER BY ii.id
-  `).all(companyId);
-  const orderItems = db.prepare(`
-    SELECT oi.*, it.item_name, it.hsn_code, it.unit, it.gst_rate
-    FROM order_items oi
-    LEFT JOIN items it ON it.id = oi.item_id
-    WHERE oi.company_id = ? AND COALESCE(oi.is_deleted, 0) = 0
-    ORDER BY oi.id
-  `).all(companyId);
-  const billingQuantities = db.prepare(`
-    SELECT order_id, COALESCE(order_item_id, 0) order_item_id, COALESCE(item_id, 0) item_id, SUM(quantity) billed_quantity
-    FROM invoice_items
-    WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0
-    GROUP BY order_id, COALESCE(order_item_id, 0), COALESCE(item_id, 0)
-  `).all(companyId);
-  const documents = db.prepare(`
-    SELECT d.*, dc.order_id document_order_id
-    FROM documents d
-    LEFT JOIN delivery_challans dc ON d.linked_module = 'delivery_challans' AND dc.id = d.linked_record_id
-    WHERE d.company_id = ? AND d.status = 'active' AND d.deleted_at IS NULL
-      AND d.linked_module IN ('invoices', 'supply_orders', 'delivery_challans', 'stock_outwards')
-    ORDER BY d.uploaded_at DESC, d.id DESC
-  `).all(companyId);
-  const receiptAdvances = db.prepare(`
-    SELECT ar.*, gd.department_name, so.order_number, COALESCE(p.utr_number, 'Receipt ' || p.id) receipt_reference
-    FROM advance_receipts ar
-    LEFT JOIN government_departments gd ON gd.id = ar.department_id
-    LEFT JOIN supply_orders so ON so.id = ar.order_id
-    LEFT JOIN payments p ON p.id = ar.payment_id
-    WHERE ar.company_id = ? AND COALESCE(ar.is_deleted, 0) = 0
-    ORDER BY ar.created_at DESC
-  `).all(companyId);
-  const supplierAdvances = db.prepare(`
-    SELECT sa.*, s.supplier_name, COALESCE(sp.utr_number, 'Supplier Payment ' || sp.id) payment_reference
-    FROM supplier_advances sa
-    LEFT JOIN suppliers s ON s.id = sa.supplier_id
-    LEFT JOIN supplier_payments sp ON sp.id = sa.supplier_payment_id
-    WHERE sa.company_id = ? AND COALESCE(sa.is_deleted, 0) = 0
-    ORDER BY sa.created_at DESC
-  `).all(companyId);
-  const advanceAdjustments = db.prepare(`
-    SELECT aa.*, i.invoice_number, p.purchase_invoice_number, ar.advance_received, ar.balance_advance receipt_balance,
-      sa.advance_paid, sa.balance_advance supplier_balance
-    FROM advance_adjustments aa
-    LEFT JOIN invoices i ON i.id = aa.billing_id
-    LEFT JOIN procurements p ON p.id = aa.procurement_id
-    LEFT JOIN advance_receipts ar ON ar.id = aa.advance_id AND aa.adjustment_type = 'receipt'
-    LEFT JOIN supplier_advances sa ON sa.id = aa.advance_id AND aa.adjustment_type = 'supplier'
-    WHERE aa.company_id = ?
-    ORDER BY aa.created_at DESC
-  `).all(companyId);
-  const procuredQuantities = db.prepare(`
-    SELECT pi.order_id, pi.item_id, SUM(pi.quantity) procured_quantity
-    FROM procurement_items pi
-    JOIN procurements p ON p.id = pi.procurement_id
-    WHERE pi.company_id = ? AND COALESCE(p.is_deleted, 0) = 0 AND COALESCE(pi.is_deleted, 0) = 0
-    GROUP BY pi.order_id, pi.item_id
-  `).all(companyId);
-  const issuedQuantities = db.prepare(`
-    SELECT dc.order_id, dci.item_id, SUM(dci.quantity) issued_quantity
-    FROM delivery_challan_items dci
-    JOIN delivery_challans dc ON dc.id = dci.delivery_challan_id
-    WHERE dci.company_id = ? AND COALESCE(dc.is_deleted, 0) = 0 AND dc.status = 'Confirmed'
-    GROUP BY dc.order_id, dci.item_id
-  `).all(companyId);
-  const paymentAllocations = db.prepare(`
-    SELECT pa.*, p.utr_number, p.payment_date, p.payment_mode
-    FROM payment_allocations pa
-    LEFT JOIN payments p ON p.id = pa.payment_id
-    WHERE pa.company_id = ? AND COALESCE(pa.is_deleted, 0) = 0
-    ORDER BY pa.created_at DESC
-  `).all(companyId);
-  return {
-    references,
-    financialYears,
-    institutionOptions,
-    invoiceSequence: suggestedInvoiceSequences(db, references.companies, financialYears),
-    invoices,
-    invoiceItems,
-    orderItems,
-    billingQuantities,
-    documents,
-    receiptAdvances,
-    supplierAdvances,
-    advanceAdjustments,
-    profitability: orderProfitability(db, { company_id: companyId }),
-    procuredQuantities,
-    issuedQuantities,
-    paymentAllocations
-  };
-}
-
-export function saveBillingVoucher(db, payload) {
-  const header = payload.header || {};
-  const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!header.order_id) throw new Error("Order is required");
-  if (!header.invoice_date) throw new Error("Invoice date is required");
-  const order = db.prepare("SELECT * FROM supply_orders WHERE id = ?").get(header.order_id);
-  if (!order) throw new Error("Linked order not found");
-  if (!order.department_id) throw new Error("Department is required before billing");
-
-  const companyId = Number(header.company_id || order.company_id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0);
-  if (!companyId) throw new Error("Company is required");
-  const financialYear = header.financial_year_id
-    ? db.prepare("SELECT * FROM financial_years WHERE id = ?").get(header.financial_year_id)
-    : financialYearForDate(db, companyId, header.invoice_date);
-  if (!financialYear) throw new Error("Financial year is not configured for this invoice date");
-  const invoiceNumber = String(header.invoice_number || "").trim() || nextInvoiceNumber(db, companyId, financialYear.id);
-
-  const duplicate = db.prepare(`
-    SELECT id FROM invoices
-    WHERE company_id = ? AND invoice_number = ? AND COALESCE(financial_year_id, 0) = COALESCE(?, 0)
-      AND COALESCE(is_deleted, 0) = 0 AND id <> ?
-  `).get(companyId, invoiceNumber, financialYear.id, Number(header.id || 0));
-  if (duplicate) throw new Error("Invoice number must be unique per company and financial year");
-
-  const normalizedItems = items
-    .map((item) => normalizeInvoiceItem(item, companyId, Number(header.order_id)))
-    .filter((item) => item.quantity || item.taxable_value || item.item_id || item.description);
-  const taxableTotal = normalizedItems.reduce((sum, item) => sum + item.taxable_value, 0);
-  const gstTotal = normalizedItems.reduce((sum, item) => sum + item.gst_amount, 0);
-  const fallbackBilling = Number(header.billing_value || 0);
-  const billingValue = taxableTotal || fallbackBilling;
-  const gstRate = normalizedItems.length ? Math.max(...normalizedItems.map((item) => item.gst_rate)) : Number(header.gst_rate || 0);
-  if (billingValue < 0 || gstTotal < 0) throw new Error("Invoice amount cannot be negative");
-
-  const data = {
-    company_id: companyId,
-    financial_year_id: financialYear.id,
-    order_id: Number(header.order_id),
-    invoice_number: invoiceNumber,
-    invoice_date: header.invoice_date,
-    gem_order_number: header.gem_order_number || "",
-    gem_contract_number: header.gem_contract_number || "",
-    consignee: header.consignee || "",
-    place_of_supply: header.place_of_supply || "",
-    gst_type: header.gst_type || "CGST/SGST",
-    billing_value: billingValue,
-    gst_rate: gstRate,
-    invoice_type: header.invoice_type || "Tax Invoice",
-    invoice_status: header.invoice_status || header.approval_status || "Draft",
-    remarks: header.remarks || "",
-    posting_status: header.posting_status || "Draft",
-    approval_status: header.approval_status || "Draft",
-    posting_error: header.posting_error || null
-  };
-
-  const transaction = db.transaction(() => {
-    let invoice;
-    if (header.id) {
-      assertRecordEditable("invoices", getRecord(db, "invoices", header.id));
-      db.prepare(`
-        UPDATE invoices SET company_id = @company_id, financial_year_id = @financial_year_id, order_id = @order_id,
-          invoice_number = @invoice_number, invoice_date = @invoice_date, gem_order_number = @gem_order_number,
-          gem_contract_number = @gem_contract_number,
-          consignee = @consignee, place_of_supply = @place_of_supply, gst_type = @gst_type,
-          billing_value = @billing_value, gst_rate = @gst_rate, invoice_type = @invoice_type,
-          invoice_status = @invoice_status, remarks = @remarks, posting_status = @posting_status,
-          approval_status = @approval_status, posting_error = @posting_error, updated_at = CURRENT_TIMESTAMP
-        WHERE id = @id
-      `).run({ ...data, id: header.id });
-      invoice = getRecord(db, "invoices", header.id);
-      db.prepare("UPDATE invoice_items SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE billing_id = ?").run(header.id);
-    } else {
-      const result = db.prepare(`
-        INSERT INTO invoices (company_id, financial_year_id, order_id, invoice_number, invoice_date, gem_order_number, gem_contract_number,
-          consignee, place_of_supply, gst_type, billing_value, gst_rate, invoice_type, invoice_status, remarks,
-          posting_status, approval_status, posting_error)
-        VALUES (@company_id, @financial_year_id, @order_id, @invoice_number, @invoice_date, @gem_order_number, @gem_contract_number,
-          @consignee, @place_of_supply, @gst_type, @billing_value, @gst_rate, @invoice_type, @invoice_status, @remarks,
-          @posting_status, @approval_status, @posting_error)
-      `).run(data);
-      invoice = getRecord(db, "invoices", result.lastInsertRowid);
-    }
-
-    const insertLine = db.prepare(`
-      INSERT INTO invoice_items (company_id, billing_id, order_id, order_item_id, item_id, description, hsn, unit,
-        quantity, billing_rate, gst_rate, taxable_value, cgst, sgst, igst, gst_amount, gross_value)
-      VALUES (@company_id, @billing_id, @order_id, @order_item_id, @item_id, @description, @hsn, @unit,
-        @quantity, @billing_rate, @gst_rate, @taxable_value, @cgst, @sgst, @igst, @gst_amount, @gross_value)
-    `);
-    normalizedItems.forEach((item) => insertLine.run({ ...item, billing_id: invoice.id }));
-    auditLog(db, { company_id: companyId, action: header.id ? "billing voucher update" : "billing voucher create", table_name: "invoices", record_id: invoice.id, new_value: JSON.stringify({ invoice: data, line_count: normalizedItems.length }) });
-    return getRecord(db, "invoices", invoice.id);
-  });
-  return transaction();
-}
-
-function normalizeInvoiceItem(item, companyId, orderId) {
-  const quantity = Number(item.quantity || 0);
-  const billingRate = Number(item.billing_rate || 0);
-  const taxableValue = Number(item.taxable_value || (quantity * billingRate) || 0);
-  const gstRate = Number(item.gst_rate || 0);
-  const gstType = item.gst_type || "CGST/SGST";
-  const gstAmount = Number(item.gst_amount || (taxableValue * gstRate / 100) || 0);
-  const cgst = gstType === "IGST" ? 0 : Number(item.cgst || gstAmount / 2 || 0);
-  const sgst = gstType === "IGST" ? 0 : Number(item.sgst || gstAmount / 2 || 0);
-  const igst = gstType === "IGST" ? Number(item.igst || gstAmount || 0) : 0;
-  return {
-    company_id: companyId,
-    order_id: orderId,
-    order_item_id: item.order_item_id || null,
-    item_id: item.item_id || null,
-    description: item.description || "",
-    hsn: item.hsn || "",
-    unit: item.unit || "",
-    quantity,
-    billing_rate: billingRate,
-    gst_rate: gstRate,
-    taxable_value: taxableValue,
-    cgst,
-    sgst,
-    igst,
-    gst_amount: gstAmount,
-    gross_value: Number(item.gross_value || taxableValue + gstAmount || 0)
-  };
-}
-
-export function orderProfitability(db, filters = {}) {
-  const companyId = Number(filters.company_id || 0);
-  const where = companyId ? "WHERE so.company_id = @company_id AND COALESCE(so.is_deleted, 0) = 0" : "WHERE so.company_id IN (SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0) AND COALESCE(so.is_deleted, 0) = 0";
-  const orders = db.prepare(`
-    SELECT so.*, gd.department_name, e.employee_name, e.incentive_percentage
-    FROM supply_orders so
-    LEFT JOIN government_departments gd ON gd.id = so.department_id
-    LEFT JOIN employees e ON e.id = so.employee_id
-    ${where}
-    ORDER BY so.id DESC
-  `).all(companyId ? { company_id: companyId } : {});
-
-  return orders.map((order) => calculateProfitability(db, order));
-}
-
-export function calculateProfitability(db, order) {
-  const invoices = db.prepare("SELECT * FROM invoices WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND posting_status = 'Posted'").all(order.id);
-  const procurements = db.prepare("SELECT * FROM procurements WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND posting_status = 'Posted'").all(order.id);
-  const payments = db.prepare("SELECT * FROM payments WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND posting_status = 'Posted'").all(order.id);
-  const expenses = db.prepare(`
-    SELECT ee.*, eh.expense_head_name
-    FROM expense_entries ee
-    LEFT JOIN expense_heads eh ON eh.id = ee.expense_head_id
-    WHERE ee.order_id = ? AND COALESCE(ee.is_deleted, 0) = 0 AND ee.posting_status = 'Posted'
-  `).all(order.id);
-
-  const billingValue = invoices.reduce((sum, row) => sum + Number(row.billing_value || 0), 0);
-  const invoiceGrossValue = invoices.reduce((sum, row) => {
-    const lineGross = Number(db.prepare(`
-      SELECT COALESCE(SUM(gross_value), 0) total
-      FROM invoice_items
-      WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0
-    `).get(row.id)?.total || 0);
-    if (lineGross > 0) return sum + lineGross;
-    return sum + Number(row.billing_value || 0) + (Number(row.billing_value || 0) * Number(row.gst_rate || 0) / 100);
-  }, 0);
-  const gstRate = invoices.length ? Number(invoices[0].gst_rate || 0) / 100 : 0;
-  const purchaseValue = procurements.reduce((sum, row) => sum + Number(row.purchase_value || 0), 0);
-  const purchaseCost = procurements.reduce((sum, row) => sum + Number(row.purchase_value || 0) + Number(row.freight || 0) + Number(row.loading_charges || 0), 0);
-  const issuedStockCost = Number(db.prepare(`
-    SELECT COALESCE(SUM(value), 0) total
-    FROM stock_ledger
-    WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_type = 'Outward'
-  `).get(order.id)?.total || 0);
-  const inventoryCostBasis = issuedStockCost > 0 ? issuedStockCost : purchaseValue;
-  const supplierPaid = procurements.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
-  const amountReceived = payments.reduce((sum, row) => sum + Number(row.payment_amount || 0), 0);
-  const grossMargin = billingValue - inventoryCostBasis;
-  const gstInputLoss = grossMargin * gstRate;
-  const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
-  const dynamicExpenses = expenses.map((expense) => {
-    let amount = Number(expense.fixed_amount || 0);
-    if (expense.calculation_method === "percentage_gross") {
-      amount = billingValue * (Number(expense.percentage || 0) / 100);
-    }
-    if (expense.calculation_method === "percentage_taxable") {
-      amount = taxableValue * (Number(expense.percentage || 0) / 100);
-    }
-    return { ...expense, amount };
-  });
-  const totalExpenses = dynamicExpenses.reduce((sum, row) => sum + row.amount, 0);
-  const initialProfit = grossMargin - gstInputLoss - totalExpenses;
-  const incentivePercentage = Number(order.incentive_percentage || 0) / 100;
-  const employeeIncentive = initialProfit * incentivePercentage;
-  const netCompanyProfit = initialProfit - employeeIncentive;
-
-  return {
-    ...order,
-    billingValue,
-    invoiceGrossValue,
-    gstRate: gstRate * 100,
-    purchaseValue,
-    purchaseCost,
-    issuedStockCost,
-    inventoryCostBasis,
-    inventoryCostSource: issuedStockCost > 0 ? "Issued Stock Cost" : "Procurement Value",
-    supplierPaid,
-    supplierDue: purchaseCost - supplierPaid,
-    amountReceived,
-    outstanding: invoiceGrossValue - amountReceived,
-    grossMargin,
-    gstInputLoss,
-    totalExpenses,
-    initialProfit,
-    employeeIncentive,
-    netCompanyProfit,
-    roiPercentage: inventoryCostBasis ? (netCompanyProfit / inventoryCostBasis) * 100 : 0,
-    dynamicExpenses
-  };
-}
-
-export function authenticate(db, username, password) {
-  const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
-  const now = new Date().toISOString();
-  if (user?.locked_until && user.locked_until > now) {
-    auditLog(db, { user_id: user.id, user_role: user.role, action: "login_blocked_locked_user", module: "security", table_name: "users", record_id: user.id });
-    return null;
-  }
-  if (!user || !verifyPassword(password, user.password_hash)) {
-    if (user) {
-      const failedCount = Number(user.failed_login_count || 0) + 1;
-      const lockedUntil = failedCount >= SECURITY.maxFailedLogins ? new Date(Date.now() + SECURITY.sessionTimeoutMinutes * 60 * 1000).toISOString() : null;
-      db.prepare("UPDATE users SET failed_login_count = ?, locked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(failedCount, lockedUntil, user.id);
-      auditLog(db, { user_id: user.id, user_role: user.role, action: "login_failed", module: "security", table_name: "users", record_id: user.id, new_value: JSON.stringify({ failedCount, lockedUntil }) });
-    }
-    return null;
-  }
-  const forcePasswordChange = user.username === "admin" && verifyPassword("admin123", user.password_hash)
-    ? 1
-    : Number(user.force_password_change || 0);
-  if (forcePasswordChange !== Number(user.force_password_change || 0)) {
-    db.prepare("UPDATE users SET force_password_change = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
-  }
-  db.prepare("UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
-  auditLog(db, { user_id: user.id, user_role: user.role, action: "login_success", module: "security", table_name: "users", record_id: user.id });
-  return {
-    id: user.id,
-    username: user.username,
-    displayName: user.display_name,
-    role: user.role,
-    forcePasswordChange: Boolean(forcePasswordChange)
-  };
-}
-
-export function changeUserPassword(db, payload = {}) {
-  const userId = Number(payload.user_id || payload.userId || 0);
-  const username = String(payload.username || "").trim();
-  const currentPassword = String(payload.current_password || payload.currentPassword || "");
-  const newPassword = String(payload.new_password || payload.newPassword || "");
-  const user = userId
-    ? db.prepare("SELECT * FROM users WHERE id = ? AND status = 'active'").get(userId)
-    : db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
-  if (!user || !verifyPassword(currentPassword, user.password_hash)) {
-    if (user) {
-      auditLog(db, { user_id: user.id, user_role: user.role, action: "password_change_failed", module: "security", table_name: "users", record_id: user.id });
-    }
-    throw new Error("Current password is incorrect.");
-  }
-  const errors = passwordStrengthErrors(newPassword);
-  if (errors.length) {
-    throw new Error(errors.join(" "));
-  }
-  if (verifyPassword(newPassword, user.password_hash)) {
-    throw new Error("New password must be different from the current password.");
-  }
-  db.prepare(`
-    UPDATE users
-    SET password_hash = ?,
-        force_password_change = 0,
-        failed_login_count = 0,
-        locked_until = NULL,
-        password_changed_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(hashPassword(newPassword), user.id);
-  auditLog(db, {
-    user_id: user.id,
-    user_role: user.role,
-    action: "password_changed",
-    module: "security",
-    table_name: "users",
-    record_id: user.id,
-    new_value: JSON.stringify({ first_run_hardening: true })
-  });
-  const updated = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
-  return {
-    id: updated.id,
-    username: updated.username,
-    displayName: updated.display_name,
-    role: updated.role,
-    forcePasswordChange: Boolean(updated.force_password_change)
-  };
-}
 
 function accountId(db, companyId, accountName) {
   const account = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = ? AND is_deleted = 0").get(companyId, accountName);
@@ -2231,161 +849,6 @@ function createAutomaticStockIssueFromSalesVoucher(db, guidedVoucher, payload, v
 function nextDocumentNumber(db, companyId, table, column, prefix) {
   const count = db.prepare(`SELECT COUNT(*) count FROM ${table} WHERE company_id = ? AND ${column} LIKE ?`).get(companyId, `${prefix}-%`).count;
   return `${prefix}-${String(count + 1).padStart(5, "0")}`;
-}
-
-export function autoReserveOrderStock(db, orderId) {
-  const order = db.prepare("SELECT * FROM supply_orders WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(orderId);
-  if (!order) throw new Error("Supply order not found");
-  const items = db.prepare("SELECT * FROM order_items WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND item_id IS NOT NULL").all(orderId);
-  db.prepare("UPDATE stock_reservations SET status = 'Cancelled', cancelled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE order_id = ? AND status NOT IN ('Fully Issued','Cancelled')").run(orderId);
-  if (!items.length) {
-    db.prepare("UPDATE supply_orders SET reservation_status = 'Procurement Required', procurement_required = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(orderId);
-    return { order_id: orderId, status: "Procurement Required", reservations: [], message: "No order item lines available for automatic reservation" };
-  }
-  const reservations = items.map((item) => {
-    const warehouseId = item.warehouse_id || db.prepare("SELECT default_warehouse_id FROM items WHERE id = ?").get(item.item_id)?.default_warehouse_id || db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
-    const available = warehouseId ? stockBalance(db, order.company_id, item.item_id, warehouseId).quantity : 0;
-    const required = Number(item.quantity || 0);
-    const reserved = Math.min(required, Math.max(0, available));
-    const short = Math.max(0, required - reserved);
-    const status = short <= 0 ? "Fully Available" : reserved > 0 ? "Partially Reserved" : "Procurement Required";
-    const info = db.prepare(`
-      INSERT INTO stock_reservations (company_id, order_id, order_item_id, item_id, warehouse_id, available_quantity, reserved_quantity, issued_quantity, balance_reserved, short_quantity, procurement_required, procurement_required_quantity, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
-    `).run(order.company_id, orderId, item.id, item.item_id, warehouseId, available, reserved, reserved, short, short > 0 ? 1 : 0, short, status);
-    return { id: info.lastInsertRowid, item_id: item.item_id, required_quantity: required, available_quantity: available, reserved_quantity: reserved, short_quantity: short, status };
-  });
-  const hasShort = reservations.some((row) => row.short_quantity > 0);
-  const hasReserved = reservations.some((row) => row.reserved_quantity > 0);
-  const status = hasShort ? (hasReserved ? "Partially Reserved" : "Procurement Required") : "Reserved";
-  db.prepare("UPDATE supply_orders SET reservation_status = ?, procurement_required = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, hasShort ? 1 : 0, orderId);
-  auditLog(db, { company_id: order.company_id, action: "stock_reservation", table_name: "supply_orders", record_id: orderId, new_value: JSON.stringify({ status, reservations }) });
-  return { order_id: orderId, status, reservations };
-}
-
-export function createDeliveryChallan(db, payload = {}) {
-  const companyId = Number(payload.company_id || 0);
-  const orderId = Number(payload.order_id || 0);
-  if (!companyId || !orderId) throw new Error("Company and order are required");
-  const order = db.prepare("SELECT * FROM supply_orders WHERE id = ?").get(orderId);
-  if (!order) throw new Error("Supply order not found");
-  const lines = Array.isArray(payload.lines) ? payload.lines : [{
-    item_id: payload.item_id,
-    warehouse_id: payload.warehouse_id,
-    quantity: payload.quantity,
-    remarks: payload.remarks
-  }];
-  const validLines = lines.filter((line) => Number(line.item_id || 0) && Number(line.warehouse_id || 0) && Number(line.quantity || 0) > 0);
-  if (!validLines.length) throw new Error("At least one delivery item line is required");
-  const challanNumber = payload.challan_number || nextDocumentNumber(db, companyId, "delivery_challans", "challan_number", "DC");
-  const tx = db.transaction(() => {
-    const dc = db.prepare(`
-      INSERT INTO delivery_challans (company_id, challan_number, order_id, department_id, dispatch_date, vehicle_details, status, remarks)
-      VALUES (?, ?, ?, ?, ?, ?, 'Draft', ?)
-    `).run(companyId, challanNumber, orderId, payload.department_id || order.department_id || null, payload.dispatch_date || new Date().toISOString().slice(0, 10), payload.vehicle_details || "", payload.remarks || "");
-    validLines.forEach((line) => db.prepare(`
-      INSERT INTO delivery_challan_items (company_id, delivery_challan_id, item_id, warehouse_id, quantity, remarks)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(companyId, dc.lastInsertRowid, line.item_id, line.warehouse_id, line.quantity, line.remarks || ""));
-    auditLog(db, { company_id: companyId, action: "delivery_challan_created", table_name: "delivery_challans", record_id: dc.lastInsertRowid, new_value: JSON.stringify({ challanNumber, lines: validLines.length }) });
-    return db.prepare("SELECT * FROM delivery_challans WHERE id = ?").get(dc.lastInsertRowid);
-  });
-  return tx();
-}
-
-export function confirmDeliveryChallan(db, deliveryChallanId, userId = null) {
-  const challan = db.prepare("SELECT * FROM delivery_challans WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(deliveryChallanId);
-  if (!challan) throw new Error("Delivery challan not found");
-  if (challan.status === "Confirmed") throw new Error("Delivery challan is already confirmed");
-  const lines = db.prepare("SELECT * FROM delivery_challan_items WHERE delivery_challan_id = ?").all(deliveryChallanId);
-  const tx = db.transaction(() => {
-    lines.forEach((line) => {
-      const available = stockBalance(db, challan.company_id, line.item_id, line.warehouse_id).quantity;
-      if (Number(line.quantity || 0) > available) throw new Error("Delivery quantity exceeds available stock");
-      const outward = createRecord(db, "stock_outwards", {
-        company_id: challan.company_id,
-        order_id: challan.order_id,
-        department_id: challan.department_id,
-        item_id: line.item_id,
-        warehouse_id: line.warehouse_id,
-        issue_date: challan.dispatch_date,
-        delivery_challan_number: challan.challan_number,
-        quantity_issued: line.quantity,
-        remarks: line.remarks || `Delivery challan ${challan.challan_number}`
-      });
-      const posted = postStockOutward(db, outward.id);
-      db.prepare("UPDATE delivery_challan_items SET stock_outward_id = ? WHERE id = ?").run(posted.id, line.id);
-    });
-    db.prepare("UPDATE delivery_challans SET status = 'Confirmed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(deliveryChallanId);
-    auditLog(db, { company_id: challan.company_id, user_id: userId, action: "delivery_challan_confirmation", table_name: "delivery_challans", record_id: deliveryChallanId, new_value: JSON.stringify({ challan_number: challan.challan_number }) });
-  });
-  tx();
-  return db.prepare("SELECT * FROM delivery_challans WHERE id = ?").get(deliveryChallanId);
-}
-
-export function createWarehouseTransfer(db, payload = {}) {
-  const companyId = Number(payload.company_id || 0);
-  const fromWarehouseId = Number(payload.from_warehouse_id || 0);
-  const toWarehouseId = Number(payload.to_warehouse_id || 0);
-  const itemId = Number(payload.item_id || 0);
-  const quantity = Number(payload.quantity || 0);
-  if (!companyId || !fromWarehouseId || !toWarehouseId || !itemId || quantity <= 0) throw new Error("Company, warehouses, item and positive quantity are required");
-  if (fromWarehouseId === toWarehouseId) throw new Error("From and To warehouse must be different");
-  const available = stockBalance(db, companyId, itemId, fromWarehouseId).quantity;
-  if (quantity > available) throw new Error("Transfer quantity exceeds available stock");
-  const transferNumber = payload.transfer_number || nextDocumentNumber(db, companyId, "warehouse_transfers", "transfer_number", "WT");
-  const result = db.prepare(`
-    INSERT INTO warehouse_transfers (company_id, transfer_number, from_warehouse_id, to_warehouse_id, item_id, transfer_date, quantity, rate, reason, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft')
-  `).run(companyId, transferNumber, fromWarehouseId, toWarehouseId, itemId, payload.transfer_date || new Date().toISOString().slice(0, 10), quantity, Number(payload.rate || 0), payload.reason || "");
-  auditLog(db, { company_id: companyId, action: "warehouse_transfer_created", table_name: "warehouse_transfers", record_id: result.lastInsertRowid, new_value: JSON.stringify({ transferNumber }) });
-  return db.prepare("SELECT * FROM warehouse_transfers WHERE id = ?").get(result.lastInsertRowid);
-}
-
-export function postWarehouseTransfer(db, transferId, userId = null) {
-  const transfer = db.prepare("SELECT * FROM warehouse_transfers WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(transferId);
-  if (!transfer) throw new Error("Warehouse transfer not found");
-  if (transfer.status === "Posted") throw new Error("Warehouse transfer already posted");
-  const available = stockBalance(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id).quantity;
-  if (Number(transfer.quantity || 0) > available) throw new Error("Transfer quantity exceeds available stock");
-  const rate = Number(transfer.rate || 0) || weightedAverageCost(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id);
-  const value = Number(transfer.quantity || 0) * rate;
-  const tx = db.transaction(() => {
-    insertStockLedger(db, {
-      company_id: transfer.company_id,
-      item_id: transfer.item_id,
-      warehouse_id: transfer.from_warehouse_id,
-      transaction_date: transfer.transfer_date,
-      document_number: transfer.transfer_number,
-      transaction_type: "Transfer Out",
-      inward_quantity: 0,
-      outward_quantity: transfer.quantity,
-      rate,
-      value,
-      source_module: "warehouse_transfers",
-      source_id: transfer.id,
-      remarks: transfer.reason || "Warehouse transfer"
-    });
-    insertStockLedger(db, {
-      company_id: transfer.company_id,
-      item_id: transfer.item_id,
-      warehouse_id: transfer.to_warehouse_id,
-      transaction_date: transfer.transfer_date,
-      document_number: transfer.transfer_number,
-      transaction_type: "Transfer In",
-      inward_quantity: transfer.quantity,
-      outward_quantity: 0,
-      rate,
-      value,
-      source_module: "warehouse_transfers",
-      source_id: transfer.id,
-      remarks: transfer.reason || "Warehouse transfer"
-    });
-    db.prepare("UPDATE warehouse_transfers SET status = 'Posted', posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(transfer.id);
-    auditLog(db, { company_id: transfer.company_id, user_id: userId, action: "warehouse_transfer_posted", table_name: "warehouse_transfers", record_id: transfer.id, new_value: JSON.stringify({ transfer_number: transfer.transfer_number, quantity: transfer.quantity }) });
-  });
-  tx();
-  return db.prepare("SELECT * FROM warehouse_transfers WHERE id = ?").get(transfer.id);
 }
 
 function businessVoucherPayload(db, companyId, voucherKind, payload) {
@@ -2664,84 +1127,6 @@ function markPosted(db, table, id, voucherId, postingDate) {
 
 function markPostingError(db, table, id, error) {
   db.prepare(`UPDATE ${table} SET posting_status = 'Error', posting_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(String(error?.message || error), id);
-}
-
-export function submitForApproval(db, moduleName, recordId, makerId = null) {
-  const table = moduleTable(moduleName);
-  const record = getRecord(db, table, recordId);
-  if (!record) throw new Error("Record not found");
-  if (["Posted", "Reversed"].includes(record.posting_status)) throw new Error("Posted records do not need approval");
-  db.prepare(`UPDATE ${table} SET approval_status = 'Pending Approval', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(recordId);
-  db.prepare(`
-    INSERT INTO approval_queue (company_id, module_name, record_id, approval_status, maker_id, submitted_at)
-    VALUES (?, ?, ?, 'Pending Approval', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(module_name, record_id) DO UPDATE SET
-      approval_status = 'Pending Approval',
-      maker_id = excluded.maker_id,
-      submitted_at = CURRENT_TIMESTAMP,
-      updated_at = CURRENT_TIMESTAMP
-  `).run(record.company_id, table, recordId, makerId);
-  auditLog(db, { company_id: record.company_id, user_id: makerId, action: "approval submit", table_name: table, record_id: recordId });
-  return getRecord(db, table, recordId);
-}
-
-export function approveTransaction(db, moduleName, recordId, checkerId = null, remarks = "") {
-  const table = moduleTable(moduleName);
-  const record = getRecord(db, table, recordId);
-  if (!record) throw new Error("Record not found");
-  db.prepare(`UPDATE ${table} SET approval_status = 'Approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(checkerId, recordId);
-  db.prepare(`
-    INSERT INTO approval_queue (company_id, module_name, record_id, approval_status, checker_id, approved_at, remarks)
-    VALUES (?, ?, ?, 'Approved', ?, CURRENT_TIMESTAMP, ?)
-    ON CONFLICT(module_name, record_id) DO UPDATE SET
-      approval_status = 'Approved',
-      checker_id = excluded.checker_id,
-      approved_at = CURRENT_TIMESTAMP,
-      remarks = excluded.remarks,
-      updated_at = CURRENT_TIMESTAMP
-  `).run(record.company_id, table, recordId, checkerId, remarks);
-  auditLog(db, { company_id: record.company_id, user_id: checkerId, action: "approval approved", table_name: table, record_id: recordId, new_value: remarks });
-  return getRecord(db, table, recordId);
-}
-
-export function postBusinessTransaction(db, moduleName, recordId) {
-  const table = moduleTable(moduleName);
-  if (table === "invoices") return postSalesVoucher(db, recordId);
-  if (table === "procurements") return postPurchaseVoucher(db, recordId);
-  if (table === "payments") {
-    const payment = getRecord(db, "payments", recordId);
-    const invoice = db.prepare("SELECT id FROM invoices WHERE order_id = ? AND is_deleted = 0 ORDER BY invoice_date, id LIMIT 1").get(payment?.order_id);
-    if (!invoice) throw new Error("No invoice available for payment allocation");
-    return postReceiptVoucher(db, recordId, invoice.id);
-  }
-  if (table === "expense_entries") {
-    const expense = getRecord(db, "expense_entries", recordId);
-    postExpenseAccrualsForOrder(db, expense.order_id);
-    return db.prepare("SELECT * FROM vouchers WHERE id = (SELECT voucher_id FROM expense_entries WHERE id = ?)").get(recordId);
-  }
-  throw new Error("Posting is not available for this module yet");
-}
-
-function moduleTable(moduleName) {
-  const normalized = String(moduleName || "").toLowerCase();
-  const aliases = {
-    billing: "invoices",
-    sales: "invoices",
-    invoice: "invoices",
-    invoices: "invoices",
-    procurement: "procurements",
-    purchase: "procurements",
-    procurements: "procurements",
-    receipt: "payments",
-    payment: "payments",
-    payments: "payments",
-    expense: "expense_entries",
-    expenses: "expense_entries",
-    expense_entries: "expense_entries"
-  };
-  const table = aliases[normalized];
-  if (!table) throw new Error("Unsupported module");
-  return table;
 }
 
 export function drilldownData(db, payload = {}) {
@@ -3082,7 +1467,10 @@ const {
   updateRecord,
   deleteRecord,
   getRecord,
-  listRecords
+  listRecords,
+  supplyOrderNeedsItems,
+  hasSupplyOrderItemInput,
+  assertRecordEditable
 } = createCrudHelpers({
   ALL_TABLES,
   WRITE_POLICY,
@@ -3095,7 +1483,7 @@ const {
   financialYearForDate,
   transactionDateFor,
   seedAccounts,
-  autoReserveOrderStock
+  autoReserveOrderStock: (...args) => autoReserveOrderStock(...args)
 });
 
 export {
@@ -3216,7 +1604,33 @@ const {
   approveStockAdjustment, postStockReturn, inventoryData
 } = createInventoryService({
   auditLog, activeRowClause, accountId, createBalancedVoucher,
-  autoReserveOrderStock, listRecords, referenceData
+  autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData
+});
+
+const {
+  parseImportFile, parseImportBuffer,
+  normalizeHeader
+} = createImportParserService();
+
+const {
+  hashPassword, verifyPassword, normalizeRole, enforcePermission,
+  authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
+  userForPermission
+} = createAuthService({
+  auditLog
+});
+
+const {
+  bulkImportRecords, listImportBatches, previewImportRollback,
+  rollbackImportBatch, listItemImportBatches,
+  deleteItemImportBatch, deleteUnusedImportedItems,
+  findMasterImportDuplicate
+} = createImportValidationService({
+  assertBulkDeleteSafe, enforcePermission, auditLog, userForPermission,
+  getRecord, createRecord, updateRecord, columnExists, tableExists,
+  normalizeDuplicateKey, supplyOrderNeedsItems, hasSupplyOrderItemInput,
+  assertWriteAllowed,
+  MASTER_TABLES, IMPORT_ROLLBACK_BLOCKED_TABLES
 });
 
 const {
@@ -3225,6 +1639,34 @@ const {
 } = createTallyImportService({
   enforcePermission, normalizeDuplicateKey, findMasterImportDuplicate,
   parseImportFile, columnExists
+});
+
+const {
+  uploadDocument, listDocuments, deleteDocument, replaceDocument
+} = createDocumentService({
+  auditLog, projectRoot
+});
+
+const {
+  billingVoucherData, saveBillingVoucher, orderProfitability, calculateProfitability
+} = createBillingService({
+  referenceData, suggestedInvoiceSequences, assertRecordEditable,
+  getRecord, auditLog, financialYearForDate, nextInvoiceNumber
+});
+
+const { dashboardCounts } = createDashboardService({
+  activeRowClause, orderProfitability, inventoryStockSummary, inventoryLowStockReport
+});
+
+const {
+  autoReserveOrderStock, createDeliveryChallan, confirmDeliveryChallan,
+  createWarehouseTransfer, postWarehouseTransfer,
+  submitForApproval, approveTransaction, postBusinessTransaction
+} = createOperationsService({
+  auditLog, stockBalance, nextDocumentNumber, createRecord,
+  postStockOutward, weightedAverageCost, insertStockLedger,
+  getRecord, postSalesVoucher, postPurchaseVoucher,
+  postReceiptVoucher, postExpenseAccrualsForOrder
 });
 
 const { seed } = createSeedData({
@@ -3297,6 +1739,38 @@ export {
 
 export {
   previewTallyStockXml, previewTallyMasterMigration
+};
+
+export {
+  parseImportFile, parseImportBuffer
+};
+
+export {
+  uploadDocument, listDocuments, deleteDocument, replaceDocument
+};
+
+export {
+  authenticate, changeUserPassword, enforcePermission
+};
+
+export {
+  billingVoucherData, saveBillingVoucher, orderProfitability
+};
+
+export {
+  dashboardCounts
+};
+
+export {
+  autoReserveOrderStock, createDeliveryChallan, confirmDeliveryChallan,
+  createWarehouseTransfer, postWarehouseTransfer,
+  approveTransaction, postBusinessTransaction
+};
+
+export {
+  bulkImportRecords, listImportBatches, previewImportRollback,
+  rollbackImportBatch, listItemImportBatches,
+  deleteItemImportBatch, deleteUnusedImportedItems
 };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

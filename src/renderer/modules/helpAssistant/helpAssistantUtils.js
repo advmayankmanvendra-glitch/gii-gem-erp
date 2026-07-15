@@ -5,8 +5,15 @@ import { SUGGESTED_KEYWORDS, expandQueryTerms } from "./helpAssistantIntentMap.j
 import { searchHelpTopics } from "./helpAssistantScoring.js";
 import { answerReadOnlyDataQuestion } from "./helpAssistantReadiness.js";
 import { buildCurrentScreenTopic } from "./screenHelpAnswer.js";
+import { brainSearchAsTopics } from "./helpAssistantKnowledge.js";
+import { sourceBackedSearch } from "../erpBrain/services/sourceBackedSearchService.js";
+import { resolveContext, getAccountingSafetyBoundary, resolveWorkflowGuidance, getWorkOrderBoundary, VIEW_KEY_TO_SCREEN } from "./contextualBrainHelp.js";
 
 const LOW_CONFIDENCE_THRESHOLD = 0.24;
+const SOURCE_BACKED_GUIDANCE_TERMS = [
+  "bill history", "work order", "receipt voucher", "trial balance", "crac",
+  "cash book", "party ledger", "business voucher", "accounting voucher", "profitability"
+];
 
 /**
  * Normalizes answer text for local rule checks.
@@ -49,7 +56,7 @@ function isScreenGuidanceQuestion(query) {
 /**
  * Builds the help assistant answer while preserving the existing answer object shape.
  */
-function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness, coach, stats, conversationHistory = [] }) {
+function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, currentView, readiness, coach, stats, conversationHistory = [] }) {
   const submittedQuestion = String(query || "").trim();
   const effectiveQuery = inferFollowUpQuery(submittedQuestion, conversationHistory);
   const extractedEntities = extractEntities(submittedQuestion);
@@ -93,20 +100,22 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
   const matches = screenMode ? [] : searchHelpTopics(topics, effectiveQuery, 6);
   const topConfidence = matches[0]?.confidence || 0;
   if (!screenMode && normalizedQuery && topConfidence < LOW_CONFIDENCE_THRESHOLD) {
-    return buildNoMatchAnswer({
+    let noMatchAnswer = buildNoMatchAnswer({
       query: submittedQuestion,
       matches,
       topics,
       extractedEntities
     });
+    noMatchAnswer = enrichWithBrainSearch(noMatchAnswer, submittedQuestion);
+    return noMatchAnswer;
   }
 
   const topic = screenMode
-    ? buildCurrentScreenTopic(currentHelp)
+    ? buildScreenTopicWithBrain(currentHelp, currentView)
     : normalizedQuery ? matches[0] : buildHelpIntroTopic();
   const related = screenMode ? searchHelpTopics(topics, topic.title, 5).filter((item) => item.id !== topic.id) : matches.slice(1, 6);
 
-  return enrichAnswer({
+  let answer = enrichAnswer({
     mode: screenMode ? "Screen Guidance Mode" : "Help Mode",
     title: topic.title,
     type: topic.type,
@@ -136,6 +145,9 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
     relatedTopics: related.map((item) => ({ id: item.id, title: item.title, type: item.type, menuPath: item.menuPath, viewKey: item.viewKey })),
     sourceLabel: topic.type || "Help knowledge base",
     confidence: topConfidence || undefined,
+    workflowStage: topic.workflowStage,
+    accountingSafetyBoundary: topic.accountingSafetyBoundary,
+    workOrderBoundary: topic.workOrderBoundary,
     safetyNote: "Guidance only: this assistant does not save, post, reverse, import, restore, delete or alter ERP records."
   }, {
     query: submittedQuestion,
@@ -143,6 +155,16 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
     intent,
     relatedQuestions: buildRelatedQuestions(topic, intent)
   });
+
+  if (screenMode) {
+    answer = enrichWithBrainSearch(answer, topic.title);
+  } else if (isSourceBackedGuidanceQuery(submittedQuestion)) {
+    answer = enrichWithBrainSearch(answer, submittedQuestion, true);
+  } else if (answer.confidence && answer.confidence < 0.4 && !answer.noMatch) {
+    answer = enrichWithBrainSearch(answer, submittedQuestion);
+  }
+
+  return answer;
 }
 
 /**
@@ -217,6 +239,79 @@ function buildNoMatchAnswer({ query, matches, topics, extractedEntities }) {
 }
 
 /**
+ * Builds screen topic enriched with contextual brain data (workflow stage, DB tables, manual ref, safety boundary).
+ */
+function buildScreenTopicWithBrain(currentHelp, currentView) {
+  const topic = buildCurrentScreenTopic(currentHelp);
+  if (!currentView) return topic;
+
+  const context = resolveContext(currentView);
+  if (!context.screenName) return topic;
+
+  topic.brainBacked = true;
+  topic.screenName = context.screenName;
+
+  if (context.workflowInfo) {
+    const flowGuidance = resolveWorkflowGuidance(context.workflowInfo.stage);
+    topic.workflowStage = { stage: context.workflowInfo.label, guidance: flowGuidance };
+  }
+
+  if (context.impact.accounting) {
+    topic.accountingSafetyBoundary = getAccountingSafetyBoundary();
+  }
+
+  if (context.workflowInfo && !context.impact.accounting && !context.impact.inventory) {
+    topic.workOrderBoundary = getWorkOrderBoundary();
+  }
+
+  return topic;
+}
+
+/**
+ * Enriches a help answer with BRAIN-2 source-backed search results.
+ */
+function enrichWithBrainSearch(answer, query, preferBrainAnswer = false) {
+  try {
+    const searchResult = sourceBackedSearch(query);
+    const brainResults = brainSearchAsTopics(() => searchResult, query);
+    if (!brainResults || brainResults.length === 0) return answer;
+    const useBrainAnswer = answer.noMatch || preferBrainAnswer;
+
+    return {
+      ...answer,
+      brainBacked: true,
+      title: useBrainAnswer ? brainResults[0].title : answer.title,
+      type: useBrainAnswer ? "Brain Source" : answer.type,
+      brainResults: brainResults.map((r) => ({
+        title: r.title,
+        summary: r.summary,
+        sourceKind: r.sourceKind,
+        sourcePath: r.sourcePath,
+        graphId: r.graphId,
+        confidence: r.confidence,
+        relatedTables: r.relatedTables,
+        relatedReports: r.relatedReports,
+        manualReference: r.manualReference
+      })),
+      summary: answer.noMatch
+        ? `${answer.summary} Through BRAIN-2 source-backed search, ${brainResults.length} related result(s) were found from ERP manuals, workflows, and knowledge graphs.`
+        : answer.summary,
+      directAnswer: useBrainAnswer && brainResults.length > 0
+        ? brainResults[0].summary
+        : answer.directAnswer,
+      sourceLabel: useBrainAnswer ? "BRAIN-2 source-backed guidance" : answer.sourceLabel,
+      sourceReferences: brainResults.filter((r) => r.sourceKind).map((r) => r.sourceKind),
+      relatedTables: mergeUnique(answer.relatedTables, brainResults.flatMap((r) => r.relatedTables || [])),
+      relatedReports: mergeUnique(answer.relatedReports, brainResults.flatMap((r) => r.relatedReports || [])),
+      manualReferences: mergeUnique(answer.manualReferences, brainResults.map((r) => r.manualReference).filter(Boolean)),
+      needsReview: answer.needsReview || brainResults.some((r) => r.needsReview)
+    };
+  } catch {
+    return answer;
+  }
+}
+
+/**
  * Adds optional intelligence metadata while preserving the existing answer shape.
  */
 function enrichAnswer(answer, additions) {
@@ -227,6 +322,15 @@ function enrichAnswer(answer, additions) {
     relatedQuestions: additions.relatedQuestions || [],
     intent: additions.intent
   };
+}
+
+function mergeUnique(existing = [], additions = []) {
+  return [...new Set([...(existing || []), ...(additions || [])].filter(Boolean))];
+}
+
+function isSourceBackedGuidanceQuery(query) {
+  const normalized = normalizeText(query);
+  return SOURCE_BACKED_GUIDANCE_TERMS.some((term) => normalized.includes(term));
 }
 
 /**

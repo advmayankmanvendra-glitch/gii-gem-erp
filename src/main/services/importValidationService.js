@@ -1,8 +1,11 @@
+import crypto from "node:crypto";
+
 export function createImportValidationService(deps) {
   const {
     assertBulkDeleteSafe, enforcePermission, auditLog, userForPermission,
     getRecord, createRecord, updateRecord, columnExists, tableExists,
     normalizeDuplicateKey, supplyOrderNeedsItems, hasSupplyOrderItemInput,
+    assertWriteAllowed,
     MASTER_TABLES, IMPORT_ROLLBACK_BLOCKED_TABLES
   } = deps;
 
@@ -541,6 +544,7 @@ export function createImportValidationService(deps) {
   return {
     bulkImportRecords, listImportBatches, previewImportRollback,
     rollbackImportBatch, listItemImportBatches,
-    deleteItemImportBatch, deleteUnusedImportedItems
+    deleteItemImportBatch, deleteUnusedImportedItems,
+    findMasterImportDuplicate
   };
 }

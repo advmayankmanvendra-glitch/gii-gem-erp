@@ -17,7 +17,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
   const topics = useMemo(() => buildHelpAssistantKnowledge(currentHelp), [currentHelp]);
   const readiness = useMemo(() => buildOnboardingReadiness({ companies, companyContext, stats }), [companies, companyContext, stats]);
   const coach = useMemo(() => buildCoachPriorities({ readiness, stats, companyContext }), [readiness, stats, companyContext]);
-  const answerContext = useMemo(() => ({ topics, currentHelp, readiness, coach, stats }), [topics, currentHelp, readiness, coach, stats]);
+  const answerContext = useMemo(() => ({ topics, currentHelp, currentView, readiness, coach, stats }), [topics, currentHelp, currentView, readiness, coach, stats]);
   const [answer, setAnswer] = useState(() => buildHelpAssistantAnswer({ query: "", mode: initialMode, ...answerContext }));
   const results = useMemo(() => searchHelpTopics(topics, query, 8), [topics, query]);
   const guidanceContextKey = `${currentView || ""}|${currentHelp?.key || currentHelp?.title || ""}|${initialMode}`;

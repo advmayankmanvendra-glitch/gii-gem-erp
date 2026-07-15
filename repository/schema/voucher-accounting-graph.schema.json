@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gii-gem-erp.internal/schemas/voucher-accounting-graph.schema.json",
+  "title": "KG-4 Voucher and Accounting Graph Schema",
+  "description": "Schema for KG-4 Voucher and Accounting Graph — maps voucher types, posting functions, debit/credit patterns, ledger impact, receivable/payable impact, cash/bank impact, GST impact, inventory impact, report dependencies, reversal rules, and accounting protection boundaries.",
+  "type": "object",
+  "required": [
+    "schemaVersion", "graphId", "graphName", "version", "generatedAt",
+    "owner", "status", "description", "sourceFiles", "dependencies",
+    "voucherTypes", "postingFunctions", "debitCreditPatterns",
+    "ledgerImpactPatterns", "receivablePayableImpact", "cashBankImpact",
+    "gstImpact", "inventoryImpact", "reversalRules", "reportDependencies",
+    "workflowAlignment", "databaseAlignment", "auditTrailMapping",
+    "accountingProtectionMapping", "knownGaps", "compatibility", "futureExtensions"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "pattern": "^1\\.0\\.0$" },
+    "graphId": { "type": "string", "pattern": "^KG-4$" },
+    "graphName": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "generatedAt": { "type": "string" },
+    "owner": { "type": "string" },
+    "status": { "type": "string", "enum": ["active", "planned", "deprecated"] },
+    "description": { "type": "string" },
+    "sourceFiles": { "type": "array", "items": { "type": "string" } },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["graphId", "description"],
+        "properties": {
+          "graphId": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "voucherTypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "voucherTypeId", "displayName", "sourceModule", "sourceTable",
+          "postingFunction", "debitPattern", "creditPattern",
+          "ledgerImpact", "gstImpact", "inventoryImpact", "cashBankImpact",
+          "receivablePayableImpact", "reversalSupported", "auditLogged",
+          "accountingSensitivity", "status"
+        ],
+        "properties": {
+          "voucherTypeId": { "type": "string" },
+          "displayName": { "type": "string" },
+          "voucherTypeDb": { "type": "string" },
+          "sourceModule": { "type": "string" },
+          "sourceTable": { "type": "string" },
+          "postingFunction": { "type": "string" },
+          "allowedWorkflowStage": { "type": ["string", "null"] },
+          "debitPattern": { "type": "array", "items": { "type": "string" } },
+          "creditPattern": { "type": "array", "items": { "type": "string" } },
+          "ledgerImpact": { "type": "boolean" },
+          "partySubledgerImpact": { "type": ["string", "boolean"] },
+          "gstImpact": { "type": ["string", "boolean"] },
+          "inventoryImpact": { "type": ["string", "boolean"] },
+          "cashBankImpact": { "type": ["string", "boolean"] },
+          "receivablePayableImpact": { "type": ["string", "boolean"] },
+          "reportImpact": { "type": "array", "items": { "type": "string" } },
+          "reversalSupported": { "type": "boolean" },
+          "reversalFunction": { "type": ["string", "null"] },
+          "auditLogged": { "type": "boolean" },
+          "accountingSensitivity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "status": { "type": "string", "enum": ["active", "partial", "planned", "deprecated"] }
+        }
+      },
+      "uniqueItemProperties": ["voucherTypeId"]
+    },
+    "postingFunctions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "functionName", "sourceFile", "serviceModule",
+          "readsFromTables", "writesToTables", "transactionBoundary",
+          "auditImpact", "reportImpact", "safetyRule"
+        ],
+        "properties": {
+          "functionName": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "lineNumber": { "type": "integer" },
+          "serviceModule": { "type": "string" },
+          "readsFromTables": { "type": "array", "items": { "type": "string" } },
+          "writesToTables": { "type": "array", "items": { "type": "string" } },
+          "voucherTypeCreated": { "type": ["string", "null"] },
+          "debitAccounts": {
+            "oneOf": [
+              { "type": "array", "items": { "type": "string" } },
+              { "type": "null" }
+            ]
+          },
+          "creditAccounts": {
+            "oneOf": [
+              { "type": "array", "items": { "type": "string" } },
+              { "type": "null" }
+            ]
+          },
+          "transactionBoundary": { "type": "string" },
+          "auditImpact": { "type": "boolean" },
+          "reportImpact": { "type": ["string", "null"] },
+          "workflowStage": { "type": ["string", "null"] },
+          "relatedDG1Tables": { "type": "array", "items": { "type": "string" } },
+          "relatedWG1Stage": { "type": ["string", "null"] },
+          "safetyRule": { "type": "string" }
+        }
+      },
+      "uniqueItemProperties": ["functionName"]
+    },
+    "debitCreditPatterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "patternId", "voucherType", "debitSide", "creditSide",
+          "sourceModule", "sourceTable", "reportImpact", "validationRule"
+        ],
+        "properties": {
+          "patternId": { "type": "string" },
+          "voucherType": { "type": "string" },
+          "debitSide": { "type": "array", "items": { "type": "string" } },
+          "creditSide": { "type": "array", "items": { "type": "string" } },
+          "optionalLines": { "type": "array" },
+          "taxLines": { "type": "array" },
+          "partyLines": { "type": "array" },
+          "sourceModule": { "type": "string" },
+          "sourceTable": { "type": "string" },
+          "reportImpact": { "type": "string" },
+          "validationRule": { "type": "string" }
+        }
+      },
+      "uniqueItemProperties": ["patternId"]
+    },
+    "ledgerImpactPatterns": { "type": "array" },
+    "receivablePayableImpact": { "type": "array" },
+    "cashBankImpact": { "type": "array" },
+    "gstImpact": { "type": "array" },
+    "inventoryImpact": { "type": "array" },
+    "reversalRules": { "type": "array" },
+    "reportDependencies": { "type": "array", "items": { "type": "object" } },
+    "workflowAlignment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["wg1Stage", "accountingImpact", "createsAccountingImpact", "description"],
+        "properties": {
+          "wg1Stage": { "type": "string" },
+          "accountingImpact": { "type": "string" },
+          "createsAccountingImpact": { "type": "boolean" },
+          "description": { "type": "string" },
+          "relatedVoucherTypes": { "type": "array", "items": { "type": "string" } },
+          "relatedPostingFunctions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "databaseAlignment": { "type": "array" },
+    "auditTrailMapping": { "type": "array" },
+    "accountingProtectionMapping": {
+      "type": "object",
+      "required": ["principle1", "genericCrudEnforced", "createBalancedVoucherEnforced", "financialYearLockEnforced", "auditTrailEnforced"],
+      "properties": {
+        "principle1": { "type": "string" },
+        "principle2": { "type": "string" },
+        "principle3": { "type": "string" },
+        "principle4": { "type": "string" },
+        "principle5": { "type": "string" },
+        "principle6": { "type": "string" },
+        "principle7": { "type": "string" },
+        "principle8": { "type": "string" },
+        "principle9": { "type": "string" },
+        "principle10": { "type": "string" },
+        "enforcedTables": { "type": "array", "items": { "type": "string" } },
+        "genericCrudEnforced": { "type": "boolean" },
+        "createBalancedVoucherEnforced": { "type": "boolean" },
+        "financialYearLockEnforced": { "type": "boolean" },
+        "auditTrailEnforced": { "type": "boolean" }
+      }
+    },
+    "knownGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gapId", "description", "impact"],
+        "properties": {
+          "gapId": { "type": "string" },
+          "description": { "type": "string" },
+          "impact": { "type": "string" },
+          "workaround": { "type": "string" }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "WG-1": { "type": "string" },
+        "DG-1": { "type": "string" },
+        "KG-1": { "type": "string" },
+        "doubleEntryAudit": { "type": "string" }
+      }
+    },
+    "futureExtensions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

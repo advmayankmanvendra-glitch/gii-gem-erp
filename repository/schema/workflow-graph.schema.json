@@ -1,0 +1,291 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:wg-1:schema:1.0.0",
+  "title": "WG-1 Workflow Graph Schema",
+  "description": "JSON Schema for the WG-1 Government Supply Lifecycle Workflow Graph. Frozen at schemaVersion 1.0.0.",
+  "type": "object",
+  "schemaVersion": "1.0.0",
+  "graphId": "WG-1",
+  "required": [
+    "schemaVersion", "graphId", "generatedAt", "owner", "description",
+    "dependencies", "lifecycleId", "nodes", "edges",
+    "stageOrder", "optionalStages", "requiredStages",
+    "entryStage", "operationalRootStage",
+    "accountingStartStage", "inventoryStartStage", "gstStartStage",
+    "closureStage", "reportingStage",
+    "knownGaps", "sourceDocuments", "validationRules",
+    "metadata", "compatibility", "futureExtensions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the WG-1 schema.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier.",
+      "enum": ["WG-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owner of this workflow graph.",
+      "enum": ["Architecture & Governance"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the workflow graph."
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Graph dependency declarations.",
+      "required": ["dependsOn", "dependedBy"],
+      "properties": {
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dependedBy": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "lifecycleId": {
+      "type": "string",
+      "description": "Stable workflow lifecycle identifier.",
+      "enum": ["GOVERNMENT_SUPPLY_LIFECYCLE"]
+    },
+    "nodes": {
+      "type": "array",
+      "description": "List of workflow stage nodes.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "label", "stageType", "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique node identifier."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable stage label."
+          },
+          "stageType": {
+            "type": "string",
+            "description": "Stage classification.",
+            "enum": ["lead", "procurement", "fulfillment", "delivery", "billing", "financial", "closure", "analysis"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "partial", "planned", "deprecated"]
+          },
+          "routeKey": {
+            "type": "string",
+            "description": "Primary renderer route key, if available."
+          },
+          "screenRef": {
+            "type": "string",
+            "description": "Screen or component reference path, if available."
+          },
+          "tableRef": {
+            "type": "string",
+            "description": "Primary database table reference, if available."
+          },
+          "helpRef": {
+            "type": "string",
+            "description": "Manual or help document reference, if available."
+          },
+          "upstreamDeps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "downstreamDeps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "createsAccountingImpact": {
+            "type": "boolean"
+          },
+          "createsInventoryImpact": {
+            "type": "boolean"
+          },
+          "createsGSTImpact": {
+            "type": "boolean"
+          },
+          "parentEntity": {
+            "type": "string",
+            "description": "Parent entity type for this stage."
+          },
+          "requiredDocuments": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "blockedActions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "knownGaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "List of directed edges between workflow stages.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relationshipType", "required"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Source node ID."
+          },
+          "to": {
+            "type": "string",
+            "description": "Target node ID."
+          },
+          "relationshipType": {
+            "type": "string",
+            "enum": ["precedes", "depends_on", "triggers", "optional_transition"]
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether this transition is mandatory in normal flow."
+          },
+          "skipAllowed": {
+            "type": "boolean",
+            "description": "Whether this transition may be skipped."
+          },
+          "skipReason": {
+            "type": "string",
+            "description": "Explanation of why skip is allowed, if applicable."
+          },
+          "validationRule": {
+            "type": "string",
+            "description": "Rule that must hold before the transition."
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "Reference to governance or design document."
+          }
+        }
+      }
+    },
+    "stageOrder": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Ordered list of stage IDs in the lifecycle."
+    },
+    "optionalStages": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stage IDs that are optional."
+    },
+    "requiredStages": {
+      "type": "array",
+      "items": { "type": "object" },
+      "description": "Required stage ordering rules.",
+      "properties": {
+        "before": { "type": "string" },
+        "after": { "type": "string" },
+        "condition": { "type": "string" }
+      }
+    },
+    "entryStage": {
+      "type": "string",
+      "description": "Stage ID that serves as the entry point."
+    },
+    "operationalRootStage": {
+      "type": "string",
+      "description": "Stage ID that is the operational parent/root."
+    },
+    "accountingStartStage": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stage IDs where accounting impact begins."
+    },
+    "inventoryStartStage": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stage IDs where inventory impact begins."
+    },
+    "gstStartStage": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stage IDs where GST impact begins."
+    },
+    "closureStage": {
+      "type": "string",
+      "description": "Stage ID for formal closure."
+    },
+    "reportingStage": {
+      "type": "string",
+      "description": "Stage ID for reporting."
+    },
+    "knownGaps": {
+      "type": "array",
+      "description": "Known unimplemented or partial stages.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "gap": { "type": "string" },
+          "severity": { "type": "string" },
+          "plannedPhase": { "type": "string" }
+        }
+      }
+    },
+    "sourceDocuments": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of source documents used to build this graph."
+    },
+    "validationRules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Rules that the workflow graph must satisfy."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Graph metadata.",
+      "required": ["totalNodes", "totalEdges", "activeNodes", "partialNodes", "plannedNodes"],
+      "properties": {
+        "totalNodes": { "type": "integer" },
+        "totalEdges": { "type": "integer" },
+        "activeNodes": { "type": "integer" },
+        "partialNodes": { "type": "integer" },
+        "plannedNodes": { "type": "integer" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility with other graphs.",
+      "required": ["version", "compatibleWith"],
+      "properties": {
+        "version": { "type": "string" },
+        "compatibleWith": { "type": "object" }
+      }
+    },
+    "futureExtensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Notes on future extensions."
+    }
+  }
+}

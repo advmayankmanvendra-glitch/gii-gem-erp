@@ -59,7 +59,7 @@ export const mastersMetadata = [
     id: "KNG-MST-003",
     title: "Departments",
     moduleGroup: "Masters",
-    routeKey: "departments",
+    routeKey: "government_departments",
     screenType: "Master",
     purpose: "Manage organisational departments and government department classifications.",
     dataEnteredHere: ["Department code", "Department name", "Parent department", "Department head", "Cost centre code", "Location", "Status"],
