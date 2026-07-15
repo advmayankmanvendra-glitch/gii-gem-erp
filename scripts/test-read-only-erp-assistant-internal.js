@@ -246,6 +246,77 @@ r = resolveQuery("What is the impact of a sales invoice on accounts?");
 assert(r.safetyBoundary !== undefined, "BP-2: accounting-impact query has safetyBoundary",
   `boundary=${r.safetyBoundary}`);
 
+// ---- 18. FF-1 Routing Regression Tests ----
+console.log("\n--- Category: FF-1 Routing ---");
+r = resolveQuery("what is voucher dashboard for", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1"), "FF1-01: voucher dashboard answer sources include FF-1",
+  `sources=${r.sourceReferences.map((s) => s.graphId).join(",")}`);
+
+r = resolveQuery("what is business voucher", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /business voucher|guided voucher|voucher/i.test(r.answer || ""),
+  "FF1-02: business voucher answer uses FF-1 and is about vouchers",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("is voucher dashboard same as work order", "dashboard");
+assert(/voucher dashboard|work order/i.test(r.answer || ""), "FF1-03: comparison query answers about voucher dashboard or work order",
+  `answer=${(r.answer || "").substring(0, 60)}`);
+
+r = resolveQuery("what is work order", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /work order|supply order/i.test(r.answer || ""),
+  "FF1-04: work order query uses FF-1 and mentions work order",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("does work order post accounting", "dashboard");
+assert(r.answer && r.answer.toLowerCase().includes("does not"), "FF1-05: work order accounting query says does not create accounting entries",
+  `answer=${(r.answer || "").substring(0, 60)}`);
+
+r = resolveQuery("where is bill history", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /bill|history|invoice/i.test(r.answer || ""),
+  "FF1-06: bill history query uses FF-1 and mentions bill/invoice",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("how many types of reports are there", "dashboard");
+assert(!/Purchase Order|GeM Order/i.test(r.answer || ""), "FF1-07: report types query does not use unrelated Purchase Order",
+  `answer=${(r.answer || "").substring(0, 60)}`);
+
+r = resolveQuery("what is trial balance", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /trial balance|ledger/i.test(r.answer || ""),
+  "FF1-08: trial balance query uses FF-1 and mentions trial balance",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("which table stores ledger entries", "dashboard");
+assert(r.relatedTables.includes("ledger_entries"), "FF1-09: ledger entries query includes ledger_entries table",
+  `tables=${r.relatedTables.join(",")}`);
+
+r = resolveQuery("what happens after CRAC", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /crac|consignee|acceptance/i.test(r.answer || ""),
+  "FF1-10: CRAC query uses FF-1 and mentions CRAC",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("how does stock outward work", "dashboard");
+assert(r.safetyBoundary === "inventory-sensitive" || r.safetyBoundary === "read-only guidance",
+  "FF1-11: stock outward query has inventory or default safety boundary",
+  `safety=${r.safetyBoundary}`);
+
+r = resolveQuery("what is receipt voucher", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /receipt|payment/i.test(r.answer || ""),
+  "FF1-12: receipt voucher query uses FF-1 and mentions receipt",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("what is opening balance", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /opening balance|financial year/i.test(r.answer || ""),
+  "FF1-13: opening balance query uses FF-1 and mentions opening balance",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("how does profitability analysis work", "dashboard");
+assert(r.sourceReferences.some((s) => s.graphId === "FF-1") && /profitab|margin|revenue/i.test(r.answer || ""),
+  "FF1-14: profitability query uses FF-1 and mentions profit/revenue",
+  `answer=${(r.answer || "").substring(0, 50)}`);
+
+r = resolveQuery("what are known gaps in billing", "dashboard");
+assert(r.knownGaps && r.knownGaps.length >= 0, "FF1-15: billing known gaps query returns knownGaps array",
+  `gaps=${r.knownGaps.length}`);
+
 // ---- Summary ----
 console.log("\n------------------------------------------------------------");
 console.log(`Results:  ${results.pass} passed,  ${results.fail} failed,  ${results.total} total`);

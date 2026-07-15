@@ -78,4 +78,59 @@ function computeProhibitedActions(boundary) {
   return ["post", "reverse", "approve", "delete", "restore", "import", "export"];
 }
 
-export { assembleContract };
+function buildFeatureAnswer(featureMatch, query, classification, screenContext) {
+  const name = featureMatch.canonicalName || featureMatch.featureName;
+  const whatItDoes = featureMatch.whatThisFeatureDoes || "";
+  const whatItDoesNotDo = featureMatch.whatThisFeatureDoesNotDo || "";
+  const safety = featureMatch.safetyBoundary || "read-only guidance";
+  const cat = classification || {};
+
+  let segments = [];
+
+  if (whatItDoes) {
+    segments.push(whatItDoes);
+  }
+
+  if (whatItDoesNotDo) {
+    segments.push(`${name}: ${whatItDoesNotDo}`);
+  }
+
+  if (featureMatch.workflowStage) {
+    segments.push(`Related workflow stage: ${featureMatch.workflowStage}.`);
+  }
+
+  if (featureMatch.screenRef) {
+    segments.push(`Find this feature in the "${featureMatch.screenRef}" screen.`);
+  }
+
+  if (featureMatch.databaseTables && featureMatch.databaseTables.length > 0) {
+    segments.push(`Related database tables: ${featureMatch.databaseTables.join(", ")}.`);
+  }
+
+  if (featureMatch.voucherTypes && featureMatch.voucherTypes.length > 0) {
+    segments.push(`Voucher types involved: ${featureMatch.voucherTypes.join(", ")}.`);
+  }
+
+  if (featureMatch.createsAccountingImpact) {
+    segments.push(`${name} creates accounting impact. Review ledger entries in the relevant accounting reports.`);
+  } else {
+    segments.push(`${name} does not directly create accounting entries.`);
+  }
+
+  if (featureMatch.reportDependencies && featureMatch.reportDependencies.length > 0) {
+    segments.push(`Reports affected: ${featureMatch.reportDependencies.join(", ")}.`);
+  }
+
+  if (featureMatch.knownGaps && featureMatch.knownGaps.length > 0) {
+    const gapText = featureMatch.knownGaps.slice(0, 3).join("; ");
+    segments.push(`Known limitations: ${gapText}.`);
+  }
+
+  const text = segments.join(" ");
+  return {
+    text: `${text} ${cat.category ? `This is a ${cat.categoryLabel.toLowerCase()} question. ` : ""}Source: FF-1 Feature Function Correlation Graph.`,
+    segments
+  };
+}
+
+export { assembleContract, buildFeatureAnswer, computeProhibitedActions };
