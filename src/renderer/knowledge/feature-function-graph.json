@@ -1,0 +1,5332 @@
+{
+  "schemaVersion": "1.0.0",
+  "graphId": "FF-1",
+  "graphName": "Feature Function Correlation Graph",
+  "version": "1.0.0",
+  "generatedAt": "2026-07-15T23:00:00.000Z",
+  "owner": "Architecture & Governance",
+  "description": "Correlation graph mapping ERP features to functions, screens, workflows, database tables, voucher types, reports, manuals, safety boundaries, aliases, and expected answer types. Designed to make Ask ERP Brain behave as a relationship tracer rather than a loose search engine.",
+  "sourceFilesReviewed": [
+    "repository/graph-registry.json",
+    "src/renderer/knowledge/registry.js",
+    "src/renderer/knowledge/modules/",
+    "src/renderer/knowledge/workflow-graph.json",
+    "src/renderer/knowledge/database-graph.json",
+    "src/renderer/knowledge/voucher-accounting-graph.json",
+    "src/renderer/knowledge/renderer-graph.json",
+    "src/renderer/modules/erpBrain/",
+    "src/renderer/modules/helpAssistant/",
+    "src/renderer/modules/erpAssistant/",
+    "docs/manuals/",
+    "docs/architecture/brain-4-combined-phase-report.md",
+    "docs/architecture/brain-4-1-ask-erp-brain-live-query-relevance-hotfix-report.md",
+    "docs/audit/eil-production-certification-addendum-brain-4-1.md",
+    "docs/architecture/enterprise-intelligence-layer-rollup-lock-report.md"
+  ],
+  "featureNodes": [
+    {
+      "id": "FEA-01",
+      "canonicalName": "ERP Dashboard",
+      "aliases": [
+        "dashboard",
+        "home screen",
+        "main dashboard",
+        "analytics dashboard"
+      ],
+      "category": "general",
+      "screenRef": "Dashboard",
+      "viewKey": "dashboard",
+      "menuPath": "Dashboard",
+      "workflowStage": null,
+      "databaseTables": [
+        "supply_orders",
+        "vouchers",
+        "receivables",
+        "stock_ledger"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Trial Balance",
+        "Profit & Loss",
+        "Stock Summary"
+      ],
+      "manualSections": [
+        "Dashboard Overview"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Provides a centralized overview of key ERP metrics including pending orders, outstanding receivables, stock status, and recent transactions.",
+      "whatThisFeatureDoesNotDo": "Does not allow record creation, posting, or data modification. It is a read-only summary view.",
+      "commonQuestions": [
+        "What is on the dashboard?",
+        "How do I view dashboard?",
+        "What metrics does the dashboard show?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "Dashboard does not show real-time financial position"
+      ],
+      "sourceReferences": [
+        "RG-1 renderer-graph.json route: dashboard",
+        "BRAIN-1 repository navigation entry: dashboard"
+      ],
+      "featureName": "ERP Dashboard",
+      "status": "active",
+      "commonUserNames": [
+        "dashboard",
+        "home screen",
+        "main dashboard"
+      ]
+    },
+    {
+      "id": "FEA-02",
+      "canonicalName": "Masters",
+      "aliases": [
+        "masters",
+        "master data",
+        "master records",
+        "company masters"
+      ],
+      "category": "masters",
+      "screenRef": "Masters",
+      "viewKey": "masters",
+      "menuPath": "Masters",
+      "workflowStage": null,
+      "databaseTables": [
+        "companies",
+        "government_departments",
+        "suppliers",
+        "items",
+        "banks",
+        "warehouses",
+        "employees",
+        "expense_heads"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Master Data Management"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Allows creation and management of master records including companies, departments, suppliers, items, banks, warehouses, employees, and expense heads.",
+      "whatThisFeatureDoesNotDo": "Does not handle transactions, vouchers, posting, or financial reporting.",
+      "commonQuestions": [
+        "How do I add a supplier?",
+        "Where are master records?",
+        "How do I create an item?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 tables: companies, suppliers, items, banks, warehouses, employees",
+        "RG-1 route: masters"
+      ],
+      "featureName": "Masters",
+      "status": "active",
+      "commonUserNames": [
+        "masters",
+        "master data",
+        "master records"
+      ]
+    },
+    {
+      "id": "FEA-03",
+      "canonicalName": "Company Context",
+      "aliases": [
+        "company",
+        "company selection",
+        "switch company",
+        "current company"
+      ],
+      "category": "administration",
+      "screenRef": "CompanySelector",
+      "viewKey": "company_selector",
+      "menuPath": "Top Bar > Company",
+      "workflowStage": null,
+      "databaseTables": [
+        "companies"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Company Management"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages the current company context. All transactions, reports, and data are scoped to the selected company.",
+      "whatThisFeatureDoesNotDo": "Does not create or modify company master data from this context selector.",
+      "commonQuestions": [
+        "How do I switch company?",
+        "Which company is selected?",
+        "How do I change company?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: companies",
+        "RG-1 context: company_selector"
+      ],
+      "featureName": "Company Context",
+      "status": "active",
+      "commonUserNames": [
+        "company",
+        "company selection",
+        "switch company"
+      ]
+    },
+    {
+      "id": "FEA-04",
+      "canonicalName": "Government Departments",
+      "aliases": [
+        "departments",
+        "govt departments",
+        "government depts",
+        "dept master"
+      ],
+      "category": "masters",
+      "screenRef": "GovernmentDepartments",
+      "viewKey": "government_departments",
+      "menuPath": "Masters > Government Departments",
+      "workflowStage": null,
+      "databaseTables": [
+        "government_departments"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Government Department Master"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages government department master records including department name, code, contact details, and billing information.",
+      "whatThisFeatureDoesNotDo": "Does not handle transactions, purchase orders, or billing. It is a master data screen only.",
+      "commonQuestions": [
+        "How do I add a government department?",
+        "Where is department master?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: government_departments",
+        "RG-1 route: government_departments"
+      ],
+      "featureName": "Government Departments",
+      "status": "active",
+      "commonUserNames": [
+        "departments",
+        "govt departments",
+        "government depts"
+      ]
+    },
+    {
+      "id": "FEA-05",
+      "canonicalName": "Suppliers",
+      "aliases": [
+        "supplier",
+        "vendor",
+        "vendor master",
+        "supplier master",
+        "party"
+      ],
+      "category": "masters",
+      "screenRef": "Suppliers",
+      "viewKey": "suppliers",
+      "menuPath": "Masters > Suppliers",
+      "workflowStage": null,
+      "databaseTables": [
+        "suppliers"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Supplier Ledger",
+        "Payables Report"
+      ],
+      "manualSections": [
+        "Supplier Master"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages supplier master records including supplier name, GSTIN, address, contact, bank details, and credit terms.",
+      "whatThisFeatureDoesNotDo": "Does not handle purchase orders, payments, or procurement transactions.",
+      "commonQuestions": [
+        "How do I add a supplier?",
+        "Where is supplier master?",
+        "What is a vendor?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: suppliers",
+        "RG-1 route: suppliers"
+      ],
+      "featureName": "Suppliers",
+      "status": "active",
+      "commonUserNames": [
+        "supplier",
+        "vendor",
+        "vendor master"
+      ]
+    },
+    {
+      "id": "FEA-06",
+      "canonicalName": "Items",
+      "aliases": [
+        "item",
+        "product",
+        "product master",
+        "item master",
+        "material"
+      ],
+      "category": "masters",
+      "screenRef": "Items",
+      "viewKey": "items",
+      "menuPath": "Masters > Items",
+      "workflowStage": null,
+      "databaseTables": [
+        "items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Stock Ledger",
+        "Inventory Valuation"
+      ],
+      "manualSections": [
+        "Item Master"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages item master records including item name, HSN/SAC code, unit of measure, rate, GST rate, and stock category.",
+      "whatThisFeatureDoesNotDo": "Does not handle stock transactions, purchases, or sales. It is a master data screen only.",
+      "commonQuestions": [
+        "How do I add an item?",
+        "Where is item master?",
+        "How do I set GST rate for an item?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: items",
+        "RG-1 route: items"
+      ],
+      "featureName": "Items",
+      "status": "active",
+      "commonUserNames": [
+        "item",
+        "product",
+        "product master"
+      ]
+    },
+    {
+      "id": "FEA-07",
+      "canonicalName": "Banks",
+      "aliases": [
+        "bank",
+        "bank master",
+        "bank account"
+      ],
+      "category": "masters",
+      "screenRef": "Banks",
+      "viewKey": "banks",
+      "menuPath": "Masters > Banks",
+      "workflowStage": null,
+      "databaseTables": [
+        "banks"
+      ],
+      "voucherTypes": [
+        "contra",
+        "payment",
+        "receipt"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Cash/Bank Book"
+      ],
+      "manualSections": [
+        "Bank Master"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages bank account master records including bank name, account number, IFSC code, branch, and opening balance.",
+      "whatThisFeatureDoesNotDo": "Does not handle bank reconciliation, payments, or receipts.",
+      "commonQuestions": [
+        "How do I add a bank account?",
+        "Where is bank master?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: banks",
+        "RG-1 route: banks"
+      ],
+      "featureName": "Banks",
+      "status": "active",
+      "commonUserNames": [
+        "bank",
+        "bank master",
+        "bank account"
+      ]
+    },
+    {
+      "id": "FEA-08",
+      "canonicalName": "Warehouses",
+      "aliases": [
+        "warehouse",
+        "godown",
+        "store",
+        "location"
+      ],
+      "category": "masters",
+      "screenRef": "Warehouses",
+      "viewKey": "warehouses",
+      "menuPath": "Masters > Warehouses",
+      "workflowStage": null,
+      "databaseTables": [
+        "warehouses"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Stock Ledger",
+        "Inventory Valuation"
+      ],
+      "manualSections": [
+        "Warehouse Master"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages warehouse/godown master records including location, address, and storage capacity.",
+      "whatThisFeatureDoesNotDo": "Does not handle stock movement, GRN, or delivery challan.",
+      "commonQuestions": [
+        "How do I add a warehouse?",
+        "Where is godown master?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: warehouses",
+        "RG-1 route: warehouses"
+      ],
+      "featureName": "Warehouses",
+      "status": "active",
+      "commonUserNames": [
+        "warehouse",
+        "godown",
+        "store"
+      ]
+    },
+    {
+      "id": "FEA-09",
+      "canonicalName": "Employees",
+      "aliases": [
+        "employee",
+        "staff",
+        "user",
+        "employee master"
+      ],
+      "category": "masters",
+      "screenRef": "Employees",
+      "viewKey": "employees",
+      "menuPath": "Masters > Employees",
+      "workflowStage": null,
+      "databaseTables": [
+        "employees"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Employee Master"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages employee master records including name, designation, department, contact, and user role.",
+      "whatThisFeatureDoesNotDo": "Does not handle payroll, attendance, or HR transactions.",
+      "commonQuestions": [
+        "How do I add an employee?",
+        "Where is employee master?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "Payroll not yet implemented"
+      ],
+      "sourceReferences": [
+        "DG-1 table: employees",
+        "RG-1 route: employees"
+      ],
+      "featureName": "Employees",
+      "status": "active",
+      "commonUserNames": [
+        "employee",
+        "staff",
+        "user"
+      ]
+    },
+    {
+      "id": "FEA-10",
+      "canonicalName": "Purchase Order / GeM Order",
+      "aliases": [
+        "purchase order",
+        "po",
+        "gem order",
+        "geM order",
+        "procurement order"
+      ],
+      "category": "procurement",
+      "screenRef": "PurchaseOrder",
+      "viewKey": "purchase_order",
+      "menuPath": "Operations > Purchase Order",
+      "workflowStage": "PURCHASE_ORDER_GEM_ORDER",
+      "databaseTables": [
+        "purchase_orders",
+        "order_items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Purchase Order Report"
+      ],
+      "manualSections": [
+        "Purchase Order / GeM Order"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Creates and manages Purchase Orders and GeM orders for procuring goods and services from suppliers.",
+      "whatThisFeatureDoesNotDo": "Does not post accounting entries, does not create inventory movement, does not handle billing.",
+      "commonQuestions": [
+        "What is a Purchase Order?",
+        "How do I create a GeM order?",
+        "What is the difference between PO and Work Order?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "GeM API integration not yet implemented — orders are entered manually"
+      ],
+      "sourceReferences": [
+        "WG-1 stage: PURCHASE_ORDER_GEM_ORDER",
+        "DG-1 table: purchase_orders"
+      ],
+      "featureName": "Purchase Order / GeM Order",
+      "status": "partial",
+      "commonUserNames": [
+        "purchase order",
+        "po",
+        "gem order"
+      ]
+    },
+    {
+      "id": "FEA-11",
+      "canonicalName": "Work Order / Supply Order",
+      "aliases": [
+        "work order",
+        "wo",
+        "supply order",
+        "so",
+        "work order supply order",
+        "parent order"
+      ],
+      "category": "operations",
+      "screenRef": "SupplyOrder",
+      "viewKey": "supply_orders",
+      "menuPath": "Operations > Supply Orders",
+      "workflowStage": "WORK_ORDER",
+      "databaseTables": [
+        "supply_orders",
+        "order_items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Work Order Report",
+        "Order Tracking Report"
+      ],
+      "manualSections": [
+        "Work Order / Supply Order"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Operational root of the government supply lifecycle. Creates supply orders to fulfill purchase orders, tracks order progress through the lifecycle.",
+      "whatThisFeatureDoesNotDo": "Does not create accounting entries directly. Does not handle billing, receipts, or inventory directly. It is the operational parent entity.",
+      "commonQuestions": [
+        "What is Work Order?",
+        "Where is Supply Order?",
+        "Does Work Order create accounting?",
+        "What happens after Work Order?",
+        "Is Work Order the same as Purchase Order?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: WORK_ORDER",
+        "DG-1 table: supply_orders",
+        "KG-4: WORK_ORDER has no direct accounting impact",
+        "Rule 29: Work Order / Supply Order Parent Entity Rule"
+      ],
+      "featureName": "Work Order / Supply Order",
+      "status": "active",
+      "commonUserNames": [
+        "work order",
+        "wo",
+        "supply order"
+      ]
+    },
+    {
+      "id": "FEA-12",
+      "canonicalName": "Procurement Planning",
+      "aliases": [
+        "procurement",
+        "procurement plan",
+        "planning",
+        "purchase planning"
+      ],
+      "category": "procurement",
+      "screenRef": "ProcurementPlanning",
+      "viewKey": "procurement_planning",
+      "menuPath": "Operations > Procurement Planning",
+      "workflowStage": "PROCUREMENT_PLANNING",
+      "databaseTables": [
+        "procurement_plans",
+        "procurement_plan_items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Procurement Plan Report"
+      ],
+      "manualSections": [
+        "Procurement Planning"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Planned procurement of materials and services based on work order requirements. Generates procurement schedules.",
+      "whatThisFeatureDoesNotDo": "Does not directly create purchase orders or supplier POs. It is a planning stage.",
+      "commonQuestions": [
+        "What is procurement planning?",
+        "How do I create a procurement plan?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "Procurement plan does not auto-generate supplier POs"
+      ],
+      "sourceReferences": [
+        "WG-1 stage: PROCUREMENT_PLANNING",
+        "DG-1 table: procurement_plans"
+      ],
+      "featureName": "Procurement Planning",
+      "status": "partial",
+      "commonUserNames": [
+        "procurement",
+        "procurement plan",
+        "planning"
+      ]
+    },
+    {
+      "id": "FEA-13",
+      "canonicalName": "Supplier Purchase Orders",
+      "aliases": [
+        "supplier po",
+        "supplier purchase order",
+        "spo",
+        "procurement po"
+      ],
+      "category": "procurement",
+      "screenRef": "SupplierPurchaseOrder",
+      "viewKey": "supplier_purchase_order",
+      "menuPath": "Operations > Supplier Purchase Orders",
+      "workflowStage": "SUPPLIER_PURCHASE_ORDER",
+      "databaseTables": [
+        "supplier_purchase_orders",
+        "purchase_order_items"
+      ],
+      "voucherTypes": [
+        "purchase"
+      ],
+      "postingFunctions": [
+        "createPurchaseVoucher"
+      ],
+      "reportDependencies": [
+        "Supplier PO Report",
+        "Purchase Register"
+      ],
+      "manualSections": [
+        "Supplier Purchase Orders"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": true,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Creates purchase orders issued to suppliers for procurement of goods. Generates purchase voucher upon receipt.",
+      "whatThisFeatureDoesNotDo": "Does not post ledger entries until goods are received and purchase voucher is created.",
+      "commonQuestions": [
+        "How do I create a supplier PO?",
+        "What is supplier purchase order?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: SUPPLIER_PURCHASE_ORDER",
+        "DG-1 table: supplier_purchase_orders",
+        "KG-4 voucher: purchase"
+      ],
+      "featureName": "Supplier Purchase Orders",
+      "status": "active",
+      "commonUserNames": [
+        "supplier po",
+        "supplier purchase order",
+        "spo"
+      ]
+    },
+    {
+      "id": "FEA-14",
+      "canonicalName": "GRN / Goods Receipt",
+      "aliases": [
+        "grn",
+        "goods receipt",
+        "goods receipt note",
+        "goods received",
+        "receipt note"
+      ],
+      "category": "inventory",
+      "screenRef": "GoodsReceipt",
+      "viewKey": "goods_receipt",
+      "menuPath": "Operations > GRN",
+      "workflowStage": "GOODS_RECEIPT_GRN",
+      "databaseTables": [
+        "goods_receipts",
+        "goods_receipt_items",
+        "stock_ledger"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [
+        "recordGoodsReceipt"
+      ],
+      "reportDependencies": [
+        "GRN Register",
+        "Stock Ledger"
+      ],
+      "manualSections": [
+        "GRN / Goods Receipt"
+      ],
+      "safetyBoundary": "inventory-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": true,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Records receipt of goods from suppliers. Updates stock ledger and triggers inventory valuation.",
+      "whatThisFeatureDoesNotDo": "Does not post accounting vouchers. Purchase voucher posting is a separate step.",
+      "commonQuestions": [
+        "How do I create a GRN?",
+        "What is goods receipt?",
+        "Does GRN affect accounting?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: GOODS_RECEIPT_GRN",
+        "DG-1 table: goods_receipts, stock_ledger",
+        "KG-4 postingFunction: recordGoodsReceipt"
+      ],
+      "featureName": "GRN / Goods Receipt",
+      "status": "active",
+      "commonUserNames": [
+        "grn",
+        "goods receipt",
+        "goods receipt note"
+      ]
+    },
+    {
+      "id": "FEA-15",
+      "canonicalName": "Inventory Reservation",
+      "aliases": [
+        "reservation",
+        "stock reservation",
+        "inventory reserve",
+        "allocate stock"
+      ],
+      "category": "inventory",
+      "screenRef": "InventoryReservation",
+      "viewKey": "inventory_reservation",
+      "menuPath": "Operations > Inventory Reservation",
+      "workflowStage": "INVENTORY_RESERVATION",
+      "databaseTables": [
+        "inventory_reservations"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Reservation Report"
+      ],
+      "manualSections": [
+        "Inventory Reservation"
+      ],
+      "safetyBoundary": "inventory-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": true,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Reserves inventory for specific work orders or delivery challans. Ensures stock availability for committed deliveries.",
+      "whatThisFeatureDoesNotDo": "Does not move physical stock or post accounting entries. Reservation is a planning hold.",
+      "commonQuestions": [
+        "What is inventory reservation?",
+        "How do I reserve stock?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: INVENTORY_RESERVATION",
+        "DG-1 table: inventory_reservations"
+      ],
+      "featureName": "Inventory Reservation",
+      "status": "active",
+      "commonUserNames": [
+        "reservation",
+        "stock reservation",
+        "inventory reserve"
+      ]
+    },
+    {
+      "id": "FEA-16",
+      "canonicalName": "Delivery Challan",
+      "aliases": [
+        "dc",
+        "delivery challan",
+        "delivery note",
+        "dispatch note",
+        "challan"
+      ],
+      "category": "inventory",
+      "screenRef": "DeliveryChallan",
+      "viewKey": "delivery_challan",
+      "menuPath": "Operations > Delivery Challan",
+      "workflowStage": "DELIVERY_CHALLAN",
+      "databaseTables": [
+        "delivery_challans",
+        "delivery_challan_items",
+        "stock_ledger"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [
+        "createDeliveryChallan"
+      ],
+      "reportDependencies": [
+        "Delivery Challan Register",
+        "Stock Ledger"
+      ],
+      "manualSections": [
+        "Delivery Challan"
+      ],
+      "safetyBoundary": "inventory-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": true,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Creates delivery challans for dispatching goods to customers/government departments. Tracks outward stock movement.",
+      "whatThisFeatureDoesNotDo": "Does not create invoices or accounting entries. Billing is a separate downstream step.",
+      "commonQuestions": [
+        "What is a delivery challan?",
+        "How do I create a DC?",
+        "Is DC the same as invoice?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: DELIVERY_CHALLAN",
+        "DG-1 table: delivery_challans",
+        "KG-4 postingFunction: createDeliveryChallan"
+      ],
+      "featureName": "Delivery Challan",
+      "status": "active",
+      "commonUserNames": [
+        "dc",
+        "delivery challan",
+        "delivery note"
+      ]
+    },
+    {
+      "id": "FEA-17",
+      "canonicalName": "Installation",
+      "aliases": [
+        "installation",
+        "site installation",
+        "commissioning"
+      ],
+      "category": "operations",
+      "screenRef": "Installation",
+      "viewKey": "installation",
+      "menuPath": "Operations > Installation",
+      "workflowStage": "INSTALLATION",
+      "databaseTables": [
+        "installations"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Installation Report"
+      ],
+      "manualSections": [
+        "Installation"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Tracks site installation and commissioning of delivered equipment/goods.",
+      "whatThisFeatureDoesNotDo": "Does not handle billing or accounting. Installation is an operational milestone.",
+      "commonQuestions": [
+        "How do I record installation?",
+        "What is the installation process?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "Installation workflow is partial — no mandatory completion checklist"
+      ],
+      "sourceReferences": [
+        "WG-1 stage: INSTALLATION",
+        "DG-1 table: installations"
+      ],
+      "featureName": "Installation",
+      "status": "partial",
+      "commonUserNames": [
+        "installation",
+        "site installation",
+        "commissioning"
+      ]
+    },
+    {
+      "id": "FEA-18",
+      "canonicalName": "CRAC",
+      "aliases": [
+        "crac",
+        "consignee receipt and acceptance certificate",
+        "crac certificate",
+        "acceptance certificate"
+      ],
+      "category": "operations",
+      "screenRef": "CRAC",
+      "viewKey": "crac",
+      "menuPath": "Operations > CRAC",
+      "workflowStage": "CRAC",
+      "databaseTables": [
+        "crac_records"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "CRAC Register"
+      ],
+      "manualSections": [
+        "CRAC"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence.",
+      "whatThisFeatureDoesNotDo": "Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing.",
+      "commonQuestions": [
+        "What is CRAC?",
+        "What happens after CRAC?",
+        "Is CRAC required for billing?"
+      ],
+      "expectedAnswerType": "workflow",
+      "preferredSourceGraph": "WG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: CRAC",
+        "DG-1 table: crac_records"
+      ],
+      "featureName": "CRAC",
+      "status": "active",
+      "commonUserNames": [
+        "crac",
+        "consignee receipt and acceptance certificate",
+        "crac certificate"
+      ]
+    },
+    {
+      "id": "FEA-19",
+      "canonicalName": "Billing / GST Invoice",
+      "aliases": [
+        "billing",
+        "invoice",
+        "sales invoice",
+        "gst invoice",
+        "bill",
+        "tax invoice"
+      ],
+      "category": "billing",
+      "screenRef": "SalesInvoice",
+      "viewKey": "sales_invoices",
+      "menuPath": "Operations > Billing / GST Invoice",
+      "workflowStage": "SALES_INVOICE_GST_INVOICE",
+      "databaseTables": [
+        "sales_invoices",
+        "invoice_items",
+        "ledger_entries",
+        "gst_registers"
+      ],
+      "voucherTypes": [
+        "sales"
+      ],
+      "postingFunctions": [
+        "createSalesInvoice",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Sales Register",
+        "GST Register",
+        "Receivables Report",
+        "Trial Balance"
+      ],
+      "manualSections": [
+        "Billing / GST Invoice"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": true,
+      "createsGSTImpact": true,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable.",
+      "whatThisFeatureDoesNotDo": "Does not handle receipts, payments, or purchase billing. It is for sales invoicing only.",
+      "commonQuestions": [
+        "How do I create a GST invoice?",
+        "What is billing?",
+        "Does sales invoice affect accounting?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: SALES_INVOICE_GST_INVOICE",
+        "KG-4 voucher: sales",
+        "DG-1 table: sales_invoices, ledger_entries"
+      ],
+      "featureName": "Billing / GST Invoice",
+      "status": "active",
+      "commonUserNames": [
+        "billing",
+        "invoice",
+        "sales invoice"
+      ]
+    },
+    {
+      "id": "FEA-20",
+      "canonicalName": "Bill History",
+      "aliases": [
+        "bill history",
+        "invoice history",
+        "billing history",
+        "invoice register",
+        "sales register",
+        "bill list"
+      ],
+      "category": "billing",
+      "screenRef": "BillHistory",
+      "viewKey": "bill_history",
+      "menuPath": "Operations > Bill History",
+      "workflowStage": "SALES_INVOICE_GST_INVOICE",
+      "databaseTables": [
+        "sales_invoices"
+      ],
+      "voucherTypes": [
+        "sales"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Sales Register",
+        "Invoice Register"
+      ],
+      "manualSections": [
+        "Bill History"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Displays a list of all created invoices/bills for review. Provides navigation to individual invoice details.",
+      "whatThisFeatureDoesNotDo": "Does not create new invoices. Does not show live payment status or balances. It is a read-only listing of created bills.",
+      "commonQuestions": [
+        "Where is Bill History?",
+        "How do I view past invoices?",
+        "What is invoice register?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "RG-1 route: bill_history",
+        "DG-1 table: sales_invoices",
+        "BRAIN-1 navigation entry: Bill History"
+      ],
+      "featureName": "Bill History",
+      "status": "active",
+      "commonUserNames": [
+        "bill history",
+        "invoice history",
+        "billing history"
+      ]
+    },
+    {
+      "id": "FEA-21",
+      "canonicalName": "Receivables",
+      "aliases": [
+        "receivables",
+        "department receivable",
+        "debtor",
+        "outstanding",
+        "amount receivable",
+        "receivable report"
+      ],
+      "category": "accounting",
+      "screenRef": "Receivables",
+      "viewKey": "receivables",
+      "menuPath": "Accounting > Receivables",
+      "workflowStage": "DEPARTMENT_RECEIVABLE",
+      "databaseTables": [
+        "receivables"
+      ],
+      "voucherTypes": [
+        "receipt"
+      ],
+      "postingFunctions": [
+        "createReceipt"
+      ],
+      "reportDependencies": [
+        "Receivables Report",
+        "Aging Report",
+        "Department Ledger"
+      ],
+      "manualSections": [
+        "Receivables"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Tracks amounts receivable from government departments. Shows outstanding invoices, aging, and payment status.",
+      "whatThisFeatureDoesNotDo": "Does not post receipts or write off receivables. It is a read-only tracking view.",
+      "commonQuestions": [
+        "What are receivables?",
+        "How do I view outstanding?",
+        "What is department receivable?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: DEPARTMENT_RECEIVABLE",
+        "KG-4 voucher: receipt",
+        "DG-1 table: receivables"
+      ],
+      "featureName": "Receivables",
+      "status": "active",
+      "commonUserNames": [
+        "receivables",
+        "department receivable",
+        "debtor"
+      ]
+    },
+    {
+      "id": "FEA-22",
+      "canonicalName": "Receipts",
+      "aliases": [
+        "receipt",
+        "payment received",
+        "receipt voucher",
+        "money received",
+        "collection"
+      ],
+      "category": "accounting",
+      "screenRef": "Receipts",
+      "viewKey": "receipts",
+      "menuPath": "Accounting > Receipts",
+      "workflowStage": "RECEIPT",
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries",
+        "receivables"
+      ],
+      "voucherTypes": [
+        "receipt"
+      ],
+      "postingFunctions": [
+        "createReceipt",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Receipts Register",
+        "Cash/Bank Book",
+        "Receivables Report"
+      ],
+      "manualSections": [
+        "Receipts"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Records receipt of payments from government departments. Posts accounting entries, updates receivables, records cash/bank impact.",
+      "whatThisFeatureDoesNotDo": "Does not handle payments to suppliers. Does not create sales invoices.",
+      "commonQuestions": [
+        "How do I record a receipt?",
+        "What is a receipt voucher?",
+        "Does receipt affect accounting?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: RECEIPT",
+        "KG-4 voucher: receipt",
+        "DG-1 table: vouchers, ledger_entries"
+      ],
+      "featureName": "Receipts",
+      "status": "active",
+      "commonUserNames": [
+        "receipt",
+        "payment received",
+        "receipt voucher"
+      ]
+    },
+    {
+      "id": "FEA-23",
+      "canonicalName": "Supplier Payments",
+      "aliases": [
+        "payment",
+        "supplier payment",
+        "payment voucher",
+        "money paid",
+        "expense payment"
+      ],
+      "category": "accounting",
+      "screenRef": "Payments",
+      "viewKey": "payments",
+      "menuPath": "Accounting > Payments",
+      "workflowStage": "RECEIPT",
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries",
+        "supplier_balances"
+      ],
+      "voucherTypes": [
+        "payment"
+      ],
+      "postingFunctions": [
+        "createPayment",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Payment Register",
+        "Cash/Bank Book",
+        "Supplier Ledger"
+      ],
+      "manualSections": [
+        "Supplier Payments"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Records payments made to suppliers. Posts accounting entries, updates supplier balances, records cash/bank impact.",
+      "whatThisFeatureDoesNotDo": "Does not handle receipts from customers. Does not create purchase orders.",
+      "commonQuestions": [
+        "How do I make a supplier payment?",
+        "What is a payment voucher?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "KG-4 voucher: payment",
+        "DG-1 table: vouchers, ledger_entries"
+      ],
+      "featureName": "Supplier Payments",
+      "status": "active",
+      "commonUserNames": [
+        "payment",
+        "supplier payment",
+        "payment voucher"
+      ]
+    },
+    {
+      "id": "FEA-24",
+      "canonicalName": "Expenses",
+      "aliases": [
+        "expense",
+        "expense entry",
+        "expense voucher",
+        "cost",
+        "expense management"
+      ],
+      "category": "accounting",
+      "screenRef": "Expenses",
+      "viewKey": "expenses",
+      "menuPath": "Accounting > Expenses",
+      "workflowStage": null,
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "journal",
+        "payment",
+        "expense_accrual"
+      ],
+      "postingFunctions": [
+        "createExpenseVoucher",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Expense Report",
+        "Profit & Loss"
+      ],
+      "manualSections": [
+        "Expense Management"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Records business expenses. Posts accounting entries to appropriate expense heads.",
+      "whatThisFeatureDoesNotDo": "Does not handle supplier payments or purchase bills.",
+      "commonQuestions": [
+        "How do I record an expense?",
+        "What is an expense voucher?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "KG-4 voucher: expense_accrual, journal",
+        "DG-1 table: vouchers, ledger_entries"
+      ],
+      "featureName": "Expenses",
+      "status": "active",
+      "commonUserNames": [
+        "expense",
+        "expense entry",
+        "expense voucher"
+      ]
+    },
+    {
+      "id": "FEA-25",
+      "canonicalName": "Business Voucher",
+      "aliases": [
+        "business voucher",
+        "guided voucher",
+        "business entry",
+        "transaction voucher"
+      ],
+      "category": "accounting",
+      "screenRef": "BusinessVoucher",
+      "viewKey": "business_voucher",
+      "menuPath": "Accounting > Business Voucher",
+      "workflowStage": null,
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "guided_voucher"
+      ],
+      "postingFunctions": [
+        "createGuidedVoucher",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Voucher Register",
+        "Trial Balance",
+        "Ledger Report"
+      ],
+      "manualSections": [
+        "Business Voucher"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Guided accounting entry creation for common business transactions. Provides a simplified interface to create accounting vouchers.",
+      "whatThisFeatureDoesNotDo": "Is not the same as Work Order/Supply Order. Does not handle operational lifecycle.",
+      "commonQuestions": [
+        "What is a business voucher?",
+        "What is voucher dashboard for?",
+        "How do I create a business voucher?",
+        "Is business voucher same as work order?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "KG-4 voucher: guided_voucher",
+        "RG-1 route: business_voucher",
+        "BRAIN-4.1: voucher dashboard relevance fix"
+      ],
+      "featureName": "Business Voucher",
+      "status": "active",
+      "commonUserNames": [
+        "business voucher",
+        "guided voucher",
+        "business entry"
+      ]
+    },
+    {
+      "id": "FEA-26",
+      "canonicalName": "Accounting Voucher",
+      "aliases": [
+        "accounting voucher",
+        "manual voucher",
+        "journal",
+        "contra",
+        "journal voucher",
+        "manual entry"
+      ],
+      "category": "accounting",
+      "screenRef": "AccountingVoucher",
+      "viewKey": "accounting_voucher",
+      "menuPath": "Accounting > Accounting Voucher",
+      "workflowStage": null,
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "journal",
+        "contra",
+        "opening_balance",
+        "party_opening_balance"
+      ],
+      "postingFunctions": [
+        "createJournal",
+        "createContra",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Journal Register",
+        "Trial Balance",
+        "Cash/Bank Book"
+      ],
+      "manualSections": [
+        "Accounting Voucher"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Creates manual accounting entries including journal vouchers, contra entries, and opening balances. Posts directly to ledger.",
+      "whatThisFeatureDoesNotDo": "Does not handle operational transactions. It is for manual accounting corrections and adjustments.",
+      "commonQuestions": [
+        "What is an accounting voucher?",
+        "How do I create a journal entry?",
+        "What is contra voucher?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "KG-4 voucher: journal, contra, opening_balance",
+        "DG-1 table: vouchers, ledger_entries"
+      ],
+      "featureName": "Accounting Voucher",
+      "status": "active",
+      "commonUserNames": [
+        "accounting voucher",
+        "manual voucher",
+        "journal"
+      ]
+    },
+    {
+      "id": "FEA-27",
+      "canonicalName": "Voucher Dashboard",
+      "aliases": [
+        "voucher dashboard",
+        "business voucher",
+        "guided voucher",
+        "accounting voucher",
+        "voucher overview"
+      ],
+      "category": "accounting",
+      "screenRef": "VoucherDashboard",
+      "viewKey": "voucher_dashboard",
+      "menuPath": "Accounting > Voucher Dashboard",
+      "workflowStage": null,
+      "databaseTables": [
+        "vouchers"
+      ],
+      "voucherTypes": [
+        "guided_voucher",
+        "journal",
+        "contra",
+        "payment",
+        "receipt",
+        "sales",
+        "purchase"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Voucher Register"
+      ],
+      "manualSections": [
+        "Voucher Dashboard"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Central hub showing all voucher types and providing navigation to create or review accounting entries. Guided voucher creation workflow.",
+      "whatThisFeatureDoesNotDo": "Is not the same as Work Order/Supply Order. Does not handle operational lifecycle. Does not post entries itself.",
+      "commonQuestions": [
+        "What is voucher dashboard for?",
+        "What is business voucher?",
+        "Is voucher dashboard same as work order?",
+        "Can I post from voucher dashboard?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "RG-1 route: voucher_dashboard",
+        "KG-4 voucher: guided_voucher",
+        "BRAIN-4.1: voucher dashboard relevance fix"
+      ],
+      "featureName": "Voucher Dashboard",
+      "status": "active",
+      "commonUserNames": [
+        "voucher dashboard",
+        "business voucher",
+        "guided voucher"
+      ]
+    },
+    {
+      "id": "FEA-28",
+      "canonicalName": "Opening Balance",
+      "aliases": [
+        "opening balance",
+        "opening entry",
+        "opening stock",
+        "opening ledger",
+        "beginning balance"
+      ],
+      "category": "accounting",
+      "screenRef": "OpeningBalance",
+      "viewKey": "opening_balance",
+      "menuPath": "Accounting > Opening Balance",
+      "workflowStage": null,
+      "databaseTables": [
+        "vouchers",
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "opening_balance",
+        "party_opening_balance"
+      ],
+      "postingFunctions": [
+        "createOpeningBalance",
+        "postLedgerEntry"
+      ],
+      "reportDependencies": [
+        "Trial Balance",
+        "Ledger Report"
+      ],
+      "manualSections": [
+        "Opening Balance"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": true,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": true,
+      "whatThisFeatureDoes": "Records opening balances for ledger accounts at the start of a financial year. Posts to ledger as opening entries.",
+      "whatThisFeatureDoesNotDo": "Does not handle transactions for the current period. Opening balance is a one-time entry per financial year.",
+      "commonQuestions": [
+        "How do I set opening balance?",
+        "What is opening balance entry?"
+      ],
+      "expectedAnswerType": "accounting_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [
+        "KG4-GAP-004: Opening balances have no reversal support"
+      ],
+      "sourceReferences": [
+        "KG-4 voucher: opening_balance",
+        "DG-1 table: vouchers, ledger_entries"
+      ],
+      "featureName": "Opening Balance",
+      "status": "active",
+      "commonUserNames": [
+        "opening balance",
+        "opening entry",
+        "opening stock"
+      ]
+    },
+    {
+      "id": "FEA-29",
+      "canonicalName": "Trial Balance",
+      "aliases": [
+        "trial balance",
+        "tb",
+        "trail balance",
+        "trial bal"
+      ],
+      "category": "reporting",
+      "screenRef": "TrialBalance",
+      "viewKey": "trial_balance",
+      "menuPath": "Reports > Trial Balance",
+      "workflowStage": null,
+      "databaseTables": [
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Trial Balance"
+      ],
+      "manualSections": [
+        "Trial Balance"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the trial balance — a summary of all ledger account balances. Used to verify that total debits equal total credits.",
+      "whatThisFeatureDoesNotDo": "Does not show live balances. Does not post entries. The assistant cannot show actual balance figures.",
+      "commonQuestions": [
+        "What is Trial Balance?",
+        "Where is Trial Balance?",
+        "What does Trial Balance show?",
+        "How to view Trial Balance?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 report: Trial Balance sourced from ledger_entries",
+        "KG-4 report: Trial Balance mapped to ledger_entries"
+      ],
+      "featureName": "Trial Balance",
+      "status": "active",
+      "commonUserNames": [
+        "trial balance",
+        "tb",
+        "trail balance"
+      ]
+    },
+    {
+      "id": "FEA-30",
+      "canonicalName": "Profit & Loss",
+      "aliases": [
+        "profit and loss",
+        "p&l",
+        "pnl",
+        "pl",
+        "income statement",
+        "profit loss"
+      ],
+      "category": "reporting",
+      "screenRef": "ProfitLoss",
+      "viewKey": "profit_loss",
+      "menuPath": "Reports > Profit & Loss",
+      "workflowStage": "PROFITABILITY_ANALYSIS",
+      "databaseTables": [
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Profit & Loss"
+      ],
+      "manualSections": [
+        "Profit & Loss"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the profit and loss statement — revenue, expenses, and net profit/loss for a period.",
+      "whatThisFeatureDoesNotDo": "Does not show live balances. Does not post entries. The assistant cannot show actual profit figures.",
+      "commonQuestions": [
+        "What is Profit & Loss?",
+        "How to view P&L?",
+        "What does P&L show?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 report: P&L sourced from ledger_entries",
+        "KG-4 report: P&L mapped to ledger_entries"
+      ],
+      "featureName": "Profit & Loss",
+      "status": "active",
+      "commonUserNames": [
+        "profit and loss",
+        "p&l",
+        "pnl"
+      ]
+    },
+    {
+      "id": "FEA-31",
+      "canonicalName": "Balance Sheet",
+      "aliases": [
+        "balance sheet",
+        "bs",
+        "financial position",
+        "statement of affairs"
+      ],
+      "category": "reporting",
+      "screenRef": "BalanceSheet",
+      "viewKey": "balance_sheet",
+      "menuPath": "Reports > Balance Sheet",
+      "workflowStage": null,
+      "databaseTables": [
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Balance Sheet"
+      ],
+      "manualSections": [
+        "Balance Sheet"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the balance sheet — assets, liabilities, and equity at a given date.",
+      "whatThisFeatureDoesNotDo": "Does not show live balances. Does not post entries. The assistant cannot show actual balance figures.",
+      "commonQuestions": [
+        "What is Balance Sheet?",
+        "How to view Balance Sheet?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 report: Balance Sheet sourced from ledger_entries",
+        "KG-4 report: Balance Sheet mapped to ledger_entries"
+      ],
+      "featureName": "Balance Sheet",
+      "status": "active",
+      "commonUserNames": [
+        "balance sheet",
+        "bs",
+        "financial position"
+      ]
+    },
+    {
+      "id": "FEA-32",
+      "canonicalName": "Ledger Report",
+      "aliases": [
+        "ledger",
+        "ledger report",
+        "general ledger",
+        "account ledger",
+        "department ledger",
+        "supplier ledger",
+        "party ledger"
+      ],
+      "category": "reporting",
+      "screenRef": "LedgerReport",
+      "viewKey": "ledger_report",
+      "menuPath": "Reports > Ledger Report",
+      "workflowStage": null,
+      "databaseTables": [
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Ledger Report"
+      ],
+      "manualSections": [
+        "Ledger Report"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the detailed ledger for any account — all debit and credit entries with running balance.",
+      "whatThisFeatureDoesNotDo": "Does not show live balances. The assistant cannot show actual ledger entries.",
+      "commonQuestions": [
+        "What is a ledger?",
+        "How do I view a ledger report?",
+        "What is department ledger?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: ledger_entries",
+        "KG-4 report: Ledger Report"
+      ],
+      "featureName": "Ledger Report",
+      "status": "active",
+      "commonUserNames": [
+        "ledger",
+        "ledger report",
+        "general ledger"
+      ]
+    },
+    {
+      "id": "FEA-33",
+      "canonicalName": "Cash / Bank Book",
+      "aliases": [
+        "cash book",
+        "bank book",
+        "cash bank book",
+        "cash/bank book",
+        "cash bank"
+      ],
+      "category": "reporting",
+      "screenRef": "CashBankBook",
+      "viewKey": "cash_bank_book",
+      "menuPath": "Reports > Cash / Bank Book",
+      "workflowStage": null,
+      "databaseTables": [
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "receipt",
+        "payment",
+        "contra"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Cash/Bank Book"
+      ],
+      "manualSections": [
+        "Cash / Bank Book"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows all cash and bank transactions — receipts, payments, and contra entries affecting cash/bank accounts.",
+      "whatThisFeatureDoesNotDo": "Does not show live balances. The assistant cannot show actual cash/bank figures.",
+      "commonQuestions": [
+        "What is cash book?",
+        "How to view cash/bank book?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [
+        "KG4-GAP-001: Cash/Bank Book report has no dedicated function"
+      ],
+      "sourceReferences": [
+        "DG-1 report: Cash/Bank Book",
+        "KG-4 report: Cash/Bank Book"
+      ],
+      "featureName": "Cash / Bank Book",
+      "status": "active",
+      "commonUserNames": [
+        "cash book",
+        "bank book",
+        "cash bank book"
+      ]
+    },
+    {
+      "id": "FEA-34",
+      "canonicalName": "GST Reports",
+      "aliases": [
+        "gst report",
+        "gst return",
+        "gst register",
+        "gst filing",
+        "gst summary",
+        "gst"
+      ],
+      "category": "gst",
+      "screenRef": "GSTReports",
+      "viewKey": "gst_reports",
+      "menuPath": "Reports > GST Reports",
+      "workflowStage": null,
+      "databaseTables": [
+        "gst_registers",
+        "sales_invoices",
+        "purchase_invoices",
+        "ledger_entries"
+      ],
+      "voucherTypes": [
+        "sales",
+        "purchase"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "GST Register",
+        "GST Summary",
+        "GST Returns"
+      ],
+      "manualSections": [
+        "GST Reports"
+      ],
+      "safetyBoundary": "gst-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data.",
+      "whatThisFeatureDoesNotDo": "Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions.",
+      "commonQuestions": [
+        "How to view GST reports?",
+        "What is GST register?",
+        "How is GST calculated?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "KG-4",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "KG-4 report: GST Register",
+        "DG-1 table: gst_registers"
+      ],
+      "featureName": "GST Reports",
+      "status": "active",
+      "commonUserNames": [
+        "gst report",
+        "gst return",
+        "gst register"
+      ]
+    },
+    {
+      "id": "FEA-35",
+      "canonicalName": "TDS Reports",
+      "aliases": [
+        "tds",
+        "tds report",
+        "tax deducted at source",
+        "tds register",
+        "tds summary"
+      ],
+      "category": "gst",
+      "screenRef": "TDSReports",
+      "viewKey": "tds_reports",
+      "menuPath": "Reports > TDS Reports",
+      "workflowStage": null,
+      "databaseTables": [
+        "tds_registers",
+        "vouchers"
+      ],
+      "voucherTypes": [
+        "payment",
+        "receipt"
+      ],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "TDS Register",
+        "TDS Summary"
+      ],
+      "manualSections": [
+        "TDS Reports"
+      ],
+      "safetyBoundary": "gst-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Generates TDS reports showing tax deducted at source on payments and receipts.",
+      "whatThisFeatureDoesNotDo": "Does not file TDS returns. Does not calculate TDS — it displays TDS data from posted transactions.",
+      "commonQuestions": [
+        "How to view TDS reports?",
+        "What is TDS?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: tds_registers",
+        "KG-4 report: TDS Register"
+      ],
+      "featureName": "TDS Reports",
+      "status": "active",
+      "commonUserNames": [
+        "tds",
+        "tds report",
+        "tax deducted at source"
+      ]
+    },
+    {
+      "id": "FEA-36",
+      "canonicalName": "Stock Ledger",
+      "aliases": [
+        "stock ledger",
+        "inventory ledger",
+        "stock register",
+        "inventory register",
+        "stock card"
+      ],
+      "category": "reporting",
+      "screenRef": "StockLedger",
+      "viewKey": "stock_ledger",
+      "menuPath": "Reports > Stock Ledger",
+      "workflowStage": null,
+      "databaseTables": [
+        "stock_ledger"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Stock Ledger"
+      ],
+      "manualSections": [
+        "Stock Ledger"
+      ],
+      "safetyBoundary": "inventory-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the stock ledger — all inward and outward stock movements with running quantity and valuation.",
+      "whatThisFeatureDoesNotDo": "Does not show live stock balances. Does not handle stock movement.",
+      "commonQuestions": [
+        "What is stock ledger?",
+        "How to view stock ledger?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: stock_ledger",
+        "RG-1 route: stock_ledger"
+      ],
+      "featureName": "Stock Ledger",
+      "status": "active",
+      "commonUserNames": [
+        "stock ledger",
+        "inventory ledger",
+        "stock register"
+      ]
+    },
+    {
+      "id": "FEA-37",
+      "canonicalName": "Inventory Valuation",
+      "aliases": [
+        "inventory valuation",
+        "stock valuation",
+        "inventory value",
+        "stock value"
+      ],
+      "category": "reporting",
+      "screenRef": "InventoryValuation",
+      "viewKey": "inventory_valuation",
+      "menuPath": "Reports > Inventory Valuation",
+      "workflowStage": null,
+      "databaseTables": [
+        "stock_ledger",
+        "items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Inventory Valuation"
+      ],
+      "manualSections": [
+        "Inventory Valuation"
+      ],
+      "safetyBoundary": "inventory-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Shows the current valuation of inventory stock based on average cost or FIFO method.",
+      "whatThisFeatureDoesNotDo": "Does not show live stock value. The assistant cannot show actual valuation figures.",
+      "commonQuestions": [
+        "What is inventory valuation?",
+        "How to view stock valuation?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: stock_ledger, items",
+        "RG-1 route: inventory_valuation"
+      ],
+      "featureName": "Inventory Valuation",
+      "status": "active",
+      "commonUserNames": [
+        "inventory valuation",
+        "stock valuation",
+        "inventory value"
+      ]
+    },
+    {
+      "id": "FEA-38",
+      "canonicalName": "Profitability Analysis",
+      "aliases": [
+        "profitability",
+        "profitability analysis",
+        "margin analysis",
+        "order profitability",
+        "profit analysis"
+      ],
+      "category": "reporting",
+      "screenRef": "ProfitabilityAnalysis",
+      "viewKey": "profitability_analysis",
+      "menuPath": "Reports > Profitability Analysis",
+      "workflowStage": "PROFITABILITY_ANALYSIS",
+      "databaseTables": [
+        "profitability_analysis",
+        "supply_orders",
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Profitability Analysis"
+      ],
+      "manualSections": [
+        "Profitability Analysis"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Analyzes profitability per work order. Compares revenue from invoices against costs including materials, expenses, and overheads.",
+      "whatThisFeatureDoesNotDo": "Does not show live profit figures. Does not post entries. Analysis is based on posted transaction data.",
+      "commonQuestions": [
+        "What is profitability analysis?",
+        "How to view profitability?"
+      ],
+      "expectedAnswerType": "report_ref",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "KG-4",
+      "knownGaps": [],
+      "sourceReferences": [
+        "WG-1 stage: PROFITABILITY_ANALYSIS",
+        "DG-1 table: profitability_analysis",
+        "KG-4 report: Profitability Analysis"
+      ],
+      "featureName": "Profitability Analysis",
+      "status": "active",
+      "commonUserNames": [
+        "profitability",
+        "profitability analysis",
+        "margin analysis"
+      ]
+    },
+    {
+      "id": "FEA-39",
+      "canonicalName": "Bank Reconciliation",
+      "aliases": [
+        "bank reconciliation",
+        "bank rec",
+        "reconciliation",
+        "bank statement matching"
+      ],
+      "category": "accounting",
+      "screenRef": "BankReconciliation",
+      "viewKey": "bank_reconciliation",
+      "menuPath": "Accounting > Bank Reconciliation",
+      "workflowStage": null,
+      "databaseTables": [
+        "bank_reconciliation",
+        "vouchers",
+        "banks"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Bank Reconciliation Report"
+      ],
+      "manualSections": [
+        "Bank Reconciliation"
+      ],
+      "safetyBoundary": "accounting-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": true,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Matches ERP bank transactions against bank statements to identify differences and reconcile balances.",
+      "whatThisFeatureDoesNotDo": "Does not post entries. Does not modify bank transactions.",
+      "commonQuestions": [
+        "What is bank reconciliation?",
+        "How do I reconcile bank?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: bank_reconciliation",
+        "RG-1 route: bank_reconciliation"
+      ],
+      "featureName": "Bank Reconciliation",
+      "status": "active",
+      "commonUserNames": [
+        "bank reconciliation",
+        "bank rec",
+        "reconciliation"
+      ]
+    },
+    {
+      "id": "FEA-40",
+      "canonicalName": "Tally XML Import",
+      "aliases": [
+        "tally import",
+        "tally xml",
+        "tally migration",
+        "import from tally",
+        "tally data"
+      ],
+      "category": "import_export",
+      "screenRef": "TallyImport",
+      "viewKey": "tally_import",
+      "menuPath": "Import / Export > Tally XML Import",
+      "workflowStage": null,
+      "databaseTables": [
+        "companies",
+        "suppliers",
+        "items",
+        "vouchers",
+        "ledger_entries"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Tally XML Import"
+      ],
+      "safetyBoundary": "import-export-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Imports master data and transactions from Tally ERP via XML export files. Creates master records and vouchers.",
+      "whatThisFeatureDoesNotDo": "Does not post ledger entries directly. Imported vouchers may require review before posting.",
+      "commonQuestions": [
+        "How do I import from Tally?",
+        "What is Tally XML import?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Tally XML Import",
+        "DG-1 tables affected"
+      ],
+      "featureName": "Tally XML Import",
+      "status": "active",
+      "commonUserNames": [
+        "tally import",
+        "tally xml",
+        "tally migration"
+      ]
+    },
+    {
+      "id": "FEA-41",
+      "canonicalName": "Tally Master Migration",
+      "aliases": [
+        "tally master",
+        "master migration",
+        "tally masters",
+        "import masters"
+      ],
+      "category": "import_export",
+      "screenRef": "TallyMasterMigration",
+      "viewKey": "tally_master_migration",
+      "menuPath": "Import / Export > Tally Master Migration",
+      "workflowStage": null,
+      "databaseTables": [
+        "companies",
+        "government_departments",
+        "suppliers",
+        "items"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Tally Master Migration"
+      ],
+      "safetyBoundary": "import-export-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Migrates master data (companies, departments, suppliers, items) from Tally ERP.",
+      "whatThisFeatureDoesNotDo": "Does not import transactions or vouchers. Master migration should precede transaction import.",
+      "commonQuestions": [
+        "How do I migrate masters from Tally?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Tally Master Migration",
+        "DG-1 tables affected"
+      ],
+      "featureName": "Tally Master Migration",
+      "status": "active",
+      "commonUserNames": [
+        "tally master",
+        "master migration",
+        "tally masters"
+      ]
+    },
+    {
+      "id": "FEA-42",
+      "canonicalName": "Spreadsheet Import",
+      "aliases": [
+        "spreadsheet import",
+        "excel import",
+        "csv import",
+        "bulk import",
+        "import from excel"
+      ],
+      "category": "import_export",
+      "screenRef": "SpreadsheetImport",
+      "viewKey": "spreadsheet_import",
+      "menuPath": "Import / Export > Spreadsheet Import",
+      "workflowStage": null,
+      "databaseTables": [
+        "items",
+        "suppliers",
+        "vouchers"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Spreadsheet Import"
+      ],
+      "safetyBoundary": "import-export-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Imports data from spreadsheet/CSV files for bulk creation of master records and transactions.",
+      "whatThisFeatureDoesNotDo": "Does not post accounting entries. Does not handle live data import without staging/preview.",
+      "commonQuestions": [
+        "How do I import from Excel?",
+        "What is spreadsheet import?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": "DG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Spreadsheet Import",
+        "Rule 12: Import Safety"
+      ],
+      "featureName": "Spreadsheet Import",
+      "status": "active",
+      "commonUserNames": [
+        "spreadsheet import",
+        "excel import",
+        "csv import"
+      ]
+    },
+    {
+      "id": "FEA-43",
+      "canonicalName": "Spreadsheet Export",
+      "aliases": [
+        "spreadsheet export",
+        "excel export",
+        "csv export",
+        "export to excel",
+        "download report"
+      ],
+      "category": "import_export",
+      "screenRef": "SpreadsheetExport",
+      "viewKey": "spreadsheet_export",
+      "menuPath": "Import / Export > Spreadsheet Export",
+      "workflowStage": null,
+      "databaseTables": [],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Spreadsheet Export"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Exports ERP data (reports, lists, transactions) to spreadsheet/CSV format for offline analysis.",
+      "whatThisFeatureDoesNotDo": "Does not modify ERP data. Export is a read-only operation.",
+      "commonQuestions": [
+        "How do I export to Excel?",
+        "How to download reports?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": "RG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Spreadsheet Export",
+        "RG-1 route: spreadsheet_export"
+      ],
+      "featureName": "Spreadsheet Export",
+      "status": "active",
+      "commonUserNames": [
+        "spreadsheet export",
+        "excel export",
+        "csv export"
+      ]
+    },
+    {
+      "id": "FEA-44",
+      "canonicalName": "Browser Fallback API",
+      "aliases": [
+        "browser api",
+        "browser fallback",
+        "api fallback",
+        "offline fallback"
+      ],
+      "category": "general",
+      "screenRef": null,
+      "viewKey": null,
+      "menuPath": null,
+      "workflowStage": null,
+      "databaseTables": [],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Browser Fallback API"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Provides fallback API endpoints when running in browser preview mode instead of Electron desktop.",
+      "whatThisFeatureDoesNotDo": "Does not replace desktop ERP functionality. Browser mode is for preview/testing only.",
+      "commonQuestions": [],
+      "expectedAnswerType": "definition",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": null,
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Browser Fallback API"
+      ],
+      "featureName": "Browser Fallback API",
+      "status": "active",
+      "commonUserNames": [
+        "browser api",
+        "browser fallback",
+        "api fallback"
+      ]
+    },
+    {
+      "id": "FEA-45",
+      "canonicalName": "Help Assistant",
+      "aliases": [
+        "help",
+        "help assistant",
+        "help panel",
+        "help screen",
+        "user guide",
+        "help system"
+      ],
+      "category": "intelligence",
+      "screenRef": "HelpAssistant",
+      "viewKey": "help_assistant",
+      "menuPath": "Help > Help Assistant",
+      "workflowStage": null,
+      "databaseTables": [],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Help Assistant"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Provides contextual help for ERP screens. Answers user questions about navigation, workflow, and accounting using BRAIN-2/BRAIN-3 intelligence.",
+      "whatThisFeatureDoesNotDo": "Does not post entries, modify data, or access live records. It is a read-only guidance assistant.",
+      "commonQuestions": [
+        "How do I use Help Assistant?",
+        "What is the Help Assistant?",
+        "How do I get help for a screen?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "BRAIN-3",
+      "fallbackSourceGraph": "BRAIN-2",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-3 contextualBrainHelp.js",
+        "RG-1 route: help_assistant"
+      ],
+      "featureName": "Help Assistant",
+      "status": "active",
+      "commonUserNames": [
+        "help",
+        "help assistant",
+        "help panel"
+      ]
+    },
+    {
+      "id": "FEA-46",
+      "canonicalName": "Ask ERP Brain",
+      "aliases": [
+        "ask erp brain",
+        "erp brain",
+        "brain",
+        "erp assistant",
+        "ask brain",
+        "ask erp"
+      ],
+      "category": "intelligence",
+      "screenRef": "AssistantPanel",
+      "viewKey": "assistant_panel",
+      "menuPath": "Help > Ask ERP Brain",
+      "workflowStage": null,
+      "databaseTables": [],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Ask ERP Brain"
+      ],
+      "safetyBoundary": "read-only guidance",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Answers ERP questions using source-backed intelligence from BRAIN-2/BRAIN-4 knowledge graphs and manuals. Provides feature/function correlation via FF-1.",
+      "whatThisFeatureDoesNotDo": "Does not post entries, access live records, or take actions. It is a read-only question-answering assistant.",
+      "commonQuestions": [
+        "What is Ask ERP Brain?",
+        "How do I ask a question?",
+        "What can I ask the Brain?",
+        "Post this voucher",
+        "Reverse this voucher"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "BRAIN-4",
+      "fallbackSourceGraph": "BRAIN-2",
+      "knownGaps": [
+        "Natural language understanding is limited to keyword matching — no LLM integration"
+      ],
+      "sourceReferences": [
+        "BRAIN-4 knowledgeBridge.js",
+        "BRAIN-2 ERP Brain",
+        "FF-1 feature-function-graph.json"
+      ],
+      "featureName": "Ask ERP Brain",
+      "status": "active",
+      "commonUserNames": [
+        "ask erp brain",
+        "erp brain",
+        "brain"
+      ]
+    },
+    {
+      "id": "FEA-47",
+      "canonicalName": "Backup / Restore",
+      "aliases": [
+        "backup",
+        "restore",
+        "data backup",
+        "database backup",
+        "backup restore",
+        "take backup"
+      ],
+      "category": "administration",
+      "screenRef": "BackupRestore",
+      "viewKey": "backup_restore",
+      "menuPath": "Administration > Backup / Restore",
+      "workflowStage": null,
+      "databaseTables": [],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Backup / Restore"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Creates database backups and restores from previous backups. Critical for data safety and disaster recovery.",
+      "whatThisFeatureDoesNotDo": "Does not handle individual record backup. Backup is full database only.",
+      "commonQuestions": [
+        "How do I take a backup?",
+        "How do I restore from backup?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "BRAIN-1",
+      "fallbackSourceGraph": "RG-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "BRAIN-1 repository: Backup/Restore",
+        "RG-1 route: backup_restore"
+      ],
+      "featureName": "Backup / Restore",
+      "status": "active",
+      "commonUserNames": [
+        "backup",
+        "restore",
+        "data backup"
+      ]
+    },
+    {
+      "id": "FEA-48",
+      "canonicalName": "Approval Queue",
+      "aliases": [
+        "approval",
+        "approval queue",
+        "pending approval",
+        "approvals",
+        "approve"
+      ],
+      "category": "operations",
+      "screenRef": "ApprovalQueue",
+      "viewKey": "approval_queue",
+      "menuPath": "Operations > Approval Queue",
+      "workflowStage": null,
+      "databaseTables": [
+        "approval_queue"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Approval Queue"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Manages approval workflows for orders, vouchers, and other records requiring authorization.",
+      "whatThisFeatureDoesNotDo": "Does not auto-approve records. Approval is a manual user action.",
+      "commonQuestions": [
+        "What is approval queue?",
+        "How do I approve a record?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "RG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "Approval workflow is manual — no auto-routing"
+      ],
+      "sourceReferences": [
+        "RG-1 route: approval_queue",
+        "DG-1 table: approval_queue"
+      ],
+      "featureName": "Approval Queue",
+      "status": "active",
+      "commonUserNames": [
+        "approval",
+        "approval queue",
+        "pending approval"
+      ]
+    },
+    {
+      "id": "FEA-49",
+      "canonicalName": "Financial Year Locking",
+      "aliases": [
+        "financial year",
+        "fy lock",
+        "year lock",
+        "financial year lock",
+        "close year",
+        "year end"
+      ],
+      "category": "administration",
+      "screenRef": "FinancialYearLock",
+      "viewKey": "financial_year_lock",
+      "menuPath": "Administration > Financial Year",
+      "workflowStage": null,
+      "databaseTables": [
+        "financial_years"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [],
+      "manualSections": [
+        "Financial Year Locking"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Locks a financial year after closure. Prevents posting to locked periods. Manages financial year periods.",
+      "whatThisFeatureDoesNotDo": "Does not automatically close accounts. Locking is an administrative action after year-end procedures.",
+      "commonQuestions": [
+        "How do I lock a financial year?",
+        "What is financial year locking?"
+      ],
+      "expectedAnswerType": "procedure",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [],
+      "sourceReferences": [
+        "DG-1 table: financial_years",
+        "KG-4 accounting protection: financial year lock"
+      ],
+      "featureName": "Financial Year Locking",
+      "status": "active",
+      "commonUserNames": [
+        "financial year",
+        "fy lock",
+        "year lock"
+      ]
+    },
+    {
+      "id": "FEA-50",
+      "canonicalName": "Audit Log",
+      "aliases": [
+        "audit",
+        "audit log",
+        "audit trail",
+        "activity log",
+        "change log",
+        "history"
+      ],
+      "category": "administration",
+      "screenRef": "AuditLog",
+      "viewKey": "audit_log",
+      "menuPath": "Administration > Audit Log",
+      "workflowStage": null,
+      "databaseTables": [
+        "audit_log"
+      ],
+      "voucherTypes": [],
+      "postingFunctions": [],
+      "reportDependencies": [
+        "Audit Log Report"
+      ],
+      "manualSections": [
+        "Audit Log"
+      ],
+      "safetyBoundary": "administration-sensitive",
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "canUserCreateRecordsHere": false,
+      "canUserPostHere": false,
+      "whatThisFeatureDoes": "Records all user actions, data changes, and system events for audit and compliance purposes.",
+      "whatThisFeatureDoesNotDo": "Does not show live data. Does not allow modification of audit records.",
+      "commonQuestions": [
+        "What is audit log?",
+        "How do I view audit log?"
+      ],
+      "expectedAnswerType": "navigation",
+      "preferredSourceGraph": "DG-1",
+      "fallbackSourceGraph": "BRAIN-1",
+      "knownGaps": [
+        "AG-1 Audit Intelligence Graph is planned but not yet implemented"
+      ],
+      "sourceReferences": [
+        "DG-1 table: audit_log",
+        "KG-4 audit trail mapping",
+        "AG-1 (planned)"
+      ],
+      "featureName": "Audit Log",
+      "status": "active",
+      "commonUserNames": [
+        "audit",
+        "audit log",
+        "audit trail"
+      ]
+    }
+  ],
+  "functionNodes": [
+    {
+      "id": "FNC-01",
+      "canonicalName": "createSalesInvoice",
+      "owningFeatureId": "FEA-19",
+      "description": "Creates a sales invoice / GST invoice. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "orderId",
+        "invoiceDate",
+        "items",
+        "departmentId"
+      ],
+      "returnType": "invoiceId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-02",
+      "canonicalName": "postLedgerEntry",
+      "owningFeatureId": "FEA-19",
+      "description": "Posts a debit/credit entry to the general ledger. Used by all accounting voucher creation functions.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "accountId",
+        "debitAmount",
+        "creditAmount",
+        "voucherId",
+        "narration"
+      ],
+      "returnType": "entryId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-03",
+      "canonicalName": "createReceipt",
+      "owningFeatureId": "FEA-22",
+      "description": "Creates a receipt voucher recording payment received from a government department. Posts to ledger and updates receivables.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "departmentId",
+        "amount",
+        "bankAccountId",
+        "referenceInvoiceId"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-04",
+      "canonicalName": "createPayment",
+      "owningFeatureId": "FEA-23",
+      "description": "Creates a payment voucher recording payment made to a supplier. Posts to ledger and updates supplier balances.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "supplierId",
+        "amount",
+        "bankAccountId",
+        "referenceInvoiceId"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-05",
+      "canonicalName": "createJournal",
+      "owningFeatureId": "FEA-26",
+      "description": "Creates a manual journal voucher entry. Posts debit/credit pairs to the general ledger.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "entries",
+        "narration",
+        "voucherDate"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-06",
+      "canonicalName": "createContra",
+      "owningFeatureId": "FEA-26",
+      "description": "Creates a contra voucher for transfers between cash and bank accounts.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "fromAccountId",
+        "toAccountId",
+        "amount",
+        "narration"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-07",
+      "canonicalName": "createGuidedVoucher",
+      "owningFeatureId": "FEA-25",
+      "description": "Creates a guided business voucher using simplified templates for common business transactions.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "templateType",
+        "amount",
+        "debitAccount",
+        "creditAccount",
+        "narration"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-08",
+      "canonicalName": "createPurchaseVoucher",
+      "owningFeatureId": "FEA-13",
+      "description": "Creates a purchase voucher upon receipt of goods from a supplier. Posts purchase accounting entries.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "supplierId",
+        "items",
+        "grnReference",
+        "invoiceDate"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-09",
+      "canonicalName": "recordGoodsReceipt",
+      "owningFeatureId": "FEA-14",
+      "description": "Records receipt of goods from supplier. Updates stock ledger with inward movement and triggers inventory valuation.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "supplierPOId",
+        "items",
+        "warehouseId",
+        "receiptDate"
+      ],
+      "returnType": "grnId",
+      "safetyBoundary": "inventory-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-10",
+      "canonicalName": "createDeliveryChallan",
+      "owningFeatureId": "FEA-16",
+      "description": "Creates a delivery challan for outward dispatch of goods. Updates stock ledger with outward movement.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "workOrderId",
+        "items",
+        "warehouseId",
+        "dispatchDate",
+        "departmentId"
+      ],
+      "returnType": "challanId",
+      "safetyBoundary": "inventory-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-11",
+      "canonicalName": "createOpeningBalance",
+      "owningFeatureId": "FEA-28",
+      "description": "Records opening balance entries for ledger accounts at the start of a financial year.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "accountId",
+        "openingBalance",
+        "balanceType",
+        "financialYearId"
+      ],
+      "returnType": "voucherId",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-12",
+      "canonicalName": "resolveQuery",
+      "owningFeatureId": "FEA-46",
+      "description": "Resolves a user query by searching knowledge graphs, manuals, and source references to find the best matching feature/function answer.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "query",
+        "contextFeatureId",
+        "sourceGraphs"
+      ],
+      "returnType": "answerObject",
+      "safetyBoundary": "read-only guidance",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-13",
+      "canonicalName": "classifyQuery",
+      "owningFeatureId": "FEA-46",
+      "description": "Classifies a user query into an expected answer type (navigation, workflow, accounting_ref, report_ref, procedure, definition) for routing to the correct knowledge source.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "query",
+        "contextFeatureId"
+      ],
+      "returnType": "answerType",
+      "safetyBoundary": "read-only guidance",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-14",
+      "canonicalName": "backupDatabase",
+      "owningFeatureId": "FEA-47",
+      "description": "Creates a full database backup. Can also restore from a previous backup file.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "backupPath",
+        "includeAttachments"
+      ],
+      "returnType": "backupId",
+      "safetyBoundary": "administration-sensitive",
+      "commonUserNames": []
+    },
+    {
+      "id": "FNC-15",
+      "canonicalName": "getReports",
+      "owningFeatureId": "FEA-30",
+      "description": "Generates financial reports (Trial Balance, Profit & Loss, Balance Sheet, Ledger, Cash/Bank Book) from ledger data.",
+      "readOnlyForAssistant": true,
+      "parameters": [
+        "reportType",
+        "fromDate",
+        "toDate",
+        "filters"
+      ],
+      "returnType": "reportData",
+      "safetyBoundary": "accounting-sensitive",
+      "commonUserNames": []
+    }
+  ],
+  "correlationEdges": [
+    {
+      "from": "FEA-19",
+      "to": "FNC-01",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "FNC-02",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "FNC-03",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "FNC-04",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "FNC-05",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "FNC-06",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-25",
+      "to": "FNC-07",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-13",
+      "to": "FNC-08",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-14",
+      "to": "FNC-09",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-16",
+      "to": "FNC-10",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "FNC-11",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-46",
+      "to": "FNC-12",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-46",
+      "to": "FNC-13",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-47",
+      "to": "FNC-14",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-30",
+      "to": "FNC-15",
+      "relationshipType": "feature_has_function",
+      "strength": "primary",
+      "reason": "Feature owns this function",
+      "sourceGraph": "FF-1",
+      "sourceReference": "",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-03",
+      "to": "FEA-03",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Company Context requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-09",
+      "to": "FEA-09",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Employees requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-13",
+      "to": "FEA-13",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Supplier Purchase Orders requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-14",
+      "to": "FEA-14",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "GRN / Goods Receipt requires inventory-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-15",
+      "to": "FEA-15",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Inventory Reservation requires inventory-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-16",
+      "to": "FEA-16",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Delivery Challan requires inventory-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "FEA-19",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-20",
+      "to": "FEA-20",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Bill History requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-21",
+      "to": "FEA-21",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Receivables requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "FEA-22",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Receipts requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "FEA-23",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Supplier Payments requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "FEA-24",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Expenses requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-25",
+      "to": "FEA-25",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Business Voucher requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "FEA-26",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Accounting Voucher requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "FEA-27",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Voucher Dashboard requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "FEA-28",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Opening Balance requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-29",
+      "to": "FEA-29",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Trial Balance requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-30",
+      "to": "FEA-30",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Profit & Loss requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-31",
+      "to": "FEA-31",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Balance Sheet requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-32",
+      "to": "FEA-32",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Ledger Report requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-33",
+      "to": "FEA-33",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Cash / Bank Book requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "FEA-34",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "GST Reports requires gst-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-35",
+      "to": "FEA-35",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "TDS Reports requires gst-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-36",
+      "to": "FEA-36",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Stock Ledger requires inventory-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-37",
+      "to": "FEA-37",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Inventory Valuation requires inventory-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-38",
+      "to": "FEA-38",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Profitability Analysis requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-39",
+      "to": "FEA-39",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Bank Reconciliation requires accounting-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "FEA-40",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Tally XML Import requires import-export-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-41",
+      "to": "FEA-41",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Tally Master Migration requires import-export-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-42",
+      "to": "FEA-42",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Spreadsheet Import requires import-export-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-47",
+      "to": "FEA-47",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Backup / Restore requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-48",
+      "to": "FEA-48",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Approval Queue requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-49",
+      "to": "FEA-49",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Financial Year Locking requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-50",
+      "to": "FEA-50",
+      "relationshipType": "feature_requires_safety_boundary",
+      "strength": "primary",
+      "reason": "Audit Log requires administration-sensitive safety boundary",
+      "sourceGraph": "FF-1",
+      "sourceReference": "safetyBoundaryMap",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-01",
+      "to": "supply_orders",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "ERP Dashboard uses table supply_orders",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-01",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "ERP Dashboard uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-01",
+      "to": "receivables",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "ERP Dashboard uses table receivables",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-01",
+      "to": "stock_ledger",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "ERP Dashboard uses table stock_ledger",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "companies",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table companies",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "government_departments",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table government_departments",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "suppliers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table suppliers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "banks",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table banks",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "warehouses",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table warehouses",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "employees",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table employees",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-02",
+      "to": "expense_heads",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Masters uses table expense_heads",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-03",
+      "to": "companies",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Company Context uses table companies",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-04",
+      "to": "government_departments",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Government Departments uses table government_departments",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-05",
+      "to": "suppliers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Suppliers uses table suppliers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-06",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Items uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-07",
+      "to": "banks",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Banks uses table banks",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-08",
+      "to": "warehouses",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Warehouses uses table warehouses",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-09",
+      "to": "employees",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Employees uses table employees",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-10",
+      "to": "purchase_orders",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Purchase Order / GeM Order uses table purchase_orders",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-10",
+      "to": "order_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Purchase Order / GeM Order uses table order_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-11",
+      "to": "supply_orders",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Work Order / Supply Order uses table supply_orders",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-11",
+      "to": "order_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Work Order / Supply Order uses table order_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-12",
+      "to": "procurement_plans",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Procurement Planning uses table procurement_plans",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-12",
+      "to": "procurement_plan_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Procurement Planning uses table procurement_plan_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-13",
+      "to": "supplier_purchase_orders",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Supplier Purchase Orders uses table supplier_purchase_orders",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-13",
+      "to": "purchase_order_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Supplier Purchase Orders uses table purchase_order_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-14",
+      "to": "goods_receipts",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GRN / Goods Receipt uses table goods_receipts",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-14",
+      "to": "goods_receipt_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GRN / Goods Receipt uses table goods_receipt_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-14",
+      "to": "stock_ledger",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GRN / Goods Receipt uses table stock_ledger",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-15",
+      "to": "inventory_reservations",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Inventory Reservation uses table inventory_reservations",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-16",
+      "to": "delivery_challans",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Delivery Challan uses table delivery_challans",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-16",
+      "to": "delivery_challan_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Delivery Challan uses table delivery_challan_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-16",
+      "to": "stock_ledger",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Delivery Challan uses table stock_ledger",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-17",
+      "to": "installations",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Installation uses table installations",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-18",
+      "to": "crac_records",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "CRAC uses table crac_records",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "sales_invoices",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice uses table sales_invoices",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "invoice_items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice uses table invoice_items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "gst_registers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice uses table gst_registers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-20",
+      "to": "sales_invoices",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Bill History uses table sales_invoices",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-21",
+      "to": "receivables",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Receivables uses table receivables",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Receipts uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Receipts uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "receivables",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Receipts uses table receivables",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Supplier Payments uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Supplier Payments uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "supplier_balances",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Supplier Payments uses table supplier_balances",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Expenses uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Expenses uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-25",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Business Voucher uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-25",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Business Voucher uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Accounting Voucher uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Accounting Voucher uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Voucher Dashboard uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Opening Balance uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Opening Balance uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-29",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Trial Balance uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-30",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Profit & Loss uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-31",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Balance Sheet uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-32",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Ledger Report uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-33",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Cash / Bank Book uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "gst_registers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GST Reports uses table gst_registers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "sales_invoices",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GST Reports uses table sales_invoices",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "purchase_invoices",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GST Reports uses table purchase_invoices",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "GST Reports uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-35",
+      "to": "tds_registers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "TDS Reports uses table tds_registers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-35",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "TDS Reports uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-36",
+      "to": "stock_ledger",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Stock Ledger uses table stock_ledger",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-37",
+      "to": "stock_ledger",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Inventory Valuation uses table stock_ledger",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-37",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Inventory Valuation uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-38",
+      "to": "profitability_analysis",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Profitability Analysis uses table profitability_analysis",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-38",
+      "to": "supply_orders",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Profitability Analysis uses table supply_orders",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-38",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Profitability Analysis uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-39",
+      "to": "bank_reconciliation",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Bank Reconciliation uses table bank_reconciliation",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-39",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Bank Reconciliation uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-39",
+      "to": "banks",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Bank Reconciliation uses table banks",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "companies",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally XML Import uses table companies",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "suppliers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally XML Import uses table suppliers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally XML Import uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally XML Import uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-40",
+      "to": "ledger_entries",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally XML Import uses table ledger_entries",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-41",
+      "to": "companies",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally Master Migration uses table companies",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-41",
+      "to": "government_departments",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally Master Migration uses table government_departments",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-41",
+      "to": "suppliers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally Master Migration uses table suppliers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-41",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Tally Master Migration uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-42",
+      "to": "items",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Spreadsheet Import uses table items",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-42",
+      "to": "suppliers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Spreadsheet Import uses table suppliers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-42",
+      "to": "vouchers",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Spreadsheet Import uses table vouchers",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-48",
+      "to": "approval_queue",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Approval Queue uses table approval_queue",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-49",
+      "to": "financial_years",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Financial Year Locking uses table financial_years",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-50",
+      "to": "audit_log",
+      "relationshipType": "feature_uses_table",
+      "strength": "primary",
+      "reason": "Audit Log uses table audit_log",
+      "sourceGraph": "DG-1",
+      "sourceReference": "databaseTables array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-07",
+      "to": "contra",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Banks creates contra voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-07",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Banks creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-07",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Banks creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-13",
+      "to": "purchase",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Supplier Purchase Orders creates purchase voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-19",
+      "to": "sales",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Billing / GST Invoice creates sales voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-20",
+      "to": "sales",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Bill History creates sales voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-21",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Receivables creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-22",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Receipts creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-23",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Supplier Payments creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "journal",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Expenses creates journal voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Expenses creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-24",
+      "to": "expense_accrual",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Expenses creates expense_accrual voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-25",
+      "to": "guided_voucher",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "secondary",
+      "reason": "Business Voucher creates guided_voucher voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "journal",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Accounting Voucher creates journal voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "contra",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Accounting Voucher creates contra voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "opening_balance",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Accounting Voucher creates opening_balance voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-26",
+      "to": "party_opening_balance",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Accounting Voucher creates party_opening_balance voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "guided_voucher",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "secondary",
+      "reason": "Voucher Dashboard creates guided_voucher voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "journal",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates journal voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "contra",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates contra voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "sales",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates sales voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-27",
+      "to": "purchase",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Voucher Dashboard creates purchase voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "opening_balance",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Opening Balance creates opening_balance voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-28",
+      "to": "party_opening_balance",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Opening Balance creates party_opening_balance voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-33",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Cash / Bank Book creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-33",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Cash / Bank Book creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-33",
+      "to": "contra",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "Cash / Bank Book creates contra voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "sales",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "GST Reports creates sales voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-34",
+      "to": "purchase",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "GST Reports creates purchase voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-35",
+      "to": "payment",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "TDS Reports creates payment voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
+      "from": "FEA-35",
+      "to": "receipt",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "TDS Reports creates receipt voucher",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    }
+  ],
+  "aliasMap": {
+    "work order": "supply_orders",
+    "wo": "supply_orders",
+    "gem order": "purchase_order_gem_order",
+    "bill history": "billing_gst_invoice",
+    "invoice history": "billing_gst_invoice",
+    "voucher dashboard": "voucher_dashboard",
+    "business voucher": "guided_voucher",
+    "accounting voucher": "manual_voucher_journal_contra",
+    "receipt voucher": "receipt",
+    "payment received": "receipt",
+    "supplier bill": "procurement_purchase",
+    "cash book": "cash_bank_book",
+    "party ledger": "department_ledger_supplier_ledger",
+    "stock issue": "stock_outward_delivery_challan",
+    "dc": "delivery_challan",
+    "grn": "goods_receipt",
+    "crac": "consignee_receipt_and_acceptance_certificate",
+    "p&l": "profit_and_loss",
+    "pl": "profit_and_loss",
+    "bs": "balance_sheet",
+    "tb": "trial_balance",
+    "report types": "reports",
+    "types of reports": "reports",
+    "dashboard for vouchers": "voucher_dashboard",
+    "purchase order": "purchase_order_gem_order"
+  },
+  "naturalQuestionMap": {
+    "FEA-11": {
+      "featureName": "Work Order / Supply Order",
+      "questions": [
+        {
+          "question": "What is a Work Order?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-11"
+        },
+        {
+          "question": "Where is Supply Order?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-11"
+        },
+        {
+          "question": "Does Work Order create accounting entries?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-11"
+        },
+        {
+          "question": "What happens after Work Order is created?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-11"
+        },
+        {
+          "question": "Is Work Order the same as Purchase Order?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-11"
+        }
+      ]
+    },
+    "FEA-27": {
+      "featureName": "Voucher Dashboard",
+      "questions": [
+        {
+          "question": "What is voucher dashboard for?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-27"
+        },
+        {
+          "question": "What is business voucher?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-25"
+        },
+        {
+          "question": "Is voucher dashboard same as work order?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-27"
+        },
+        {
+          "question": "Can I post from voucher dashboard?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-27"
+        },
+        {
+          "question": "How do I create a voucher from the dashboard?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-27"
+        }
+      ]
+    },
+    "FEA-29": {
+      "featureName": "Trial Balance",
+      "questions": [
+        {
+          "question": "What is Trial Balance?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-29"
+        },
+        {
+          "question": "Where is Trial Balance?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-29"
+        },
+        {
+          "question": "What does Trial Balance show?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-29"
+        }
+      ]
+    },
+    "FEA-20": {
+      "featureName": "Bill History",
+      "questions": [
+        {
+          "question": "Where is Bill History?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-20"
+        },
+        {
+          "question": "How do I view past invoices?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-20"
+        },
+        {
+          "question": "What is invoice register?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-20"
+        }
+      ]
+    },
+    "FEA-22": {
+      "featureName": "Receipts",
+      "questions": [
+        {
+          "question": "How do I record a receipt?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-22"
+        },
+        {
+          "question": "What is a receipt voucher?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-22"
+        }
+      ]
+    },
+    "FEA-34": {
+      "featureName": "GST Reports",
+      "questions": [
+        {
+          "question": "How to view GST reports?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-34"
+        },
+        {
+          "question": "What is GST register?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-34"
+        }
+      ]
+    },
+    "FEA-46": {
+      "featureName": "Ask ERP Brain",
+      "questions": [
+        {
+          "question": "What is Ask ERP Brain?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-46"
+        },
+        {
+          "question": "Post this voucher",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-46",
+          "isUnsafe": true,
+          "safetyNote": "Ask ERP Brain cannot post vouchers. Redirect to voucher creation screen."
+        },
+        {
+          "question": "Reverse this voucher",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-46",
+          "isUnsafe": true,
+          "safetyNote": "Ask ERP Brain cannot reverse vouchers. Redirect to accounting voucher screen."
+        }
+      ]
+    },
+    "FEA-25": {
+      "featureName": "Business Voucher",
+      "questions": [
+        {
+          "question": "What is a business voucher?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-25"
+        },
+        {
+          "question": "How do I create a business voucher?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-25"
+        },
+        {
+          "question": "Is business voucher same as work order?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-25"
+        }
+      ]
+    },
+    "FEA-19": {
+      "featureName": "Billing / GST Invoice",
+      "questions": [
+        {
+          "question": "How do I create a GST invoice?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-19"
+        },
+        {
+          "question": "What is billing?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-19"
+        },
+        {
+          "question": "Does sales invoice affect accounting?",
+          "expectedAnswerType": "accounting_ref",
+          "targetFeatureId": "FEA-19"
+        }
+      ]
+    },
+    "FEA-14": {
+      "featureName": "GRN / Goods Receipt",
+      "questions": [
+        {
+          "question": "How do I create a GRN?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-14"
+        },
+        {
+          "question": "Does GRN affect accounting?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-14"
+        }
+      ]
+    },
+    "FEA-18": {
+      "featureName": "CRAC",
+      "questions": [
+        {
+          "question": "What is CRAC?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-18"
+        },
+        {
+          "question": "Is CRAC required for billing?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-18"
+        }
+      ]
+    },
+    "FEA-16": {
+      "featureName": "Delivery Challan",
+      "questions": [
+        {
+          "question": "What is a delivery challan?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-16"
+        },
+        {
+          "question": "Is DC the same as invoice?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-16"
+        }
+      ]
+    },
+    "FEA-01": {
+      "featureName": "ERP Dashboard",
+      "questions": [
+        {
+          "question": "What is on the dashboard?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-01"
+        },
+        {
+          "question": "What metrics does the dashboard show?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-01"
+        }
+      ]
+    },
+    "FEA-36": {
+      "featureName": "Stock Ledger",
+      "questions": [
+        {
+          "question": "What is stock ledger?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-36"
+        },
+        {
+          "question": "How to view stock ledger?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-36"
+        }
+      ]
+    },
+    "FEA-38": {
+      "featureName": "Profitability Analysis",
+      "questions": [
+        {
+          "question": "What is profitability analysis?",
+          "expectedAnswerType": "report_ref",
+          "targetFeatureId": "FEA-38"
+        },
+        {
+          "question": "How to view profitability?",
+          "expectedAnswerType": "navigation",
+          "targetFeatureId": "FEA-38"
+        }
+      ]
+    }
+  },
+  "safetyBoundaryMap": {
+    "FEA-01": "read-only guidance",
+    "FEA-02": "read-only guidance",
+    "FEA-03": "administration-sensitive",
+    "FEA-04": "read-only guidance",
+    "FEA-05": "read-only guidance",
+    "FEA-06": "read-only guidance",
+    "FEA-07": "read-only guidance",
+    "FEA-08": "read-only guidance",
+    "FEA-09": "administration-sensitive",
+    "FEA-10": "read-only guidance",
+    "FEA-11": "read-only guidance",
+    "FEA-12": "read-only guidance",
+    "FEA-13": "accounting-sensitive",
+    "FEA-14": "inventory-sensitive",
+    "FEA-15": "inventory-sensitive",
+    "FEA-16": "inventory-sensitive",
+    "FEA-17": "read-only guidance",
+    "FEA-18": "read-only guidance",
+    "FEA-19": "accounting-sensitive",
+    "FEA-20": "accounting-sensitive",
+    "FEA-21": "accounting-sensitive",
+    "FEA-22": "accounting-sensitive",
+    "FEA-23": "accounting-sensitive",
+    "FEA-24": "accounting-sensitive",
+    "FEA-25": "accounting-sensitive",
+    "FEA-26": "accounting-sensitive",
+    "FEA-27": "accounting-sensitive",
+    "FEA-28": "accounting-sensitive",
+    "FEA-29": "accounting-sensitive",
+    "FEA-30": "accounting-sensitive",
+    "FEA-31": "accounting-sensitive",
+    "FEA-32": "accounting-sensitive",
+    "FEA-33": "accounting-sensitive",
+    "FEA-34": "gst-sensitive",
+    "FEA-35": "gst-sensitive",
+    "FEA-36": "inventory-sensitive",
+    "FEA-37": "inventory-sensitive",
+    "FEA-38": "accounting-sensitive",
+    "FEA-39": "accounting-sensitive",
+    "FEA-40": "import-export-sensitive",
+    "FEA-41": "import-export-sensitive",
+    "FEA-42": "import-export-sensitive",
+    "FEA-43": "read-only guidance",
+    "FEA-44": "read-only guidance",
+    "FEA-45": "read-only guidance",
+    "FEA-46": "read-only guidance",
+    "FEA-47": "administration-sensitive",
+    "FEA-48": "administration-sensitive",
+    "FEA-49": "administration-sensitive",
+    "FEA-50": "administration-sensitive"
+  },
+  "knownGaps": [
+    {
+      "id": "FF1-GAP-001",
+      "description": "Dashboard does not show real-time financial position",
+      "affectedFeatureIds": [
+        "FEA-01"
+      ],
+      "severity": "low",
+      "mitigation": "Dashboard shows last-known state from database, not live streaming data"
+    },
+    {
+      "id": "FF1-GAP-002",
+      "description": "GeM API integration not yet implemented — orders are entered manually",
+      "affectedFeatureIds": [
+        "FEA-10"
+      ],
+      "severity": "medium",
+      "mitigation": "Manual entry workflow is in place as fallback"
+    },
+    {
+      "id": "FF1-GAP-003",
+      "description": "Natural language understanding is limited to keyword matching — no LLM integration",
+      "affectedFeatureIds": [
+        "FEA-46"
+      ],
+      "severity": "medium",
+      "mitigation": "FF-1 correlation graph provides structured fallback for query resolution"
+    },
+    {
+      "id": "FF1-GAP-004",
+      "description": "Approval workflow is manual — no auto-routing",
+      "affectedFeatureIds": [
+        "FEA-48"
+      ],
+      "severity": "low",
+      "mitigation": "Manual approval queue with user-driven routing"
+    },
+    {
+      "id": "FF1-GAP-005",
+      "description": "AG-1 Audit Intelligence Graph is planned but not yet implemented",
+      "affectedFeatureIds": [
+        "FEA-50"
+      ],
+      "severity": "low",
+      "mitigation": "Audit log data is available via DG-1 table mapping"
+    },
+    {
+      "id": "FF1-GAP-006",
+      "description": "Payroll not yet implemented",
+      "affectedFeatureIds": [
+        "FEA-09"
+      ],
+      "severity": "low",
+      "mitigation": "Employee master data is available for future payroll integration"
+    },
+    {
+      "id": "FF1-GAP-007",
+      "description": "Procurement plan does not auto-generate supplier POs",
+      "affectedFeatureIds": [
+        "FEA-12"
+      ],
+      "severity": "medium",
+      "mitigation": "Manual PO creation from procurement plan is required"
+    }
+  ],
+  "compatibility": {
+    "ff1CompatibleWith": [
+      "KG-1",
+      "WG-1",
+      "DG-1",
+      "KG-4",
+      "RG-1",
+      "BRAIN-2",
+      "BRAIN-4"
+    ],
+    "graphRegistry": {
+      "requiresRegistryVersion": "1.0.0",
+      "requiresEILVersion": "1.0.0"
+    }
+  },
+  "futureExtensions": {
+    "plannedFeatures": [
+      "FF-2 runtime routing integration",
+      "Additional feature coverage for AMC/service contracts",
+      "Integration with AG-1 Audit Graph"
+    ],
+    "runtimeIntegrationPhase": "FF-2 (future phase)",
+    "notes": [
+      "FF-1 is the correlation foundation only. Runtime wiring into Ask ERP Brain query resolution requires a separate FF-2 phase."
+    ]
+  }
+}

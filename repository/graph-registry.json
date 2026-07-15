@@ -10,15 +10,17 @@
     "DG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
     "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
-    "AG-1": { "version": "0.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } }
+    "AG-1": { "version": "0.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
+    "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } }
   },
   "dependencies": {
-    "BRAIN-1": { "dependsOn": [], "dependedBy": ["KG-1", "RG-1", "DG-1", "WG-1", "AG-1"] },
+    "BRAIN-1": { "dependsOn": [], "dependedBy": ["KG-1", "RG-1", "DG-1", "WG-1", "AG-1", "FF-1"] },
     "KG-1": { "dependsOn": ["BRAIN-1"], "dependedBy": ["RG-1", "DG-1", "WG-1", "AG-1"] },
     "RG-1": { "dependsOn": ["BRAIN-1", "KG-1"], "dependedBy": ["DG-1", "WG-1", "AG-1"] },
     "DG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1"], "dependedBy": ["WG-1", "KG-4", "AG-1"] },
     "WG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1"], "dependedBy": ["KG-4", "AG-1"] },
-    "KG-4": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1"], "dependedBy": ["AG-1"] },
+    "KG-4": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1"], "dependedBy": ["AG-1", "FF-1"] },
+    "FF-1": { "dependsOn": ["KG-1", "WG-1", "DG-1", "KG-4", "RG-1", "BRAIN-1"], "dependedBy": [] },
     "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"], "dependedBy": [] }
   },
   "graphs": [
@@ -147,6 +149,33 @@
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
       "futureGraph": "AG-1"
+    },
+    {
+      "graphId": "FF-1",
+      "title": "Feature Function Correlation Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/feature-function-graph.schema.json",
+      "location": "src/renderer/knowledge/feature-function-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "purpose": "Correlate ERP features to functions, screens, workflows, database tables, voucher types, reports, manuals, and safety boundaries. Provides relationship-based query routing for Ask ERP Brain.",
+      "entryCount": 50,
+      "lastUpdated": "2026-07-15",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": [
+        "src/renderer/knowledge/",
+        "src/renderer/modules/erpBrain/",
+        "src/renderer/modules/erpAssistant/",
+        "src/renderer/modules/helpAssistant/",
+        "docs/manuals/",
+        "docs/architecture/"
+      ],
+      "validationMethod": "npm run verify:feature-function-graph",
+      "regenerationTrigger": "When features, screens, workflows, or database tables change significantly",
+      "documentation": "docs/architecture/ff-1-feature-function-correlation-graph-report.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "FF-2 (runtime routing)"
     },
     {
       "graphId": "AG-1",

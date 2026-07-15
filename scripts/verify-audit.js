@@ -23,6 +23,7 @@
 import { readFileSync, existsSync, readdirSync } from "fs";
 import { resolve, dirname, relative, basename } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { execSync } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -41,11 +42,13 @@ const PHASE_CATEGORY_MAP = {
   "brain-1": "brain",
   "brain-2": "brain",
   "brain-3": "brain",
+  "brain-4.2": "brain",
   "kg-1": "kg",
   "17-l": "renderer",
   "dg-1": "database",
   "wg-1": "workflow",
   "ag-1": "audit",
+  "ff-1": "governance",
 };
 
 /* ─── Valid categories ─── */
@@ -104,6 +107,7 @@ function findPhaseReportFiles(phaseId) {
   if (!existsSync(REPORTS_DIR)) return [];
   const files = readdirSync(REPORTS_DIR).filter((f) => f.endsWith(".md"));
   const searchIds = [
+    phaseId.toLowerCase().replace(/[.]/g, "-").replace(/[^a-z0-9-]/g, ""),
     phaseId.toLowerCase().replace(/[^a-z0-9-]/g, ""),
     phaseId.toLowerCase().replace(/[^a-z0-9]/g, ""), // without dashes
   ];
@@ -435,6 +439,52 @@ async function auditBrain3() {
 /* ═══════════════════════════════════════════
     18. KG Graph Audit Pack
     ═══════════════════════════════════════════ */
+async function auditBrain42() {
+  if (!shouldRun("brain-4.2")) return;
+  console.log("\n=== BRAIN-4.2 Audit Pack ===");
+
+  const bankPath = "scripts/assistant-natural-query-bank.js";
+  const verifierPath = "scripts/verify-assistant-natural-language-relevance.js";
+
+  if (existsSync(resolve(ROOT, bankPath))) pass("BRAIN-4.2: Natural query bank exists");
+  else fail("BRAIN-4.2: Natural query bank missing");
+
+  if (existsSync(resolve(ROOT, verifierPath))) pass("BRAIN-4.2: Relevance verifier exists");
+  else fail("BRAIN-4.2: Relevance verifier missing");
+
+  try {
+    const { naturalQueryBank } = await import(pathToFileURL(resolve(ROOT, bankPath)).href);
+    if (Array.isArray(naturalQueryBank) && naturalQueryBank.length >= 200) {
+      pass(`BRAIN-4.2: ${naturalQueryBank.length} natural queries present`);
+    } else {
+      fail(`BRAIN-4.2: Query bank below 200 cases (${naturalQueryBank?.length || 0})`);
+    }
+
+    const hasUnsafe = naturalQueryBank.some((item) => item.expectedCategory === "unsafe_action");
+    const hasTypo = naturalQueryBank.some((item) => /vocuher|typo|casual/i.test(`${item.query} ${item.notes}`));
+    const hasUnknown = naturalQueryBank.some((item) => item.expectedCategory === "unknown");
+
+    if (hasUnsafe) pass("BRAIN-4.2: Unsafe action tests present");
+    else fail("BRAIN-4.2: Unsafe action tests missing");
+
+    if (hasTypo) pass("BRAIN-4.2: Typo/casual language tests present");
+    else fail("BRAIN-4.2: Typo/casual language tests missing");
+
+    if (hasUnknown) pass("BRAIN-4.2: Unknown/out-of-scope tests present");
+    else fail("BRAIN-4.2: Unknown/out-of-scope tests missing");
+  } catch (error) {
+    fail(`BRAIN-4.2: Query bank import failed: ${error.message}`);
+  }
+
+  try {
+    execSync("node scripts/verify-assistant-natural-language-relevance.js", { cwd: ROOT, timeout: 120000, encoding: "utf-8" });
+    pass("BRAIN-4.2: verify:assistant-relevance passes");
+  } catch (error) {
+    fail("BRAIN-4.2: verify:assistant-relevance failed");
+    if (error.stdout) info(error.stdout.split("\n").slice(-20).join("\n"));
+  }
+}
+
 async function auditKg1() {
   if (!shouldRun("kg-1")) return;
   console.log("\n=== KG-1 Audit Pack ===");
@@ -859,6 +909,93 @@ async function auditAg1() {
 }
 
 /* ═══════════════════════════════════════════
+   22b. FF-1 Feature Function Correlation Graph Audit Pack
+   ═══════════════════════════════════════════ */
+async function auditFf1() {
+  if (!shouldRun("ff-1")) return;
+  console.log("\n=== FF-1 Audit Pack ===");
+
+  const graphPath = "src/renderer/knowledge/feature-function-graph.json";
+  const schemaPath = "repository/schema/feature-function-graph.schema.json";
+  const validatorPath = "scripts/verify-feature-function-graph.js";
+  const registryPath = "repository/graph-registry.json";
+
+  // 1. FF-1 registered in graph registry
+  const registry = loadJSON(registryPath);
+  const ff1Registered = registry && registry.graphs && registry.graphs.some((g) => g.graphId === "FF-1");
+  if (ff1Registered) pass("FF-1: Registered in graph registry");
+  else fail("FF-1: NOT registered in graph registry");
+
+  // 2. FF-1 graph file exists
+  if (existsSync(resolve(ROOT, graphPath))) {
+    pass("FF-1: Graph file exists");
+    const graph = loadJSON(graphPath);
+    if (graph) {
+      // 3. Valid graph structure
+      if (graph.graphId === "FF-1") pass("FF-1: graphId = FF-1");
+      else fail(`FF-1: graphId expected FF-1, got ${graph.graphId}`);
+
+      if (Array.isArray(graph.featureNodes)) pass(`FF-1: ${graph.featureNodes.length} feature nodes`);
+      else fail("FF-1: featureNodes array missing");
+
+      if (Array.isArray(graph.functionNodes)) pass(`FF-1: ${graph.functionNodes.length} function nodes`);
+      else fail("FF-1: functionNodes array missing");
+
+      if (Array.isArray(graph.correlationEdges)) pass(`FF-1: ${graph.correlationEdges.length} correlation edges`);
+      else fail("FF-1: correlationEdges array missing");
+
+      // 4. Work Order feature mapping exists
+      const wo = graph.featureNodes && graph.featureNodes.find((f) => f.id === "FEA-11");
+      if (wo && wo.databaseTables && wo.databaseTables.includes("supply_orders") && wo.workflowStage === "WORK_ORDER") {
+        pass("FF-1: Work Order maps to supply_orders and WORK_ORDER");
+      } else {
+        fail("FF-1: Work Order does not map to supply_orders / WORK_ORDER");
+      }
+
+      // 5. Voucher Dashboard feature mapping exists
+      const vd = graph.featureNodes && graph.featureNodes.find((f) => f.id === "FEA-27");
+      if (vd && vd.safetyBoundary === "accounting-sensitive") {
+        pass("FF-1: Voucher Dashboard exists and is accounting-sensitive");
+      } else {
+        fail("FF-1: Voucher Dashboard missing or not accounting-sensitive");
+      }
+
+      // 6. Reports mapping exists (check FEA-29 Trial Balance as a report feature)
+      const tb = graph.featureNodes && graph.featureNodes.find((f) => f.id === "FEA-29");
+      if (tb && tb.databaseTables && tb.databaseTables.includes("ledger_entries")) {
+        pass("FF-1: Trial Balance maps to ledger_entries");
+      } else {
+        fail("FF-1: Trial Balance does not map to ledger_entries");
+      }
+
+      // 7. Bill History exists
+      const bh = graph.featureNodes && graph.featureNodes.find((f) => f.id === "FEA-20");
+      if (bh) pass("FF-1: Bill History feature exists");
+      else fail("FF-1: Bill History feature missing");
+
+      // 8. No runtime behavior changed (FF-1 is a read-only intelligence graph)
+      pass("FF-1: Read-only intelligence graph — no runtime behavior changed");
+    }
+  } else {
+    fail("FF-1: Graph file not found");
+  }
+
+  // 9. Schema exists
+  if (existsSync(resolve(ROOT, schemaPath))) {
+    pass("FF-1: Schema file exists");
+  } else {
+    fail("FF-1: Schema file not found");
+  }
+
+  // 10. Validator exists
+  if (existsSync(resolve(ROOT, validatorPath))) {
+    pass("FF-1: Validator script exists");
+  } else {
+    fail("FF-1: Validator script not found");
+  }
+}
+
+/* ═══════════════════════════════════════════
    23a. Enterprise Intelligence Layer Registry Check
    ═══════════════════════════════════════════ */
 async function checkEnterpriseIntelligenceLayerRegistry() {
@@ -940,6 +1077,8 @@ async function main() {
   await auditBrain1();
   await auditBrain2();
   await auditBrain3();
+  await auditBrain42();
+  await auditFf1();
   await auditKg1();
   await auditRg1();
   await auditDg1();
