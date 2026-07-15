@@ -124,4 +124,24 @@ function resolveWorkflowGuidance(stageId) {
   return stages[stageId] || `Stage "${stageId}" — see WG-1 workflow graph for details.`;
 }
 
-export { resolveContext, getAccountingSafetyBoundary, getWorkOrderBoundary, resolveWorkflowGuidance, VIEW_KEY_TO_SCREEN, WORKFLOW_STAGE_MAP, SCREEN_IMPACT_MAP };
+function resolveScreenAssistantContext(viewKey) {
+  const base = resolveContext(viewKey);
+  if (!base.screenName) {
+    return { screenName: null, screenGuidance: null, workflowStage: null, safetyBoundaries: [], knownGaps: [] };
+  }
+  const boundaries = [];
+  if (base.impact.accounting) boundaries.push("accounting-sensitive");
+  if (base.impact.inventory) boundaries.push("inventory-sensitive");
+  if (base.impact.gst) boundaries.push("gst-sensitive");
+  const screenGuidance = base.screenName ? `You are on the ${base.screenName} screen.` : null;
+  const workflowStage = base.workflowInfo ? { stage: base.workflowInfo.stage, label: base.workflowInfo.label, before: base.workflowInfo.before, after: base.workflowInfo.after } : null;
+  return {
+    screenName: base.screenName,
+    screenGuidance,
+    workflowStage,
+    safetyBoundaries: boundaries,
+    knownGaps: []
+  };
+}
+
+export { resolveContext, resolveScreenAssistantContext, getAccountingSafetyBoundary, getWorkOrderBoundary, resolveWorkflowGuidance, VIEW_KEY_TO_SCREEN, WORKFLOW_STAGE_MAP, SCREEN_IMPACT_MAP };

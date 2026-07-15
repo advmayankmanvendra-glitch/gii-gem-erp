@@ -9,6 +9,7 @@ import { HelpAssistantSearch } from "./HelpAssistantSearch.jsx";
 import { HelpAssistantSuggestions } from "./HelpAssistantSuggestions.jsx";
 import { rememberConversation } from "./helpAssistantConversation.js";
 import { buildCoachPriorities, buildOnboardingReadiness } from "./helpAssistantReadiness.js";
+import { AssistantPanel } from "../erpAssistant/ui/AssistantPanel.jsx";
 
 function HelpAssistant({ companies = [], companyContext = {}, currentHelp, currentView, initialMode = "screen", onBack, onNavigate, session, stats }) {
   const [query, setQuery] = useState("");
@@ -75,6 +76,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
         <div className="help-assistant-hero-actions">
           <button type="button" className="ghost-btn" onClick={goBack}>Back</button>
           <button type="button" className="ghost-btn" onClick={() => changeMode("help")}>Open Full Help Assistant</button>
+          <button type="button" className={mode === "brain" ? "primary-btn" : "ghost-btn"} onClick={() => changeMode("brain")}>Ask ERP Brain</button>
           <div className="help-assistant-current">
             <small>Current guidance context</small>
             <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>
@@ -86,11 +88,17 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
 
       <div className="help-assistant-layout">
         <div className="help-assistant-main">
-          <HelpAssistantSearch query={query} mode={mode} onQueryChange={setQuery} onModeChange={changeMode} onAsk={() => ask()} />
-          <HelpAssistantAnswer answer={answer} onAction={onNavigate} onOpenScreen={onNavigate} onRelatedTopic={askRelated} />
-          {mode === "onboarding" && <HelpAssistantOnboarding readiness={readiness} onNavigate={onNavigate} />}
-          {mode === "coach" && <HelpAssistantCoach coach={coach} onNavigate={onNavigate} />}
-          {mode === "data" && <HelpAssistantDataMode onAsk={ask} />}
+          {mode === "brain" ? (
+            <AssistantPanel currentView={currentView} currentRole={session?.role} onNavigate={onNavigate} />
+          ) : (
+            <>
+              <HelpAssistantSearch query={query} mode={mode} onQueryChange={setQuery} onModeChange={changeMode} onAsk={() => ask()} />
+              <HelpAssistantAnswer answer={answer} onAction={onNavigate} onOpenScreen={onNavigate} onRelatedTopic={askRelated} />
+              {mode === "onboarding" && <HelpAssistantOnboarding readiness={readiness} onNavigate={onNavigate} />}
+              {mode === "coach" && <HelpAssistantCoach coach={coach} onNavigate={onNavigate} />}
+              {mode === "data" && <HelpAssistantDataMode onAsk={ask} />}
+            </>
+          )}
         </div>
         <aside className="help-assistant-side">
           <HelpAssistantSuggestions suggestions={HELP_ASSISTANT_SUGGESTIONS} onAsk={(question) => {

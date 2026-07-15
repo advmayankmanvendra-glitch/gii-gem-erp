@@ -402,4 +402,28 @@ function normalizeList(value, fallback = []) {
   return fallback;
 }
 
-export { buildHelpAssistantAnswer, normalizeText, searchHelpTopics };
+function dispatchToAssistant(query, currentView) {
+  try {
+    const { resolveQuery } = require("../erpAssistant/sources/knowledgeBridge.js");
+    const result = resolveQuery(query, currentView);
+    return {
+      brainAssistant: true,
+      answer: result.answer,
+      confidence: result.confidence,
+      needsReview: result.needsReview,
+      sourceReferences: result.sourceReferences,
+      safetyBoundary: result.safetyBoundary,
+      relatedWorkflowStages: result.relatedWorkflowStages,
+      relatedTables: result.relatedTables,
+      relatedVoucherTypes: result.relatedVoucherTypes,
+      relatedReports: result.relatedReports,
+      knownGaps: result.knownGaps,
+      suggestedNextHelpTopic: result.suggestedNextHelpTopic,
+      prohibitedActions: result.prohibitedActions
+    };
+  } catch {
+    return { brainAssistant: false };
+  }
+}
+
+export { buildHelpAssistantAnswer, normalizeText, searchHelpTopics, dispatchToAssistant };
