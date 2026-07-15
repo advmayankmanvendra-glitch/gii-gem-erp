@@ -201,4 +201,81 @@ function getKnownGaps(topic) {
   };
 }
 
-export { buildAnswer, formatSourceReferences, explainWorkflowStage, explainDatabaseTable, explainVoucherType, explainReport, getManualHelp, getKnownGaps };
+function buildAnswerContract(query, searchResult, classification, safetyInfo, screenContext) {
+  const { results, bestCandidate, confidence, categoryUsed, sourceUsed } = searchResult;
+  const cat = classification || {};
+  const safety = safetyInfo || { boundary: "read-only guidance", rules: [] };
+  const context = screenContext || {};
+  const needsReview = cat.needsReview || confidence === "low" || !bestCandidate;
+  const selectedCandidate = results?.[0] || bestCandidate;
+  const answer = cat.category === "unsafe_action"
+    ? generateUnsafeRefusal(query, cat)
+    : selectedCandidate
+      ? generateCategoryAnswer(selectedCandidate, cat, confidence, context)
+      : null;
+  const sourceReferences = (results || []).slice(0, 3).map((r) => ({
+    title: r.title,
+    sourceKind: r.sourceKind,
+    sourcePath: r.sourcePath,
+    graphId: r.graphId,
+    summary: r.summary
+  }));
+  const relatedWorkflowStages = [...new Set((results || []).flatMap((r) => r.relatedWorkflowStages || []))];
+  const relatedTables = [...new Set((results || []).flatMap((r) => r.relatedTables || []))];
+  const relatedVoucherTypes = [...new Set((results || []).flatMap((r) => r.relatedVoucherTypes || []))];
+  const relatedReports = [...new Set((results || []).flatMap((r) => r.relatedReports || []))];
+  const relatedScreens = [...new Set((results || []).flatMap((r) => r.relatedScreens || []))];
+  const knownGaps = (results || []).filter((r) => {
+    const text = `${r.title} ${r.summary}`.toLowerCase();
+    return text.includes("gap") || text.includes("limitation") || text.includes("known");
+  }).map((r) => ({ title: r.title, summary: r.summary, sourceKind: r.sourceKind }));
+  return {
+    query,
+    answer,
+    confidence,
+    needsReview,
+    sourceReferences,
+    relatedWorkflowStages,
+    relatedScreens,
+    relatedTables,
+    relatedVoucherTypes,
+    relatedReports,
+    safetyBoundary: safety.boundary || "read-only guidance",
+    knownGaps,
+    suggestedNextHelpTopic: null,
+    prohibitedActions: getProhibitedActions(safety.boundary),
+    rolePresentation: { depth: "standard", showSources: true, showSafety: true, showGaps: false }
+  };
+}
+
+function generateUnsafeRefusal(query, category) {
+  const action = query.toLowerCase().trim();
+  return `I cannot ${action}. I am a read-only guidance assistant. To perform this action, use the relevant controlled ERP module or screen. I can help you navigate to the correct screen if you tell me what you need to do.`;
+}
+
+function generateCategoryAnswer(candidate, category, confidence, context) {
+  const sourceLabel = getSourceLabel(candidate.sourceKind);
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  let answer = `${confidenceLabel} that "${candidate.title}" is the most relevant result. ${candidate.summary || ""}`;
+  if (context.screenName) {
+    answer += ` You are currently on the ${context.screenName} screen.`;
+  }
+  if (context.workflowInfo) {
+    answer += ` This relates to the ${context.workflowInfo.label} stage.`;
+  }
+  answer += ` Source: ${sourceLabel}.`;
+  return answer;
+}
+
+function getProhibitedActions(boundary) {
+  const all = ["post", "reverse", "approve", "delete", "restore", "import", "export"];
+  if (!boundary || boundary === "read-only guidance") return all;
+  if (boundary.includes("accounting")) return all;
+  if (boundary.includes("inventory")) return all.filter((a) => a !== "import");
+  if (boundary.includes("gst")) return all;
+  if (boundary.includes("workflow")) return all.filter((a) => a !== "import" && a !== "export");
+  if (boundary.includes("import")) return ["import", "export"];
+  return all;
+}
+
+export { buildAnswer, buildAnswerContract, formatSourceReferences, explainWorkflowStage, explainDatabaseTable, explainVoucherType, explainReport, getManualHelp, getKnownGaps };

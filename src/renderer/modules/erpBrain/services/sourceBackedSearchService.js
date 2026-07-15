@@ -140,4 +140,28 @@ function searchKnownGaps(query) {
   };
 }
 
-export { sourceBackedSearch, searchByKind, searchModules, searchScreens, searchWorkflows, searchDatabaseTables, searchVoucherAccounting, searchReports, searchManuals, searchKnownGaps, SYNONYM_MAP };
+function searchByCategory(query, category) {
+  const base = sourceBackedSearch(query);
+  if (!category || !category.preferredSource) {
+    return { ...base, categoryUsed: null, sourceUsed: null };
+  }
+  const preferredResults = base.results.filter(
+    (r) => r.sourceKind === category.preferredSource || r.graphId === category.preferredSource
+  );
+  const fallbackResults = category.fallbackSource
+    ? base.results.filter(
+        (r) => r.sourceKind === category.fallbackSource || r.graphId === category.fallbackSource
+      )
+    : [];
+  const hasPreferredMatch = preferredResults.length > 0 && preferredResults[0].score >= 5;
+  const selectedResults = hasPreferredMatch ? preferredResults : fallbackResults;
+  const sourceUsed = hasPreferredMatch ? category.preferredSource : (category.fallbackSource || null);
+  return {
+    ...base,
+    results: selectedResults,
+    categoryUsed: category.id || null,
+    sourceUsed
+  };
+}
+
+export { sourceBackedSearch, searchByCategory, searchByKind, searchModules, searchScreens, searchWorkflows, searchDatabaseTables, searchVoucherAccounting, searchReports, searchManuals, searchKnownGaps, SYNONYM_MAP };
