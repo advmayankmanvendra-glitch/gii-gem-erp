@@ -34,6 +34,7 @@
     "verify:voucher-accounting-graph": "node scripts/verify-voucher-accounting-graph.js",
     "verify:erp-brain": "node scripts/verify-erp-brain.js",
     "verify:help-assistant-brain": "node scripts/verify-help-assistant-brain.js",
+    "verify:read-only-assistant": "node scripts/verify-read-only-erp-assistant-plan.js",
     "verify:audit": "node scripts/verify-audit.js",
     "verify:erp": "node scripts/verify-erp.js",
     "test-data:pack-v1": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/create-erp-test-data-pack-v1.js"

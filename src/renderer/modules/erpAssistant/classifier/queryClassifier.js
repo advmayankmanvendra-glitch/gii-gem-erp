@@ -19,7 +19,11 @@ function normalizeQuery(query) {
 function hasUnsafeActionKeywords(query, category) {
   const keywords = category.unsafeActionKeywords;
   if (!keywords || keywords.length === 0) return false;
-  return keywords.some((kw) => query.includes(kw));
+  const queryWords = query.split(/\s+/);
+  return keywords.some((kw) => {
+    const kwWords = kw.split(/\s+/);
+    return kwWords.every((w) => queryWords.includes(w));
+  });
 }
 
 function scoreQueryAgainstCategory(query, category) {
