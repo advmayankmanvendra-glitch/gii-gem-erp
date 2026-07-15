@@ -24,7 +24,7 @@ const CATEGORIES = [
     label: "Screen / Help Question",
     description: "Where to find ERP features, screens, menus, routes, and navigation",
     matchKeywords: {
-      primary: ["where is", "how do i open", "which menu", "which screen", "navigate", "route to", "open the", "find the", "go to"],
+      primary: ["where is", "how do i open", "which menu", "which screen", "navigate", "route to", "open the", "find the", "go to", "dashboard", "screen"],
       secondary: ["screen", "page", "tab", "window", "view", "sidebar", "menu", "button", "panel", "section"]
     },
     preferredSource: "renderer-graph",
@@ -84,8 +84,8 @@ const CATEGORIES = [
     label: "Voucher / Accounting Question",
     description: "Questions about voucher types, debit/credit patterns, posting rules, ledger impact, accounting entries",
     matchKeywords: {
-      primary: ["voucher", "debit", "credit", "journal", "posting", "ledger entry", "accounting entry", "double entry", "ledger", "trial balance", "profit and loss", "balance sheet", "pnl", "p&l"],
-      secondary: ["entry", "account", "post", "reverse", "cancellation", "storno", "contra", "payment", "receipt", "accrual"]
+      primary: ["voucher", "voucher dashboard", "business voucher", "guided voucher", "accounting voucher", "debit", "credit", "journal", "posting", "ledger entry", "accounting entry", "double entry", "ledger", "trial balance", "profit and loss", "balance sheet", "pnl", "p&l"],
+      secondary: ["entry", "account", "post", "reverse", "cancellation", "storno", "contra", "payment", "receipt", "accrual", "dashboard"]
     },
     preferredSource: "voucher-accounting-graph",
     fallbackSource: "database-graph",
@@ -104,11 +104,11 @@ const CATEGORIES = [
     label: "Report Question",
     description: "Questions about report purposes, sources, dependencies, and how reports are generated",
     matchKeywords: {
-      primary: ["report", "trial balance", "profit and loss", "balance sheet", "gst register", "stock summary", "receivables", "payables", "aging", "cash flow"],
-      secondary: ["shows", "displays", "generates", "prints", "exports", "summary", "list of", "register", "statement"]
+      primary: ["report", "reports", "report type", "report types", "types of reports", "type of reports", "trial balance", "profit and loss", "balance sheet", "gst register", "stock summary", "receivables", "payables", "aging", "cash flow"],
+      secondary: ["shows", "displays", "generates", "prints", "exports", "summary", "list of", "how many", "types", "register", "statement"]
     },
-    preferredSource: "database-graph",
-    fallbackSource: "renderer-graph",
+    preferredSource: "repository",
+    fallbackSource: "database-graph",
     isAccountingSensitive: true,
     isInventorySensitive: false,
     isGSTSensitive: false,

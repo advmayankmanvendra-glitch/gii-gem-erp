@@ -213,6 +213,29 @@ assert(r.answer !== null, "RO-1: unsafe action produces refusal answer",
 assert(r.answer.toLowerCase().includes("cannot") || r.answer.toLowerCase().includes("not") || r.answer.toLowerCase().includes("only"),
   "RO-2: refusal answer contains cannot/not/only", r.answer.substring(0, 80));
 
+console.log("\n--- Category: BRAIN-4.1 Live Relevance Regression ---");
+const typoUnsafe = resolveQuery("post this vocuher", "dashboard");
+assert(typoUnsafe.safetyBoundary === "action-refused", "B4.1-1: typo unsafe voucher action is refused",
+  `boundary=${typoUnsafe.safetyBoundary}`);
+assert(!/Purchase Order|GeM Order/i.test(`${typoUnsafe.answer || ""} ${(typoUnsafe.sourceReferences || []).map((s) => s.title).join(" ")}`),
+  "B4.1-2: typo unsafe refusal has no unrelated Purchase Order source",
+  typoUnsafe.answer ? typoUnsafe.answer.substring(0, 80) : "null");
+
+const reportQuery = resolveQuery("how many type of reports are there", "dashboard");
+assert(/report/i.test(reportQuery.answer || ""), "B4.1-3: report type query returns report guidance",
+  reportQuery.answer ? reportQuery.answer.substring(0, 80) : "null");
+assert(!/Purchase Order|GeM Order/i.test(`${reportQuery.answer || ""} ${(reportQuery.sourceReferences || []).map((s) => s.title).join(" ")}`),
+  "B4.1-4: report type query has no unrelated Purchase Order answer",
+  reportQuery.answer ? reportQuery.answer.substring(0, 80) : "null");
+
+const voucherDashboardQuery = resolveQuery("what is voucher dashboard for", "dashboard");
+assert(/voucher dashboard|business voucher|guided voucher|accounting voucher/i.test(voucherDashboardQuery.answer || ""),
+  "B4.1-5: voucher dashboard query returns voucher dashboard guidance",
+  voucherDashboardQuery.answer ? voucherDashboardQuery.answer.substring(0, 80) : "null");
+assert(voucherDashboardQuery.safetyBoundary === "accounting-sensitive",
+  "B4.1-6: voucher dashboard query is accounting-sensitive",
+  `boundary=${voucherDashboardQuery.safetyBoundary}`);
+
 // ---- 17. Boundary Precision Tests ----
 console.log("\n--- Category: Boundary Precision ---");
 r = resolveQuery("What is the workflow stage for Supply Order?");

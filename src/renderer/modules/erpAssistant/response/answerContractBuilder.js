@@ -10,6 +10,15 @@ function assembleContract(query, searchResult, classification, safetyInfo, scree
     return {
       ...base,
       answer: generateRefusalAnswer(query),
+      confidence: "high",
+      needsReview: false,
+      sourceReferences: [{
+        title: "BRAIN-4 Read-Only Safety Policy",
+        sourceKind: "safety-policy",
+        sourcePath: "src/renderer/modules/erpAssistant/response/safetyEnforcer.js",
+        graphId: "BRAIN-4",
+        summary: "Unsafe action attempts are refused by the read-only assistant boundary."
+      }],
       safetyBoundary: "action-refused",
       prohibitedActions: ["post", "reverse", "approve", "delete", "restore", "import", "export", "run command"],
       rolePresentation: { depth: "basic", showSources: true, showSafety: true, showGaps: false }

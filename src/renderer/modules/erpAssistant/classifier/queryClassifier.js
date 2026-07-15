@@ -20,10 +20,23 @@ function hasUnsafeActionKeywords(query, category) {
   const keywords = category.unsafeActionKeywords;
   if (!keywords || keywords.length === 0) return false;
   const queryWords = query.split(/\s+/);
-  return keywords.some((kw) => {
+  const directMatch = keywords.some((kw) => {
     const kwWords = kw.split(/\s+/);
     return kwWords.every((w) => queryWords.includes(w));
   });
+  if (directMatch) return true;
+  return hasUnsafeActionPattern(query);
+}
+
+function hasUnsafeActionPattern(query) {
+  const hasActionVerb = /\b(post|reverse|approve|delete|restore|import|export|run|execute|create|cancel)\b/.test(query);
+  if (!hasActionVerb) return false;
+  const hasActionObject = /\b(voucher|vocuher|vou?cher|record|entry|file|command|sql|ledger|database|stock)\b/.test(query);
+  if (!hasActionObject) return false;
+
+  const educationalIntent = /\b(how|what|why|explain|guide|meaning|process|work|works|rule|rules|when|where)\b/.test(query);
+  const imperativeIntent = /\b(this|that|now|please|do|run|execute|create|delete|approve|reverse|post|import|export|cancel)\b/.test(query);
+  return imperativeIntent || !educationalIntent;
 }
 
 function scoreQueryAgainstCategory(query, category) {

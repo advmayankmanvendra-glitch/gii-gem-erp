@@ -351,6 +351,131 @@ if (fileContains(contractPath, /answer:/) || fileContains(contractPath, /answer 
   fail("R4-E06: answer field missing from response contract");
 }
 
+const { classifyQuery } = await import("../src/renderer/modules/erpAssistant/classifier/queryClassifier.js");
+const { resolveQuery } = await import("../src/renderer/modules/erpAssistant/sources/knowledgeBridge.js");
+
+function answerOf(response) {
+  return String(response?.answer || "");
+}
+
+function sourceTitlesOf(response) {
+  return (response?.sourceReferences || []).map((source) => source.title || "").join(" | ");
+}
+
+function sourceKindsOf(response) {
+  return (response?.sourceReferences || []).map((source) => source.sourceKind || "");
+}
+
+function runtimeCheck(condition, passMsg, failMsg = passMsg) {
+  count++;
+  if (condition) {
+    pass(passMsg);
+  } else {
+    fail(failMsg);
+  }
+}
+
+let runtimeClass = classifyQuery("post this vocuher", "dashboard");
+let runtimeResponse = resolveQuery("post this vocuher", "dashboard");
+runtimeCheck(
+  runtimeClass.category === "unsafe_action",
+  "R4-1-001: Misspelled unsafe voucher action classifies as unsafe_action",
+  `R4-1-001: Expected unsafe_action, received ${runtimeClass.category}`
+);
+runtimeCheck(
+  runtimeResponse.safetyBoundary === "action-refused" && /cannot/i.test(answerOf(runtimeResponse)),
+  "R4-1-002: Misspelled unsafe voucher action is refused",
+  "R4-1-002: Misspelled unsafe voucher action did not produce action-refused refusal"
+);
+runtimeCheck(
+  !/Purchase Order|GeM Order/i.test(`${answerOf(runtimeResponse)} ${sourceTitlesOf(runtimeResponse)}`),
+  "R4-1-003: Unsafe typo refusal does not leak unrelated Work Order/Purchase Order source",
+  "R4-1-003: Unsafe typo refusal leaked unrelated Work Order/Purchase Order source"
+);
+
+runtimeResponse = resolveQuery("post this voucher", "dashboard");
+runtimeCheck(
+  runtimeResponse.safetyBoundary === "action-refused" && /cannot/i.test(answerOf(runtimeResponse)),
+  "R4-1-004: Exact unsafe voucher post remains refused",
+  "R4-1-004: Exact unsafe voucher post was not refused"
+);
+
+runtimeResponse = resolveQuery("reverse this voucher", "dashboard");
+runtimeCheck(
+  runtimeResponse.safetyBoundary === "action-refused" && /cannot/i.test(answerOf(runtimeResponse)),
+  "R4-1-005: Unsafe voucher reversal remains refused",
+  "R4-1-005: Unsafe voucher reversal was not refused"
+);
+
+runtimeClass = classifyQuery("how many type of reports are there", "dashboard");
+runtimeResponse = resolveQuery("how many type of reports are there", "dashboard");
+runtimeCheck(
+  runtimeClass.category === "report",
+  "R4-1-006: Report count/type query classifies as report",
+  `R4-1-006: Expected report category, received ${runtimeClass.category}`
+);
+runtimeCheck(
+  /report/i.test(answerOf(runtimeResponse)) && runtimeResponse.safetyBoundary === "read-only guidance",
+  "R4-1-007: Report count/type query returns report guidance",
+  "R4-1-007: Report count/type query did not return report guidance"
+);
+runtimeCheck(
+  !/Purchase Order|GeM Order/i.test(`${answerOf(runtimeResponse)} ${sourceTitlesOf(runtimeResponse)}`),
+  "R4-1-008: Report count/type query does not use unrelated Purchase Order answer",
+  "R4-1-008: Report count/type query leaked Purchase Order/GeM Order relevance"
+);
+runtimeCheck(
+  sourceKindsOf(runtimeResponse).some((kind) => ["repository", "database-graph", "voucher-accounting-graph", "manual"].includes(kind)),
+  "R4-1-009: Report count/type query includes source-backed references",
+  "R4-1-009: Report count/type query did not include accepted source references"
+);
+
+runtimeClass = classifyQuery("what is voucher dashboard for", "dashboard");
+runtimeResponse = resolveQuery("what is voucher dashboard for", "dashboard");
+runtimeCheck(
+  ["voucher_accounting", "screen_help"].includes(runtimeClass.category),
+  "R4-1-010: Voucher dashboard query classifies as voucher/screen guidance",
+  `R4-1-010: Expected voucher_accounting or screen_help, received ${runtimeClass.category}`
+);
+runtimeCheck(
+  /voucher dashboard|business voucher|guided voucher|accounting voucher/i.test(answerOf(runtimeResponse)),
+  "R4-1-011: Voucher dashboard query returns voucher dashboard guidance",
+  "R4-1-011: Voucher dashboard query did not return voucher dashboard guidance"
+);
+runtimeCheck(
+  runtimeResponse.safetyBoundary === "accounting-sensitive",
+  "R4-1-012: Voucher dashboard query remains accounting-sensitive",
+  `R4-1-012: Expected accounting-sensitive, received ${runtimeResponse.safetyBoundary}`
+);
+runtimeCheck(
+  !/Purchase Order|GeM Order/i.test(`${answerOf(runtimeResponse)} ${sourceTitlesOf(runtimeResponse)}`),
+  "R4-1-013: Voucher dashboard query does not answer with Work Order/Purchase Order source",
+  "R4-1-013: Voucher dashboard query leaked Work Order/Purchase Order source"
+);
+
+runtimeResponse = resolveQuery("what is Work Order in the workflow", "dashboard");
+runtimeCheck(
+  /Work Order|Supply Order/i.test(`${answerOf(runtimeResponse)} ${sourceTitlesOf(runtimeResponse)}`) &&
+    runtimeResponse.safetyBoundary === "workflow-sensitive",
+  "R4-1-014: Work Order workflow query still resolves to workflow source",
+  "R4-1-014: Work Order workflow query lost workflow source relevance"
+);
+
+runtimeResponse = resolveQuery("where is Bill History", "dashboard");
+runtimeCheck(
+  /bill|billing|history|invoice/i.test(`${answerOf(runtimeResponse)} ${sourceTitlesOf(runtimeResponse)}`) &&
+    runtimeResponse.safetyBoundary === "read-only guidance",
+  "R4-1-015: Bill History navigation query remains safe guidance",
+  "R4-1-015: Bill History navigation query did not return safe navigation guidance"
+);
+
+runtimeResponse = resolveQuery("how does posting work", "dashboard");
+runtimeCheck(
+  runtimeResponse.safetyBoundary !== "action-refused",
+  "R4-1-016: Educational posting query is not over-blocked as unsafe action",
+  "R4-1-016: Educational posting query was incorrectly refused"
+);
+
 console.log("\n------------------------------------------------------------");
 console.log(`Summary:  ${results.passed} passed,  ${results.warnings} warnings,  ${results.failed} failed`);
 console.log("============================================================");

@@ -2,6 +2,9 @@ import { searchIndex } from "./sourceBackedSearchIndex.js";
 
 const SYNONYM_MAP = {
   "bill history": ["billing", "gst invoice", "invoice register"],
+  "voucher dashboard": ["voucher dashboard", "business voucher", "guided voucher", "accounting voucher"],
+  "types of reports": ["reports", "financial reports", "gst reports", "inventory reports", "profitability reports"],
+  "type of reports": ["reports", "financial reports", "gst reports", "inventory reports", "profitability reports"],
   "work order": "supply order",
   "wo": "supply order",
   "gem order": "purchase order",
@@ -145,23 +148,82 @@ function searchByCategory(query, category) {
   if (!category || !category.preferredSource) {
     return { ...base, categoryUsed: null, sourceUsed: null };
   }
-  const preferredResults = base.results.filter(
-    (r) => r.sourceKind === category.preferredSource || r.graphId === category.preferredSource
-  );
+  const preferredResults = base.results.filter((r) => categorySourceMatches(r, category, category.preferredSource));
   const fallbackResults = category.fallbackSource
-    ? base.results.filter(
-        (r) => r.sourceKind === category.fallbackSource || r.graphId === category.fallbackSource
-      )
+    ? base.results.filter((r) => categorySourceMatches(r, category, category.fallbackSource))
     : [];
-  const hasPreferredMatch = preferredResults.length > 0 && preferredResults[0].score >= 5;
-  const selectedResults = hasPreferredMatch ? preferredResults : fallbackResults;
-  const sourceUsed = hasPreferredMatch ? category.preferredSource : (category.fallbackSource || null);
+  const selectedResults = preferredResults.length > 0 ? preferredResults : fallbackResults;
+  const relevantResults = selectedResults.filter((r) => isRelevantToQuery(r, query, category));
+  const finalResults = relevantResults.length > 0 ? relevantResults : [];
+  const sourceUsed = preferredResults.length > 0
+    ? category.preferredSource
+    : fallbackResults.length > 0
+      ? category.fallbackSource
+      : null;
+  const best = finalResults[0] || null;
   return {
     ...base,
-    results: selectedResults,
+    results: finalResults,
+    bestCandidate: best ? {
+      sourceId: best.sourceId,
+      sourceKind: best.sourceKind,
+      sourcePath: best.sourcePath,
+      graphId: best.graphId,
+      title: best.title,
+      summary: best.summary
+    } : null,
+    confidence: determineCategoryConfidence(best, category),
     categoryUsed: category.id || null,
-    sourceUsed
+    sourceUsed: best ? sourceUsed : null
   };
+}
+
+function categorySourceMatches(result, category, source) {
+  if (!result || !category || !source) return false;
+  if (category.id === "report") {
+    return (result.sourceKind === "repository" && result.repoName === "reports")
+      || (source === "database-graph" && result.sourceKind === "database-graph" && isReportish(result))
+      || result.sourceKind === "voucher-accounting-graph" && Array.isArray(result.relatedReports) && result.relatedReports.length > 0
+      || result.sourceKind === "manual" && isReportish(result);
+  }
+  if (category.id === "voucher_accounting") {
+    return result.sourceKind === source
+      || result.graphId === source
+      || (result.sourceKind === "repository" && ["screens", "navigation", "rules"].includes(result.repoName) && isVoucherish(result))
+      || (result.sourceKind === "manual" && isVoucherish(result));
+  }
+  return result.sourceKind === source || result.graphId === source;
+}
+
+function isReportish(result) {
+  const text = resultText(result);
+  return /\breport|reports|trial balance|profit and loss|balance sheet|gst|tds|stock|inventory|receivable|payable|profitability|audit|register|statement\b/.test(text);
+}
+
+function isVoucherish(result) {
+  const text = resultText(result);
+  return /\bvoucher|business voucher|guided voucher|journal|contra|receipt|payment|debit note|credit note|accounting\b/.test(text);
+}
+
+function resultText(result) {
+  return `${result.title || ""} ${result.summary || ""} ${(result.tags || []).join(" ")} ${(result.relatedReports || []).join(" ")} ${(result.relatedScreens || []).join(" ")}`.toLowerCase();
+}
+
+function isRelevantToQuery(result, query, category) {
+  if (!result) return false;
+  const q = String(query || "").toLowerCase();
+  const text = resultText(result);
+  if (category.id === "report") return isReportish(result);
+  if (category.id === "voucher_accounting") return isVoucherish(result);
+  const queryTerms = q.split(/[^a-z0-9]+/).filter((term) => term.length >= 4 && !["what", "where", "which", "there", "does", "this", "that", "many", "type", "types"].includes(term));
+  return queryTerms.some((term) => text.includes(term));
+}
+
+function determineCategoryConfidence(best, category) {
+  if (!best) return "low";
+  if (best.score >= 15 && categorySourceMatches(best, category, category.preferredSource)) return "high";
+  if (best.score >= 8) return "medium";
+  return "low";
 }
 
 export { sourceBackedSearch, searchByCategory, searchByKind, searchModules, searchScreens, searchWorkflows, searchDatabaseTables, searchVoucherAccounting, searchReports, searchManuals, searchKnownGaps, SYNONYM_MAP };

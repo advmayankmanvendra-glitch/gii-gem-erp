@@ -207,12 +207,16 @@ function buildAnswerContract(query, searchResult, classification, safetyInfo, sc
   const safety = safetyInfo || { boundary: "read-only guidance", rules: [] };
   const context = screenContext || {};
   const needsReview = cat.needsReview || confidence === "low" || !bestCandidate;
-  const selectedCandidate = results?.[0] || bestCandidate;
+  const selectedCandidate = results?.[0] || null;
   const answer = cat.category === "unsafe_action"
     ? generateUnsafeRefusal(query, cat)
-    : selectedCandidate
-      ? generateCategoryAnswer(selectedCandidate, cat, confidence, context)
-      : null;
+    : !selectedCandidate
+      ? "I do not have a source-backed answer for this query yet."
+      : cat.category === "report"
+        ? generateReportAnswer(selectedCandidate, results || [], confidence)
+        : cat.category === "voucher_accounting" && isVoucherDashboardQuery(query)
+          ? generateVoucherDashboardAnswer(selectedCandidate, confidence)
+          : generateCategoryAnswer(selectedCandidate, cat, confidence, context);
   const sourceReferences = (results || []).slice(0, 3).map((r) => ({
     title: r.title,
     sourceKind: r.sourceKind,
@@ -233,7 +237,7 @@ function buildAnswerContract(query, searchResult, classification, safetyInfo, sc
     query,
     answer,
     confidence,
-    needsReview,
+    needsReview: needsReview || answer === "I do not have a source-backed answer for this query yet.",
     sourceReferences,
     relatedWorkflowStages,
     relatedScreens,
@@ -265,6 +269,37 @@ function generateCategoryAnswer(candidate, category, confidence, context) {
   }
   answer += ` Source: ${sourceLabel}.`;
   return answer;
+}
+
+function generateReportAnswer(candidate, results, confidence) {
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  const repositoryReports = results.filter((r) => r.sourceKind === "repository" && r.repoName === "reports");
+  const categories = inferReportCategories(results);
+  const countText = repositoryReports.length > 0
+    ? `I found ${repositoryReports.length} matching source-backed report entr${repositoryReports.length === 1 ? "y" : "ies"} in the repository result set.`
+    : "The source-backed result set points to report definitions and report dependency mappings.";
+  return `${confidenceLabel} this is a report question. ${countText} ERP report coverage includes ${categories.join(", ")} where available. ${candidate.summary || ""} Source: ${getSourceLabel(candidate.sourceKind)}.`;
+}
+
+function inferReportCategories(results) {
+  const text = results.map((r) => `${r.title} ${r.summary} ${(r.relatedReports || []).join(" ")}`).join(" ").toLowerCase();
+  const categories = [];
+  if (/trial balance|profit and loss|balance sheet|financial|cash|bank/.test(text)) categories.push("accounting and financial reports");
+  if (/gst|tds|tax/.test(text)) categories.push("GST/TDS reports");
+  if (/receivable|payable|aging|outstanding|party/.test(text)) categories.push("receivable/payable reports");
+  if (/stock|inventory|grn|valuation|cogs/.test(text)) categories.push("inventory reports");
+  if (/profitability|margin/.test(text)) categories.push("profitability reports");
+  if (/audit|control|approval/.test(text)) categories.push("audit/control reports");
+  return categories.length > 0 ? categories : ["financial, operational, inventory, GST, profitability, and control reports"];
+}
+
+function isVoucherDashboardQuery(query) {
+  return /voucher dashboard|business voucher|guided voucher/i.test(String(query || ""));
+}
+
+function generateVoucherDashboardAnswer(candidate, confidence) {
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  return `${confidenceLabel} this is about the Voucher Dashboard / Business Voucher area. It is for guided and manual accounting voucher workflows such as receipt, payment, sales, purchase, journal, contra, debit note, and credit note style accounting workflows where applicable. It does not replace Work Order / Supply Order as the operational root; Work Order / Supply Order remains the source business file for government supply lifecycle tracking. ${candidate.summary || ""} Source: ${getSourceLabel(candidate.sourceKind)}.`;
 }
 
 function getProhibitedActions(boundary) {
