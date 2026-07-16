@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { keyboardGuideSections, shortcutsForScope } from "../../config/keyboardShortcuts.js";
+import { keyboardGuideSections, shortcutGroupsForView } from "../../config/keyboardShortcuts.js";
 import { FocusTrap } from "../FocusTrap.jsx";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
@@ -119,39 +119,6 @@ export function ProductivityLearnDialog({ view, onClose, onOpenTraining }) {
       </section>
     </div>
   );
-}
-
-function shortcutGroupsForView(view) {
-  const navigationItems = safeArray(flatNavItems);
-  const meta = navigationItems.find((item) => item.key === view) || {};
-  const groupId = meta.groupId;
-  const groups = [];
-  if (view === "supply_orders") {
-    groups.push({
-      title: "Supply Orders",
-      items: [["F2", "New Order"], ["F3", "Edit Order"], ["F4", "View Order"], ["F6", "Generate Procurement"], ["F7", "Reserve Stock"], ["F8", "Generate Invoice"]]
-    });
-  } else if (groupId === "inventory" || inventoryReportViews.has(view) || ["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(view)) {
-    groups.push({
-      title: "Inventory",
-      items: [["F2", "Stock Receipt"], ["F3", "Stock Issue"], ["F4", "Stock Transfer"], ["F5", "Stock Adjustment"]]
-    });
-  } else if (groupId === "accounting" || view === "voucher_dashboard" || view === "manual_voucher") {
-    groups.push({
-      title: "Accounting",
-      items: [["Alt+R", "Receipt Voucher"], ["Alt+P", "Payment Voucher"], ["Alt+S", "Sales Voucher"], ["Alt+U", "Purchase Voucher"], ["Alt+J", "Journal Voucher"]]
-    });
-  } else if (groupId === "reports" || ["reports", "cash_flow", "gst", "receivables", "payables"].includes(view)) {
-    groups.push({
-      title: "Reports",
-      items: [["Ctrl+P", "Print"], ["Ctrl+E", "Export"], ["Ctrl+F", "Search"], ["Ctrl+R", "Refresh"]]
-    });
-  }
-  groups.push({
-    title: "Always",
-    items: [["Ctrl+S", "Save"], ["Esc", "Exit"], ["F1", "Help"]]
-  });
-  return groups;
 }
 
 export function productivityScopeForView(view) {
@@ -449,7 +416,7 @@ export function FirstTimeTour({ onClose, onOpenHelp }) {
   );
 }
 
-export function ContextHelpDialog({ view, onClose, onOpenTraining }) {
+export function ContextHelpDialog({ view, onClose, onOpenTraining, onOpenAssistant }) {
   const help = helpForView(view);
   return (
     <div className="modal-backdrop" role="presentation">
@@ -478,6 +445,7 @@ export function ContextHelpDialog({ view, onClose, onOpenTraining }) {
           <span>{help.safetyRule}</span>
         </div>
         <div className="confirm-actions">
+          <button type="button" className="ghost-btn" onClick={onOpenAssistant}>Ask a Question About This Screen</button>
           <button type="button" className="ghost-btn" onClick={onOpenTraining}>Open Training Mode</button>
           <button type="button" className="primary-btn" onClick={onClose}>Understood</button>
         </div>
@@ -595,8 +563,8 @@ export function helpForView(view) {
 }
 
 export function ContextShortcutOverlay({ view, onClose }) {
-  const scope = productivityScopeForView(view);
-  const items = shortcutsForScope(scope).slice(0, 12);
+  const groups = shortcutGroupsForView(view);
+  const shortcutCount = groups.reduce((count, group) => count + group.items.length, 0);
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <FocusTrap active onEscape={onClose}>
@@ -604,19 +572,22 @@ export function ContextShortcutOverlay({ view, onClose }) {
           <div className="panel-head">
             <div>
               <h3>Shortcuts for this Screen</h3>
-              <p>{items.length} shortcut(s) available</p>
+              <p>{shortcutCount} shortcut(s) available</p>
             </div>
             <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
           </div>
           <div className="shortcut-grid" style={{ maxHeight: 400, overflowY: "auto" }}>
-            <div className="shortcut-group">
-              {items.map((s) => (
-                <div className="shortcut-row" key={s.keys + s.action}>
-                  <kbd>{s.keys}</kbd>
-                  <span>{s.action}</span>
-                </div>
-              ))}
-            </div>
+            {groups.map((group) => (
+              <div className="shortcut-group" key={group.title}>
+                <h3>{group.title}</h3>
+                {group.items.map(([keys, action]) => (
+                  <div className="shortcut-row" key={`${group.title}-${keys}-${action}`}>
+                    <kbd>{keys}</kbd>
+                    <span>{action}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </section>
       </FocusTrap>

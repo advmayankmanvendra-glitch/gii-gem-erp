@@ -128,6 +128,7 @@ export function RightUtilitySidebar({
   trainingMode,
   onHelp,
   onHelpAssistant,
+  onLearnThisScreen,
   onTraining,
   onLogout,
   companies,
@@ -151,6 +152,7 @@ export function RightUtilitySidebar({
       <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
         <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
         <button type="button" className="utility-compact-action" onClick={onHelp} title="Screen Guidance">?</button>
+        <button type="button" className="utility-compact-action" onClick={onLearnThisScreen} title="Learn This Screen">Lr</button>
         <button type="button" className="utility-compact-action" onClick={onHelpAssistant} title="Ask ERP Help">A</button>
         <button type="button" className={`utility-compact-action ${trainingMode ? "active" : ""}`} onClick={onTraining} title={trainingMode ? "Training Mode On" : "Training"}>T</button>
         <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
@@ -175,6 +177,10 @@ export function RightUtilitySidebar({
         <button type="button" className="ghost-btn help-btn" title="Open screen-specific guidance for the current module" onClick={onHelp}>
           <Icon name="help" />
           <span>Screen Help</span>
+        </button>
+        <button type="button" className="ghost-btn help-btn" title="Learn the current screen's purpose, workflow, common mistakes, and related reports" onClick={onLearnThisScreen}>
+          <Icon name="book" />
+          <span>Learn This Screen</span>
         </button>
         <button type="button" className={`ghost-btn help-btn ${trainingMode ? "active" : ""}`} title="Open safe sample-data training mode" onClick={onTraining}>
           <Icon name="book" />

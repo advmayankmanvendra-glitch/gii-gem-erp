@@ -8,7 +8,7 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
         <div>
           <span>{answer.mode}</span>
           <h2>{answer.title}</h2>
-          {answer.brainBacked && <span className="brain-backed-badge">Brain-backed</span>}
+          {answer.brainBacked && <span className="brain-backed-badge">Source-backed</span>}
           {answer.menuPath && <small>{answer.menuPath}</small>}
           {answer.sourceLabel && <small>{answer.sourceLabel}</small>}
         </div>
@@ -243,14 +243,13 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
           <h3>Try these instead</h3>
           {!!answer.brainResults?.length && (
             <div className="help-assistant-brain-results">
-              <p>Source-backed results from BRAIN-2 knowledge graphs:</p>
+              <p>Related guidance from ERP knowledge sources:</p>
               <div className="help-assistant-related">
                 {answer.brainResults.map((br, i) => (
                   <article className="help-assistant-related-card" key={`brain-${i}`}>
                     <span>{br.sourceKind}</span>
                     <strong>{br.title}</strong>
                     <small>{br.summary}</small>
-                    {br.graphId && <small>{br.graphId} graph</small>}
                   </article>
                 ))}
               </div>

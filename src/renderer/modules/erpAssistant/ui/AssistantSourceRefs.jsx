@@ -1,11 +1,11 @@
 import React from "react";
 
 const SOURCE_BADGE_LABELS = {
-  "workflow-graph": "WG-1",
-  "database-graph": "DG-1",
-  "voucher-accounting-graph": "KG-4",
-  "renderer-graph": "RG-1",
-  "repository": "BRAIN-1",
+  "workflow-graph": "Workflow",
+  "database-graph": "ERP data model",
+  "voucher-accounting-graph": "Accounting guidance",
+  "renderer-graph": "Screen guidance",
+  "repository": "ERP knowledge",
   "manual": "Manual"
 };
 
@@ -35,7 +35,6 @@ function AssistantSourceRefs({ references }) {
             <div className="assistant-source-info">
               <strong>{ref.title}</strong>
               {ref.summary && <small>{ref.summary}</small>}
-              {ref.graphId && <small className="assistant-source-graph">{ref.graphId}</small>}
             </div>
           </div>
         ))}

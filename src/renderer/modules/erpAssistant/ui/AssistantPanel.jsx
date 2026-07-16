@@ -29,21 +29,24 @@ function AssistantPanel({ currentView, currentRole, onNavigate }) {
   }, [query, currentView, currentRole]);
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") ask();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
   };
 
   return (
     <section className="assistant-panel">
       <div className="assistant-panel-header">
-        <h2>Ask ERP Brain</h2>
+        <h2>Ask ERP Help</h2>
         <span className="assistant-badge">Read-only guidance</span>
       </div>
       <div className="assistant-input-row">
-        <input
-          type="text"
+        <textarea
           className="assistant-input"
-          placeholder="What would you like to know?"
+          placeholder="Ask about this screen, a workflow, report, shortcut, or common issue."
           value={query}
+          rows={5}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
@@ -52,6 +55,7 @@ function AssistantPanel({ currentView, currentRole, onNavigate }) {
           {loading ? "Searching..." : "Ask"}
         </button>
       </div>
+      <small>Enter asks a question. Shift+Enter adds a new line.</small>
       {!asked && (
         <div className="assistant-suggestions">
           <p>Try asking:</p>

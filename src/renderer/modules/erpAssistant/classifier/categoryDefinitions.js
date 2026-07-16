@@ -4,7 +4,7 @@ const CATEGORIES = [
     label: "Workflow Question",
     description: "Questions about workflow stages, dependencies, operational sequence, and lifecycle",
     matchKeywords: {
-      primary: ["workflow", "stage", "lifecycle", "operational", "predecessor", "successor", "dependency", "work order", "supply order", "crac", "grn", "goods receipt", "delivery challan", "procurement planning", "closure", "order closure"],
+      primary: ["workflow", "stage", "lifecycle", "operational", "predecessor", "successor", "dependency", "work order", "supply order", "crac", "grn", "goods receipt", "delivery challan", "procurement planning", "closure", "order closure", "procurement", "purchase order", "supplier purchase", "installation", "challan", "billing", "invoice readiness"],
       secondary: ["after", "before", "next step", "what next", "then what", "chain", "sequence", "process flow", "flow"]
     },
     preferredSource: "workflow-graph",
@@ -44,8 +44,8 @@ const CATEGORIES = [
     label: "Manual / Training Question",
     description: "How-to procedures, step-by-step guides, checklists, training materials",
     matchKeywords: {
-      primary: ["how to", "guide", "steps", "procedure", "tutorial", "walkthrough", "training", "checklist", "steps to", "process for"],
-      secondary: ["instructions", "documentation", "manual", "help", "learn", "basics", "introduction", "overview"]
+      primary: ["how to", "guide", "steps", "procedure", "tutorial", "walkthrough", "training", "checklist", "steps to", "process for", "how do i", "import", "export", "migration", "month end", "migrate", "monthly close", "year end"],
+      secondary: ["instructions", "documentation", "manual", "help", "learn", "basics", "introduction", "overview", "what is the process", "should i"]
     },
     preferredSource: "manual",
     fallbackSource: "repository",
@@ -84,7 +84,7 @@ const CATEGORIES = [
     label: "Voucher / Accounting Question",
     description: "Questions about voucher types, debit/credit patterns, posting rules, ledger impact, accounting entries",
     matchKeywords: {
-      primary: ["voucher", "voucher dashboard", "business voucher", "guided voucher", "accounting voucher", "debit", "credit", "journal", "posting", "ledger entry", "accounting entry", "double entry", "ledger", "trial balance", "profit and loss", "balance sheet", "pnl", "p&l"],
+      primary: ["voucher", "voucher dashboard", "business voucher", "guided voucher", "accounting voucher", "debit", "credit", "journal", "posting", "ledger entry", "accounting entry", "double entry", "ledger", "trial balance", "tb", "profit and loss", "balance sheet", "pnl", "p&l", "receivables", "payables", "receivable", "payable", "assets", "liabilities", "equity"],
       secondary: ["entry", "account", "post", "reverse", "cancellation", "storno", "contra", "payment", "receipt", "accrual", "dashboard"]
     },
     preferredSource: "voucher-accounting-graph",
@@ -129,7 +129,7 @@ const CATEGORIES = [
     },
     preferredSource: "voucher-accounting-graph",
     fallbackSource: "manual",
-    isAccountingSensitive: true,
+    isAccountingSensitive: false,
     isInventorySensitive: false,
     isGSTSensitive: true,
     isWorkflowSensitive: false,
@@ -144,7 +144,7 @@ const CATEGORIES = [
     label: "Inventory Question",
     description: "Questions about stock movement, inward, outward, adjustment, valuation, GRN, and inventory reports",
     matchKeywords: {
-      primary: ["stock", "inventory", "inward", "outward", "adjustment", "valuation", "cogs", "cost of goods", "grn", "goods receipt", "delivery challan", "reservation", "warehouse"],
+      primary: ["stock", "inventory", "inward", "outward", "adjustment", "valuation", "cogs", "cost of goods", "reservation", "warehouse"],
       secondary: ["bin", "location", "serial", "batch", "quantity", "rate", "average cost", "fifo", "moving average"]
     },
     preferredSource: "workflow-graph",
@@ -220,7 +220,7 @@ const CATEGORIES = [
     confidenceModel: "N/A — classification triggers immediate refusal",
     unsafeActionKeywords: [
       "post voucher", "reverse voucher", "approve", "delete", "restore",
-      "import file", "export file", "send email", "run command",
+      "import file", "export file", "run command",
       "execute sql", "fix database", "fix ledger", "fix accounting",
       "edit stock", "edit ledger", "create voucher", "cancel voucher"
     ]

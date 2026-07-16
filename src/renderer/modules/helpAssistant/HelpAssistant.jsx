@@ -76,7 +76,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
         <div className="help-assistant-hero-actions">
           <button type="button" className="ghost-btn" onClick={goBack}>Back</button>
           <button type="button" className="ghost-btn" onClick={() => changeMode("help")}>Open Full Help Assistant</button>
-          <button type="button" className={mode === "brain" ? "primary-btn" : "ghost-btn"} onClick={() => changeMode("brain")}>Ask ERP Brain</button>
+          <button type="button" className={mode === "brain" ? "primary-btn" : "ghost-btn"} onClick={() => changeMode("brain")}>Ask a Question</button>
           <div className="help-assistant-current">
             <small>Current guidance context</small>
             <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>
@@ -136,13 +136,11 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
             <button type="button" className="ghost-btn" onClick={() => onNavigate?.("help_training")}>Open Full Help & Training</button>
           </section>
           <section className="panel help-assistant-boundary">
-            <h2>Mode Coverage</h2>
+            <h2>How I Can Help</h2>
             <ul>
-              <li>H1: conversational help intent routing.</li>
-              <li>H2: onboarding readiness from safe summary counts.</li>
-              <li>H3: current screen help.</li>
-              <li>H4: guided coach priorities.</li>
-              <li>H5: read-only data mode foundation.</li>
+              <li>Explain the current screen, workflows, reports, fields, and shortcuts.</li>
+              <li>Guide first-time setup, daily work, and training tasks.</li>
+              <li>Help find the correct ERP screen without changing records.</li>
             </ul>
           </section>
         </aside>

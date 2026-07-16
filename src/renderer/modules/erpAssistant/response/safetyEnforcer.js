@@ -70,6 +70,15 @@ function enforceSafety(category, searchResults) {
     };
   }
 
+  if (catId === "unknown") {
+    return {
+      boundary: "read-only guidance",
+      notice: "I do not have a source-backed answer for this query yet.",
+      rules: [],
+      requiresNotice: false
+    };
+  }
+
   for (const rule of Object.values(BOUNDARY_RULES)) {
     if (rule.domains.includes(catId)) {
       return {
@@ -81,10 +90,21 @@ function enforceSafety(category, searchResults) {
     }
   }
 
+  if (catId === "report" && /\b(trial balance|\btb\b|debit|credit|profitability in financial|p&l|profit|income|expense|net profit|financial position|liabilities|equity|asset)\b/i.test(category?.query || "")) {
+    return {
+      boundary: "accounting-sensitive",
+      notice: BOUNDARY_RULES.accounting.notice,
+      rules: BOUNDARY_RULES.accounting.rules,
+      requiresNotice: true
+    };
+  }
+
   const hasAccountingSource = (searchResults?.results || []).some(
     (r) => r.sourceKind === "voucher-accounting-graph"
   );
-  if (hasAccountingSource && !safetyFlags.isAccountingSensitive) {
+  // Only override to accounting-sensitive if category has no explicit safety domain
+  const hasExplicitDomain = Object.values(BOUNDARY_RULES).some((r) => r.domains.includes(catId));
+  if (hasAccountingSource && !safetyFlags.isAccountingSensitive && !hasExplicitDomain) {
     return {
       boundary: "accounting-sensitive",
       notice: BOUNDARY_RULES.accounting.notice,

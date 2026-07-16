@@ -42,6 +42,13 @@ function findFeatureByQuery(query, category, currentView) {
       if (matchCount >= 2) {
         score += FEATURE_WEIGHT;
         reasons.push(`canonicalName matches`);
+      } else if (matchCount === 1 && queryWords.length >= 3) {
+        const SINGLE_WORD_MATCH_WEIGHT = 5;
+        const distinctiveWord = nameWords.find((w) => queryWords.includes(w) && w.length >= 3 && !["order", "bill", "note", "entry", "voucher", "report", "reports", "summary", "status", "list", "form", "management", "financial", "payment", "receipt", "purchase", "sales", "goods", "stock", "history", "details", "tracking", "access"].includes(w));
+        if (distinctiveWord) {
+          score += SINGLE_WORD_MATCH_WEIGHT;
+          reasons.push(`canonicalName word "${distinctiveWord}" matches`);
+        }
       }
     }
 

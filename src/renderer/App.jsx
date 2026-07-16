@@ -751,7 +751,8 @@ function App() {
     if (command === "audit-log") navigate("audit_log");
     if (command === "dashboard") navigate("dashboard");
     if (command === "back" && view !== "dashboard") exitCurrentScreen();
-    if (command === "f1") setShortcutHelpOpen(true);
+    if (command === "f1") setContextHelpOpen(true);
+    if (command === "shift-f1") setProductivityLearnOpen(true);
     if (command === "f2") openRecordAction("supply_orders");
     if (command === "f3") editSelectedTableRow();
     if (command === "f4") viewSelectedTableRow();
@@ -1126,12 +1127,17 @@ function App() {
           return;
         }
       }
-      if (event.key === "F1") {
+      if (event.key === "F1" && event.shiftKey) {
         event.preventDefault();
-        setShortcutHelpOpen(true);
+        setProductivityLearnOpen(true);
         return;
       }
-      if (event.key === "/" && !event.ctrlKey && !event.altKey && !isTextEntryElement(document.activeElement)) {
+      if (event.key === "F1") {
+        event.preventDefault();
+        setContextHelpOpen(true);
+        return;
+      }
+      if (event.key === "/" && event.ctrlKey && !event.altKey && !isTextEntryElement(document.activeElement)) {
         event.preventDefault();
         setContextShortcutOpen((prev) => !prev);
         return;
@@ -1345,6 +1351,7 @@ function App() {
             setHelpAssistantInitialMode("help");
             navigate("help_assistant");
           }}
+          onLearnThisScreen={() => setProductivityLearnOpen(true)}
           onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
           onLogout={() => setSession(null)}
           companies={safeCompanies}
@@ -1376,7 +1383,7 @@ function App() {
       {shortcutHelpOpen && <ShortcutHelpDialog onClose={() => setShortcutHelpOpen(false)} />}
       {contextShortcutOpen && <ContextShortcutOverlay view={effectiveView} onClose={() => setContextShortcutOpen(false)} />}
       {userPreferencesOpen && <UserPreferencesDialog onClose={() => setUserPreferencesOpen(false)} compactSidebar={compactSidebar} />}
-      {contextHelpOpen && <ContextHelpDialog view={effectiveView} onClose={() => setContextHelpOpen(false)} onOpenTraining={() => { setContextHelpOpen(false); navigate("help_training"); }} />}
+      {contextHelpOpen && <ContextHelpDialog view={effectiveView} onClose={() => setContextHelpOpen(false)} onOpenTraining={() => { setContextHelpOpen(false); navigate("help_training"); }} onOpenAssistant={() => { setContextHelpOpen(false); setHelpAssistantSourceView(effectiveView); setHelpAssistantInitialMode("brain"); navigate("help_assistant"); }} />}
       {productivityLearnOpen && <ProductivityLearnDialog view={effectiveView} onClose={() => setProductivityLearnOpen(false)} onOpenTraining={() => { setProductivityLearnOpen(false); navigate("help_training"); }} />}
       {firstTourOpen && <FirstTimeTour onClose={() => setFirstTourOpen(false)} onOpenHelp={() => { setFirstTourOpen(false); navigate("help_training"); }} />}
       {printPreview && <PrintPreviewDialog preview={printPreview} onClose={() => setPrintPreview(null)} notify={notify} desktopApi={api} />}

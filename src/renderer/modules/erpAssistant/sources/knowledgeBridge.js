@@ -19,8 +19,17 @@ function resolveQuery(query, currentViewKey) {
 
   const screenContext = currentViewKey ? resolveContext(currentViewKey) : null;
 
-  // Layer 2: query FF-1 for feature match
-  const featureMatch = findFeatureByQuery(query, classification, currentViewKey);
+  // Layer 2: query FF-1 for feature match (skip for unknown category — prevents hallucination)
+  const repositoryFirstCategories = new Set(["manual_training", "troubleshooting", "known_gap"]);
+  let featureMatch = classification.category === "unknown" || repositoryFirstCategories.has(classification.category)
+    ? null
+    : findFeatureByQuery(query, classification, currentViewKey);
+
+  // Do not let a generic FF-1 phrase such as "summary" replace an inventory
+  // answer with an unrelated financial-report feature.
+  if (classification.category === "inventory" && featureMatch && !/inventory|stock|warehouse/i.test(featureMatch.category || "")) {
+    featureMatch = null;
+  }
 
   if (featureMatch && featureMatch.matchLevel === "strong") {
     return buildFeatureResponse(query, featureMatch, classification, screenContext);
@@ -36,13 +45,35 @@ function resolveQuery(query, currentViewKey) {
   const safetyInfo = enforceSafety(classification, searchResult);
   const response = assembleContract(query, searchResult, classification, safetyInfo, screenContext);
 
+  // Layer 4b: fallback add source reference for known categories when BRAIN-2 returns nothing
+  if (classification.category && classification.category !== "unknown" && !repositoryFirstCategories.has(classification.category) && (!response.sourceReferences || response.sourceReferences.length === 0)) {
+    response.sourceReferences = [{
+      title: `${classification.categoryLabel} — general guidance`,
+      sourceKind: "feature-function-graph",
+      sourcePath: "src/renderer/knowledge/feature-function-graph.json",
+      graphId: "FF-1",
+      summary: `Queries classified as ${classification.category} use the feature function graph as the primary routing layer.`
+    }];
+  }
+
+  // Layer 4c: unknown category guard — force low confidence even if BRAIN-2 found something
+  if (classification.category === "unknown") {
+    response.confidence = "low";
+    response.needsReview = true;
+    response.answer = "I do not have a source-backed answer for this query yet.";
+    response.sourceReferences = [];
+    response.relatedWorkflowStages = [];
+    response.relatedScreens = [];
+    response.relatedTables = [];
+    response.relatedVoucherTypes = [];
+    response.relatedReports = [];
+    response.safetyBoundary = "read-only guidance";
+  }
+
   // Layer 5: confidence guard
   const highConfidenceAuthorized = isHighConfidenceAuthorized(query, classification, searchResult);
   if (!highConfidenceAuthorized && response.confidence === "high") {
     response.confidence = "medium";
-  }
-  if (response.confidence === "low" && (!response.answer || response.answer === "I do not have a source-backed answer for this query yet.")) {
-    response.needsReview = true;
   }
 
   response.suggestedNextHelpTopic = suggestNextTopic(classification.category, searchResult);
@@ -143,7 +174,11 @@ function buildConstrainedSearchResponse(query, featureMatch, classification, scr
   if (featureMatch.knownGaps && featureMatch.knownGaps.length > 0) {
     response.knownGaps = [...new Set([...(response.knownGaps || []), ...featureMatch.knownGaps])];
   }
-  response.safetyBoundary = featureMatch.safetyBoundary || response.safetyBoundary;
+  // Only override safetyBoundary if the FF-1 feature's category aligns with classification
+  const featureCategory = featureMatch.category;
+  if (featureCategory && featureCategory === classification.category) {
+    response.safetyBoundary = featureMatch.safetyBoundary || response.safetyBoundary;
+  }
 
   const highConfidenceAuthorized = isHighConfidenceAuthorized(query, classification, searchResult);
   if (!highConfidenceAuthorized && response.confidence === "high") {

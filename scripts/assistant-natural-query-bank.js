@@ -1,8 +1,8 @@
-const NAVIGATION_SOURCE_KINDS = ["repository", "renderer-graph", "manual"];
-const WORKFLOW_SOURCE_KINDS = ["workflow-graph", "repository", "manual"];
-const ACCOUNTING_SOURCE_KINDS = ["voucher-accounting-graph", "database-graph", "repository", "manual"];
-const REPORT_SOURCE_KINDS = ["repository", "database-graph", "voucher-accounting-graph", "manual"];
-const INVENTORY_SOURCE_KINDS = ["workflow-graph", "database-graph", "repository", "manual"];
+const NAVIGATION_SOURCE_KINDS = ["repository", "renderer-graph", "manual", "feature-function-graph"];
+const WORKFLOW_SOURCE_KINDS = ["workflow-graph", "repository", "manual", "feature-function-graph"];
+const ACCOUNTING_SOURCE_KINDS = ["voucher-accounting-graph", "database-graph", "repository", "manual", "feature-function-graph"];
+const REPORT_SOURCE_KINDS = ["repository", "database-graph", "voucher-accounting-graph", "manual", "feature-function-graph"];
+const INVENTORY_SOURCE_KINDS = ["workflow-graph", "database-graph", "repository", "manual", "feature-function-graph"];
 
 function buildCase(id, category, query, options = {}) {
   return {
@@ -42,74 +42,54 @@ const workflowCases = [
     mustContain: ["Work Order"],
     mustNotContain: ["I cannot post"]
   }),
-  ...makeCases("PROC", "workflow", [
-    "What happens during procurement planning?",
-    "Where does procurement come after Work Order?",
-    "Explain supplier procurement flow",
-    "When do supplier purchase orders start?",
-    "What is procurement requirement used for?",
-    "How does procurement connect to GRN?",
-    "What is the purchase planning stage?",
-    "Where do purchase bills fit in procurement?",
-    "What happens before Goods Receipt?",
-    "What is supplier purchase order for?"
-  ], {
-    expectedSafetyBoundary: "workflow-sensitive",
-    expectedSourceKinds: WORKFLOW_SOURCE_KINDS,
-    mustContain: ["procurement"],
-    mustNotContain: ["Trial Balance"]
-  }),
-  ...makeCases("GRN", "workflow", [
-    "What is GRN?",
-    "What happens after Goods Receipt?",
-    "How does GRN affect inventory?",
-    "Where is Goods Receipt in the workflow?",
-    "Explain GRN status",
-    "What comes before GRN?",
-    "Does GRN start stock inward?",
-    "What is goods receipt note for?",
-    "How is received stock tracked?",
-    "What is the role of GRN before delivery?"
-  ], {
-    expectedSafetyBoundary: "workflow-sensitive",
-    expectedSourceKinds: WORKFLOW_SOURCE_KINDS,
-    mustContain: ["GRN"],
-    mustNotContain: ["Profit and Loss"]
-  }),
-  ...makeCases("DC", "workflow", [
-    "What is Delivery Challan?",
-    "What happens after Delivery Challan?",
-    "How does delivery challan connect to installation?",
-    "Where is challan in the lifecycle?",
-    "Explain delivery stage",
-    "Does Delivery Challan move stock outward?",
-    "What comes before installation?",
-    "What is DC in order flow?",
-    "How do I understand delivery challan stage?",
-    "Where does outward delivery happen?"
-  ], {
-    expectedSafetyBoundary: "workflow-sensitive",
-    expectedSourceKinds: WORKFLOW_SOURCE_KINDS,
-    mustContain: ["Delivery"],
-    mustNotContain: ["Balance Sheet"]
-  }),
-  ...makeCases("CRAC", "workflow", [
-    "What happens after CRAC?",
-    "What is CRAC?",
-    "How does CRAC connect to billing?",
-    "Where does installation fit before CRAC?",
-    "Explain customer acceptance stage",
-    "What comes after installation?",
-    "When is invoice readiness achieved?",
-    "How does CRAC affect sales invoice?",
-    "What is completion certificate stage?",
-    "Does CRAC close the delivery chain?"
-  ], {
-    expectedSafetyBoundary: "workflow-sensitive",
-    expectedSourceKinds: WORKFLOW_SOURCE_KINDS,
-    mustContain: ["CRAC"],
-    mustNotContain: ["Purchase Order / GeM Order"]
-  })
+  ...[
+    buildCase("PROC-001", "workflow", "What happens during procurement planning?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-002", "workflow", "Where does procurement come after Work Order?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-003", "workflow", "Explain supplier procurement flow", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-004", "workflow", "When do supplier purchase orders start?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-005", "workflow", "What is procurement requirement used for?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-006", "workflow", "How does procurement connect to GRN?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-007", "workflow", "What is the purchase planning stage?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-008", "workflow", "Where do purchase bills fit in procurement?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["procurement"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-009", "workflow", "What happens before Goods Receipt?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Trial Balance"], notes: "workflow" }),
+    buildCase("PROC-010", "workflow", "What is supplier purchase order for?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["purchase order"], mustNotContain: ["Trial Balance"], notes: "workflow" })
+  ],
+  ...[
+    buildCase("GRN-001", "workflow", "What is GRN?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-002", "workflow", "What happens after Goods Receipt?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-003", "workflow", "How does GRN affect inventory?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-004", "workflow", "Where is Goods Receipt in the workflow?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-005", "workflow", "Explain GRN status", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-006", "workflow", "What comes before GRN?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-007", "workflow", "Does GRN start stock inward?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-008", "workflow", "What is goods receipt note for?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-009", "workflow", "How is received stock tracked?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["stock"], mustNotContain: ["Profit and Loss"], notes: "workflow" }),
+    buildCase("GRN-010", "workflow", "What is the role of GRN before delivery?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["GRN"], mustNotContain: ["Profit and Loss"], notes: "workflow" })
+  ],
+  ...[
+    buildCase("WO-001", "workflow", "What is Work Order in the workflow?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-002", "workflow", "Where does Supply Order fit in the operational lifecycle?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-003", "workflow", "Explain the Work Order stage", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-004", "workflow", "What comes after Work Order?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-005", "workflow", "Which stage is the operational root?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-006", ["workflow", "voucher_accounting"], "Is Supply Order an accounting voucher?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["voucher"], mustNotContain: ["I cannot post"], notes: "workflow/accounting" }),
+    buildCase("WO-007", "workflow", "How does the government supply lifecycle start?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-008", "workflow", "What is the parent entity for the order flow?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-009", "workflow", "Tell me the role of Work Order", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["Work Order"], mustNotContain: ["I cannot post"], notes: "workflow" }),
+    buildCase("WO-010", ["workflow", "voucher_accounting"], "Does Work Order post ledger entries?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["ledger"], mustNotContain: ["I cannot post"], notes: "workflow/accounting" })
+  ],
+  ...[
+    buildCase("CRAC-001", "workflow", "What happens after CRAC?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-002", "workflow", "What is CRAC?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-003", "workflow", "How does CRAC connect to billing?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-004", "workflow", "Where does installation fit before CRAC?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-005", "workflow", "Explain customer acceptance stage", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["customer acceptance"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-006", "workflow", "What comes after installation?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["installation"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-007", "workflow", "When is invoice readiness achieved?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["invoice"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-008", "workflow", "How does CRAC affect sales invoice?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-009", "workflow", "What is completion certificate stage?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" }),
+    buildCase("CRAC-010", "workflow", "Does CRAC close the delivery chain?", { expectedSafetyBoundary: "workflow-sensitive", expectedSourceKinds: WORKFLOW_SOURCE_KINDS, mustContain: ["CRAC"], mustNotContain: ["Purchase Order / GeM Order"], notes: "workflow" })
+  ]
 ];
 
 const accountingCases = [
@@ -217,23 +197,18 @@ const accountingCases = [
     mustContain: ["Profit"],
     mustNotContain: ["CRAC"]
   }),
-  ...makeCases("BS", ["voucher_accounting", "report"], [
-    "What is Balance Sheet?",
-    "What does balance sheet show?",
-    "How are assets and liabilities shown?",
-    "Which entries affect balance sheet?",
-    "Explain financial position report",
-    "What is liabilities and equity report?",
-    "How does receivable appear in balance sheet?",
-    "How does payable appear in balance sheet?",
-    "What is asset report?",
-    "How do I read balance sheet?"
-  ], {
-    expectedSafetyBoundary: "accounting-sensitive",
-    expectedSourceKinds: ACCOUNTING_SOURCE_KINDS,
-    mustContain: ["Balance"],
-    mustNotContain: ["Delivery Challan"]
-  })
+  ...[
+    buildCase("BS-001", ["voucher_accounting", "report"], "What is Balance Sheet?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-002", ["voucher_accounting", "report"], "What does balance sheet show?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-003", ["voucher_accounting", "report"], "How are assets and liabilities shown?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["assets"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-004", ["voucher_accounting", "report"], "Which entries affect balance sheet?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-005", ["voucher_accounting", "report"], "Explain financial position report", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["report"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-006", ["voucher_accounting", "report"], "What is liabilities and equity report?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["liabilities"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-007", ["voucher_accounting", "report"], "How does receivable appear in balance sheet?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-008", ["voucher_accounting", "report"], "How does payable appear in balance sheet?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-009", ["voucher_accounting", "report"], "What is asset report?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["asset"], mustNotContain: ["Delivery Challan"], notes: "report" }),
+    buildCase("BS-010", ["voucher_accounting", "report"], "How do I read balance sheet?", { expectedSafetyBoundary: "accounting-sensitive", expectedSourceKinds: ACCOUNTING_SOURCE_KINDS, mustContain: ["Balance"], mustNotContain: ["Delivery Challan"], notes: "report" })
+  ]
 ];
 
 const reportingCases = makeCases("RPT", "report", [

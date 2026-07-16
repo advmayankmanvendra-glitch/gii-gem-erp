@@ -1,0 +1,4275 @@
+[
+  {
+    "id": "WO-005",
+    "query": "Which stage is the operational root?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Work Order"
+    ],
+    "missingMustContain": [
+      "Work Order"
+    ],
+    "mustNotContain": [
+      "I cannot post"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain workflow stage dependencies and sequence but cannot bypass governance rules or alter workflow status.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Workflow Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as workflow use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Work Order / Supply Order",
+    "ff1MatchScore": 6,
+    "ff1MatchReason": "purpose keyword \"operational\" matches; purpose keyword \"root\" matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "missing_required_terms"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "WO-006",
+    "query": "Is Supply Order an accounting voucher?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Work Order"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I cannot post"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Work Order / Supply Order: Operational root of the government supply lifecycle. Creates supply orders to fulfill purchase orders, tracks order progress through the lifecycle. Work Order / Supply Order: Does not create accounting entries directly. Does not handle billing, receipts, or inventory direc",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Work Order / Supply Order",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Work Order / Supply Order (canonicalName matches; alias \"supply order\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed Work Order / Supply Order intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Work Order / Supply Order",
+    "ff1MatchScore": 44,
+    "ff1MatchReason": "canonicalName matches; alias \"supply order\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "WO-010",
+    "query": "Does Work Order post ledger entries?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Work Order"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I cannot post"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Work Order / Supply Order: Operational root of the government supply lifecycle. Creates supply orders to fulfill purchase orders, tracks order progress through the lifecycle. Work Order / Supply Order: Does not create accounting entries directly. Does not handle billing, receipts, or inventory direc",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Work Order / Supply Order",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Work Order / Supply Order (canonicalName matches; alias \"work order\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed Work Order / Supply Order intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Work Order / Supply Order",
+    "ff1MatchScore": 41,
+    "ff1MatchReason": "canonicalName matches; alias \"work order\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "GRN-007",
+    "query": "Does GRN start stock inward?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "inventory",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "inventory-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "GRN"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Profit and Loss"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GRN / Goods Receipt: Records receipt of goods from suppliers. Updates stock ledger and triggers inventory valuation. GRN / Goods Receipt: Does not post accounting vouchers. Purchase voucher posting is a separate step. Related workflow stage: GOODS_RECEIPT_GRN. Find this feature in the \"GoodsReceipt\"",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GRN / Goods Receipt",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GRN / Goods Receipt (canonicalName word \"grn\" matches; alias \"grn\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed GRN / Goods Receipt intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GRN / Goods Receipt",
+    "ff1MatchScore": 24,
+    "ff1MatchReason": "canonicalName word \"grn\" matches; alias \"grn\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Inventory Question"
+  },
+  {
+    "id": "GRN-009",
+    "query": "How is received stock tracked?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "inventory",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "inventory-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "stock"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Profit and Loss"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain stock flow and process but cannot create inward, outward, adjustment, or valuation entries. Use the relevant inventory screen for stock operations.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Inventory Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as inventory use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"stock\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Inventory Question"
+  },
+  {
+    "id": "WO-005",
+    "query": "Which stage is the operational root?",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Work Order"
+    ],
+    "missingMustContain": [
+      "Work Order"
+    ],
+    "mustNotContain": [
+      "I cannot post"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain workflow stage dependencies and sequence but cannot bypass governance rules or alter workflow status.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Workflow Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as workflow use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Work Order / Supply Order",
+    "ff1MatchScore": 6,
+    "ff1MatchReason": "purpose keyword \"operational\" matches; purpose keyword \"root\" matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "missing_required_terms"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "CRAC-005",
+    "query": "Explain customer acceptance stage",
+    "currentView": "dashboard",
+    "expectedCategory": "workflow",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "workflow-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "customer acceptance"
+    ],
+    "missingMustContain": [
+      "customer acceptance"
+    ],
+    "mustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain workflow stage dependencies and sequence but cannot bypass governance rules or alter workflow status.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Workflow Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as workflow use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"acceptance\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "missing_required_terms"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "BILL-002",
+    "query": "How does GST invoice affect accounts?",
+    "currentView": "dashboard",
+    "expectedCategory": "voucher_accounting",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "voucher"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Work Order / Supply Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (canonicalName matches; alias \"invoice\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 38,
+    "ff1MatchReason": "canonicalName matches; alias \"invoice\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "BILL-004",
+    "query": "Explain billing accounting impact",
+    "currentView": "dashboard",
+    "expectedCategory": "voucher_accounting",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "voucher"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Work Order / Supply Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 24,
+    "ff1MatchReason": "canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "BILL-007",
+    "query": "What is GST invoice for?",
+    "currentView": "dashboard",
+    "expectedCategory": "voucher_accounting",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "voucher"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Work Order / Supply Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (canonicalName matches; alias \"invoice\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 38,
+    "ff1MatchReason": "canonicalName matches; alias \"invoice\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "BILL-008",
+    "query": "How is billing linked to receipt?",
+    "currentView": "dashboard",
+    "expectedCategory": "voucher_accounting",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "voucher"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Work Order / Supply Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 33,
+    "ff1MatchReason": "canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "PL-003",
+    "query": "How is profit loss generated?",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Profit"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "CRAC"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Profit & Loss: Shows the profit and loss statement — revenue, expenses, and net profit/loss for a period. Profit & Loss: Does not show live balances. Does not post entries. The assistant cannot show actual profit figures. Related workflow stage: PROFITABILITY_ANALYSIS. Find this feature in the \"Prof",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Profit & Loss",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Profit & Loss (canonicalName matches; alias \"profit loss\" matches; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Profit & Loss intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Profit & Loss",
+    "ff1MatchScore": 29,
+    "ff1MatchReason": "canonicalName matches; alias \"profit loss\" matches; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "PL-005",
+    "query": "Explain income expense report",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Profit"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "CRAC"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Expenses: Records business expenses. Posts accounting entries to appropriate expense heads. Expenses: Does not handle supplier payments or purchase bills. Find this feature in the \"Expenses\" screen. Related database tables: vouchers, ledger_entries. Voucher types involved: journal, payment, expense_",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Expenses",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Expenses (alias \"expense\" matches; commonUserNames matches; purpose keyword \"expense\" matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Expenses intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Expenses",
+    "ff1MatchScore": 19,
+    "ff1MatchReason": "alias \"expense\" matches; commonUserNames matches; purpose keyword \"expense\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "PL-006",
+    "query": "What is net profit report?",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Profit"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "CRAC"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Profit & Loss: Shows the profit and loss statement — revenue, expenses, and net profit/loss for a period. Profit & Loss: Does not show live balances. Does not post entries. The assistant cannot show actual profit figures. Related workflow stage: PROFITABILITY_ANALYSIS. Find this feature in the \"Prof",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Profit & Loss",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Profit & Loss (canonicalName word \"profit\" matches; commonQuestions matches; purpose keyword \"profit\" matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Profit & Loss intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Profit & Loss",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"profit\" matches; commonQuestions matches; purpose keyword \"profit\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "PL-009",
+    "query": "What is profitability in financial report?",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "Profit"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "CRAC"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Profitability Analysis: Analyzes profitability per work order. Compares revenue from invoices against costs including materials, expenses, and overheads. Profitability Analysis: Does not show live profit figures. Does not post entries. Analysis is based on posted transaction data. Related workflow s",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Profitability Analysis",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Profitability Analysis (canonicalName word \"profitability\" matches; alias \"profitability\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Profitability Analysis intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Profitability Analysis",
+    "ff1MatchScore": 36,
+    "ff1MatchReason": "canonicalName word \"profitability\" matches; alias \"profitability\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "BS-003",
+    "query": "How are assets and liabilities shown?",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "assets"
+    ],
+    "missingMustContain": [
+      "assets"
+    ],
+    "mustNotContain": [
+      "Delivery Challan"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain the ERP accounting process but cannot post, reverse, approve, or alter vouchers or ledger entries. Verify the actual result in the relevant ERP screen or report before taking action.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Voucher / Accounting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as voucher_accounting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "missing_required_terms"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "BS-005",
+    "query": "Explain financial position report",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "report"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Delivery Challan"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Balance Sheet: Shows the balance sheet — assets, liabilities, and equity at a given date. Balance Sheet: Does not show live balances. Does not post entries. The assistant cannot show actual balance figures. Find this feature in the \"BalanceSheet\" screen. Related database tables: ledger_entries. Bala",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Balance Sheet",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Balance Sheet (alias \"financial position\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Balance Sheet intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Balance Sheet",
+    "ff1MatchScore": 16,
+    "ff1MatchReason": "alias \"financial position\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "BS-009",
+    "query": "What is asset report?",
+    "currentView": "dashboard",
+    "expectedCategory": [
+      "voucher_accounting",
+      "report"
+    ],
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "accounting-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "asset"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Delivery Challan"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "RPT-005",
+    "query": "Which inventory reports are there?",
+    "currentView": "dashboard",
+    "expectedCategory": "report",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "database-graph",
+      "voucher-accounting-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "report"
+    ],
+    "missingMustContain": [
+      "report"
+    ],
+    "mustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Inventory Reservation (FF-1)",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Best feature match: Inventory Reservation"
+      }
+    ],
+    "ff1MatchedFeature": "Inventory Reservation",
+    "ff1MatchScore": 8,
+    "ff1MatchReason": "canonicalName word \"inventory\" matches; purpose keyword \"inventory\" matches",
+    "ff1MatchLevel": "medium",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "missing_required_terms"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "RPT-010",
+    "query": "What is payables report?",
+    "currentView": "dashboard",
+    "expectedCategory": "report",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "database-graph",
+      "voucher-accounting-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "report"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "RPT-018",
+    "query": "What is supplier payable report?",
+    "currentView": "dashboard",
+    "expectedCategory": "report",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "database-graph",
+      "voucher-accounting-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "report"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Suppliers: Manages supplier master records including supplier name, GSTIN, address, contact, bank details, and credit terms. Suppliers: Does not handle purchase orders, payments, or procurement transactions. Find this feature in the \"Suppliers\" screen. Related database tables: suppliers. Suppliers d",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Suppliers",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Suppliers (alias \"supplier\" matches; commonUserNames matches; purpose keyword \"supplier\" matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Suppliers intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Suppliers",
+    "ff1MatchScore": 19,
+    "ff1MatchReason": "alias \"supplier\" matches; commonUserNames matches; purpose keyword \"supplier\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "RPT-020",
+    "query": "What is dashboard source report?",
+    "currentView": "dashboard",
+    "expectedCategory": "report",
+    "actualCategory": "screen_help",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "database-graph",
+      "voucher-accounting-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "report"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "ERP Dashboard: Provides a centralized overview of key ERP metrics including pending orders, outstanding receivables, stock status, and recent transactions. ERP Dashboard: Does not allow record creation, posting, or data modification. It is a read-only summary view. Find this feature in the \"Dashboar",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "ERP Dashboard",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: ERP Dashboard (canonicalName word \"dashboard\" matches; alias \"dashboard\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: RG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to RG-1 graph for detailed ERP Dashboard intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 33,
+    "ff1MatchReason": "canonicalName word \"dashboard\" matches; alias \"dashboard\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Screen / Help Question"
+  },
+  {
+    "id": "GST-010",
+    "query": "What is GST summary report?",
+    "currentView": "dashboard",
+    "expectedCategory": "gst_tax",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "gst-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "voucher-accounting-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "GST"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I filed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GST Reports: Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data. GST Reports: Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions. Find this feature in the \"GSTReports\" screen. Related database tables: gst_reg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GST Reports",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GST Reports (canonicalName word \"gst\" matches; alias \"gst summary\" matches; naturalQuestionMap matches \"What is GST register?\")"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed GST Reports intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 25,
+    "ff1MatchReason": "canonicalName word \"gst\" matches; alias \"gst summary\" matches; naturalQuestionMap matches \"What is GST register?\"",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "INV-008",
+    "query": "What is reserved stock?",
+    "currentView": "dashboard",
+    "expectedCategory": "inventory",
+    "actualCategory": "inventory",
+    "expectedSafetyBoundary": "inventory-sensitive",
+    "actualSafetyBoundary": "inventory-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "stock"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Trial Balance"
+    ],
+    "unexpectedMustNotContain": [
+      "Trial Balance"
+    ],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (naturalQuestionMap matches \"What is billing?\"; commonQuestions matches; purpose keyword \"stock\" matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 15,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is billing?\"; commonQuestions matches; purpose keyword \"stock\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "prohibited_terms_present",
+      "wrong_high_confidence"
+    ],
+    "categoryLabel": "Inventory Question"
+  },
+  {
+    "id": "INV-009",
+    "query": "How do goods receipts update stock?",
+    "currentView": "dashboard",
+    "expectedCategory": "inventory",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "inventory-sensitive",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "stock"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Trial Balance"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GRN / Goods Receipt: Records receipt of goods from suppliers. Updates stock ledger and triggers inventory valuation. GRN / Goods Receipt: Does not post accounting vouchers. Purchase voucher posting is a separate step. Related workflow stage: GOODS_RECEIPT_GRN. Find this feature in the \"GoodsReceipt\"",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GRN / Goods Receipt",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GRN / Goods Receipt (alias \"goods receipt\" matches; commonUserNames matches; purpose keyword \"goods\" matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed GRN / Goods Receipt intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GRN / Goods Receipt",
+    "ff1MatchScore": 22,
+    "ff1MatchReason": "alias \"goods receipt\" matches; commonUserNames matches; purpose keyword \"goods\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "INV-010",
+    "query": "What is inventory movement report?",
+    "currentView": "dashboard",
+    "expectedCategory": "inventory",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "inventory-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "stock"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Trial Balance"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Inventory Reservation: Reserves inventory for specific work orders or delivery challans. Ensures stock availability for committed deliveries. Inventory Reservation: Does not move physical stock or post accounting entries. Reservation is a planning hold. Related workflow stage: INVENTORY_RESERVATION.",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Inventory Reservation",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Inventory Reservation (canonicalName word \"inventory\" matches; commonQuestions matches; purpose keyword \"inventory\" matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed Inventory Reservation intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Inventory Reservation",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"inventory\" matches; commonQuestions matches; purpose keyword \"inventory\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "INV-012",
+    "query": "What does stock summary show?",
+    "currentView": "dashboard",
+    "expectedCategory": "inventory",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "inventory-sensitive",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "workflow-graph",
+      "database-graph",
+      "repository",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [
+      "stock"
+    ],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Trial Balance"
+    ],
+    "unexpectedMustNotContain": [
+      "Trial Balance"
+    ],
+    "answerPreview": "Trial Balance: Shows the trial balance — a summary of all ledger account balances. Used to verify that total debits equal total credits. Trial Balance: Does not show live balances. Does not post entries. The assistant cannot show actual balance figures. Find this feature in the \"TrialBalance\" screen",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Trial Balance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Trial Balance (naturalQuestionMap matches \"What does Trial Balance show?\"; commonQuestions matches; purpose keyword \"summary\" matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Trial Balance intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Trial Balance",
+    "ff1MatchScore": 15,
+    "ff1MatchReason": "naturalQuestionMap matches \"What does Trial Balance show?\"; commonQuestions matches; purpose keyword \"summary\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "prohibited_terms_present",
+      "wrong_high_confidence"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "NAV-003",
+    "query": "Which menu has GST reports?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GST Reports: Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data. GST Reports: Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions. Find this feature in the \"GSTReports\" screen. Related database tables: gst_reg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GST Reports",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GST Reports (canonicalName matches; alias \"gst report\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed GST Reports intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 29,
+    "ff1MatchReason": "canonicalName matches; alias \"gst report\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "NAV-004",
+    "query": "Where can I see opening balances?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "unknown",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [],
+    "ff1MatchedFeature": "Opening Balance",
+    "ff1MatchScore": 27,
+    "ff1MatchReason": "canonicalName word \"opening\" matches; alias \"opening balance\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Unknown / Needs Review"
+  },
+  {
+    "id": "NAV-005",
+    "query": "How do I create a supply order?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Work Order / Supply Order: Operational root of the government supply lifecycle. Creates supply orders to fulfill purchase orders, tracks order progress through the lifecycle. Work Order / Supply Order: Does not create accounting entries directly. Does not handle billing, receipts, or inventory direc",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Work Order / Supply Order",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Work Order / Supply Order (canonicalName matches; alias \"supply order\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed Work Order / Supply Order intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Work Order / Supply Order",
+    "ff1MatchScore": 32,
+    "ff1MatchReason": "canonicalName matches; alias \"supply order\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "NAV-006",
+    "query": "Where is voucher dashboard?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Voucher Dashboard: Central hub showing all voucher types and providing navigation to create or review accounting entries. Guided voucher creation workflow. Voucher Dashboard: Is not the same as Work Order/Supply Order. Does not handle operational lifecycle. Does not post entries itself. Find this fe",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Voucher Dashboard",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Voucher Dashboard (canonicalName matches; alias \"voucher dashboard\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: RG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to RG-1 graph for detailed Voucher Dashboard intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Voucher Dashboard",
+    "ff1MatchScore": 41,
+    "ff1MatchReason": "canonicalName matches; alias \"voucher dashboard\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "NAV-009",
+    "query": "Where do I find receivables?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Receivables: Tracks amounts receivable from government departments. Shows outstanding invoices, aging, and payment status. Receivables: Does not post receipts or write off receivables. It is a read-only tracking view. Related workflow stage: DEPARTMENT_RECEIVABLE. Find this feature in the \"Receivabl",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Receivables",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Receivables (alias \"receivables\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Receivables intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Receivables",
+    "ff1MatchScore": 16,
+    "ff1MatchReason": "alias \"receivables\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "NAV-010",
+    "query": "Where do I find payables?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain the ERP accounting process but cannot post, reverse, approve, or alter vouchers or ledger entries. Verify the actual result in the relevant ERP screen or report before taking action.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Voucher / Accounting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as voucher_accounting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "NAV-011",
+    "query": "How do I open delivery challan?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "workflow",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "workflow-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Delivery Challan: Creates delivery challans for dispatching goods to customers/government departments. Tracks outward stock movement. Delivery Challan: Does not create invoices or accounting entries. Billing is a separate downstream step. Related workflow stage: DELIVERY_CHALLAN. Find this feature i",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Delivery Challan",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Delivery Challan (canonicalName matches; alias \"delivery challan\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed Delivery Challan intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Delivery Challan",
+    "ff1MatchScore": 29,
+    "ff1MatchReason": "canonicalName matches; alias \"delivery challan\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Workflow Question"
+  },
+  {
+    "id": "NAV-014",
+    "query": "Where is cash flow report?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Cash / Bank Book (FF-1)",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Best feature match: Cash / Bank Book"
+      }
+    ],
+    "ff1MatchedFeature": "Cash / Bank Book",
+    "ff1MatchScore": 8,
+    "ff1MatchReason": "canonicalName word \"cash\" matches; purpose keyword \"cash\" matches",
+    "ff1MatchLevel": "medium",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "NAV-016",
+    "query": "Which menu contains reports?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Report Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as report use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"reports\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "NAV-017",
+    "query": "How do I open business voucher?",
+    "currentView": "dashboard",
+    "expectedCategory": "screen_help",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "renderer-graph",
+      "manual",
+      "feature-function-graph"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "H1-H5",
+      "arbitrary live records"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Business Voucher: Guided accounting entry creation for common business transactions. Provides a simplified interface to create accounting vouchers. Business Voucher: Is not the same as Work Order/Supply Order. Does not handle operational lifecycle. Find this feature in the \"BusinessVoucher\" screen. ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Business Voucher",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Business Voucher (canonicalName matches; alias \"business voucher\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Business Voucher intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Business Voucher",
+    "ff1MatchScore": 41,
+    "ff1MatchReason": "canonicalName matches; alias \"business voucher\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "IMP-001",
+    "query": "How does import export work?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Tally XML Import (FF-1)",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Best feature match: Tally XML Import"
+      }
+    ],
+    "ff1MatchedFeature": "Tally XML Import",
+    "ff1MatchScore": 8,
+    "ff1MatchReason": "canonicalName word \"import\" matches; purpose keyword \"export\" matches",
+    "ff1MatchLevel": "medium",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-002",
+    "query": "How do I import masters?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Masters: Allows creation and management of master records including companies, departments, suppliers, items, banks, warehouses, employees, and expense heads. Masters: Does not handle transactions, vouchers, posting, or financial reporting. Find this feature in the \"Masters\" screen. Related database",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Masters",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Masters (alias \"masters\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: RG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to RG-1 graph for detailed Masters intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Masters",
+    "ff1MatchScore": 16,
+    "ff1MatchReason": "alias \"masters\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-003",
+    "query": "What is Tally migration?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Tally XML Import: Imports master data and transactions from Tally ERP via XML export files. Creates master records and vouchers. Tally XML Import: Does not post ledger entries directly. Imported vouchers may require review before posting. Find this feature in the \"TallyImport\" screen. Related databa",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Tally XML Import",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Tally XML Import (canonicalName word \"tally\" matches; alias \"tally migration\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: BRAIN-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to BRAIN-1 graph for detailed Tally XML Import intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Tally XML Import",
+    "ff1MatchScore": 29,
+    "ff1MatchReason": "canonicalName word \"tally\" matches; alias \"tally migration\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-004",
+    "query": "How should I migrate from Tally?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Tally XML Import: Imports master data and transactions from Tally ERP via XML export files. Creates master records and vouchers. Tally XML Import: Does not post ledger entries directly. Imported vouchers may require review before posting. Find this feature in the \"TallyImport\" screen. Related databa",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Tally XML Import",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Tally XML Import (canonicalName word \"tally\" matches; commonQuestions matches; purpose keyword \"tally\" matches)"
+      },
+      {
+        "title": "Preferred source: BRAIN-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to BRAIN-1 graph for detailed Tally XML Import intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Tally XML Import",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"tally\" matches; commonQuestions matches; purpose keyword \"tally\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-005",
+    "query": "What is import preview?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-006",
+    "query": "Can import update live tables directly?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "database_table",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "database-sensitive",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "repository"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain database tables and relationships but cannot query live records or modify schema. Open the relevant screen or report to see actual data.\n\nI have low confidence that \"Supply Orders\" is the most relevant result. Main transaction screen for creating and managing supply orders a",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Supply Orders",
+        "sourceKind": "repository",
+        "sourcePath": "repository/screens/index.json",
+        "summary": "Main transaction screen for creating and managing supply orders against GeM contracts. Allows users to raise indents, generate purchase orders, and track fulfillment status."
+      }
+    ],
+    "ff1MatchedFeature": "Tally XML Import",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "canonicalName word \"import\" matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Database / Table Question"
+  },
+  {
+    "id": "IMP-007",
+    "query": "How do I export data?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Spreadsheet Export: Exports ERP data (reports, lists, transactions) to spreadsheet/CSV format for offline analysis. Spreadsheet Export: Does not modify ERP data. Export is a read-only operation. Find this feature in the \"SpreadsheetExport\" screen. Spreadsheet Export does not directly create accounti",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Spreadsheet Export",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Spreadsheet Export (canonicalName word \"export\" matches; commonQuestions matches; purpose keyword \"data\" matches)"
+      },
+      {
+        "title": "Preferred source: BRAIN-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to BRAIN-1 graph for detailed Spreadsheet Export intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Spreadsheet Export",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"export\" matches; commonQuestions matches; purpose keyword \"data\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-008",
+    "query": "What is migration checklist?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-009",
+    "query": "How do I import opening balances?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Opening Balance: Records opening balances for ledger accounts at the start of a financial year. Posts to ledger as opening entries. Opening Balance: Does not handle transactions for the current period. Opening balance is a one-time entry per financial year. Find this feature in the \"OpeningBalance\" ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Opening Balance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Opening Balance (canonicalName word \"opening\" matches; alias \"opening balance\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Opening Balance intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Opening Balance",
+    "ff1MatchScore": 32,
+    "ff1MatchReason": "canonicalName word \"opening\" matches; alias \"opening balance\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "IMP-010",
+    "query": "What should I check before import?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I imported"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Manual / Training Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as manual_training use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Tally XML Import",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "canonicalName word \"import\" matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "ME-001",
+    "query": "How do I complete month-end closing?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Manual / Training Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as manual_training use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "ME-002",
+    "query": "What is month end checklist?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "ME-003",
+    "query": "How to review GST before month close?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GST Reports: Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data. GST Reports: Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions. Find this feature in the \"GSTReports\" screen. Related database tables: gst_reg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GST Reports",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GST Reports (canonicalName word \"gst\" matches; alias \"gst\" matches; naturalQuestionMap matches \"How to view GST reports?\")"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed GST Reports intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 25,
+    "ff1MatchReason": "canonicalName word \"gst\" matches; alias \"gst\" matches; naturalQuestionMap matches \"How to view GST reports?\"",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "ME-004",
+    "query": "What should accountant check monthly?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain the ERP accounting process but cannot post, reverse, approve, or alter vouchers or ledger entries. Verify the actual result in the relevant ERP screen or report before taking action.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Voucher / Accounting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as voucher_accounting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "ME-005",
+    "query": "How do I verify reports before closing?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "repository"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I have low confidence this is a report question. The source-backed result set points to report definitions and report dependency mappings. ERP report coverage includes inventory reports where available. Goods Receipt Note. A warehouse or store document recording the receipt of goods into inventory, ",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "GRN",
+        "sourceKind": "repository",
+        "sourcePath": "repository/glossary/index.json",
+        "summary": "Goods Receipt Note. A warehouse or store document recording the receipt of goods into inventory, verifying quantity and quality against the purchase order."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "ME-006",
+    "query": "What is year end process?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Financial Year Locking: Locks a financial year after closure. Prevents posting to locked periods. Manages financial year periods. Financial Year Locking: Does not automatically close accounts. Locking is an administrative action after year-end procedures. Find this feature in the \"FinancialYearLock\"",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Financial Year Locking",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Financial Year Locking (canonicalName word \"year\" matches; alias \"year end\" matches; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Financial Year Locking intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Financial Year Locking",
+    "ff1MatchScore": 21,
+    "ff1MatchReason": "canonicalName word \"year\" matches; alias \"year end\" matches; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "ME-007",
+    "query": "How do I check pending vouchers?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain the ERP accounting process but cannot post, reverse, approve, or alter vouchers or ledger entries. Verify the actual result in the relevant ERP screen or report before taking action.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "ERP Dashboard (FF-1)",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Best feature match: ERP Dashboard"
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 8,
+    "ff1MatchReason": "commonQuestions matches; purpose keyword \"pending\" matches",
+    "ff1MatchLevel": "medium",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "ME-008",
+    "query": "How do I prepare closing balances?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Manual / Training Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as manual_training use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "ME-009",
+    "query": "What is financial year closing?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "unknown",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [],
+    "ff1MatchedFeature": "Financial Year Locking",
+    "ff1MatchScore": 37,
+    "ff1MatchReason": "canonicalName matches; alias \"financial year\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Unknown / Needs Review"
+  },
+  {
+    "id": "ME-010",
+    "query": "What is daily operations checklist?",
+    "currentView": "dashboard",
+    "expectedCategory": "manual_training",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "manual",
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I posted"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "TRB-001",
+    "query": "Why is voucher not posting?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "voucher_accounting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "accounting-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain the ERP accounting process but cannot post, reverse, approve, or alter vouchers or ledger entries. Verify the actual result in the relevant ERP screen or report before taking action.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Voucher / Accounting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as voucher_accounting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Supplier Purchase Orders",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"voucher\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Voucher / Accounting Question"
+  },
+  {
+    "id": "TRB-002",
+    "query": "Why is report blank?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "troubleshooting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Troubleshooting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as troubleshooting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Troubleshooting Question"
+  },
+  {
+    "id": "TRB-003",
+    "query": "What if dashboard does not load?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "screen_help",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "ERP Dashboard: Provides a centralized overview of key ERP metrics including pending orders, outstanding receivables, stock status, and recent transactions. ERP Dashboard: Does not allow record creation, posting, or data modification. It is a read-only summary view. Find this feature in the \"Dashboar",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "ERP Dashboard",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: ERP Dashboard (canonicalName word \"dashboard\" matches; alias \"dashboard\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: RG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to RG-1 graph for detailed ERP Dashboard intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 21,
+    "ff1MatchReason": "canonicalName word \"dashboard\" matches; alias \"dashboard\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Screen / Help Question"
+  },
+  {
+    "id": "TRB-004",
+    "query": "Why is GST not showing?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "troubleshooting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "GST Reports: Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data. GST Reports: Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions. Find this feature in the \"GSTReports\" screen. Related database tables: gst_reg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GST Reports",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GST Reports (canonicalName word \"gst\" matches; alias \"gst\" matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed GST Reports intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"gst\" matches; alias \"gst\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Troubleshooting Question"
+  },
+  {
+    "id": "TRB-005",
+    "query": "Why is stock value wrong?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "inventory",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "inventory-sensitive",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Inventory Valuation: Shows the current valuation of inventory stock based on average cost or FIFO method. Inventory Valuation: Does not show live stock value. The assistant cannot show actual valuation figures. Find this feature in the \"InventoryValuation\" screen. Related database tables: stock_ledg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Inventory Valuation",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Inventory Valuation (alias \"stock value\" matches; purpose keyword \"stock\" matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Inventory Valuation intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Inventory Valuation",
+    "ff1MatchScore": 11,
+    "ff1MatchReason": "alias \"stock value\" matches; purpose keyword \"stock\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Inventory Question"
+  },
+  {
+    "id": "TRB-006",
+    "query": "What if purchase bill fails?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "troubleshooting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice (FF-1)",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Best feature match: Billing / GST Invoice"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 8,
+    "ff1MatchReason": "alias \"bill\" matches",
+    "ff1MatchLevel": "medium",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Troubleshooting Question"
+  },
+  {
+    "id": "TRB-007",
+    "query": "Why is feedback submit failing?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "troubleshooting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Troubleshooting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as troubleshooting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Troubleshooting Question"
+  },
+  {
+    "id": "TRB-008",
+    "query": "What should I do if screen is blank?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "screen_help",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Screen / Help Question"
+  },
+  {
+    "id": "TRB-009",
+    "query": "Why is export not working?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "troubleshooting",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Troubleshooting Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as troubleshooting use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Spreadsheet Export",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "canonicalName word \"export\" matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Troubleshooting Question"
+  },
+  {
+    "id": "TRB-010",
+    "query": "How do I troubleshoot missing source?",
+    "currentView": "dashboard",
+    "expectedCategory": "troubleshooting",
+    "actualCategory": "manual_training",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository",
+      "manual"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I fixed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Manual / Training Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as manual_training use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Manual / Training Question"
+  },
+  {
+    "id": "GAP-001",
+    "query": "What are known gaps in billing?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Billing / GST Invoice: Creates sales invoices/GST invoices for goods and services supplied. Posts accounting entries, updates stock ledger, records GST liability, creates department receivable. Billing / GST Invoice: Does not handle receipts, payments, or purchase billing. It is for sales invoicing ",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Billing / GST Invoice",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Billing / GST Invoice (canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed Billing / GST Invoice intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 33,
+    "ff1MatchReason": "canonicalName word \"billing\" matches; alias \"billing\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-002",
+    "query": "Which features are not implemented?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Known Gap Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as known_gap use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-003",
+    "query": "What is planned for assistant?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-004",
+    "query": "What limitations are documented?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Known Gap Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as known_gap use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Receivables",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-005",
+    "query": "What is not supported yet?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-006",
+    "query": "Are live records available in Brain?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "unknown",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [],
+    "ff1MatchedFeature": "Ask ERP Brain",
+    "ff1MatchScore": 21,
+    "ff1MatchReason": "canonicalName word \"brain\" matches; alias \"brain\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Unknown / Needs Review"
+  },
+  {
+    "id": "GAP-007",
+    "query": "Can ERP Brain inspect actual bills?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "unknown",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [],
+    "ff1MatchedFeature": "Ask ERP Brain",
+    "ff1MatchScore": 26,
+    "ff1MatchReason": "canonicalName matches; alias \"erp brain\" matches; commonUserNames matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Unknown / Needs Review"
+  },
+  {
+    "id": "GAP-008",
+    "query": "What are pending assistant features?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Known Gap Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as known_gap use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Receivables",
+    "ff1MatchScore": 5,
+    "ff1MatchReason": "commonQuestions matches",
+    "ff1MatchLevel": "weak",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "GAP-009",
+    "query": "What is missing in reports?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "report",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Report Question"
+  },
+  {
+    "id": "GAP-010",
+    "query": "Which roadmap items are open?",
+    "currentView": "dashboard",
+    "expectedCategory": "known_gap",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [
+      "repository"
+    ],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "I completed"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Known Gap Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as known_gap use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": null,
+    "ff1MatchScore": 0,
+    "ff1MatchReason": null,
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "source_kind_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "UNK-004",
+    "query": "Write a poem about Delhi",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "unknown",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "workflow-graph",
+      "workflow-graph",
+      "repository"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [
+      "Purchase Order / GeM Order"
+    ],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Purchase Order / GeM Order",
+        "sourceKind": "workflow-graph",
+        "sourcePath": "src/renderer/knowledge/workflow-graph.json",
+        "graphId": "WG-1",
+        "summary": "Purchase Order / GeM Order workflow stage"
+      },
+      {
+        "title": "Supplier Purchase Orders",
+        "sourceKind": "workflow-graph",
+        "sourcePath": "src/renderer/knowledge/workflow-graph.json",
+        "graphId": "WG-1",
+        "summary": "Supplier Purchase Orders workflow stage"
+      },
+      {
+        "title": "Supply Orders",
+        "sourceKind": "repository",
+        "sourcePath": "repository/screens/index.json",
+        "summary": "Main transaction screen for creating and managing supply orders against GeM contracts. Allows users to raise indents, generate purchase orders, and track fulfillment status."
+      }
+    ],
+    "ff1MatchedFeature": "Help Assistant",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"about\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "prohibited_terms_present"
+    ],
+    "categoryLabel": "Unknown / Needs Review"
+  },
+  {
+    "id": "UNK-008",
+    "query": "Show customer wise pending bills",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "known_gap",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "read-only guidance",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Known Gap Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as known_gap use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"pending\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch"
+    ],
+    "categoryLabel": "Known Gap Question"
+  },
+  {
+    "id": "UNK-011",
+    "query": "Give me live GST filing status",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [
+      "live"
+    ],
+    "answerPreview": "GST Reports: Generates GST reports including GST register, input/output tax summary, and GSTR-1/GSTR-3B data. GST Reports: Does not file GST returns. Does not calculate GST — it displays GST data from posted transactions. Find this feature in the \"GSTReports\" screen. Related database tables: gst_reg",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "GST Reports",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: GST Reports (canonicalName word \"gst\" matches; alias \"gst filing\" matches)"
+      },
+      {
+        "title": "Preferred source: KG-4",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to KG-4 graph for detailed GST Reports intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "GST Reports",
+    "ff1MatchScore": 13,
+    "ff1MatchReason": "canonicalName word \"gst\" matches; alias \"gst filing\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "prohibited_terms_present",
+      "needs_review_mismatch",
+      "unknown_query_hallucination",
+      "wrong_high_confidence"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "UNK-013",
+    "query": "Send email to supplier",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "unsafe_action",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "action-refused",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "safety-policy"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "I cannot send email to supplier. I am a read-only guidance assistant. To perform this action, use the relevant controlled ERP module. I can help you navigate to the correct screen if you tell me which screen you need.",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "BRAIN-4 Read-Only Safety Policy",
+        "sourceKind": "safety-policy",
+        "sourcePath": "src/renderer/modules/erpAssistant/response/safetyEnforcer.js",
+        "graphId": "BRAIN-4",
+        "summary": "Unsafe action attempts are refused by the read-only assistant boundary."
+      }
+    ],
+    "ff1MatchedFeature": "Suppliers",
+    "ff1MatchScore": 19,
+    "ff1MatchReason": "alias \"supplier\" matches; commonUserNames matches; purpose keyword \"supplier\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "needs_review_mismatch",
+      "unknown_query_hallucination"
+    ],
+    "categoryLabel": "Unsafe Action Request"
+  },
+  {
+    "id": "UNK-015",
+    "query": "Generate salary slip for employee",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Employees: Manages employee master records including name, designation, department, contact, and user role. Employees: Does not handle payroll, attendance, or HR transactions. Find this feature in the \"Employees\" screen. Related database tables: employees. Employees does not directly create accounti",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "Employees",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: Employees (alias \"employee\" matches; commonUserNames matches; purpose keyword \"employee\" matches)"
+      },
+      {
+        "title": "Preferred source: DG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to DG-1 graph for detailed Employees intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "Employees",
+    "ff1MatchScore": 19,
+    "ff1MatchReason": "alias \"employee\" matches; commonUserNames matches; purpose keyword \"employee\" matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "needs_review_mismatch",
+      "unknown_query_hallucination"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  },
+  {
+    "id": "UNK-017",
+    "query": "Read all invoices from database",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "database_table",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "database-sensitive",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [
+      "live"
+    ],
+    "answerPreview": "Guidance only. I explain database tables and relationships but cannot query live records or modify schema. Open the relevant screen or report to see actual data.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Database / Table Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as database_table use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "Billing / GST Invoice",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"invoices\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "prohibited_terms_present"
+    ],
+    "categoryLabel": "Database / Table Question"
+  },
+  {
+    "id": "UNK-018",
+    "query": "Show actual stock of laptop",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "inventory",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "inventory-sensitive",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [],
+    "answerPreview": "Guidance only. I explain stock flow and process but cannot create inward, outward, adjustment, or valuation entries. Use the relevant inventory screen for stock operations.\n\nI do not have a source-backed answer for this query yet.",
+    "confidence": "low",
+    "needsReview": true,
+    "sourceReferences": [
+      {
+        "title": "Inventory Question — general guidance",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Queries classified as inventory use the feature function graph as the primary routing layer."
+      }
+    ],
+    "ff1MatchedFeature": "ERP Dashboard",
+    "ff1MatchScore": 3,
+    "ff1MatchReason": "purpose keyword \"stock\" matches",
+    "ff1MatchLevel": "none",
+    "brain2FallbackUsed": true,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch"
+    ],
+    "categoryLabel": "Inventory Question"
+  },
+  {
+    "id": "UNK-019",
+    "query": "What is personal tax advice?",
+    "currentView": "dashboard",
+    "expectedCategory": "unknown",
+    "actualCategory": "gst_tax",
+    "expectedSafetyBoundary": "read-only guidance",
+    "actualSafetyBoundary": "gst-sensitive",
+    "expectedSourceKinds": [],
+    "actualSourceKinds": [
+      "feature-function-graph",
+      "feature-function-graph"
+    ],
+    "mustContain": [],
+    "missingMustContain": [],
+    "mustNotContain": [
+      "Purchase Order / GeM Order",
+      "Trial Balance",
+      "I found your",
+      "live"
+    ],
+    "unexpectedMustNotContain": [
+      "live"
+    ],
+    "answerPreview": "CRAC: Records Consignee Receipt and Acceptance Certificate — formal acceptance of delivered goods by the consignee. Acts as billing readiness evidence. CRAC: Does not create invoices or post accounting entries. CRAC is an operational milestone that enables downstream invoicing. Related workflow stag",
+    "confidence": "high",
+    "needsReview": false,
+    "sourceReferences": [
+      {
+        "title": "CRAC",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "FF-1 Feature: CRAC (naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches)"
+      },
+      {
+        "title": "Preferred source: WG-1",
+        "sourceKind": "feature-function-graph",
+        "sourcePath": "src/renderer/knowledge/feature-function-graph.json",
+        "graphId": "FF-1",
+        "summary": "Refer to WG-1 graph for detailed CRAC intelligence"
+      }
+    ],
+    "ff1MatchedFeature": "CRAC",
+    "ff1MatchScore": 12,
+    "ff1MatchReason": "naturalQuestionMap matches \"What is CRAC?\"; commonQuestions matches",
+    "ff1MatchLevel": "strong",
+    "brain2FallbackUsed": false,
+    "failureReasons": [
+      "classifier_mismatch",
+      "safety_boundary_mismatch",
+      "prohibited_terms_present",
+      "needs_review_mismatch",
+      "unknown_query_hallucination",
+      "wrong_high_confidence"
+    ],
+    "categoryLabel": "GST / Tax Question"
+  }
+]

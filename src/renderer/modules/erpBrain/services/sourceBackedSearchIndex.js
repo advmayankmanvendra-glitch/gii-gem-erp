@@ -4,6 +4,18 @@ import { loadAllManuals } from "../loaders/manualLoader.js";
 
 let searchIndexEntries = null;
 
+const SEARCH_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "can", "do", "does", "for", "how", "i", "in", "is",
+  "it", "me", "my", "of", "on", "or", "the", "this", "to", "what", "where", "which",
+  "with", "you", "your", "all", "any", "available", "before", "can", "do", "from", "has",
+  "have", "if", "not", "should", "there", "was", "were", "will"
+]);
+
+function getSearchTerms(query) {
+  return query.toLowerCase().split(/[^a-z0-9]+/)
+    .filter((term) => term.length >= 3 && !SEARCH_STOP_WORDS.has(term));
+}
+
 function buildSearchIndex() {
   if (searchIndexEntries) return searchIndexEntries;
   searchIndexEntries = [];
@@ -243,6 +255,7 @@ function searchIndex(query) {
   const index = getSearchIndex();
   if (!query || typeof query !== "string") return [];
   const q = query.toLowerCase().trim();
+  const queryTerms = getSearchTerms(q);
   const results = [];
   for (const entry of index) {
     const haystack = entry.searchableText.toLowerCase();
@@ -255,6 +268,18 @@ function searchIndex(query) {
     for (const tag of entry.tags || []) {
       if (tag && tag.toLowerCase().includes(q)) score += 1;
     }
+    // Natural questions rarely occur verbatim in manuals or repositories. Score
+    // meaningful term overlap while keeping title matches stronger than body text.
+    let matchingTerms = 0;
+    for (const term of queryTerms) {
+      if (!haystack.includes(term)) continue;
+      matchingTerms += 1;
+      score += 2;
+      if (entry.title && entry.title.toLowerCase().includes(term)) score += 3;
+      if ((entry.tags || []).some((tag) => String(tag).toLowerCase().includes(term))) score += 1;
+    }
+    if (queryTerms.length > 1 && matchingTerms === queryTerms.length) score += 4;
+    if (matchingTerms === 0 && score === 0) continue;
     if (score > 0) results.push({ ...entry, score });
   }
   results.sort((a, b) => b.score - a.score);

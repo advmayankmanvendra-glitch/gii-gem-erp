@@ -9,6 +9,7 @@ const SYNONYM_MAP = {
   "wo": "supply order",
   "gem order": "purchase order",
   "crac": "consignee receipt and acceptance certificate",
+  "customer acceptance": "crac",
   "payment received": "receipt",
   "party ledger": ["department ledger", "supplier ledger"],
   "cash book": "cash bank book",
@@ -73,7 +74,9 @@ function sourceBackedSearch(query) {
   }
 
   allResults.sort((a, b) => b.score - a.score);
-  const topResults = allResults.slice(0, 10);
+  // Category routing happens after this search. Keep enough candidates for a
+  // manual or repository match to remain available behind graph matches.
+  const topResults = allResults.slice(0, 50);
 
   const bestCandidate = topResults[0] || null;
   const confidence = determineConfidence(bestCandidate, topResults);

@@ -903,7 +903,7 @@
       "manualSections": [
         "Delivery Challan"
       ],
-      "safetyBoundary": "inventory-sensitive",
+      "safetyBoundary": "workflow-sensitive",
       "createsAccountingImpact": false,
       "createsInventoryImpact": true,
       "createsGSTImpact": false,
@@ -957,7 +957,7 @@
       "manualSections": [
         "Installation"
       ],
-      "safetyBoundary": "read-only guidance",
+      "safetyBoundary": "workflow-sensitive",
       "createsAccountingImpact": false,
       "createsInventoryImpact": false,
       "createsGSTImpact": false,
@@ -1012,7 +1012,7 @@
       "manualSections": [
         "CRAC"
       ],
-      "safetyBoundary": "read-only guidance",
+      "safetyBoundary": "workflow-sensitive",
       "createsAccountingImpact": false,
       "createsInventoryImpact": false,
       "createsGSTImpact": false,
@@ -5202,9 +5202,9 @@
     "FEA-13": "accounting-sensitive",
     "FEA-14": "inventory-sensitive",
     "FEA-15": "inventory-sensitive",
-    "FEA-16": "inventory-sensitive",
-    "FEA-17": "read-only guidance",
-    "FEA-18": "read-only guidance",
+    "FEA-16": "workflow-sensitive",
+    "FEA-17": "workflow-sensitive",
+    "FEA-18": "workflow-sensitive",
     "FEA-19": "accounting-sensitive",
     "FEA-20": "accounting-sensitive",
     "FEA-21": "accounting-sensitive",
