@@ -10,10 +10,10 @@ const WG1_GRAPH = {
 };
 
 const STAGE_DEFINITIONS = [
-  { id: "LEAD_TENDER", label: "Lead / Tender", stageType: "lead", status: "planned", upstreamDeps: [], downstreamDeps: ["QUERY_REQUIREMENT"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: [], blockedActions: [] },
-  { id: "QUERY_REQUIREMENT", label: "Query / Requirement", stageType: "lead", status: "planned", upstreamDeps: ["LEAD_TENDER"], downstreamDeps: ["QUOTATION"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: [], blockedActions: [] },
-  { id: "QUOTATION", label: "Quotation", stageType: "lead", status: "planned", upstreamDeps: ["QUERY_REQUIREMENT"], downstreamDeps: ["NEGOTIATION"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: [], blockedActions: [] },
-  { id: "NEGOTIATION", label: "Negotiation", stageType: "lead", status: "planned", upstreamDeps: ["QUOTATION"], downstreamDeps: ["PURCHASE_ORDER_GEM_ORDER"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: [], blockedActions: [] },
+  { id: "LEAD_TENDER", label: "Lead / Tender", stageType: "lead", status: "active", upstreamDeps: [], downstreamDeps: ["QUERY_REQUIREMENT"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
+  { id: "QUERY_REQUIREMENT", label: "Query / Requirement", stageType: "lead", status: "active", upstreamDeps: ["LEAD_TENDER"], downstreamDeps: ["QUOTATION"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
+  { id: "QUOTATION", label: "Quotation", stageType: "lead", status: "active", upstreamDeps: ["QUERY_REQUIREMENT"], downstreamDeps: ["NEGOTIATION"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
+  { id: "NEGOTIATION", label: "Negotiation", stageType: "lead", status: "active", upstreamDeps: ["QUOTATION"], downstreamDeps: ["PURCHASE_ORDER_GEM_ORDER"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
   { id: "PURCHASE_ORDER_GEM_ORDER", label: "Purchase Order / GeM Order", stageType: "procurement", status: "partial", upstreamDeps: ["NEGOTIATION"], downstreamDeps: ["WORK_ORDER"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
   { id: "WORK_ORDER", label: "Work Order / Supply Order", stageType: "fulfillment", status: "active", upstreamDeps: ["PURCHASE_ORDER_GEM_ORDER"], downstreamDeps: ["PROCUREMENT_PLANNING"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list", "submit_for_approval", "approve"], blockedActions: ["post", "reverse", "delete", "create_ledger"] },
   { id: "PROCUREMENT_PLANNING", label: "Procurement Planning", stageType: "procurement", status: "active", upstreamDeps: ["WORK_ORDER"], downstreamDeps: ["SUPPLIER_PURCHASE_ORDER"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list"], blockedActions: ["post", "reverse", "delete"] },
@@ -21,7 +21,7 @@ const STAGE_DEFINITIONS = [
   { id: "GOODS_RECEIPT_GRN", label: "Goods Receipt / GRN", stageType: "fulfillment", status: "active", upstreamDeps: ["SUPPLIER_PURCHASE_ORDER"], downstreamDeps: ["INVENTORY_RESERVATION"], createsAccountingImpact: false, createsInventoryImpact: true, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list", "post_stock_inward"], blockedActions: ["delete_after_posting"] },
   { id: "INVENTORY_RESERVATION", label: "Inventory Reservation", stageType: "fulfillment", status: "active", upstreamDeps: ["GOODS_RECEIPT_GRN"], downstreamDeps: ["DELIVERY_CHALLAN"], createsAccountingImpact: false, createsInventoryImpact: true, createsGSTImpact: false, allowedActions: ["reserve", "cancel_reservation", "view", "list"], blockedActions: ["post_ledger", "delete"] },
   { id: "DELIVERY_CHALLAN", label: "Delivery Challan", stageType: "delivery", status: "active", upstreamDeps: ["INVENTORY_RESERVATION"], downstreamDeps: ["INSTALLATION"], createsAccountingImpact: false, createsInventoryImpact: true, createsGSTImpact: false, allowedActions: ["create", "confirm", "view", "list", "post_stock_outward"], blockedActions: ["delete_after_confirmation"] },
-  { id: "INSTALLATION", label: "Installation", stageType: "delivery", status: "partial", upstreamDeps: ["DELIVERY_CHALLAN"], downstreamDeps: ["CRAC"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["upload_document"], blockedActions: ["post", "reverse", "delete"] },
+  { id: "INSTALLATION", label: "Installation", stageType: "delivery", status: "active", upstreamDeps: ["DELIVERY_CHALLAN"], downstreamDeps: ["CRAC"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list", "upload_document"], blockedActions: ["post", "reverse", "delete"] },
   { id: "CRAC", label: "CRAC", stageType: "delivery", status: "active", upstreamDeps: ["INSTALLATION"], downstreamDeps: ["SALES_INVOICE_GST_INVOICE"], createsAccountingImpact: false, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["create", "edit", "view", "list", "generate_crac"], blockedActions: ["post_ledger"] },
   { id: "SALES_INVOICE_GST_INVOICE", label: "Sales Invoice / GST Invoice", stageType: "billing", status: "active", upstreamDeps: ["CRAC"], downstreamDeps: ["DEPARTMENT_RECEIVABLE"], createsAccountingImpact: true, createsInventoryImpact: true, createsGSTImpact: true, allowedActions: ["create", "edit", "view", "list", "post_sales_voucher", "print"], blockedActions: ["delete_after_posting", "reverse_without_approval"] },
   { id: "DEPARTMENT_RECEIVABLE", label: "Department Receivable", stageType: "financial", status: "active", upstreamDeps: ["SALES_INVOICE_GST_INVOICE"], downstreamDeps: ["RECEIPT"], createsAccountingImpact: true, createsInventoryImpact: false, createsGSTImpact: false, allowedActions: ["view", "list", "allocate_receipt", "reallocate"], blockedActions: ["create_direct", "delete", "post"] },
@@ -56,6 +56,10 @@ const REQUIRED_EDGES = [
 ];
 
 const VIEW_KEY_TO_STAGE = {
+  leads: "LEAD_TENDER",
+  requirement_queries: "QUERY_REQUIREMENT",
+  quotations: "QUOTATION",
+  negotiations: "NEGOTIATION",
   supply_orders: "WORK_ORDER",
   order_items: "WORK_ORDER",
   procurements: "SUPPLIER_PURCHASE_ORDER",
@@ -66,6 +70,7 @@ const VIEW_KEY_TO_STAGE = {
   stock_reservations: "INVENTORY_RESERVATION",
   delivery_challans: "DELIVERY_CHALLAN",
   stock_outwards: "DELIVERY_CHALLAN",
+  installations: "INSTALLATION",
   installation: "INSTALLATION",
   crac_management: "CRAC",
   crac_entry: "CRAC",
@@ -82,6 +87,10 @@ const VIEW_KEY_TO_STAGE = {
 };
 
 const TABLE_TO_STAGE = {
+  leads: "LEAD_TENDER",
+  requirement_queries: "QUERY_REQUIREMENT",
+  quotations: "QUOTATION",
+  negotiations: "NEGOTIATION",
   supply_orders: "WORK_ORDER",
   order_items: "WORK_ORDER",
   procurements: "SUPPLIER_PURCHASE_ORDER",

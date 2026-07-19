@@ -1,0 +1,26 @@
+import { useEffect, useRef } from "react";
+
+export function EntityPickerSearchInput({ placeholder, value, onChange, onKeyDown }) {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="entity-picker-search"
+      placeholder={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      role="combobox"
+      aria-expanded="true"
+      aria-haspopup="listbox"
+      aria-autocomplete="list"
+      autoComplete="off"
+    />
+  );
+}

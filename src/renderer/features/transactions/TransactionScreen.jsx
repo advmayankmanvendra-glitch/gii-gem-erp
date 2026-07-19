@@ -13,22 +13,8 @@ import { AddRecordPanel } from "../../components/panels/AddRecordPanel.jsx";
 import { PhasePanel } from "../../components/panels/SmallComponents.jsx";
 import { EmptyState, Icon } from "../../components/common.jsx";
 import { confirmAction, postedProtectionOptions, deleteConfirmOptions, postConfirmOptions, approveConfirmOptions, isRecordLocked } from "../../utils/actionUtils.js";
-import { sortOptions } from "../../utils/optionSorting.js";
 
-function referenceOptions(type, refs) {
-  if (!refs) return [];
-  const map = {
-    department: (refs.departments || []).map((row) => [row.id, row.department_name]),
-    employee: (refs.employees || []).map((row) => [row.id, row.employee_name]),
-    supplier: (refs.suppliers || []).map((row) => [row.id, row.supplier_name]),
-    bank: (refs.banks || []).map((row) => [row.id, row.bank_account_name]),
-    expense_head: (refs.expenseHeads || []).map((row) => [row.id, row.expense_head_name]),
-    order: (refs.orders || []).map((row) => [row.id, `${row.order_number} - ${row.institution_name || row.department_name || "Order"}`]),
-    item: (refs.items || []).map((row) => [row.id, row.item_name]),
-    warehouse: (refs.warehouses || []).map((row) => [row.id, row.warehouse_name])
-  };
-  return sortOptions(map[type] || []);
-}
+import { SmartEntityPicker } from "../../components/entityPicker/SmartEntityPicker.jsx";
 
 function defaultValueFor(type) {
   if (type === "date") return new Date().toISOString().slice(0, 10);
@@ -45,6 +31,13 @@ function defaultValueFor(type) {
   if (type === "return_type") return "Department";
   if (type === "condition_status") return "Good";
   if (type === "checkbox") return 0;
+  if (type === "lead_source") return "new";
+  if (type === "lead_status") return "new";
+  if (type === "query_priority") return "medium";
+  if (type === "query_status") return "open";
+  if (type === "quotation_status") return "draft";
+  if (type === "negotiation_status") return "open";
+  if (type === "installation_status") return "pending";
   return "";
 }
 
@@ -75,7 +68,7 @@ function transactionAmount(record) {
   return value === "" ? "-" : formatCurrency(Number(value || 0));
 }
 
-function TransactionField({ name, label, type, value, references, onChange, error }) {
+function TransactionField({ name, label, type, value, references, onChange, error, api, companyId, role }) {
   const fieldClass = `field ${error ? "field-error" : ""}`;
   const errorNote = error ? <small className="field-error-note">{error}</small> : null;
   const selectField = (options, fallback = "") => (
@@ -90,16 +83,17 @@ function TransactionField({ name, label, type, value, references, onChange, erro
       {errorNote}
     </label>
   );
-  if (["department", "employee", "supplier", "bank", "expense_head", "order", "item", "warehouse"].includes(type)) {
+  const entityTypeMap = { order: "supply_order", department: "department", employee: "employee", supplier: "supplier", bank: "bank", expense_head: "expense_head", item: "item", warehouse: "warehouse" };
+  if (entityTypeMap[type]) {
     return (
-      <label className={fieldClass} data-field-name={name}>
-        {label}
-        <select value={value || ""} aria-invalid={Boolean(error)} onChange={(event) => onChange(event.target.value)} required>
-          <option value="">Select</option>
-          {referenceOptions(type, references).map(([id, text]) => <option key={id} value={id}>{text}</option>)}
-        </select>
-        {errorNote}
-      </label>
+      <SmartEntityPicker
+        entityType={entityTypeMap[type]}
+        api={api}
+        role={role}
+        companyId={companyId}
+        value={value || ""}
+        onChange={onChange}
+      />
     );
   }
   if (type === "order_status") {
@@ -132,6 +126,27 @@ function TransactionField({ name, label, type, value, references, onChange, erro
   if (type === "condition_status") {
     return selectField(["Good", "Defective", "Damaged", "Warranty Claim"], "Good");
   }
+  if (type === "lead_source") {
+    return selectField(["new", "tender", "direct", "reference", "website"], "new");
+  }
+  if (type === "lead_status") {
+    return selectField(["new", "submitted", "won", "lost", "closed"], "new");
+  }
+  if (type === "query_priority") {
+    return selectField(["high", "medium", "low"], "medium");
+  }
+  if (type === "query_status") {
+    return selectField(["open", "in_progress", "quoted", "resolved", "closed"], "open");
+  }
+  if (type === "quotation_status") {
+    return selectField(["draft", "sent", "accepted", "rejected", "expired"], "draft");
+  }
+  if (type === "negotiation_status") {
+    return selectField(["open", "completed", "failed"], "open");
+  }
+  if (type === "installation_status") {
+    return selectField(["pending", "in_progress", "completed", "delayed", "cancelled"], "pending");
+  }
   if (type === "textarea") {
     return (
       <label className={`${fieldClass} wide`} data-field-name={name}>
@@ -150,7 +165,7 @@ function TransactionField({ name, label, type, value, references, onChange, erro
   );
 }
 
-function TransactionScreen({ table, config, notify, companyContext, onNavigate, api }) {
+function TransactionScreen({ table, config, notify, companyContext, onNavigate, api, role }) {
   const blank = useMemo(() => Object.fromEntries(config.fields.map(([name,, type]) => [name, defaultValueFor(type)])), [config]);
   const [records, setRecords] = useState([]);
   const [references, setReferences] = useState(null);
@@ -426,6 +441,9 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate, 
                 value={form[name] ?? ""}
                 references={references}
                 onChange={(value) => setForm({ ...form, [name]: value })}
+                api={api}
+                companyId={companyContext?.company_id}
+                role={role}
               />
             ))}
           </div>

@@ -8,6 +8,7 @@ import { VoucherLearnDialog } from "../../../components/panels/SmallComponents.j
 import { BusinessVoucherIntelligencePanel } from "./BusinessVoucherIntelligencePanel.jsx";
 import { businessVoucherPreview, businessVoucherValidationMessages } from "./businessVoucherUtils.js";
 import { confirmAction, postConfirmOptions, approveConfirmOptions } from "../../../utils/actionUtils.js";
+import { SmartEntityPicker } from "../../../components/entityPicker/SmartEntityPicker.jsx";
 
 function splitGrossByGst(grossAmount, gstRate) {
   const rate = Number(gstRate) || 0;
@@ -516,7 +517,7 @@ export function BusinessVoucherScreen({ notify, onNavigate, role, requestedVouch
         <div className="form-grid">
           <SelectBox label="Company" value={form.company_id} onChange={(value) => setForm({ ...form, company_id: value })} options={(data?.companies || []).map((company) => [company.id, company.company_name])} />
           <Field name="voucher_date" label="Voucher Date" type="date" value={form.voucher_date} onChange={(value) => setValue("voucher_date", value)} />
-          {form.voucher_kind !== "contra" && <SearchableSelect label="Order Number" value={form.order_id} onChange={applyOrder} options={orderOptions} placeholder="Search order number" />}
+          {form.voucher_kind !== "contra" && <SmartEntityPicker entityType="supply_order" api={api} role={role} companyId={companyContext?.company_id} value={form.order_id} onChange={applyOrder} onQuickCreate={(type, defaults) => openQuickCreate(type, "order_id", defaults)} />}
           {form.voucher_kind !== "contra" && (
             <label className="field">
               Order Reference
@@ -531,19 +532,19 @@ export function BusinessVoucherScreen({ notify, onNavigate, role, requestedVouch
               </div>
             </label>
           )}
-          {needsCashBank && <SearchableSelect label={form.voucher_kind === "receipt" ? "Receiving Bank / Cash Account" : "Paying Bank / Cash Account"} value={form.bank_account_id} onChange={(value) => setValue("bank_account_id", value)} options={bankOptions} onQuickCreate={() => openQuickCreate("bank", "bank_account_id")} />}
+          {needsCashBank && <SmartEntityPicker entityType="bank" api={api} role={role} companyId={companyContext?.company_id} value={form.bank_account_id} onChange={(value) => setValue("bank_account_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "bank_account_id", defaults)} />}
           {needsPaymentMode && <SelectField label="Payment Mode" value={form.payment_mode} onChange={(value) => setValue("payment_mode", value)} options={["Bank", "Cash"]} />}
-          {customerKinds.includes(form.voucher_kind) && <SearchableSelect label="Customer / Government Department" value={form.department_id} onChange={(value) => setValue("department_id", value)} options={(data?.departments || []).map((row) => [row.id, row.department_name])} onQuickCreate={() => openQuickCreate("department", "department_id")} />}
-          {supplierKinds.includes(form.voucher_kind) && <SearchableSelect label="Supplier / Vendor" value={form.supplier_id} onChange={(value) => setValue("supplier_id", value)} options={supplierOptions} onQuickCreate={() => openQuickCreate("supplier", "supplier_id")} />}
-          {form.voucher_kind === "employee_incentive" && <SearchableSelect label="Employee" value={form.employee_id} onChange={(value) => setValue("employee_id", value)} options={(data?.employees || []).map((row) => [row.id, row.employee_name])} onQuickCreate={() => openQuickCreate("employee", "employee_id")} />}
-          {form.voucher_kind === "contra" && <SearchableSelect label="From Cash/Bank Account" value={form.from_account_id} onChange={(value) => setValue("from_account_id", value)} options={accounts} onQuickCreate={() => openQuickCreate("ledger_account", "from_account_id", { account_type: "Asset", normal_balance: "Debit" })} />}
-          {form.voucher_kind === "contra" && <SearchableSelect label="To Cash/Bank Account" value={form.to_account_id} onChange={(value) => setValue("to_account_id", value)} options={accounts} onQuickCreate={() => openQuickCreate("ledger_account", "to_account_id", { account_type: "Asset", normal_balance: "Debit" })} />}
+          {customerKinds.includes(form.voucher_kind) && <SmartEntityPicker entityType="department" api={api} role={role} companyId={companyContext?.company_id} value={form.department_id} onChange={(value) => setValue("department_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "department_id", defaults)} />}
+          {supplierKinds.includes(form.voucher_kind) && <SmartEntityPicker entityType="supplier" api={api} role={role} companyId={companyContext?.company_id} value={form.supplier_id} onChange={(value) => setValue("supplier_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "supplier_id", defaults)} />}
+          {form.voucher_kind === "employee_incentive" && <SmartEntityPicker entityType="employee" api={api} role={role} companyId={companyContext?.company_id} value={form.employee_id} onChange={(value) => setValue("employee_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "employee_id", defaults)} />}
+          {form.voucher_kind === "contra" && <SmartEntityPicker entityType="ledger" api={api} role={role} companyId={companyContext?.company_id} value={form.from_account_id} onChange={(value) => setValue("from_account_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "from_account_id", defaults)} />}
+          {form.voucher_kind === "contra" && <SmartEntityPicker entityType="ledger" api={api} role={role} companyId={companyContext?.company_id} value={form.to_account_id} onChange={(value) => setValue("to_account_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "to_account_id", defaults)} />}
           {["sales", "credit_note", "debit_note"].includes(form.voucher_kind) && <Field name="taxable_value" label={taxableLabel} type="number" value={form.taxable_value} onChange={(value) => setValue("taxable_value", value)} />}
           {["sales", "purchase", "credit_note", "debit_note"].includes(form.voucher_kind) && <Field name="gst_rate" label="GST Rate %" type="number" value={form.gst_rate} onChange={(value) => setValue("gst_rate", value)} />}
           {["purchase"].includes(form.voucher_kind) && <Field name="purchase_value" label="Purchase Value" type="number" value={form.purchase_value} onChange={(value) => setValue("purchase_value", value)} />}
           {["sales", "purchase"].includes(form.voucher_kind) && <SelectField label="Inventory Posting" value={form.inventory_enabled} onChange={(value) => setValue("inventory_enabled", value)} options={[["1", "Inventory + Accounting"], ["0", "Accounting Only"]]} />}
-          {["sales", "purchase"].includes(form.voucher_kind) && <SearchableSelect label={form.voucher_kind === "sales" ? "Item to Bill / Issue" : "Item for GRN"} value={form.item_id} onChange={applyVoucherItem} options={(data?.references?.items || []).map((row) => [row.id, row.item_name, [row.hsn_code, row.unit].filter(Boolean).join(" / ")])} onQuickCreate={() => openQuickCreate("item", "item_id")} />}
-          {["sales", "purchase"].includes(form.voucher_kind) && <SearchableSelect label={form.voucher_kind === "sales" ? "Warehouse for Stock Issue" : "Warehouse for GRN"} value={form.warehouse_id} onChange={(value) => setValue("warehouse_id", value)} options={(data?.references?.warehouses || []).map((row) => [row.id, row.warehouse_name])} onQuickCreate={() => openQuickCreate("warehouse", "warehouse_id")} />}
+          {["sales", "purchase"].includes(form.voucher_kind) && <SmartEntityPicker entityType="item" api={api} role={role} companyId={companyContext?.company_id} value={form.item_id} onChange={applyVoucherItem} onQuickCreate={(type, defaults) => openQuickCreate(type, "item_id", defaults)} />}
+          {["sales", "purchase"].includes(form.voucher_kind) && <SmartEntityPicker entityType="warehouse" api={api} role={role} companyId={companyContext?.company_id} value={form.warehouse_id} onChange={(value) => setValue("warehouse_id", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "warehouse_id", defaults)} />}
           {["sales", "purchase"].includes(form.voucher_kind) && (
             <label className="field">
               HSN
@@ -560,7 +561,7 @@ export function BusinessVoucherScreen({ notify, onNavigate, role, requestedVouch
           {["purchase"].includes(form.voucher_kind) && <Field name="damaged_quantity" label="Damaged Quantity" type="number" value={form.damaged_quantity} onChange={(value) => setValue("damaged_quantity", value)} />}
           {["purchase"].includes(form.voucher_kind) && <Field name="accepted_quantity" label="Accepted Quantity" type="number" value={form.accepted_quantity} onChange={(value) => setValue("accepted_quantity", value)} />}
           {["sales", "purchase"].includes(form.voucher_kind) && <Field name="rate" label={form.voucher_kind === "sales" ? "Billing Rate" : "Receipt Rate"} type="number" value={form.rate} onChange={(value) => form.voucher_kind === "sales" ? updateSalesLine({ rate: value }) : setValue("rate", value)} />}
-          {["expense"].includes(form.voucher_kind) && <SearchableSelect label="Expense Head" value={form.expense_head_name} onChange={(value) => setValue("expense_head_name", value)} options={(data?.references?.expenseHeads || []).map((row) => [row.expense_head_name, row.expense_head_name, row.category])} onQuickCreate={() => openQuickCreate("expense_head", "expense_head_name")} />}
+          {["expense"].includes(form.voucher_kind) && <SmartEntityPicker entityType="expense_head" api={api} role={role} companyId={companyContext?.company_id} value={form.expense_head_name} onChange={(value) => setValue("expense_head_name", value)} onQuickCreate={(type, defaults) => openQuickCreate(type, "expense_head_name", defaults)} />}
           {["commission"].includes(form.voucher_kind) && <Field name="billing_value" label="Billing Value" type="number" value={form.billing_value} onChange={(value) => setValue("billing_value", value)} />}
           {["commission"].includes(form.voucher_kind) && <Field name="commission_percentage" label="Work Incentive %" type="number" value={form.commission_percentage} onChange={(value) => setValue("commission_percentage", value)} />}
           {["employee_incentive"].includes(form.voucher_kind) && <Field name="initial_profit" label="Initial Profit" type="number" value={form.initial_profit} onChange={(value) => setValue("initial_profit", value)} />}

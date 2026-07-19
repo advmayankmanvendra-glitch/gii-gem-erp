@@ -91,6 +91,7 @@ const api = {
   createRecord: (table, payload) => ipcRenderer.invoke("records:create", table, payload),
   updateRecord: (table, id, payload) => ipcRenderer.invoke("records:update", table, id, payload),
   deleteRecord: (table, id) => ipcRenderer.invoke("records:delete", table, id),
+  searchEntities: (entityType, searchTerm, options) => ipcRenderer.invoke("records:search", entityType, searchTerm, options),
   createLedgerAccount: (payload) => ipcRenderer.invoke("accounts:create-quick", payload),
   createBackup: () => ipcRenderer.invoke("backup:create"),
   listBackups: () => ipcRenderer.invoke("backup:list"),

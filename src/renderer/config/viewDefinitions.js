@@ -295,6 +295,99 @@ const transactionViews = {
       ["reason", "Reason", "text"],
       ["remarks", "Remarks", "textarea"]
     ]
+  },
+  leads: {
+    title: "Leads / Tenders",
+    description: "Manage sales leads and tender opportunities.",
+    primary: "lead_number",
+    fields: [
+      ["lead_number", "Lead Number", "text"],
+      ["title", "Title", "text"],
+      ["description", "Description", "textarea"],
+      ["source", "Source", "lead_source"],
+      ["tender_number", "Tender Number", "text"],
+      ["issuing_authority", "Issuing Authority", "text"],
+      ["department_id", "Department", "department"],
+      ["expected_value", "Expected Value", "number"],
+      ["bid_submission_date", "Bid Submission Date", "date"],
+      ["status", "Status", "lead_status"],
+      ["probability", "Win Probability (%)", "number"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  requirement_queries: {
+    title: "Requirement Queries",
+    description: "Track government department requirements and queries.",
+    primary: "query_number",
+    fields: [
+      ["query_number", "Query Number", "text"],
+      ["title", "Title", "text"],
+      ["description", "Description", "textarea"],
+      ["department_id", "Department", "department"],
+      ["employee_id", "Contact Person", "employee"],
+      ["lead_id", "Lead Number", "number"],
+      ["priority", "Priority", "query_priority"],
+      ["expected_quantity", "Expected Quantity", "number"],
+      ["expected_value", "Expected Value", "number"],
+      ["status", "Status", "query_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  quotations: {
+    title: "Quotations",
+    description: "Manage supplier quotations against requirements.",
+    primary: "quotation_number",
+    fields: [
+      ["quotation_number", "Quotation Number", "text"],
+      ["requirement_query_id", "Requirement Query", "number"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["quotation_date", "Quotation Date", "date"],
+      ["valid_until", "Valid Until", "date"],
+      ["item_description", "Item Description", "textarea"],
+      ["quantity", "Quantity", "number"],
+      ["unit_price", "Unit Price", "number"],
+      ["total_amount", "Total Amount", "number"],
+      ["tax_amount", "Tax Amount", "number"],
+      ["grand_total", "Grand Total", "number"],
+      ["status", "Status", "quotation_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  negotiations: {
+    title: "Negotiations",
+    description: "Track pricing and terms negotiations with suppliers.",
+    primary: "negotiation_number",
+    fields: [
+      ["negotiation_number", "Negotiation Number", "text"],
+      ["quotation_id", "Quotation", "number"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["negotiation_date", "Negotiation Date", "date"],
+      ["negotiator_name", "Negotiator Name", "text"],
+      ["initial_amount", "Initial Amount", "number"],
+      ["negotiated_amount", "Negotiated Amount", "number"],
+      ["savings_amount", "Savings Amount", "number"],
+      ["status", "Status", "negotiation_status"],
+      ["outcome_notes", "Outcome Notes", "textarea"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  installations: {
+    title: "Installations",
+    description: "Track installation progress for delivered goods.",
+    primary: "installation_number",
+    fields: [
+      ["installation_number", "Installation Number", "text"],
+      ["delivery_challan_id", "Delivery Challan", "number"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["department_id", "Department", "department"],
+      ["supervisor_employee_id", "Supervisor", "employee"],
+      ["installation_date", "Installation Date", "date"],
+      ["completion_date", "Completion Date", "date"],
+      ["status", "Status", "installation_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
   }
 };
 

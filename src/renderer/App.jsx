@@ -1189,6 +1189,12 @@ function App() {
         openVoucherShortcut("debit_note");
         return;
       }
+      if (event.key === "Insert" && event.altKey && !event.ctrlKey && !event.metaKey) {
+        if (document.activeElement?.closest(".entity-picker-trigger")) return;
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("gii-gem-quick-create"));
+        return;
+      }
       if (event.key === "F11") {
         event.preventDefault();
         toggleFullScreen();
@@ -1303,7 +1309,7 @@ function App() {
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} selectTableRow={selectTableRow} api={api} />}
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} api={api} confirmAction={confirmAction} reversalConfirmOptions={reversalConfirmOptions} postConfirmOptions={postConfirmOptions} isRecordLocked={isRecordLocked} normalizeStatusClass={normalizeStatusClass} />}
-            {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} />}
+            {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} role={session.role} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} api={api} />}
             {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} />}
             {effectiveView === "profitability" && <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />}

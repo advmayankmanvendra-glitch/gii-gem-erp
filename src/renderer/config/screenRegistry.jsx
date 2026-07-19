@@ -66,7 +66,7 @@ export function resolveScreen(effectiveView, {
   if (effectiveView === "health_center") return <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />;
   if (masterViews[effectiveView]) return <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />;
   if (effectiveView === "invoices") return <BillingVoucherScreen notify={notify} role={session?.role} companyContext={companyContext} onNavigate={navigate} api={api} confirmAction={confirmAction} reversalConfirmOptions={reversalConfirmOptions} postConfirmOptions={postConfirmOptions} isRecordLocked={isRecordLocked} normalizeStatusClass={normalizeStatusClass} />;
-  if (transactionViews[effectiveView]) return <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} />;
+  if (transactionViews[effectiveView]) return <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} role={session?.role} />;
   if (operationsReportViews?.has(effectiveView)) return <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} />;
   if (inventoryReportViews?.has(effectiveView)) return <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} />;
   if (effectiveView === "profitability") return <ProfitabilityScreen notify={notify} companyContext={companyContext} apiClient={api} onNavigate={navigate} />;

@@ -64,7 +64,7 @@ export function SearchableSelect({ label, value, onChange, options = [], placeho
         placeholder={placeholder}
         disabled={disabled}
         onKeyDown={(event) => {
-          if (event.key === "F10" && onQuickCreate) {
+          if ((event.key === "F10" || (event.key === "Insert" && event.altKey)) && onQuickCreate) {
             event.preventDefault();
             onQuickCreate();
             return;

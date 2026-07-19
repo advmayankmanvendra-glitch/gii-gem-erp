@@ -1515,6 +1515,148 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     ].forEach(([column, definition]) => addColumnIfMissing(db, "supply_orders", column, definition));
   }
 
+  function addLeadStageTables(db) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        lead_number TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        source TEXT NOT NULL DEFAULT 'new',
+        tender_number TEXT,
+        issuing_authority TEXT,
+        department_id INTEGER,
+        expected_value REAL NOT NULL DEFAULT 0,
+        bid_submission_date TEXT,
+        status TEXT NOT NULL DEFAULT 'new',
+        probability INTEGER NOT NULL DEFAULT 0,
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, lead_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (department_id) REFERENCES government_departments(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS requirement_queries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        query_number TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        department_id INTEGER,
+        employee_id INTEGER,
+        lead_id INTEGER,
+        priority TEXT NOT NULL DEFAULT 'medium',
+        expected_quantity REAL,
+        expected_value REAL,
+        status TEXT NOT NULL DEFAULT 'open',
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, query_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (department_id) REFERENCES government_departments(id),
+        FOREIGN KEY (employee_id) REFERENCES employees(id),
+        FOREIGN KEY (lead_id) REFERENCES leads(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS quotations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        quotation_number TEXT NOT NULL,
+        requirement_query_id INTEGER,
+        supplier_id INTEGER NOT NULL,
+        supply_order_id INTEGER,
+        quotation_date TEXT NOT NULL,
+        valid_until TEXT,
+        item_description TEXT,
+        quantity REAL NOT NULL DEFAULT 1,
+        unit_price REAL NOT NULL DEFAULT 0,
+        total_amount REAL NOT NULL DEFAULT 0,
+        tax_amount REAL NOT NULL DEFAULT 0,
+        grand_total REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'draft',
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, quotation_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (requirement_query_id) REFERENCES requirement_queries(id),
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+        FOREIGN KEY (supply_order_id) REFERENCES supply_orders(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS negotiations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        negotiation_number TEXT NOT NULL,
+        quotation_id INTEGER,
+        supplier_id INTEGER NOT NULL,
+        supply_order_id INTEGER,
+        negotiation_date TEXT NOT NULL,
+        negotiator_name TEXT,
+        initial_amount REAL NOT NULL DEFAULT 0,
+        negotiated_amount REAL NOT NULL DEFAULT 0,
+        savings_amount REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'open',
+        outcome_notes TEXT,
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, negotiation_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (quotation_id) REFERENCES quotations(id),
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+        FOREIGN KEY (supply_order_id) REFERENCES supply_orders(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS installations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        installation_number TEXT NOT NULL,
+        delivery_challan_id INTEGER,
+        supply_order_id INTEGER NOT NULL,
+        department_id INTEGER,
+        supervisor_employee_id INTEGER,
+        installation_date TEXT,
+        completion_date TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        remarks TEXT,
+        document_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, installation_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (delivery_challan_id) REFERENCES delivery_challans(id),
+        FOREIGN KEY (supply_order_id) REFERENCES supply_orders(id),
+        FOREIGN KEY (department_id) REFERENCES government_departments(id),
+        FOREIGN KEY (supervisor_employee_id) REFERENCES employees(id)
+      );
+    `);
+  }
+
   return {
     addAccountingColumns,
     addBillingVoucherEnhancementFields,
@@ -1537,6 +1679,7 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     addCompanyContextLayer,
     addRuntimeSoftDeleteColumns,
     addSupplierExtendedFields,
-    addPhase15iCracTables
+    addPhase15iCracTables,
+    addLeadStageTables
   };
 }

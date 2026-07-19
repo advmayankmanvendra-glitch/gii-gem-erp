@@ -6,6 +6,7 @@ import { roleAllowsAction } from "../../components/helpProductivity/index.jsx";
 import { EmptyState } from "../../components/common.jsx";
 import { Field, MetricLine, ReadOnlyBox, SelectBox, SearchableSelect } from "../../components/forms/index.jsx";
 import { QuickCreateMasterDialog, quickCreateRecords } from "../../components/overlays/index.jsx";
+import { SmartEntityPicker } from "../../components/entityPicker/SmartEntityPicker.jsx";
 import {
   billingOrderValidation, calculateInvoiceLine, invoiceTimeline, lifecycleStage, maxLineGstRate,
   orderIssuedQuantity, orderLinesForBilling, orderProcuredQuantity, pendingQuantityForLine,
@@ -504,10 +505,10 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
               <SearchableSelect label="Financial Year" value={header.financial_year_id} onChange={(value) => setHeader({ ...header, financial_year_id: value, invoice_number: suggestedInvoiceNumber(data, header.company_id || selectedCompany?.id, value) })} options={(data?.financialYears || []).map((row) => [row.id, `${row.financial_year_name} (${row.status})`])} />
               <Field name="invoice_number" label="Invoice Number" type="text" value={header.invoice_number || invoiceNumberSuggestion} onChange={(value) => setHeader({ ...header, invoice_number: value })} />
               <Field name="invoice_date" label="Invoice Date" type="date" value={header.invoice_date} onChange={(value) => setHeader({ ...header, invoice_date: value })} />
-              <SearchableSelect label="Order Number" value={header.order_id} onChange={setOrder} options={orderOptions} placeholder="Search order number" />
+              <SmartEntityPicker entityType="supply_order" api={api} role={role} companyId={companyContext?.company_id} value={header.order_id} onChange={setOrder} onQuickCreate={(type, defaults) => openQuickCreate(type, { defaults })} />
               <Field name="gem_order_number" label="GeM Order Number" type="text" value={header.gem_order_number} onChange={(value) => setHeader({ ...header, gem_order_number: value })} />
               <Field name="gem_contract_number" label="Contract Number" type="text" value={header.gem_contract_number} onChange={(value) => setHeader({ ...header, gem_contract_number: value })} />
-              <SearchableSelect label="Department" value={selectedDepartmentId} onChange={setDepartment} options={(refs.departments || []).map((row) => [row.id, row.department_name])} placeholder="Search department" onQuickCreate={() => openQuickCreate("department")} />
+              <SmartEntityPicker entityType="department" api={api} role={role} companyId={companyContext?.company_id} value={selectedDepartmentId} onChange={setDepartment} onQuickCreate={(type, defaults) => openQuickCreate(type, { defaults })} />
               <SearchableSelect label="Institution" value={header.institution_name} onChange={setInstitution} options={institutionOptions} placeholder="Search institution" onQuickCreate={() => openQuickCreate("institution", { defaults: { place_of_supply: header.place_of_supply, consignee: header.consignee } })} />
               <Field name="consignee" label="Consignee" type="text" value={header.consignee} onChange={(value) => setHeader({ ...header, consignee: value })} />
               <Field name="place_of_supply" label="Place of Supply" type="text" value={header.place_of_supply} onChange={(value) => setHeader({ ...header, place_of_supply: value })} />
@@ -548,21 +549,15 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
                 }}>
                   <td>
                     <div className="item-select-cell">
-                      <SearchableSelect
-                        label=""
+                      <SmartEntityPicker
+                        entityType="item"
+                        api={api}
+                        role={role}
+                        companyId={companyContext?.company_id}
                         value={line.item_id || ""}
                         onChange={(value) => updateLine(index, { item_id: value })}
-                        onKeyDown={(event) => {
-                          if (event.key === "F10") {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            openQuickItem(index);
-                          }
-                        }}
-                        options={(refs.items || []).map((item) => [item.id, item.item_name, `${item.hsn_code || ""} ${item.brand || ""} ${item.model || ""}`.trim()])}
-                        placeholder="Search item"
+                        onQuickCreate={() => openQuickItem(index)}
                       />
-                      <button type="button" className="ghost-btn tiny-btn" onClick={() => openQuickItem(index)}>+ New Item</button>
                     </div>
                   </td>
                   <td><input value={line.description || ""} onChange={(event) => updateLine(index, { description: event.target.value })} /></td>
@@ -630,21 +625,15 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
               <button type="button" className="ghost-btn" onClick={() => setRowEditor(null)}>Close</button>
             </div>
             <div className="row-editor-grid">
-              <SearchableSelect
-                label="Item"
+              <SmartEntityPicker
+                entityType="item"
+                api={api}
+                role={role}
+                companyId={companyContext?.company_id}
                 value={rowEditor.form.item_id || ""}
                 onChange={(value) => updateRowEditorLine({ item_id: value })}
-                onKeyDown={(event) => {
-                  if (event.key === "F10") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openQuickItem(rowEditor.index);
-                  }
-                }}
-                options={(refs.items || []).map((item) => [item.id, item.item_name, `${item.hsn_code || ""} ${item.brand || ""} ${item.model || ""}`.trim()])}
-                placeholder="Search item"
+                onQuickCreate={() => openQuickItem(rowEditor.index)}
               />
-              <button type="button" className="ghost-btn row-editor-new-item" onClick={() => openQuickItem(rowEditor.index)}>+ New Item</button>
               <Field name="description" label="Description" type="text" value={rowEditor.form.description || ""} onChange={(value) => updateRowEditorLine({ description: value })} />
               {rowEditor.form.item_id
                 ? <ReadOnlyBox label="HSN" value={rowEditor.form.hsn || "-"} />

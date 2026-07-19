@@ -559,6 +559,29 @@ export function migrate(db) {
   runMigration(db, "027_audit_and_posting_control_fixes", () => {
     addAuditAndPostingFixes(db);
   });
+
+  runMigration(db, "028_entity_picker_search_indexes", () => {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(supplier_name);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_gstin ON suppliers(gstin);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_code ON suppliers(supplier_code);
+      CREATE INDEX IF NOT EXISTS idx_items_name ON items(item_name);
+      CREATE INDEX IF NOT EXISTS idx_items_hsn ON items(hsn_code);
+      CREATE INDEX IF NOT EXISTS idx_items_brand ON items(brand);
+      CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(account_name);
+      CREATE INDEX IF NOT EXISTS idx_accounts_code ON accounts(account_code);
+      CREATE INDEX IF NOT EXISTS idx_supply_orders_number ON supply_orders(order_number);
+      CREATE INDEX IF NOT EXISTS idx_departments_name ON government_departments(department_name);
+      CREATE INDEX IF NOT EXISTS idx_warehouses_name ON warehouses(warehouse_name);
+      CREATE INDEX IF NOT EXISTS idx_employees_name ON employees(employee_name);
+      CREATE INDEX IF NOT EXISTS idx_banks_name ON banks(bank_account_name);
+      CREATE INDEX IF NOT EXISTS idx_expense_heads_name ON expense_heads(expense_head_name);
+    `);
+  });
+
+  runMigration(db, "029_lead_stage_tables", () => {
+    addLeadStageTables(db);
+  });
 }
 
 function runMigration(db, migrationName, callback) {
@@ -1707,7 +1730,8 @@ const {
   addCompanyContextLayer,
   addRuntimeSoftDeleteColumns,
   addSupplierExtendedFields,
-  addPhase15iCracTables
+  addPhase15iCracTables,
+  addLeadStageTables
 } = createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, backfillPostingStatuses, tableExists, ACCOUNTING_TABLES });
 
 export {

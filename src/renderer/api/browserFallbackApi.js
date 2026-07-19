@@ -852,6 +852,18 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
       write(db);
       return true;
     },
+    searchEntities: async (entityType, searchTerm, options = {}) => {
+      const entityTable = { supplier: "suppliers", item: "items", ledger: "accounts", supply_order: "supply_orders", department: "government_departments", warehouse: "warehouses", employee: "employees", bank: "banks", expense_head: "expense_heads" }[entityType];
+      if (!entityTable) return { results: [], hasMore: false, total: 0, limit: 50, offset: 0 };
+      const db = read();
+      const term = String(searchTerm || "").trim().toLowerCase();
+      const limit = Math.min(Math.max(Number(options.limit) || 50, 1), 200);
+      const offset = Math.max(Number(options.offset) || 0, 0);
+      let rows = (db[entityTable] || []).filter((row) => !term || Object.values(row).some((v) => String(v || "").toLowerCase().includes(term)));
+      const total = rows.length;
+      rows = rows.slice(offset, offset + limit);
+      return { results: rows.map(({ ...r }) => ({ ...r })), hasMore: offset + limit < total, total, limit, offset };
+    },
     parseImportFile: async () => {
       throw new Error("Use Browse Desktop File inside the Windows app, or choose the file directly in browser preview");
     },

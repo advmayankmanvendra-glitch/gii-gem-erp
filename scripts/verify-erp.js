@@ -41,6 +41,7 @@ const PIPELINE = [
   { name: "verify:voucher-inventory", cmd: `${NPM} run verify:voucher-inventory`, continueOn: [0, 1] },
   { name: "verify:flow",       cmd: `${NPM} run verify:flow`,        continueOn: [0, 1] },
   { name: "verify:phase10",    cmd: `${NPM} run verify:phase10`,     continueOn: [0, 1] },
+  { name: "verify:entity-picker", cmd: `${NPM} run verify:entity-picker`, continueOn: [0, 1] },
 ];
 
 /* ─── Helpers ─── */

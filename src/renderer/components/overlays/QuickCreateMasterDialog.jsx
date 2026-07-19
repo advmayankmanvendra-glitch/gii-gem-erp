@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Field, SelectField } from "../forms/index.jsx";
 import { confirmAction } from "../../config/confirmations.js";
 import { formChanged } from "../../utils/formUtils.js";
-import { roleAllowsAction } from "../helpProductivity/index.jsx";
+import { assertQuickCreateAllowed } from "../../modules/quick-create/quickCreatePermissions.js";
+import { findDuplicate } from "../../modules/quick-create/quickCreateDuplicateGuard.js";
 
 const quickCreateConfigs = {
   item: {
@@ -166,16 +167,6 @@ export function quickCreateRecords(type, sources = {}) {
   return map[type] || [];
 }
 
-function quickCreateDuplicate(type, form, records) {
-  const config = quickCreateConfigs[type];
-  if (!config) return null;
-  return records.find((record) => config.duplicateFields.some((field) => {
-    const value = String(form[field] || "").trim().toLowerCase();
-    if (!value) return false;
-    return String(record[field] || "").trim().toLowerCase() === value;
-  }));
-}
-
 export function QuickCreateMasterDialog({ request, records, context = {}, role, notify, onClose, onCreated, api }) {
   const config = quickCreateConfigs[request?.type];
   const baseline = { ...(config?.defaults || {}), ...(request?.defaults || {}) };
@@ -201,11 +192,11 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
 
   async function save(createAnyway = false) {
     try {
-      if (!roleAllowsAction(role, "new")) throw new Error("You do not have permission to create master records. Please contact administrator.");
+      assertQuickCreateAllowed(request.type, role);
       config.fields.filter(([, , , required]) => required).forEach(([name, label]) => {
         if (!String(form[name] || "").trim()) throw new Error(`${label} is required`);
       });
-      const existing = quickCreateDuplicate(request.type, form, records);
+      const existing = findDuplicate(request.type, form, records);
       if (existing && !createAnyway) {
         setDuplicate(existing);
         return;
