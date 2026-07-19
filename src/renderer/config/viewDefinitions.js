@@ -66,7 +66,7 @@ const masterViews = {
     primary: "item_name",
     fields: [
       ["item_name", "Item Name", "text"],
-      ["brand", "Brand", "text"],
+      ["brand", "Brand", "select"],
       ["model", "Model", "text"],
       ["hsn_code", "HSN Code", "text"],
       ["gst_rate", "GST Rate", "number"],

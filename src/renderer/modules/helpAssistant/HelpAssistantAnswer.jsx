@@ -37,6 +37,15 @@ function HelpAssistantAnswer({ answer, onAction, onOpenScreen, onRelatedTopic })
           <p>{answer.directAnswer}</p>
         </div>
       )}
+      {answer.safetyBoundary === "action-refused" && (
+        <div className="help-assistant-answer-block warning" role="alert">
+          <h3>Action unavailable</h3>
+          <p>I cannot perform or trigger this action. Use the relevant controlled ERP screen with an authorized role.</p>
+          {!!answer.prohibitedActions?.length && (
+            <p><strong>I cannot:</strong> {answer.prohibitedActions.join(", ")}.</p>
+          )}
+        </div>
+      )}
       <p>{answer.summary}</p>
       {(answer.purpose || answer.fieldsToCheck?.length || answer.recommendedNextStep) && (
         <div className="help-assistant-screen-guidance-grid">

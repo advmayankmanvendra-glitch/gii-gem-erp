@@ -41,6 +41,7 @@ import {
   roleAllowsAction
 } from "./components/helpProductivity/index.jsx";
 import { NavigationSidebar, RightUtilitySidebar, WorkspaceFrame } from "./components/layout/index.jsx";
+import HelpQuickActionsBar from "./components/help/HelpQuickActionsBar.jsx";
 import { ConfirmDialog, GlobalSearchOverlay, PrintPreviewDialog, QuickCreateMasterDialog, quickCreateRecords } from "./components/overlays/index.jsx";
 import { AddRecordPanel } from "./components/panels/AddRecordPanel.jsx";
 import { OperationsAttentionQueueTable } from "./components/operations/index.jsx";
@@ -87,6 +88,7 @@ import { AccountingScreen } from "./features/accounting/AccountingScreen.jsx";
 import { AllocationWorkflowScreen } from "./features/accounting/AllocationWorkflowScreen.jsx";
 import { BankStatementScreen } from "./features/accounting/BankStatementScreen.jsx";
 import { confirmAction, postedProtectionOptions, deleteConfirmOptions, postConfirmOptions, approveConfirmOptions, reversalConfirmOptions, isRecordLocked } from "./utils/actionUtils.js";
+import { normalizeStatusClass } from "./utils/fileParsers.js";
 
 const fallbackApi = createBrowserFallbackApi(businessVoucherPreview);
 const api = resolveApi(fallbackApi);
@@ -542,7 +544,6 @@ function App() {
       });
     });
     return () => {
-      window.__giiGemExitHandler = null;
       exitConfirmResolverRef.current = null;
     };
   }, []);
@@ -560,7 +561,13 @@ function App() {
   useEffect(() => {
     if (!api.onConfirmClose) return;
     const unsub = api.onConfirmClose(async () => {
-      const result = await window.__giiGemExitHandler?.();
+      const handler = window.__giiGemExitHandler;
+      if (!handler) {
+        window.__giiGemIsExiting = true;
+        api.forceClose?.();
+        return;
+      }
+      const result = await handler();
       if (result?.confirmed) {
         window.__giiGemIsExiting = true;
         api.forceClose?.();
@@ -1237,6 +1244,24 @@ function App() {
         onToggleMobileSidebar={() => setMobileSidebarOpen((current) => !current)}
       >
 
+        <HelpQuickActionsBar
+          onHelp={() => {
+            setHelpAssistantSourceView(effectiveView);
+            setHelpAssistantInitialMode("screen");
+            navigate("help_assistant");
+          }}
+          onHelpAssistant={() => {
+            setHelpAssistantSourceView(effectiveView);
+            setHelpAssistantInitialMode("help");
+            navigate("help_assistant");
+          }}
+          onLearnThisScreen={() => setProductivityLearnOpen(true)}
+          onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
+          session={session}
+          companyContext={companyContext}
+          api={api}
+        />
+
         <RendererErrorBoundary
           title="Screen could not load"
           resetKey={`${effectiveView}-${refreshNonce}`}
@@ -1277,6 +1302,7 @@ function App() {
             {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} selectTableRow={selectTableRow} api={api} />}
+            {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} api={api} confirmAction={confirmAction} reversalConfirmOptions={reversalConfirmOptions} postConfirmOptions={postConfirmOptions} isRecordLocked={isRecordLocked} normalizeStatusClass={normalizeStatusClass} />}
             {transactionViews[effectiveView] && effectiveView !== "invoices" && <TransactionScreen table={effectiveView} config={transactionViews[effectiveView]} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} />}
             {operationsReportViews.has(effectiveView) && <OperationsScreen view={effectiveView} notify={notify} onNavigate={navigate} companyContext={companyContext} api={api} />}
             {inventoryReportViews.has(effectiveView) && <InventoryReportScreen view={effectiveView} notify={notify} companyContext={companyContext} onNavigate={navigate} api={api} />}
@@ -1340,19 +1366,6 @@ function App() {
           collapsed={rightUtilityCollapsed}
           onToggle={toggleRightUtilitySidebar}
           session={session}
-          trainingMode={trainingMode}
-          onHelp={() => {
-            setHelpAssistantSourceView(effectiveView);
-            setHelpAssistantInitialMode("screen");
-            navigate("help_assistant");
-          }}
-          onHelpAssistant={() => {
-            setHelpAssistantSourceView(effectiveView);
-            setHelpAssistantInitialMode("help");
-            navigate("help_assistant");
-          }}
-          onLearnThisScreen={() => setProductivityLearnOpen(true)}
-          onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
           onLogout={() => setSession(null)}
           companies={safeCompanies}
           companyContext={companyContext}
@@ -1362,6 +1375,7 @@ function App() {
           onCreateCompany={openCreateCompany}
           onAlterCompany={openAlterCompany}
           onSettings={() => navigate("settings")}
+          onLearnThisScreen={() => setProductivityLearnOpen(true)}
           onShortcutPanelToggle={toggleShortcutPanel}
           productivityPanel={(
             <ContextShortcutPanel
@@ -1579,19 +1593,34 @@ function clickExportButton(notify) {
 function buildGlobalSearchResults(query, data) {
   const needle = query.trim().toLowerCase();
   const include = (text) => !needle || String(text || "").toLowerCase().includes(needle);
+  const rank = (items, limit) => items
+    .sort((left, right) => globalSearchRank(left, needle) - globalSearchRank(right, needle)
+      || String(left.label || "").localeCompare(String(right.label || ""), "en", { numeric: true, sensitivity: "base" }))
+    .slice(0, limit);
   const refs = data?.references || {};
   const accounting = data?.accounting || {};
   const groups = [
-    { label: "Reports & Screens", items: flatNavItems.filter((item) => include(`${item.label} ${item.group} ${viewTitles[item.key]?.join(" ") || ""}`)).map((item) => ({ key: item.key, label: item.label, note: item.group })).slice(0, 12) },
-    { label: "Orders", items: (refs.orders || []).filter((row) => include(`${row.order_number} ${row.institution_name} ${row.department_name}`)).map((row) => ({ key: "supply_orders", label: row.order_number, note: row.institution_name || row.department_name })).slice(0, 8) },
-    { label: "Invoices", items: (refs.invoices || accounting.invoices || []).filter((row) => include(`${row.invoice_number} ${row.order_number} ${row.department_name}`)).map((row) => ({ key: "invoices", label: row.invoice_number, note: row.order_number || "Billing" })).slice(0, 8) },
-    { label: "Suppliers", items: (refs.suppliers || []).filter((row) => include(`${row.supplier_name} ${row.gstin} ${row.supplier_code}`)).map((row) => ({ key: "suppliers", label: row.supplier_name, note: row.gstin || "Supplier" })).slice(0, 8) },
-    { label: "Departments", items: (refs.departments || []).filter((row) => include(`${row.department_name} ${row.contact_person}`)).map((row) => ({ key: "government_departments", label: row.department_name, note: row.contact_person || "Department" })).slice(0, 8) },
-    { label: "Items", items: (refs.items || []).filter((row) => include(`${row.item_name} ${row.hsn_code} ${row.brand}`)).map((row) => ({ key: "items", label: row.item_name, note: row.hsn_code || row.category || "Item" })).slice(0, 8) },
-    { label: "Vouchers", items: (accounting.vouchers || []).filter((row) => include(`${row.voucher_number} ${row.voucher_type} ${row.narration}`)).map((row) => ({ key: "voucher_register", label: row.voucher_number, note: row.voucher_type })).slice(0, 8) },
-    { label: "Payments", items: (refs.payments || accounting.payments || []).filter((row) => include(`${row.utr_number} ${row.order_number} ${row.payment_amount}`)).map((row) => ({ key: "payments", label: row.utr_number || `Payment ${row.id}`, note: formatCurrency(row.payment_amount || row.amount || 0) })).slice(0, 8) }
+    { label: "Reports & Screens", items: rank(flatNavItems.filter((item) => include(`${item.label} ${item.group} ${viewTitles[item.key]?.join(" ") || ""}`)).map((item) => ({ key: item.key, label: item.label, note: item.group })), 12) },
+    { label: "Orders", items: rank((refs.orders || []).filter((row) => include(`${row.order_number} ${row.institution_name} ${row.department_name}`)).map((row) => ({ key: "supply_orders", label: row.order_number, note: row.institution_name || row.department_name })), 8) },
+    { label: "Invoices", items: rank((refs.invoices || accounting.invoices || []).filter((row) => include(`${row.invoice_number} ${row.order_number} ${row.department_name}`)).map((row) => ({ key: "invoices", label: row.invoice_number, note: row.order_number || "Billing" })), 8) },
+    { label: "Suppliers", items: rank((refs.suppliers || []).filter((row) => include(`${row.supplier_name} ${row.gstin} ${row.supplier_code}`)).map((row) => ({ key: "suppliers", label: row.supplier_name, note: row.gstin || "Supplier" })), 8) },
+    { label: "Departments", items: rank((refs.departments || []).filter((row) => include(`${row.department_name} ${row.contact_person}`)).map((row) => ({ key: "government_departments", label: row.department_name, note: row.contact_person || "Department" })), 8) },
+    { label: "Items", items: rank((refs.items || []).filter((row) => include(`${row.item_name} ${row.hsn_code} ${row.brand}`)).map((row) => ({ key: "items", label: row.item_name, note: row.hsn_code || row.category || "Item" })), 8) },
+    { label: "Vouchers", items: rank((accounting.vouchers || []).filter((row) => include(`${row.voucher_number} ${row.voucher_type} ${row.narration}`)).map((row) => ({ key: "voucher_register", label: row.voucher_number, note: row.voucher_type })), 8) },
+    { label: "Payments", items: rank((refs.payments || accounting.payments || []).filter((row) => include(`${row.utr_number} ${row.order_number} ${row.payment_amount}`)).map((row) => ({ key: "payments", label: row.utr_number || `Payment ${row.id}`, note: formatCurrency(row.payment_amount || row.amount || 0) })), 8) }
   ];
   return groups;
+}
+
+function globalSearchRank(item, needle) {
+  if (!needle) return 4;
+  const label = String(item?.label || "").trim().toLowerCase();
+  const note = String(item?.note || "").trim().toLowerCase();
+  if (label === needle) return 0;
+  if (label.startsWith(needle)) return 1;
+  if (label.includes(needle)) return 2;
+  if (note.includes(needle)) return 3;
+  return 4;
 }
 
 const rootElement = document.getElementById("root");

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { downloadText } from "../../utils/formatters.js";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 const EXPORT_TYPES = [
   ["template", "Blank Template"],
@@ -304,7 +305,7 @@ function MasterDataToolsScreen({ notify, apiClient, session, companyContext }) {
             <label className="field">
               Master
               <select value={selectedMaster?.key || ""} onChange={(event) => { setSelectedMasterKey(event.target.value); setPreview(null); }}>
-                {definitions.map((definition) => <option value={definition.key} key={definition.key}>{definition.label}</option>)}
+                {sortRecordsBy(definitions, (definition) => definition.label).map((definition) => <option value={definition.key} key={definition.key}>{definition.label}</option>)}
               </select>
             </label>
             <label className="field">

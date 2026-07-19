@@ -471,6 +471,72 @@ svg {
   color: var(--muted);
 }
 
+.help-quick-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.help-bar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.help-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.help-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 5px;
+  min-height: 30px;
+  padding: 2px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.help-bar-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.help-bar-btn:hover {
+  border-color: var(--accent);
+  background: #fff5e8;
+}
+
+.help-bar-btn.active {
+  border-color: var(--accent);
+  color: #111;
+  background: #fff5e8;
+}
+
+.right-utility-compact-wrap {
+  position: relative;
+}
+
+.right-utility-compact-wrap .shortcut-context-panel {
+  top: 0;
+}
 
 .right-utility-sidebar {
   height: 100vh;
@@ -957,4 +1023,4 @@ svg {
   color: var(--muted);
   font-size: 13px;
 }
-
+

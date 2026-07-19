@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
 
 const ENVIRONMENT_TYPES = ["Development", "Testing", "Training", "Production", "Migration"];
 
@@ -482,7 +483,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
                 style={{ minWidth: 200 }}
               >
                 {profiles.length === 0 && <option value={info.lastVerificationProfile}>{info.lastVerificationProfile}</option>}
-                {profiles.map((p) => (
+                {sortRecordsBy(profiles, (profile) => profile.name).map((p) => (
                   <option key={p.key} value={p.name}>{p.name}</option>
                 ))}
               </select>
@@ -503,7 +504,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
                 style={{ minWidth: 200 }}
               >
                 <option value="">Select environment...</option>
-                {ENVIRONMENT_TYPES.map((env) => (
+                {sortOptions(ENVIRONMENT_TYPES).map((env) => (
                   <option key={env} value={env} disabled={env === info.environment}>{env} {env === info.environment ? "(current)" : ""}</option>
                 ))}
               </select>

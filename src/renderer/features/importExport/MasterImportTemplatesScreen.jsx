@@ -3,6 +3,7 @@ import { EmptyState } from "../../components/common.jsx";
 import { masterImportTemplateDefinitions } from "../../config/importTemplates.js";
 import { downloadText } from "../../utils/formatters.js";
 import { createInitialTemplateFieldMap, csvCell, downloadErrorReport, downloadXlsx, mapTemplateRows, normalizeImportHeader, parseUploadFile, validateStagedTemplateRows } from "../../utils/fileParsers.js";
+import { sortOptions } from "../../utils/optionSorting.js";
 
 export function MasterImportTemplatesScreen({ notify, api }) {
   const [selectedId, setSelectedId] = useState(masterImportTemplateDefinitions[0]?.id || "");
@@ -197,7 +198,7 @@ export function MasterImportTemplatesScreen({ notify, api }) {
                     <span>{column}</span>
                     <select value={fieldMap[column] || ""} onChange={(event) => setFieldMap((current) => ({ ...current, [column]: event.target.value }))}>
                       <option value="">Not mapped</option>
-                      {detectedColumns.map((detected) => <option key={detected} value={detected}>{detected}</option>)}
+                      {sortOptions(detectedColumns).map((detected) => <option key={detected} value={detected}>{detected}</option>)}
                     </select>
                   </label>
                 ))}

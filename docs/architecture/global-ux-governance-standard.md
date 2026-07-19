@@ -123,6 +123,16 @@ Keyboard shortcuts must never bypass confirmations, approvals, posting validatio
 
 ## Search Standards
 
+### Dynamic Selection Order
+
+Dynamic master and reference choices must be displayed in strict alphabetical order by their visible user-facing label. Sorting must be case-insensitive, whitespace-normalized and natural-numeric so that `Item 2` appears before `Item 10`.
+
+This applies to user-maintained choices such as companies, departments, suppliers, customers, items, brands, warehouses, ledgers, employees, orders, document sources, profiles and imported column names.
+
+Placeholder options such as `Select`, `All` and `Not mapped` remain pinned before the sorted choices.
+
+Do not alphabetize controlled sequences where order carries business meaning, including workflow stages, statuses, action menus, period presets, voucher lifecycles and approval progressions.
+
 ### Global ERP Search
 
 Global ERP Search is opened with Ctrl+K. It should search across modules, records, reports and help entries where data is available.

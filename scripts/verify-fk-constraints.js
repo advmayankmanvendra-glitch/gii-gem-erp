@@ -56,9 +56,9 @@ try {
   if (itemReferenceTables.length > 0) pass(`Detected ${itemReferenceTables.length} item FK relationship(s)`);
   else fail("No item FK relationships detected");
 
-  const initContent = readFileSync(join(projectRoot, "src", "main", "database", "init.js"), "utf8");
-  const deleteBatchBody = extractFunctionBody(initContent, "deleteItemImportBatch");
-  const deleteUnusedBody = extractFunctionBody(initContent, "deleteUnusedImportedItems");
+  const importServiceContent = readFileSync(join(projectRoot, "src", "main", "services", "importValidationService.js"), "utf8");
+  const deleteBatchBody = extractFunctionBody(importServiceContent, "deleteItemImportBatch");
+  const deleteUnusedBody = extractFunctionBody(importServiceContent, "deleteUnusedImportedItems");
 
   if (deleteBatchBody.includes('assertBulkDeleteSafe(db, "items", ids)')) pass("deleteItemImportBatch guards batch item deletes");
   else fail("deleteItemImportBatch missing bulk FK guard");

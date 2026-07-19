@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatCurrency } from "../../utils/formatters.js";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function VoucherEntryScreen({ notify, companyContext, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -113,7 +114,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
                 { account_id: "", debit: "", credit: "", narration: "" }
               ]
             })} required>
-              {(data?.companies || []).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+              {sortRecordsBy(data?.companies || [], (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
             </select>
           </label>
           <label className="field">Date
@@ -130,7 +131,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
           <label className="field">Cash/Bank Account
             <select value={form.bank_account_id} onChange={(event) => setForm({ ...form, bank_account_id: event.target.value })}>
               <option value="">Not linked</option>
-              {banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.bank_account_name}</option>)}
+              {sortRecordsBy(banks, (bank) => bank.bank_account_name).map((bank) => <option key={bank.id} value={bank.id}>{bank.bank_account_name}</option>)}
             </select>
           </label>
           <label className="field">Reference / UTR
@@ -153,7 +154,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
             <div className="voucher-line" key={index}>
               <select value={line.account_id} onChange={(event) => updateLine(index, "account_id", event.target.value)} required>
                 <option value="">Select account</option>
-                {accounts.map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}
+                {sortRecordsBy(accounts, (account) => `${account.account_code} ${account.account_name}`).map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}
               </select>
               <input type="number" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} min="0" step="0.01" />
               <input type="number" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} min="0" step="0.01" />

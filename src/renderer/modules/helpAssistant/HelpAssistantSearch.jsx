@@ -26,6 +26,7 @@ const MODE_DESCRIPTIONS = {
 
 function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }) {
   const [submitted, setSubmitted] = useState(false);
+  const questionRef = useRef(null);
   const resetTimerRef = useRef(null);
 
   useEffect(() => () => {
@@ -38,7 +39,7 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
   function handleSubmit() {
     if (submitted) return;
     setSubmitted(true);
-    onAsk();
+    onAsk(questionRef.current?.value ?? query);
     resetTimerRef.current = window.setTimeout(() => setSubmitted(false), 1500);
   }
 
@@ -52,6 +53,7 @@ function HelpAssistantSearch({ query, mode, onQueryChange, onModeChange, onAsk }
         <label className="help-assistant-question-field">
           <span>Question</span>
           <textarea
+            ref={questionRef}
             value={query}
             rows={5}
             onChange={(event) => onQueryChange(event.target.value)}

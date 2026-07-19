@@ -3,6 +3,7 @@ import { EmptyState, Icon, MetricRows } from "../components/common.jsx";
 import { ReportActionButtons, ReportSelectFilter, ReportToolbar } from "../components/forms/index.jsx";
 import { exportRows } from "../utils/formatters.js";
 import { requestPrintPreview } from "../utils/uiHelpers.js";
+import { sortOptions } from "../utils/optionSorting.js";
 
 const DOCUMENT_MODULES = [
   { key: "supply_orders", label: "Supply Orders", view: "supply_orders", docs: ["Supply Order", "Work Order", "OEM Authorization", "EMD", "Security Deposit"] },
@@ -31,7 +32,7 @@ function recordLabel(moduleKey, record) {
 
 /** Builds record dropdown options for the selected document module. */
 function recordOptions(moduleKey, recordsByModule) {
-  return (recordsByModule[moduleKey] || []).map((record) => [record.id, recordLabel(moduleKey, record)]);
+  return sortOptions((recordsByModule[moduleKey] || []).map((record) => [record.id, recordLabel(moduleKey, record)]));
 }
 
 /** Finds the source record for a document row. */
@@ -325,7 +326,7 @@ export function DocumentsScreen({ notify, companyContext, apiClient, onNavigate,
               setSelectedFile(null);
               setUploadForm({ linked_module: moduleKey, linked_record_id: "", document_type: MODULE_MAP[moduleKey]?.docs?.[0] || "Supporting Document", remarks: "" });
             }}>
-              {DOCUMENT_MODULES.map((module) => <option key={module.key} value={module.key}>{module.label}</option>)}
+              {sortOptions(DOCUMENT_MODULES.map((module) => [module.key, module.label])).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
           </label>
           <label className="field">
@@ -338,7 +339,7 @@ export function DocumentsScreen({ notify, companyContext, apiClient, onNavigate,
           <label className="field">
             Document Type
             <select value={uploadForm.document_type} onChange={(event) => setUploadForm((current) => ({ ...current, document_type: event.target.value }))}>
-              {(MODULE_MAP[uploadForm.linked_module]?.docs || ["Supporting Document"]).map((type) => <option key={type} value={type}>{type}</option>)}
+              {sortOptions(MODULE_MAP[uploadForm.linked_module]?.docs || ["Supporting Document"]).map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
           <label className="field">

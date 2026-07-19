@@ -6,9 +6,15 @@ import { importTemplates, importTemplateSampleRows } from "../../config/importTe
 import { downloadText } from "../../utils/formatters.js";
 import { csvCell, downloadErrorReport } from "../../utils/spreadsheetExport.js";
 import { parseUploadFile } from "../../utils/importParsers.js";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
-export function AddRecordPanel({ table, title, notify, onImported, records = [], api, children }) {
-  const [mode, setMode] = useState("manual");
+const PANEL_MODES = ["manual", "import", "upload"];
+
+export function AddRecordPanel({ table, title, notify, onImported, records = [], api, children, modes = PANEL_MODES }) {
+  const availableModes = PANEL_MODES.filter((key) => modes.includes(key));
+  const defaultMode = availableModes[0] || "manual";
+  const modesKey = availableModes.join("|");
+  const [mode, setMode] = useState(defaultMode);
   const [rows, setRows] = useState([]);
   const [result, setResult] = useState(null);
   const [itemBatches, setItemBatches] = useState([]);
@@ -27,6 +33,10 @@ export function AddRecordPanel({ table, title, notify, onImported, records = [],
   useEffect(() => {
     loadItemBatches();
   }, [table]);
+
+  useEffect(() => {
+    if (!availableModes.includes(mode)) setMode(defaultMode);
+  }, [defaultMode, mode, modesKey]);
 
   function downloadTemplate() {
     const sample = importTemplateSampleRows[table];
@@ -120,7 +130,7 @@ export function AddRecordPanel({ table, title, notify, onImported, records = [],
   return (
     <section className="panel entry-form">
       <div className="entry-tabs">
-        {["manual", "import", "upload"].map((key) => (
+        {availableModes.map((key) => (
           <button key={key} type="button" className={mode === key ? "active" : ""} onClick={() => setMode(key)}>
             {key === "manual" ? "Manual Entry" : key === "import" ? "Import from Excel/CSV" : "Upload PDF/Document"}
           </button>
@@ -192,7 +202,7 @@ export function AddRecordPanel({ table, title, notify, onImported, records = [],
           <label className="field">Link To Record
             <select value={documentForm.linked_record_id} onChange={(event) => setDocumentForm({ ...documentForm, linked_record_id: event.target.value })}>
               <option value="">Module level document</option>
-              {records.map((record) => <option key={record.id} value={record.id}>{record.order_number || record.invoice_number || record.purchase_invoice_number || record.company_name || record.employee_name || record.department_name || record.supplier_name || record.item_name || record.bank_account_name || record.expense_head_name || `Record ${record.id}`}</option>)}
+              {sortRecordsBy(records, (record) => record.order_number || record.invoice_number || record.purchase_invoice_number || record.company_name || record.employee_name || record.department_name || record.supplier_name || record.item_name || record.bank_account_name || record.expense_head_name || `Record ${record.id}`).map((record) => <option key={record.id} value={record.id}>{record.order_number || record.invoice_number || record.purchase_invoice_number || record.company_name || record.employee_name || record.department_name || record.supplier_name || record.item_name || record.bank_account_name || record.expense_head_name || `Record ${record.id}`}</option>)}
             </select>
           </label>
           <label className="field">Document Type

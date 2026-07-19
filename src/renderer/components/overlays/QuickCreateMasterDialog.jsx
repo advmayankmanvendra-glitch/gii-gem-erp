@@ -16,7 +16,7 @@ const quickCreateConfigs = {
       ["hsn_code", "HSN Code", "text", true],
       ["gst_rate", "GST Rate", "number", true],
       ["unit", "Unit", "text", true],
-      ["brand", "Brand", "text"],
+      ["brand", "Brand", "select"],
       ["model", "Model", "text"],
       ["category", "Category", "text"],
       ["inventory_enabled", "Inventory Enabled", "checkbox"],
@@ -253,11 +253,12 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
           <button type="button" className="ghost-btn" onClick={closeSafely}>Close</button>
         </div>
         <div className="quick-item-grid">
-          {config.fields.map(([name, label, type, , options]) => {
-            if (type === "select") {
-              return <SelectField key={name} label={label} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} options={options} />;
+          {config.fields.map(([name, label, type, , optionsArg]) => {
+            const dynamicOptions = (type === "select" || type === "datalist") && !optionsArg ? [...new Set(records.map((r) => r[name]).filter(Boolean))] : null;
+            if (type === "select" && optionsArg && !dynamicOptions) {
+              return <SelectField key={name} label={label} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} options={optionsArg} />;
             }
-            return <Field key={name} name={name} label={label} type={type} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} />;
+            return <Field key={name} name={name} label={label} type={type} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} options={dynamicOptions || optionsArg} />;
           })}
         </div>
         {duplicate && (

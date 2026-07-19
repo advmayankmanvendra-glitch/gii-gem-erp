@@ -1,11 +1,22 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SCREEN_ACTION_REGISTRY } from "../src/renderer/config/screenActionRegistry.js";
 
 const projectRoot = process.cwd();
-const appSource = readFileSync(join(projectRoot, "src", "renderer", "App.jsx"), "utf8");
+const rendererRoot = join(projectRoot, "src", "renderer");
 let passed = 0;
 let failed = 0;
+
+function rendererSources(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const location = join(directory, entry.name);
+    if (entry.isDirectory()) return rendererSources(location);
+    if (!/\.(?:js|jsx)$/.test(entry.name)) return [];
+    return [{ location, source: readFileSync(location, "utf8") }];
+  });
+}
+
+const sources = rendererSources(rendererRoot);
 
 function pass(message) {
   passed += 1;
@@ -18,13 +29,17 @@ function fail(message) {
 }
 
 for (const action of SCREEN_ACTION_REGISTRY) {
-  if (appSource.includes(action.actionKey)) pass(`${action.actionKey} render marker found`);
+  const owners = sources.filter(({ source }) => source.includes(`data-action-key="${action.actionKey}"`));
+  const implementation = owners.find(({ source }) => source.includes(action.handlerName));
+
+  if (owners.length > 0) pass(`${action.actionKey} render marker found`);
   else fail(`${action.actionKey} render marker missing`);
 
-  if (appSource.includes(action.handlerName)) pass(`${action.actionKey} handler ${action.handlerName} found`);
+  if (implementation) pass(`${action.actionKey} handler ${action.handlerName} found in its renderer owner`);
   else fail(`${action.actionKey} handler ${action.handlerName} missing`);
 
-  if (appSource.includes(`data-action-key="${action.actionKey}"`)) pass(`${action.actionKey} data-action-key is wired`);
+  if (owners.length === 1) pass(`${action.actionKey} data-action-key is wired exactly once`);
+  else if (owners.length > 1) fail(`${action.actionKey} data-action-key is wired ${owners.length} times`);
   else fail(`${action.actionKey} data-action-key is not wired`);
 }
 

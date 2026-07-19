@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { CRACStatusCard } from "../../components/crac/CRACStatusCard.jsx";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function CRACEntryScreen({ notify, companyContext, apiClient, onNavigate }) {
   const [orders, setOrders] = useState([]);
@@ -46,7 +47,7 @@ export function CRACEntryScreen({ notify, companyContext, apiClient, onNavigate 
         <label className="field">Supply Order
           <select value={selectedOrderId} onChange={(e) => setSelectedOrderId(e.target.value)} required>
             <option value="">Select order...</option>
-            {orders.map((o) => <option key={o.id} value={o.id}>{o.order_number} - {o.institution_name || o.department_name || ""}</option>)}
+            {sortRecordsBy(orders, (order) => `${order.order_number} ${order.institution_name || order.department_name || ""}`).map((o) => <option key={o.id} value={o.id}>{o.order_number} - {o.institution_name || o.department_name || ""}</option>)}
           </select>
         </label>
         <div className="billing-grid-scroll" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

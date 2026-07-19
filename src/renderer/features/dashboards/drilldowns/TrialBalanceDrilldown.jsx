@@ -29,7 +29,7 @@ export function TrialBalanceDrilldown({ apiClient, companyContext, onNavigate })
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Total Debit</strong><span>{formatCurrency(totalDebit)}</span></div>
         <div className="metric-card"><strong>Total Credit</strong><span>{formatCurrency(totalCredit)}</span></div>
-        <div className="metric-card highlight-{difference === 0 ? 'ok' : 'error'}"><strong>Difference</strong><span>{difference === 0 ? "Balanced ✓" : formatCurrency(difference)}</span></div>
+        <div className={`metric-card highlight-${difference === 0 ? "ok" : "error"}`}><strong>Difference</strong><span>{difference === 0 ? "Balanced ✓" : formatCurrency(difference)}</span></div>
       </div>
       <table className="drilldown-table">
         <thead>

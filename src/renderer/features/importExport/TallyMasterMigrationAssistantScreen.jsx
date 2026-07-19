@@ -5,6 +5,7 @@ import { TemplateAuditNote } from "../../components/presentation/index.jsx";
 import { confirmAction } from "../../config/confirmations.js";
 import { csvCell } from "../../utils/spreadsheetExport.js";
 import { downloadText } from "../../utils/formatters.js";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 const tallyMasterMigrationFileSlots = [
   { id: "stock_items_xml", label: "Stock Items XML", note: "Stock items, units, stock groups, godowns, HSN and GST." },
@@ -844,7 +845,7 @@ export function TallyMasterMigrationAssistantScreen({ notify, session, companyCo
                     <span>Existing Company</span>
                     <select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
                       <option value="">Select company</option>
-                      {existingCompanies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+                      {sortRecordsBy(existingCompanies, (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
                     </select>
                   </label>
                 ) : (

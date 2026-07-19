@@ -50,8 +50,11 @@ if (serviceContent.includes("quoteIdentifier")) pass("Safe delete dynamic SQL id
 else fail("Safe delete dynamic SQL identifiers are not centrally validated");
 
 const initContent = readFileSync(join(projectRoot, "src", "main", "database", "init.js"), "utf8");
-const deleteBatchBody = extractFunctionBody(initContent, "deleteItemImportBatch");
-const deleteUnusedBody = extractFunctionBody(initContent, "deleteUnusedImportedItems");
+const importValidationContent = readFileSync(join(projectRoot, "src", "main", "services", "importValidationService.js"), "utf8");
+const crudContent = readFileSync(join(projectRoot, "src", "main", "database", "crudHelpers.js"), "utf8");
+const mainContent = readFileSync(join(projectRoot, "src", "main", "main.js"), "utf8");
+const deleteBatchBody = extractFunctionBody(importValidationContent, "deleteItemImportBatch");
+const deleteUnusedBody = extractFunctionBody(importValidationContent, "deleteUnusedImportedItems");
 
 if (deleteBatchBody.includes('assertBulkDeleteSafe(db, "items", ids)')) pass("deleteItemImportBatch uses bulk safe-delete guard");
 else fail("deleteItemImportBatch missing bulk safe-delete guard");
@@ -80,6 +83,24 @@ const expectedManualChecks = [
 for (const table of expectedManualChecks) {
   if (deleteUnusedBody.includes(table)) pass(`Manual imported-item protection includes ${table}`);
   else fail(`Manual imported-item protection missing ${table}`);
+}
+
+const masterDeactivateIndex = crudContent.indexOf("MASTER_TABLES[table] && masterRecordIsReferenced");
+const ownedDeleteGuardIndex = crudContent.indexOf("assertDeleteSafe(db, table, id)", masterDeactivateIndex);
+const softDeleteIndex = crudContent.indexOf('columnExists(db, table, "is_deleted")', masterDeactivateIndex);
+if (masterDeactivateIndex >= 0 && ownedDeleteGuardIndex > masterDeactivateIndex && ownedDeleteGuardIndex < softDeleteIndex) {
+  pass("CRUD ownership boundary guards every destructive delete after linked-master deactivation");
+} else {
+  fail("CRUD ownership boundary does not guard destructive deletes after linked-master deactivation");
+}
+
+if (!mainContent.includes("if (!MASTER_TABLES[table])")) pass("Generic records delete IPC has no master-table guard bypass");
+else fail("Generic records delete IPC still bypasses the guard for master tables");
+
+if (initContent.includes("assertDeleteSafe,") && crudContent.includes("assertDeleteSafe,")) {
+  pass("Safe-delete guard is injected into the CRUD ownership boundary");
+} else {
+  fail("Safe-delete guard is not injected into the CRUD ownership boundary");
 }
 
 const db = initializeDatabase();

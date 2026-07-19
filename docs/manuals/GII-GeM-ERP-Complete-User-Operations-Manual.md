@@ -421,13 +421,13 @@ The application window is divided into five major zones:
 ┌─────────────────────────────────────────────────────────────────┐
 │  Title Bar          [App Name]   [Min] [Max] [Close]           │
 ├──────────┬──────────────────────────────────┬───────────────────┤
-│          │                                  │                    │
-│  Sidebar │    Workspace / Content Area      │  Right Utility     │
-│  Nav     │    (Screen Host)                 │  Sidebar           │
+│          │   Help: [Screen Help] [Learn]    │                    │
+│  Sidebar │   [Training] [Ask ERP Help]      │  Right Utility     │
+│  Nav     │   [Feedback]                     │  Sidebar           │
 │          │                                  │  - Company Select  │
 │  - Favorites│   ┌───────────────────────┐   │  - Productivity    │
-│  - Recent │   │  Metric Cards          │   │  - Quick Actions   │
-│  - Groups │   ├───────────────────────┤   │  - Help/Support    │
+│  - Recent │   │  Metric Cards          │   │                    │
+│  - Groups │   ├───────────────────────┤   │                    │
 │           │   │  Records Table / Form  │   │                    │
 │  Search   │   │                       │   │                    │
 │           │   └───────────────────────┘   │                    │
@@ -507,13 +507,23 @@ The right panel provides:
 
 - **Company Selector**: Dropdown to switch company context; "All Companies" view for administrators
 - **Productivity Panel**: Context-aware shortcut buttons and quick actions for the current screen
-- **Help & Training**: Quick links to Help Assistant, Training Mode toggle
-- **Quick Actions**: One-click commands like New Supply Order, New Invoice, etc.
 - **Settings gear**: Opens the Settings screen
 
 The right sidebar can be collapsed using the toggle button on its header.
 
-### 5.7 Dialogs and Overlays
+### 5.7 Help Quick Actions Bar
+
+The top header area (below the breadcrumb/screen title) contains a horizontal bar with quick-access help buttons:
+
+- **Screen Help**: Opens context-sensitive guidance for the current screen and module
+- **Learn This Screen**: Launches the learning dialog explaining the screen's purpose, workflow, common mistakes, and related reports
+- **Training**: Toggles Training Mode on/off and navigates to the Help & Training screen with sample guidance data
+- **Ask ERP Help**: Opens the AI-powered Help Assistant for general ERP questions
+- **Feedback**: Opens the feedback submission form for suggestions, bug reports, and improvement requests
+
+These buttons were relocated from the left sidebar navigation area to keep navigation clean and make help actions always visible at the top of every screen.
+
+### 5.8 Dialogs and Overlays
 
 | Dialog | Trigger | Purpose |
 |--------|---------|---------|
@@ -525,7 +535,7 @@ The right sidebar can be collapsed using the toggle button on its header.
 | **Shortcut Help** | F1 | Display all keyboard shortcuts |
 | **Context Shortcut** | `/` or context button | Screen-specific quick action overlay |
 | **User Preferences** | F12 | Toggle compact sidebar, theme settings |
-| **Help Assistant** | Right sidebar link | AI-guided help and training |
+| **Help Assistant** | Top header "Ask ERP Help" button, or sidebar nav "Help Assistant" item | AI-guided help and training |
 | **First-Time Tour** | First login | Guided walkthrough of UI elements |
 
 ---

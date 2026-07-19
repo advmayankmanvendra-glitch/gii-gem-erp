@@ -4,7 +4,7 @@ import { scrollToSection } from "../../utils/navigationScroll.js";
 import { requestPrintPreview } from "../../utils/uiHelpers.js";
 import { roleAllowsAction } from "../../components/helpProductivity/index.jsx";
 import { EmptyState, Icon } from "../../components/common.jsx";
-import { Field, ReportActionButtons, ReportDateFilters, ReportToolbar, SelectBox } from "../../components/forms/index.jsx";
+import { Field, getPresetDates, ReportActionButtons, ReportDateFilters, ReportToolbar, SelectBox } from "../../components/forms/index.jsx";
 import { DrilldownPanel } from "../../components/panels/DrilldownPanel.jsx";
 import { AccountingControlReportTable, FinancialControlOverview, LockedYearControlNotice } from "../../components/accountingControls/index.jsx";
 import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "../../screens/ReadOnlyReportFamilyScreen.jsx";
@@ -14,7 +14,8 @@ import { confirmAction, reversalConfirmOptions, postConfirmOptions, approveConfi
 
 export function AccountingScreen({ view, notify, role, companyContext, onNavigate, api }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: "2026-01-01", date_to: today });
+  const currentFinancialYear = getPresetDates("this_fy");
+  const [filters, setFilters] = useState({ company_id: companyContext?.company_id || "", date_from: currentFinancialYear.date_from, date_to: today });
   const [data, setData] = useState(null);
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [drilldown, setDrilldown] = useState(null);

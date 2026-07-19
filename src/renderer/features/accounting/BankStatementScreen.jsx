@@ -5,6 +5,7 @@ import { Metric, SummaryTable } from "../../components/common.jsx";
 import { ReportActionButtons } from "../../components/forms/index.jsx";
 import { PhasePanel } from "../../components/panels/SmallComponents.jsx";
 import { confirmAction } from "../../utils/actionUtils.js";
+import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
 
 function normalizeImportHeader(header) {
   return header.trim().toLowerCase().replaceAll(/\s+/g, "_").replaceAll(/[^a-z0-9_]/g, "").replace(/^_|_$/g, "");
@@ -269,20 +270,20 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
         <label>
           Company
           <select value={form.company_id} onChange={(event) => setForm({ ...form, company_id: event.target.value })}>
-            {(data?.companies || []).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+            {sortRecordsBy(data?.companies || [], (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
           </select>
         </label>
         <label>
           Bank Account
           <select value={form.bank_id} onChange={(event) => setForm({ ...form, bank_id: event.target.value })}>
             <option value="">No bank selected</option>
-            {(data?.banks || []).map((bank) => <option key={bank.id} value={bank.id}>{bank.bank_account_name} - {bank.bank_name}</option>)}
+            {sortRecordsBy(data?.banks || [], (bank) => `${bank.bank_account_name} ${bank.bank_name}`).map((bank) => <option key={bank.id} value={bank.id}>{bank.bank_account_name} - {bank.bank_name}</option>)}
           </select>
         </label>
         <label>
           Bank Format
           <select value={form.bank_name} onChange={(event) => setForm({ ...form, bank_name: event.target.value })}>
-            {["SBI", "HDFC", "ICICI", "Axis", "Generic Format"].map((bank) => <option key={bank}>{bank}</option>)}
+            {sortOptions(["SBI", "HDFC", "ICICI", "Axis", "Generic Format"]).map((bank) => <option key={bank}>{bank}</option>)}
           </select>
         </label>
         <label>
@@ -306,7 +307,7 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
                 {target.replaceAll("_", " ")}
                 <select value={mapping[target] || ""} onChange={(event) => setMapping({ ...mapping, [target]: event.target.value })}>
                   <option value="">Auto / Not mapped</option>
-                  {headers.map((header) => <option key={header} value={header}>{header}</option>)}
+                  {sortOptions(headers).map((header) => <option key={header} value={header}>{header}</option>)}
                 </select>
               </label>
             ))}
@@ -321,7 +322,7 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
             <span>{selectedImport ? `${selectedImport.status} / ${selectedImport.posting_status}` : "No import selected"}</span>
           </div>
           <select value={selectedImportId} onChange={(event) => { setSelectedImportId(event.target.value); load({ import_id: event.target.value }); }}>
-            {(data?.imports || []).map((item) => <option key={item.id} value={item.id}>#{item.id} {item.bank_name} - {item.source_file_name}</option>)}
+            {sortRecordsBy(data?.imports || [], (item) => `${item.source_file_name || ""} ${item.bank_name || ""}`).map((item) => <option key={item.id} value={item.id}>#{item.id} {item.bank_name} - {item.source_file_name}</option>)}
           </select>
         </div>
         <div className="metric-grid compact-metrics">

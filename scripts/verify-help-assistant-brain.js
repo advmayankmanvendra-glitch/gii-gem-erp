@@ -159,6 +159,12 @@ if (fileContains("src/renderer/modules/helpAssistant/HelpAssistantAnswer.jsx", /
   warn("BRAIN-3: HelpAssistantAnswer.jsx missing workOrderBoundary rendering");
 }
 
+if (fileContains("src/renderer/modules/helpAssistant/HelpAssistant.jsx", /answer\?\.safetyBoundary === "action-refused"/)) {
+  pass("BRAIN-3: Help Assistant suppresses search action paths for refused requests");
+} else {
+  fail("BRAIN-3: Help Assistant may expose search action paths beside refused requests");
+}
+
 // 19. ERP Brain is not modified
 if (fileContains("src/renderer/modules/erpBrain/index.js", /helpAssistant/)) {
   warn("BRAIN-3: ERP Brain index.js references Help Assistant (clean separation check)");
@@ -197,21 +203,42 @@ try {
   const knowledgeUrl = pathToFileURL(resolve(ROOT, "src/renderer/modules/helpAssistant/helpAssistantKnowledge.js")).href;
   const utilsUrl = pathToFileURL(resolve(ROOT, "src/renderer/modules/helpAssistant/helpAssistantUtils.js")).href;
   const { buildHelpAssistantKnowledge } = await import(knowledgeUrl);
-  const { buildHelpAssistantAnswer } = await import(utilsUrl);
-  const currentHelp = { title: "Billing / GST Invoice", viewKey: "sales_invoices", description: "Invoice guidance" };
+  const { buildHelpAssistantAnswer, navigationLocationTopics } = await import(utilsUrl);
+  const currentHelp = { title: "Billing / GST Invoice", viewKey: "invoices", description: "Invoice guidance" };
   const topics = buildHelpAssistantKnowledge(currentHelp);
-  const screenAnswer = buildHelpAssistantAnswer({ query: "", mode: "screen", topics, currentHelp, currentView: "sales_invoices", readiness: {}, coach: {}, stats: {} });
+  const screenAnswer = buildHelpAssistantAnswer({ query: "", mode: "screen", topics, currentHelp, currentView: "invoices", readiness: {}, coach: {}, stats: {} });
   if (screenAnswer.brainBacked && screenAnswer.workflowStage && screenAnswer.accountingSafetyBoundary && screenAnswer.sourceReferences?.length) {
     pass("BRAIN-3: Runtime screen guidance includes source-backed workflow and accounting safety context");
   } else {
     fail("BRAIN-3: Runtime screen guidance missing source-backed workflow or accounting safety context");
   }
 
-  const billHistoryAnswer = buildHelpAssistantAnswer({ query: "Bill History", mode: "help", topics, currentHelp, currentView: "sales_invoices", readiness: {}, coach: {}, stats: {} });
-  if (billHistoryAnswer.brainBacked && billHistoryAnswer.sourceReferences?.length && billHistoryAnswer.sourceLabel === "BRAIN-2 source-backed guidance") {
-    pass("BRAIN-3: Runtime Bill History guidance uses BRAIN-2 source-backed result");
+  const billHistoryAnswer = buildHelpAssistantAnswer({ query: "Where is Bill History?Where is Bill History?", mode: "help", topics, currentHelp, currentView: "invoices", readiness: {}, coach: {}, stats: {} });
+  const serializedBillHistoryAnswer = JSON.stringify(billHistoryAnswer);
+  if (billHistoryAnswer.question === "Where is Bill History?" && billHistoryAnswer.viewKey === "purchase_bills" && billHistoryAnswer.directAnswer?.includes("Operations > Purchase Bills")) {
+    pass("BRAIN-3: Runtime Bill History guidance normalizes duplicate input and returns deterministic navigation");
   } else {
-    fail("BRAIN-3: Runtime Bill History guidance did not use BRAIN-2 source-backed result");
+    fail("BRAIN-3: Runtime Bill History guidance is duplicated or missing deterministic navigation");
+  }
+  if (!/BRAIN-\d|Brain Source|workflow-graph|database-graph|voucher-accounting-graph|renderer-graph|\"repository\"/.test(serializedBillHistoryAnswer)) {
+    pass("BRAIN-3: Runtime user-facing answer contains no internal intelligence labels");
+  } else {
+    fail("BRAIN-3: Runtime user-facing answer leaks internal intelligence labels");
+  }
+  const navigationResults = navigationLocationTopics("Where is Bill History?", topics);
+  if (navigationResults.map((topic) => topic.viewKey).join(",") === "purchase_bills,invoices") {
+    pass("BRAIN-3: Live Bill History search results align with the deterministic navigation answer");
+  } else {
+    fail("BRAIN-3: Live Bill History search results contradict the deterministic navigation answer");
+  }
+
+  const unsafeActionAnswer = buildHelpAssistantAnswer({ query: "Post this voucher", mode: "help", topics, currentHelp, currentView: "invoices", readiness: {}, coach: {}, stats: {} });
+  const refusalIsExplicit = /\b(cannot|unable)\b/i.test(unsafeActionAnswer.directAnswer || "");
+  const hasNoExecutionPath = !unsafeActionAnswer.viewKey && !unsafeActionAnswer.relatedActions?.length && !unsafeActionAnswer.suggestedNextActions?.length;
+  if (unsafeActionAnswer.safetyBoundary === "action-refused" && refusalIsExplicit && unsafeActionAnswer.prohibitedActions?.length && hasNoExecutionPath) {
+    pass("BRAIN-3: Runtime Help mode refuses unsafe actions without exposing an execution path");
+  } else {
+    fail("BRAIN-3: Runtime Help mode does not enforce the read-only unsafe-action boundary");
   }
 } catch (error) {
   fail(`BRAIN-3: Runtime integration failed: ${error.message}`);

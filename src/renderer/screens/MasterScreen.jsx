@@ -49,7 +49,13 @@ export function MasterScreen({ table, config, notify, companyContext, selectTabl
   async function load() {
     setLoading(true);
     try {
-      setRecords(await api.listRecords(table, companyScopedMaster ? { ...filters, company_id: companyContext?.company_id } : filters));
+      const rows = await api.listRecords(table, companyScopedMaster ? { ...filters, company_id: companyContext?.company_id } : filters);
+      const sorted = [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
+        const pa = (a[config.primary] || "").toString().toLowerCase();
+        const pb = (b[config.primary] || "").toString().toLowerCase();
+        return pa.localeCompare(pb, undefined, { numeric: true });
+      });
+      setRecords(sorted);
     } catch (error) {
       notify(error.message, "error");
     } finally {
@@ -139,16 +145,20 @@ export function MasterScreen({ table, config, notify, companyContext, selectTabl
             {editing && <button type="button" className="ghost-btn" onClick={() => { setEditing(null); setForm(scopedBlank); }}>Clear</button>}
           </div>
           <div className="form-grid">
-            {config.fields.map(([name, label, type]) => (
-              <Field
-                key={name}
-                name={name}
-                label={label}
-                type={type}
-                value={form[name] ?? ""}
-                onChange={(value) => setForm({ ...form, [name]: value })}
-              />
-            ))}
+            {config.fields.map(([name, label, type]) => {
+              const fieldOptions = ["select", "datalist"].includes(type) ? [...new Set(records.map((r) => r[name]).filter(Boolean))] : undefined;
+              return (
+                <Field
+                  key={name}
+                  name={name}
+                  label={label}
+                  type={type}
+                  value={form[name] ?? ""}
+                  onChange={(value) => setForm({ ...form, [name]: value })}
+                  options={fieldOptions}
+                />
+              );
+            })}
           </div>
           <button className="primary-btn">{editing ? "Update" : "Save"}</button>
         </form>

@@ -13,6 +13,7 @@ import { AddRecordPanel } from "../../components/panels/AddRecordPanel.jsx";
 import { PhasePanel } from "../../components/panels/SmallComponents.jsx";
 import { EmptyState, Icon } from "../../components/common.jsx";
 import { confirmAction, postedProtectionOptions, deleteConfirmOptions, postConfirmOptions, approveConfirmOptions, isRecordLocked } from "../../utils/actionUtils.js";
+import { sortOptions } from "../../utils/optionSorting.js";
 
 function referenceOptions(type, refs) {
   if (!refs) return [];
@@ -26,7 +27,7 @@ function referenceOptions(type, refs) {
     item: (refs.items || []).map((row) => [row.id, row.item_name]),
     warehouse: (refs.warehouses || []).map((row) => [row.id, row.warehouse_name])
   };
-  return map[type] || [];
+  return sortOptions(map[type] || []);
 }
 
 function defaultValueFor(type) {

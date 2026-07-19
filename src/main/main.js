@@ -121,7 +121,6 @@ import {
 } from "./services/cracService.js";
 import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
-import { assertDeleteSafe, assertBulkDeleteSafe } from "./services/safeDeleteService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -146,6 +145,8 @@ if (!app.isPackaged) {
     // Falling back to Electron defaults is safer than blocking app startup.
   }
 }
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function safeMainLog(level, message) {
   try {
@@ -445,9 +446,9 @@ function createWindow() {
     win.loadFile(path.join(appRoot, "dist", "index.html"));
   }
 
-  win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-    if (level >= 2) {
-      safeMainLog("warn", `[renderer:${level}] ${message} (${sourceId}:${line})`);
+  win.webContents.on("console-message", (details) => {
+    if (["warning", "error"].includes(details?.level)) {
+      safeMainLog("warn", `[renderer:${details.level}] ${details.message} (${details.sourceId}:${details.lineNumber})`);
     }
   });
 
@@ -777,10 +778,7 @@ function registerIpc() {
   ipcMain.handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
   ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
   ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
-  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => {
-    assertDeleteSafe(db, table, id);
-    return deleteRecord(db, table, id);
-  }));
+  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
   ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
 
   ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
@@ -1020,23 +1018,35 @@ function registerIpc() {
   ipcMain.handle("feedback:export", (_event, format) => exportFeedback(db, format));
 }
 
-app.whenReady().then(() => {
-  configureRuntimeStorage();
-  applyPendingRestore(runtimeDataRoot);
-  db = initializeDatabase(runtimeDataRoot);
-  registerIpc();
-  installApplicationMenu();
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
   });
-});
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+  app.whenReady().then(() => {
+    configureRuntimeStorage();
+    applyPendingRestore(runtimeDataRoot);
+    db = initializeDatabase(runtimeDataRoot);
+    registerIpc();
+    installApplicationMenu();
+    createWindow();
 
-app.on("before-quit", () => {
-  db?.close();
-});
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+
+  app.on("before-quit", () => {
+    db?.close();
+  });
+}

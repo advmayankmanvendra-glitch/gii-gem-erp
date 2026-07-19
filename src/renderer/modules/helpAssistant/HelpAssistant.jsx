@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { HELP_ASSISTANT_SUGGESTIONS, buildHelpAssistantKnowledge } from "./helpAssistantKnowledge.js";
-import { buildHelpAssistantAnswer, searchHelpTopics } from "./helpAssistantUtils.js";
+import { buildHelpAssistantAnswer, navigationLocationTopics, normalizeSubmittedQuestion, searchHelpTopics } from "./helpAssistantUtils.js";
 import { HelpAssistantAnswer } from "./HelpAssistantAnswer.jsx";
 import { HelpAssistantCoach } from "./HelpAssistantCoach.jsx";
 import { HelpAssistantDataMode } from "./HelpAssistantDataMode.jsx";
@@ -20,11 +20,14 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
   const coach = useMemo(() => buildCoachPriorities({ readiness, stats, companyContext }), [readiness, stats, companyContext]);
   const answerContext = useMemo(() => ({ topics, currentHelp, currentView, readiness, coach, stats }), [topics, currentHelp, currentView, readiness, coach, stats]);
   const [answer, setAnswer] = useState(() => buildHelpAssistantAnswer({ query: "", mode: initialMode, ...answerContext }));
-  const results = useMemo(() => searchHelpTopics(topics, query, 8), [topics, query]);
+  const results = useMemo(() => {
+    const navigationResults = navigationLocationTopics(query, topics);
+    return navigationResults.length ? navigationResults : searchHelpTopics(topics, query, 8);
+  }, [topics, query]);
   const guidanceContextKey = `${currentView || ""}|${currentHelp?.key || currentHelp?.title || ""}|${initialMode}`;
 
   function ask(nextQuery = query, nextMode = mode) {
-    const asked = String(nextQuery || "").trim();
+    const asked = normalizeSubmittedQuestion(nextQuery);
     const nextAnswer = buildHelpAssistantAnswer({ query: asked, mode: nextMode, conversationHistory, ...answerContext });
     setQuery(asked);
     setMode(nextMode);
@@ -69,7 +72,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
     <section className="help-assistant-screen">
       <section className="panel help-assistant-hero">
         <div>
-          <span>Guidance-only assistant</span>
+          <span>ERP Help</span>
           <h2>GII ERP Help Assistant</h2>
           <p>Search the ERP manual, workflow guide, FAQ, troubleshooting notes, screen metadata and keyboard shortcuts without changing any ERP data.</p>
         </div>
@@ -81,7 +84,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
             <small>Current guidance context</small>
             <strong>{currentHelp?.title || currentView || "ERP Screen"}</strong>
             <small>{companyContext?.company_name || "No company selected"}</small>
-            <small>{session?.role || "User"} guidance only</small>
+            <small>{session?.role === "admin" ? "Administrator help" : "User help"}</small>
           </div>
         </div>
       </section>
@@ -92,7 +95,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
             <AssistantPanel currentView={currentView} currentRole={session?.role} onNavigate={onNavigate} />
           ) : (
             <>
-              <HelpAssistantSearch query={query} mode={mode} onQueryChange={setQuery} onModeChange={changeMode} onAsk={() => ask()} />
+              <HelpAssistantSearch query={query} mode={mode} onQueryChange={setQuery} onModeChange={changeMode} onAsk={(submittedQuery) => ask(submittedQuery)} />
               <HelpAssistantAnswer answer={answer} onAction={onNavigate} onOpenScreen={onNavigate} onRelatedTopic={askRelated} />
               {mode === "onboarding" && <HelpAssistantOnboarding readiness={readiness} onNavigate={onNavigate} />}
               {mode === "coach" && <HelpAssistantCoach coach={coach} onNavigate={onNavigate} />}
@@ -107,7 +110,9 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
           }} />
           <section className="panel help-assistant-results">
             <h2>Search Results</h2>
-            {query.trim() ? (
+            {answer?.safetyBoundary === "action-refused" ? (
+              <p>No screen actions are offered for a refused request. Ask where to find the relevant screen if you need navigation guidance.</p>
+            ) : query.trim() ? (
               results.length ? (
                 <div className="help-assistant-results-list">
                   {results.map((topic) => (
@@ -127,10 +132,10 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
             ) : <p>Type a question to see matching help topics.</p>}
           </section>
           <section className="panel help-assistant-boundary">
-            <h2>Safety Boundary</h2>
+            <h2>Safe Help</h2>
             <ul>
               <li>No record creation, posting, reversal, deletion or restore.</li>
-              <li>No live accounting data query in this phase.</li>
+              <li>I cannot display live records or balances here.</li>
               <li>Use module screens for actual ERP actions.</li>
             </ul>
             <button type="button" className="ghost-btn" onClick={() => onNavigate?.("help_training")}>Open Full Help & Training</button>

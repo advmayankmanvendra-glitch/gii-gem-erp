@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { MetricLine } from "../../../components/forms/index.jsx";
 import { blankSupplyOrderItem, supplyOrderItemTotals, normalizedSupplyOrderItems, calculatedSupplyOrderLine, itemById, statusRequiresSupplyOrderItems } from "./supplyOrderHelpers.js";
+import { sortOptions, sortRecordsBy } from "../../../utils/optionSorting.js";
 
 export function SupplyOrderItemsGrid({ items, setItems, references, orderStatus, validationErrors = [], formatCurrency, formatNumber }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const itemOptions = references?.items || [];
+  const itemOptions = sortRecordsBy(references?.items || [], (item) => item.item_name);
   const totals = supplyOrderItemTotals(items, references);
   const hasItems = normalizedSupplyOrderItems(items, references).length > 0;
   const missingTax = items.some((line) => ["item_id", "item_description", "brand", "model", "hsn_sac", "quantity", "unit", "quoted_rate", "gst_rate", "required_delivery_date", "remarks"].some((key) => String(line[key] ?? "").trim()) && (!String(calculatedSupplyOrderLine(line, references).hsn_sac || "").trim() || String(calculatedSupplyOrderLine(line, references).gst_rate ?? "").trim() === ""));
@@ -94,7 +95,12 @@ export function SupplyOrderItemsGrid({ items, setItems, references, orderStatus,
                     </select>
                   </td>
                   <td><input value={calculated.item_description || ""} data-line-field="item_description" aria-invalid={Boolean(itemErrorFor(index, "item_description"))} onChange={(event) => updateLine(index, { item_description: event.target.value })} /></td>
-                  <td><input value={calculated.brand || ""} data-line-field="brand" onChange={(event) => updateLine(index, { brand: event.target.value })} /></td>
+                  <td>
+                    <select value={calculated.brand || ""} data-line-field="brand" onChange={(event) => updateLine(index, { brand: event.target.value })}>
+                      <option value="">Select</option>
+                      {sortOptions([...new Set(itemOptions.map((i) => i.brand).filter(Boolean))]).map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                    </select>
+                  </td>
                   <td><input value={calculated.model || ""} data-line-field="model" onChange={(event) => updateLine(index, { model: event.target.value })} /></td>
                   <td><input value={calculated.hsn_sac || ""} data-line-field="hsn_sac" aria-invalid={Boolean(itemErrorFor(index, "hsn_sac"))} onChange={(event) => updateLine(index, { hsn_sac: event.target.value })} /></td>
                   <td><input type="number" min="0" step="0.01" value={line.quantity ?? ""} data-line-field="quantity" aria-invalid={Boolean(itemErrorFor(index, "quantity"))} onChange={(event) => updateLine(index, { quantity: event.target.value })} /></td>

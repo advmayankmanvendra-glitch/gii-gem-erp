@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { EmptyState, Metric } from "../components/common.jsx";
 import { ReportToolbar, MetricLine } from "../components/forms/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import { sortRecordsBy } from "../utils/optionSorting.js";
 
 const SCENARIOS_KEY = "gii-gem-profit-simulator-scenarios";
 
@@ -137,7 +138,7 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
       <ReportToolbar title="Profit Simulator" note="Adjust parameters to simulate profitability scenarios based on actual order data.">
         <select value={selectedScenario} onChange={(e) => e.target.value && loadScenario(e.target.value)}>
           <option value="">Load Scenario</option>
-          {scenarios.map((s) => (
+          {sortRecordsBy(scenarios, (scenario) => scenario.name).map((s) => (
             <option key={s.name} value={s.name}>{s.name}</option>
           ))}
         </select>

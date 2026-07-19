@@ -13,7 +13,7 @@ import {
   setRuntimeRoot,
   sourceProjectRoot
 } from "./connection.js";
-import { assertBulkDeleteSafe } from "../services/safeDeleteService.js";
+import { assertBulkDeleteSafe, assertDeleteSafe } from "../services/safeDeleteService.js";
 import { createReportBuilders } from "./reportBuilders.js";
 import { createCrudHelpers } from "./crudHelpers.js";
 import { createSchemaFunctions } from "./schemaDefinitions.js";
@@ -1479,6 +1479,7 @@ const {
   MASTER_TABLES,
   ACCOUNTING_TABLES,
   auditLog,
+  assertDeleteSafe,
   assertTransactionYearOpen,
   financialYearForDate,
   transactionDateFor,

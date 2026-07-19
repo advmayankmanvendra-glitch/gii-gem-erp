@@ -354,7 +354,7 @@ This matrix was compiled by auditing the following source artifacts:
 | 227 | Renderer Error Boundary | ✅ | `RendererErrorBoundary.jsx`, `App.jsx:82` | Phase 14+ | Graceful error handling with safe mode navigation and reset. |
 | 228 | Company Context Isolation | ✅ | `App.jsx:324-329`, `App.jsx:383-401` | Phase 7+ | Current company selector, All Companies View (admin), context audit logging. |
 | 229 | Navigation Sidebar | ✅ | `NavigationSidebar.jsx`, `App.jsx:1208-1222` | Phase 3+ | Grouped navigation with search, favorites, recents, compact mode. |
-| 230 | Right Utility Sidebar | ✅ | `RightUtilitySidebar.jsx`, `App.jsx:1333-1371` | Phase 3+ | Company switcher, help, training, settings, productivity panel. |
+| 230 | Right Utility Sidebar | ✅ | `RightUtilitySidebar`, `App.jsx` | Phase 3+ | Company switcher, settings, productivity panel. Help quick actions moved to top header (HelpQuickActionsBar). |
 | 231 | Workspace Frame | ✅ | `WorkspaceFrame.jsx`, `App.jsx:1225-1324` | Phase 3+ | Breadcrumb, title, subtitle, back button, mobile sidebar toggle. |
 | 232 | Exit Confirmation | ✅ | `App.jsx:532-548`, `App.jsx:550-570` | Phase 3+ | Exit dialog with unsaved changes warning, Escape-to-go-back flow. |
 | 233 | Browser Preview Mode | ✅ | `App.jsx:1243-1247` | Phase 14+ | Runtime banner indicating browser preview without SQLite backend. |

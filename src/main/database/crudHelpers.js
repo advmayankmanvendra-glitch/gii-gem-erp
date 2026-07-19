@@ -6,6 +6,7 @@ export function createCrudHelpers({
   MASTER_TABLES,
   ACCOUNTING_TABLES,
   auditLog,
+  assertDeleteSafe,
   assertTransactionYearOpen,
   financialYearForDate,
   transactionDateFor,
@@ -388,6 +389,7 @@ export function createCrudHelpers({
       auditLog(db, { action: "deactivate", table_name: table, record_id: id, old_value: JSON.stringify(record), new_value: "inactive_linked_master" });
       return changes > 0;
     }
+    assertDeleteSafe(db, table, id);
     if (columnExists(db, table, "is_deleted")) {
       const changes = db.prepare(`UPDATE ${table} SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id).changes;
       auditLog(db, { action: "delete", table_name: table, record_id: id, old_value: "", new_value: "soft_delete" });

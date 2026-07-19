@@ -722,7 +722,7 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
               <Field name="hsn_code" label="HSN Code" type="text" value={quickItem.form.hsn_code} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, hsn_code: value } })} />
               <Field name="gst_rate" label="GST Rate" type="number" value={quickItem.form.gst_rate} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, gst_rate: value } })} />
               <Field name="unit" label="Unit" type="text" value={quickItem.form.unit} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, unit: value } })} />
-              <Field name="brand" label="Brand" type="text" value={quickItem.form.brand} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, brand: value } })} />
+              <Field name="brand" label="Brand" type="select" value={quickItem.form.brand} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, brand: value } })} options={[...new Set((refs.items || []).map((i) => i.brand).filter(Boolean))]} />
               <Field name="model" label="Model" type="text" value={quickItem.form.model} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, model: value } })} />
               <Field name="category" label="Category" type="text" value={quickItem.form.category} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, category: value } })} />
               <Field name="description" label="Description" type="textarea" value={quickItem.form.description} onChange={(value) => setQuickItem({ ...quickItem, form: { ...quickItem.form, description: value } })} />

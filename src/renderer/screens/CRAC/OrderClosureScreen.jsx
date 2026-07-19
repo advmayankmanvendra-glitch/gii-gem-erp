@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ReportToolbar, ReportActionButtons } from "../../components/forms/index.jsx";
 import { ClosureChecklist } from "../../components/crac/ClosureChecklist.jsx";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function OrderClosureScreen({ notify, companyContext, apiClient, onNavigate }) {
   const [orders, setOrders] = useState([]);
@@ -60,7 +61,7 @@ export function OrderClosureScreen({ notify, companyContext, apiClient, onNaviga
       <label className="field">Supply Order
         <select value={selectedOrderId} onChange={(e) => setSelectedOrderId(e.target.value)}>
           <option value="">Select order...</option>
-          {orders.map((o) => <option key={o.id} value={o.id}>{o.order_number} - {o.institution_name || o.department_name || ""}</option>)}
+          {sortRecordsBy(orders, (order) => `${order.order_number} ${order.institution_name || order.department_name || ""}`).map((o) => <option key={o.id} value={o.id}>{o.order_number} - {o.institution_name || o.department_name || ""}</option>)}
         </select>
       </label>
       {loading ? (

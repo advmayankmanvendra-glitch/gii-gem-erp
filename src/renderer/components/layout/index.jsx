@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { flatNavItems } from "../../config/navigation.js";
 import { Icon } from "../common.jsx";
-import FeedbackLogPanel from "../../features/feedback/FeedbackLogPanel.jsx";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function NavigationSidebar({
   compactSidebar,
@@ -125,11 +125,6 @@ export function RightUtilitySidebar({
   collapsed,
   onToggle,
   session,
-  trainingMode,
-  onHelp,
-  onHelpAssistant,
-  onLearnThisScreen,
-  onTraining,
   onLogout,
   companies,
   companyContext,
@@ -139,27 +134,25 @@ export function RightUtilitySidebar({
   onCreateCompany,
   onAlterCompany,
   onSettings,
+  onLearnThisScreen,
   onShortcutPanelToggle,
   productivityPanel,
-  extension,
-  api
+  extension
 }) {
-  const [showFeedback, setShowFeedback] = useState(false);
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
   if (collapsed) {
     return (
-      <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
-        <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
-        <button type="button" className="utility-compact-action" onClick={onHelp} title="Screen Guidance">?</button>
-        <button type="button" className="utility-compact-action" onClick={onLearnThisScreen} title="Learn This Screen">Lr</button>
-        <button type="button" className="utility-compact-action" onClick={onHelpAssistant} title="Ask ERP Help">A</button>
-        <button type="button" className={`utility-compact-action ${trainingMode ? "active" : ""}`} onClick={onTraining} title={trainingMode ? "Training Mode On" : "Training"}>T</button>
-        <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
-        <button type="button" className="utility-compact-action" onClick={onShortcutPanelToggle} title="Productivity Panel">P</button>
-        <button type="button" className="utility-compact-action" onClick={() => setShowFeedback(true)} title="Feedback & Improvement Log">F</button>
-        <button type="button" className="utility-compact-action" onClick={onLogout} title="Logout">L</button>
-      </aside>
+      <div className="right-utility-compact-wrap">
+        <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
+          <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
+          <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
+          <button type="button" className="utility-compact-action" onClick={onLearnThisScreen} title="Learn This Screen (Shift + F1)" aria-label="Learn This Screen"><Icon name="book" /></button>
+          <button type="button" className="utility-compact-action" onClick={onToggle} title="Productivity Panel">P</button>
+          <button type="button" className="utility-compact-action" onClick={onLogout} title="Logout">L</button>
+        </aside>
+        {productivityPanel}
+      </div>
     );
   }
 
@@ -173,35 +166,12 @@ export function RightUtilitySidebar({
         <button type="button" className="utility-toggle" onClick={onToggle} title="Compact utilities sidebar">-</button>
       </div>
 
-      <div className="utility-section utility-actions">
-        <button type="button" className="ghost-btn help-btn" title="Open screen-specific guidance for the current module" onClick={onHelp}>
-          <Icon name="help" />
-          <span>Screen Help</span>
-        </button>
-        <button type="button" className="ghost-btn help-btn" title="Learn the current screen's purpose, workflow, common mistakes, and related reports" onClick={onLearnThisScreen}>
-          <Icon name="book" />
-          <span>Learn This Screen</span>
-        </button>
-        <button type="button" className={`ghost-btn help-btn ${trainingMode ? "active" : ""}`} title="Open safe sample-data training mode" onClick={onTraining}>
-          <Icon name="book" />
-          <span>{trainingMode ? "Training On" : "Training"}</span>
-        </button>
-        <button type="button" className="ghost-btn help-btn ask-help-btn" title="Ask a general ERP help question across modules and workflows" onClick={onHelpAssistant}>
-          <Icon name="help" />
-          <span>Ask ERP Help</span>
-        </button>
-        <button type="button" className={`ghost-btn help-btn ${showFeedback ? "active" : ""}`} title="Submit feedback, suggestions, and improvement requests" onClick={() => setShowFeedback(true)}>
-          <Icon name="edit" />
-          <span>Feedback</span>
-        </button>
-      </div>
-
       <div className="company-context utility-section" title="Current company context controls">
         <label>
           <span>Current Company</span>
           <select value={companyContext.company_scope === "all" ? "__all" : currentCompanyId} onChange={(event) => onCompanyChange(event.target.value)}>
             {!safeCompanies.length && <option value="">Create company first</option>}
-            {safeCompanies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+            {sortRecordsBy(safeCompanies, (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
             {adminUser && <option value="__all">All Companies View</option>}
           </select>
         </label>
@@ -213,27 +183,15 @@ export function RightUtilitySidebar({
         {companyContext.company_scope === "all" && <small>Read-only group summary</small>}
       </div>
 
+      {productivityPanel}
+      {extension}
+
       <div className="user-pill utility-user">
         <Icon name="shield" />
         <span>{session.displayName}</span>
         <button type="button" onClick={onLogout}>Logout</button>
       </div>
 
-      {productivityPanel}
-      {extension}
-
-      {showFeedback && (
-        <FeedbackLogPanel
-          session={session}
-          companyContext={companyContext}
-          onClose={() => setShowFeedback(false)}
-          onOpenHelp={() => {
-            setShowFeedback(false);
-            onHelpAssistant();
-          }}
-          api={api}
-        />
-      )}
     </aside>
   );
 }

@@ -8,6 +8,7 @@ import { roleAllowsAction } from "../../components/helpProductivity/index.jsx";
 import { viewTitles } from "../../config/navigation.js";
 import { exportRows, formatCurrency } from "../../utils/formatters.js";
 import { requestPrintPreview } from "../../utils/uiHelpers.js";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 function normalizeStatusClass(status) {
   return String(status || "draft").toLowerCase().replaceAll(" ", "-").replaceAll("/", "-");
@@ -204,7 +205,7 @@ export function VoucherProposalScreen({ view, notify, role, companyContext, api,
                   setReview({ ...review, suggested_party_id: event.target.value, suggested_party_name: party?.supplier_name || party?.department_name || "" });
                 }}>
                   <option value="">No party selected</option>
-                  {((review.suggested_party_type === "Supplier" ? data.suppliers : data.departments) || []).map((item) => <option key={item.id} value={item.id}>{item.supplier_name || item.department_name}</option>)}
+                  {sortRecordsBy((review.suggested_party_type === "Supplier" ? data.suppliers : data.departments) || [], (item) => item.supplier_name || item.department_name).map((item) => <option key={item.id} value={item.id}>{item.supplier_name || item.department_name}</option>)}
                 </select>
               </label>
               <label>
@@ -214,7 +215,7 @@ export function VoucherProposalScreen({ view, notify, role, companyContext, api,
                   setReview({ ...review, suggested_ledger_id: event.target.value, suggested_ledger_name: account?.account_name || "" });
                 }}>
                   <option value="">Default ledger</option>
-                  {(data.accounts || []).map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}
+                  {sortRecordsBy(data.accounts || [], (account) => `${account.account_code} ${account.account_name}`).map((account) => <option key={account.id} value={account.id}>{account.account_code} - {account.account_name}</option>)}
                 </select>
               </label>
               <label>

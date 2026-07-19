@@ -166,13 +166,13 @@ function brainSearchAsTopics(brainSearchFn, query) {
     if (!result || !result.results) return [];
     return result.results.slice(0, 5).map((r, i) => ({
       id: `brain-${r.sourceKind}-${i}`,
-      type: "Brain Source",
+      type: "ERP Knowledge",
       title: r.title || "Knowledge result",
       summary: r.summary || "",
       sourceKind: r.sourceKind,
       sourcePath: r.sourcePath,
       graphId: r.graphId,
-      menuPath: r.graphId ? `${r.graphId} graph` : "",
+      menuPath: "Source-backed ERP guidance",
       viewKey: "",
       steps: [],
       commonMistakes: [],

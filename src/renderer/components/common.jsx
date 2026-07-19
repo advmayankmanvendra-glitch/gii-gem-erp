@@ -71,7 +71,7 @@ export function SummaryTable({ title, rows, columns }) {
             </tbody>
           </table>
         </div>
-      ) : <EmptyState title="No report data" note="Create Phase 2 transaction records to populate this report." />}
+      ) : <EmptyState title="No report data" note="Use the related transaction workflow to populate this report." />}
     </section>
   );
 }
