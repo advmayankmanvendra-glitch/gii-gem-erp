@@ -1,7 +1,7 @@
 # FSR-1 Financial Report Risk Register
 
 **Audit date:** 2026-07-20  
-**Open risks:** 12 (5 closed by FSR-2A.1 + FSR-2A.2)  
+**Open risks:** 11 (6 closed by FSR-2A.1 + FSR-2A.2 + FSR-2A.3)  
 **Overall gate:** BLOCKED
 
 | ID | Severity | Finding | Evidence | Required phase | Status |
@@ -10,7 +10,7 @@
 | FSR-R02 | CRITICAL | Stock inward/adjustments/returns lack GL bridge | Stock +1,000, Inventory GL +0 | FSR-2A.4 | OPEN |
 | FSR-R03 | CRITICAL | Purchase expense and outward COGS create hybrid/double-cost risk | Purchase Dr plus later COGS Dr | FSR-2A.4 | OPEN |
 | ~~FSR-R04~~ | ~~CRITICAL~~ | ~~Balance Sheet current profit depends on arbitrary `date_from`~~ | ~~As-on expected 23,380, ERP 0~~ | ~~FSR-2A.2~~ | **CLOSED** |
-| FSR-R05 | CRITICAL | Financial-year close cannot complete | `Invalid financial year status`, source remains Open | FSR-2A.3 | OPEN |
+| ~~FSR-R05~~ | ~~CRITICAL~~ | ~~Financial-year close cannot complete~~ | ~~`Invalid financial year status`, source remains Open~~ | ~~FSR-2A.3~~ | **CLOSED** |
 | ~~FSR-R06~~ | ~~CRITICAL~~ | ~~Draft/Cancelled voucher effects are not excluded by statements~~ | ~~Income changed +333~~ | ~~FSR-2A.1~~ | **CLOSED** |
 | ~~FSR-R07~~ | ~~CRITICAL~~ | ~~Cross-company account references can contaminate reports~~ | ~~Bank changed +777~~ | ~~FSR-2A.1~~ | **CLOSED** |
 | FSR-R08 | CRITICAL | Direct ledger opening balances can bypass double entry | `createLedgerAccount.opening_balance` | FSR-2A.5 | OPEN |
@@ -79,6 +79,21 @@ No report redesign, statutory claim, release packaging or next major programme s
 - Code correction: Changed to `financialYearForDate(db, companyId, dateTo)`. The Balance Sheet is an as-on-date statement — its current-profit period must start from the financial year containing `dateTo`, regardless of the caller's `date_from`. The P&L report remains period-based (date_from → dateTo).
 - Test evidence: FSR-2A.2 checks 11a, 11b, 15-17 PASS; FSR-1 check 11 changed from FAIL to PASS
 - Remaining limitations: If no FY exists for dateTo, current profit is 0 (documented behaviour)
+- Closure: **Verified — CRITICAL risk closed**
+
+### FSR-2A.3 Risk Closure
+
+**FSR-R05 — Financial-year close cannot complete** (CRITICAL)
+- Prior evidence: `closeFinancialYear` called `updateFinancialYearStatus(fromId, "Locked", approvedBy)` without the `db` argument. The signature is `(db, id, status, userId)`, so `approvedBy` was passed as `status`, causing "Invalid financial year status" errors. The source FY remained `Open` and could not transition to `Locked`.
+- Code correction:
+  - Added `db` argument: `updateFinancialYearStatus(db, fromId, "Locked", approvedBy)` — primary defect fixed
+  - Added source/destination status validations — `closeFinancialYear` now requires both FYs to be `'Open'` (lines 914-915)
+  - Added overlap check — `toYear.start_date <= fromYear.end_date` (line 916)
+  - Fixed carry-forward decomposition — account-type-aware decomposition of `signedRowAmount` into `opening_debit`/`opening_credit` (lines 942-949)
+  - Added carry-forward consumption — `trialBalance` and `balanceSheetReport` incorporate `carry_forward_entries` via correlated subqueries
+  - Added migration `033_fsr2a3_carry_forward_openings` — adds `opening_debit`/`opening_credit` columns to `carry_forward_entries`
+- Test evidence: FSR-2A.3 37/37 PASS; FSR-2A.2 25/25 PASS; FSR-2A.1 22/22 PASS; FSR-1 21/25 PASS (no regression)
+- Remaining limitations: No gap validation (FYs with a gap between source end and target start are accepted); inventory accounts (Stock, COGS) are excluded from carry-forward opening consumption (deferred to FSR-2A.4)
 - Closure: **Verified — CRITICAL risk closed**
 
 ## Risk acceptance boundary

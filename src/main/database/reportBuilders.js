@@ -763,20 +763,34 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   function trialBalance(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     const voucherFilter = postedVoucherFilter();
+    const fy = financialYearForDate(db, companyId, dateFrom);
+    const fyId = fy ? fy.id : null;
     return db.prepare(`
-      SELECT a.id, a.account_code, a.account_name, a.account_type,
-        COALESCE(SUM(le.debit), 0) + CASE WHEN a.normal_balance = 'Debit' THEN a.opening_balance ELSE 0 END debit,
-        COALESCE(SUM(le.credit), 0) + CASE WHEN a.normal_balance = 'Credit' THEN a.opening_balance ELSE 0 END credit,
+      SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
+        COALESCE(SUM(le.debit), 0) + COALESCE(
+          (SELECT COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+          CASE WHEN a.normal_balance = 'Debit' THEN a.opening_balance ELSE 0 END
+        ) debit,
+        COALESCE(SUM(le.credit), 0) + COALESCE(
+          (SELECT COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+          CASE WHEN a.normal_balance = 'Credit' THEN a.opening_balance ELSE 0 END
+        ) credit,
         CASE
-          WHEN a.normal_balance = 'Credit' THEN COALESCE(SUM(le.credit - le.debit), 0) + a.opening_balance
-          ELSE COALESCE(SUM(le.debit - le.credit), 0) + a.opening_balance
+          WHEN a.normal_balance = 'Credit' THEN COALESCE(SUM(le.credit - le.debit), 0) + COALESCE(
+            (SELECT COALESCE(SUM(cfe.opening_credit), 0) - COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+            a.opening_balance
+          )
+          ELSE COALESCE(SUM(le.debit - le.credit), 0) + COALESCE(
+            (SELECT COALESCE(SUM(cfe.opening_debit), 0) - COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+            a.opening_balance
+          )
         END balance
       FROM accounts a
       LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0
       GROUP BY a.id
       ORDER BY a.account_code
-    `).all(dateFrom, dateTo, companyId);
+    `).all(fyId, fyId, fyId, fyId, dateFrom, dateTo, companyId);
   }
 
   function profitLossReport(db, companyId, dateFrom, dateTo) {
@@ -803,7 +817,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   function signedRowAmount(row) {
     const debit = Number(row.debit || 0);
     const credit = Number(row.credit || 0);
-    const opening = Number(row.opening_balance || 0);
+    const opening = Number(row.signed_opening || 0);
     if (row.account_type === "Asset") {
       const signedOpening = row.normal_balance === "Debit" ? opening : -opening;
       return debit - credit + signedOpening;
@@ -815,24 +829,32 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   function balanceSheetReport(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     const voucherFilter = postedVoucherFilter();
+    const fy = financialYearForDate(db, companyId, dateTo);
+    const fyId = fy ? fy.id : null;
+    const ledgerStart = fy ? fy.start_date : "1900-01-01";
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
         COALESCE(SUM(le.debit), 0) debit,
         COALESCE(SUM(le.credit), 0) credit,
-        a.opening_balance
+        COALESCE(
+          CASE WHEN a.normal_balance = 'Debit'
+            THEN (SELECT COALESCE(SUM(cfe.opening_debit), 0) - COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
+            ELSE (SELECT COALESCE(SUM(cfe.opening_credit), 0) - COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
+          END,
+          a.opening_balance
+        ) signed_opening
       FROM accounts a
-      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date <= ?${ledgerActiveWhere}${voucherFilter}
+      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Asset','Liability','Equity')
       GROUP BY a.id
       ORDER BY a.account_type, a.account_code
-    `).all(dateTo, companyId).map((row) => ({
+    `).all(fyId, fyId, ledgerStart, dateTo, companyId).map((row) => ({
       ...row,
       amount: signedRowAmount(row)
     }));
     const assets = rows.filter((row) => row.account_type === "Asset").reduce((sum, row) => sum + row.amount, 0);
     const liabilities = rows.filter((row) => row.account_type === "Liability").reduce((sum, row) => sum + row.amount, 0);
     const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => sum + row.amount, 0);
-    const fy = financialYearForDate(db, companyId, dateTo);
     const currentProfitDateFrom = fy ? fy.start_date : dateFrom;
     const pl = profitLossReport(db, companyId, currentProfitDateFrom, dateTo).netProfit;
     return { rows, assets, liabilities, equity, currentProfit: pl, liabilitiesAndEquity: liabilities + equity + pl };

@@ -911,6 +911,9 @@ export function createAccountingService(deps) {
     const fromYear = db.prepare("SELECT * FROM financial_years WHERE id = ? AND company_id = ?").get(fromId, companyId);
     const toYear = db.prepare("SELECT * FROM financial_years WHERE id = ? AND company_id = ?").get(toId, companyId);
     if (!fromYear || !toYear) throw new Error("Valid source and target financial years are required");
+    if (fromYear.status !== "Open") throw new Error(`Source financial year status is '${fromYear.status}', must be 'Open'`);
+    if (toYear.status !== "Open") throw new Error(`Target financial year status is '${toYear.status}', must be 'Open'`);
+    if (toYear.start_date <= fromYear.end_date) throw new Error("Target financial year must start after source year ends");
     const duplicate = db.prepare("SELECT id FROM year_end_closings WHERE company_id = ? AND from_financial_year_id = ? AND to_financial_year_id = ?").get(companyId, fromId, toId);
     if (duplicate) throw new Error("Carry forward already exists for this company/year");
     const postingIssues = postingControlReport(db, companyId).filter((row) => !["Posted", "Reversed"].includes(row.posting_status));
@@ -933,25 +936,39 @@ export function createAccountingService(deps) {
         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', ?, CURRENT_TIMESTAMP)
       `).run(companyId, fromId, toId, fromYear.end_date, tbDifference, bsDifference, pl.netProfit, approvedBy);
 
-      const balanceRows = balanceSheetReport(db, companyId, fromYear.start_date, fromYear.end_date).rows.filter((row) => Math.abs(Number(row.amount || 0)) > 0);
+      const bsRows = balanceSheetReport(db, companyId, fromYear.start_date, fromYear.end_date).rows;
+      const balanceRows = bsRows.filter((row) => Math.abs(Number(row.amount || 0)) > 0 && ["Asset", "Liability", "Equity"].includes(row.account_type));
       balanceRows.forEach((row) => {
+        const amount = Number(row.amount || 0);
+        let openingDebit = 0, openingCredit = 0;
+        if (row.account_type === "Asset") {
+          openingDebit = Math.max(amount, 0);
+          openingCredit = Math.max(-amount, 0);
+        } else {
+          openingCredit = Math.max(amount, 0);
+          openingDebit = Math.max(-amount, 0);
+        }
         db.prepare(`
-          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_balance_created, approved_by, status)
-          VALUES (?, ?, ?, ?, ?, 0, ?, 'Approved')
-        `).run(companyId, fromId, toId, row.id || accountId(db, companyId, row.account_name), row.amount, approvedBy);
+          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved')
+        `).run(companyId, fromId, toId, row.id, amount, openingDebit, openingCredit, approvedBy);
       });
 
       if (Math.abs(pl.netProfit || 0) > 0) {
         const capitalAccount = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = 'Capital' AND is_deleted = 0").get(companyId);
         if (!capitalAccount) throw new Error("Year-end closing requires a 'Capital' account. Create a ledger account named 'Capital' under your company setup, then retry.");
         const retainedAccount = capitalAccount.id;
+        const profitAmount = Number(pl.netProfit);
+        let profitDebit = 0, profitCredit = 0;
+        if (profitAmount >= 0) { profitCredit = profitAmount; }
+        else { profitDebit = -profitAmount; }
         db.prepare(`
-          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_balance_created, approved_by, status)
-          VALUES (?, ?, ?, ?, ?, 0, ?, 'Approved')
-        `).run(companyId, fromId, toId, retainedAccount, pl.netProfit, approvedBy);
+          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved')
+        `).run(companyId, fromId, toId, retainedAccount, profitAmount, profitDebit, profitCredit, approvedBy);
       }
 
-      updateFinancialYearStatus(fromId, "Locked", approvedBy);
+      updateFinancialYearStatus(db, fromId, "Locked", approvedBy);
       auditLog(db, { company_id: companyId, user_id: approvedBy, action: "year close and carry forward", table_name: "year_end_closings", record_id: closing.lastInsertRowid, new_value: JSON.stringify({ fromId, toId, netProfit: pl.netProfit }) });
       return db.prepare("SELECT * FROM year_end_closings WHERE id = ?").get(closing.lastInsertRowid);
     });

@@ -630,6 +630,11 @@ export function migrate(db) {
   runMigration(db, "032_purchase_order_conversion_controls", () => {
     addPurchaseOrderConversionControls(db);
   });
+
+  runMigration(db, "033_fsr2a3_carry_forward_openings", () => {
+    addColumnIfMissing(db, "carry_forward_entries", "opening_debit", "REAL NOT NULL DEFAULT 0");
+    addColumnIfMissing(db, "carry_forward_entries", "opening_credit", "REAL NOT NULL DEFAULT 0");
+  });
 }
 
 function runMigration(db, migrationName, callback) {
