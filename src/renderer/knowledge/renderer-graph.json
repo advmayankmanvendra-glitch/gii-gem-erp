@@ -1,89 +1,103 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-01T12:00:00.000Z",
+  "generatedAt": "2026-07-20T09:37:42.236Z",
   "sourceRoot": "src/renderer/",
-  "filesScanned": 155,
+  "filesScanned": 248,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-01T12:00:00.000Z",
+    "generated": "2026-07-20T09:37:42.237Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "fileCount": 155,
-    "totalLines": 33965,
-    "totalImports": 353
+    "fileCount": 248,
+    "totalLines": 42219,
+    "totalImports": 683
   },
   "statistics": {
     "filesByCategory": {
-      "api": 1,
+      "api": 2,
       "app": 1,
-      "component": 26,
-      "config": 8,
-      "feature": 20,
+      "other": 4,
+      "component": 40,
+      "config": 11,
+      "feature": 50,
       "knowledge": 13,
-      "module": 25,
+      "module": 54,
       "print": 17,
-      "screen": 36,
+      "screen": 41,
       "stability": 5,
-      "util": 3
+      "util": 10
     },
     "filesByRisk": {
-      "low": 132,
-      "medium": 20,
-      "high": 1
+      "low": 211,
+      "medium": 34,
+      "high": 3
     },
     "filesByCriticality": {
+      "Low": 114,
       "Critical": 7,
-      "Low": 55,
-      "High": 70,
-      "Medium": 21
+      "High": 100,
+      "Medium": 27
     },
     "filesByOwner": {
-      "Utilities": 4,
-      "Renderer Shell": 20,
+      "Utilities": 12,
+      "Renderer Shell": 24,
+      "Other": 46,
       "Accounting": 3,
       "CRAC": 11,
-      "Dashboard": 22,
-      "Other": 1,
+      "Dashboard": 50,
       "Health Center": 17,
-      "Help": 23,
+      "Help": 25,
       "Inventory": 3,
       "Operations": 3,
       "Settings": 2,
-      "Master Data": 3,
+      "Master Data": 5,
       "Reports": 3,
-      "Knowledge": 15,
+      "Knowledge": 21,
       "Deployment": 5,
       "Print": 17,
-      "Profitability": 1,
-      "Presentation": 2
+      "Profitability": 1
     },
     "filesByChangeFrequency": {
-      "Stable": 39,
+      "Stable": 56,
       "Frequently Modified": 3,
-      "Occasionally Modified": 111
+      "Occasionally Modified": 189
     },
     "avgImportsPerScreen": 3,
-    "avgComponentReuse": 1,
+    "avgComponentReuse": 2,
     "largestComponent": {
       "path": "components/helpProductivity/index.jsx",
-      "lines": 626
+      "lines": 597
     },
     "largestScreen": {
       "path": "screens/EnvironmentManager/EnvironmentManagerScreen.jsx",
-      "lines": 961
+      "lines": 963
     },
-    "layerCount": 11,
-    "architectureDensity": 2.28,
+    "layerCount": 12,
+    "architectureDensity": 2.75,
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 47,
-        "lines": 12671,
+        "importCount": 74,
+        "lines": 1654,
         "category": "app",
         "owner": "Renderer Shell"
+      },
+      {
+        "path": "config/screenRegistry.jsx",
+        "importCount": 23,
+        "lines": 118,
+        "category": "config",
+        "owner": "Renderer Shell"
+      },
+      {
+        "path": "features/transactions/TransactionScreen.jsx",
+        "importCount": 16,
+        "lines": 610,
+        "category": "feature",
+        "owner": "Dashboard"
       },
       {
         "path": "print/PrintTemplateHost.jsx",
@@ -93,11 +107,60 @@
         "owner": "Print"
       },
       {
+        "path": "features/accounting/AccountingScreen.jsx",
+        "importCount": 13,
+        "lines": 751,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
         "path": "modules/helpAssistant/HelpAssistant.jsx",
-        "importCount": 11,
-        "lines": 147,
+        "importCount": 12,
+        "lines": 158,
         "category": "module",
         "owner": "Help"
+      },
+      {
+        "path": "componentRegistry/registry.js",
+        "importCount": 11,
+        "lines": 142,
+        "category": "other",
+        "owner": "Other"
+      },
+      {
+        "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+        "importCount": 11,
+        "lines": 682,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "features/accounting/VoucherProposalScreen.jsx",
+        "importCount": 11,
+        "lines": 280,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "features/inventory/InventoryReportScreen.jsx",
+        "importCount": 11,
+        "lines": 159,
+        "category": "feature",
+        "owner": "Master Data"
+      },
+      {
+        "path": "modules/helpAssistant/helpAssistantUtils.js",
+        "importCount": 11,
+        "lines": 541,
+        "category": "module",
+        "owner": "Help"
+      },
+      {
+        "path": "features/billing/BillingVoucherScreen.jsx",
+        "importCount": 10,
+        "lines": 979,
+        "category": "feature",
+        "owner": "Dashboard"
       },
       {
         "path": "knowledge/registry.js",
@@ -114,11 +177,25 @@
         "owner": "Dashboard"
       },
       {
+        "path": "components/entityPicker/SmartEntityPicker.jsx",
+        "importCount": 9,
+        "lines": 155,
+        "category": "component",
+        "owner": "Other"
+      },
+      {
         "path": "components/helpProductivity/index.jsx",
         "importCount": 9,
-        "lines": 626,
+        "lines": 597,
         "category": "component",
         "owner": "Help"
+      },
+      {
+        "path": "components/panels/AddRecordPanel.jsx",
+        "importCount": 9,
+        "lines": 223,
+        "category": "component",
+        "owner": "Other"
       },
       {
         "path": "screens/HealthCenter/HealthCenterScreen.jsx",
@@ -128,186 +205,137 @@
         "owner": "Health Center"
       },
       {
-        "path": "modules/erpBrain/loaders/repositoryLoader.js",
+        "path": "features/accounting/BankStatementScreen.jsx",
         "importCount": 8,
-        "lines": 73,
-        "category": "module",
-        "owner": "Knowledge"
-      },
-      {
-        "path": "modules/helpAssistant/helpAssistantUtils.js",
-        "importCount": 7,
-        "lines": 302,
-        "category": "module",
-        "owner": "Help"
-      },
-      {
-        "path": "screens/CRAC/CRACManagementScreen.jsx",
-        "importCount": 5,
-        "lines": 100,
-        "category": "screen",
-        "owner": "CRAC"
-      },
-      {
-        "path": "screens/DocumentsScreen.jsx",
-        "importCount": 5,
-        "lines": 406,
-        "category": "screen",
-        "owner": "Operations"
-      },
-      {
-        "path": "screens/HelpTrainingScreen.jsx",
-        "importCount": 5,
-        "lines": 66,
-        "category": "screen",
-        "owner": "Help"
-      },
-      {
-        "path": "screens/InventoryStockSummaryReport.jsx",
-        "importCount": 5,
-        "lines": 209,
-        "category": "screen",
-        "owner": "Inventory"
-      },
-      {
-        "path": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-        "importCount": 5,
-        "lines": 111,
-        "category": "screen",
-        "owner": "Renderer Shell"
-      },
-      {
-        "path": "components/inventoryReports/index.jsx",
-        "importCount": 4,
-        "lines": 326,
-        "category": "component",
-        "owner": "Inventory"
-      },
-      {
-        "path": "components/inventoryReports/InventoryDashboardPanel.jsx",
-        "importCount": 4,
-        "lines": 165,
-        "category": "component",
-        "owner": "Inventory"
-      },
-      {
-        "path": "components/operations/index.jsx",
-        "importCount": 4,
-        "lines": 489,
-        "category": "component",
-        "owner": "Operations"
-      },
-      {
-        "path": "features/dashboards/drilldowns/TreasuryDrilldown.jsx",
-        "importCount": 4,
-        "lines": 73,
+        "lines": 358,
         "category": "feature",
         "owner": "Dashboard"
       },
       {
-        "path": "modules/deployment/ProductionReadinessScreen.jsx",
-        "importCount": 4,
-        "lines": 99,
-        "category": "module",
-        "owner": "Deployment"
-      },
-      {
-        "path": "print/printUtils.js",
-        "importCount": 4,
-        "lines": 135,
-        "category": "print",
-        "owner": "Print"
+        "path": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+        "importCount": 8,
+        "lines": 1072,
+        "category": "feature",
+        "owner": "Dashboard"
       }
     ],
     "mostDepended": [
       {
         "name": "react",
-        "count": 99
+        "count": 140
       },
       {
         "name": "utils/formatters.js",
-        "count": 29
+        "count": 52
+      },
+      {
+        "name": "components/common.jsx",
+        "count": 24
+      },
+      {
+        "name": "forms/index.jsx",
+        "count": 24
+      },
+      {
+        "name": "utils/optionSorting.js",
+        "count": 17
+      },
+      {
+        "name": "../common.jsx",
+        "count": 13
       },
       {
         "name": "./TemplateSections.jsx",
         "count": 13
       },
       {
-        "name": "forms/index.jsx",
+        "name": "utils/uiHelpers.js",
         "count": 11
+      },
+      {
+        "name": "panels/SmallComponents.jsx",
+        "count": 10
       },
       {
         "name": "./DrilldownBase.jsx",
         "count": 10
       },
       {
-        "name": "../common.jsx",
-        "count": 9
-      },
-      {
-        "name": "utils/uiHelpers.js",
-        "count": 7
-      },
-      {
-        "name": "components/common.jsx",
-        "count": 7
-      },
-      {
         "name": "config/navigation.js",
+        "count": 8
+      },
+      {
+        "name": "helpProductivity/index.jsx",
+        "count": 7
+      },
+      {
+        "name": "utils/navigationScroll.js",
         "count": 6
       },
       {
-        "name": "./healthCenterConfig.js",
-        "count": 4
+        "name": "panels/AddRecordPanel.jsx",
+        "count": 5
       },
       {
-        "name": "config/storageKeys.js",
-        "count": 3
-      },
-      {
-        "name": "stability/rendererStabilityUtils.js",
-        "count": 3
-      },
-      {
-        "name": "./helpAssistantIntentMap.js",
-        "count": 3
-      },
-      {
-        "name": "crac/CRACStatusCard.jsx",
-        "count": 3
-      },
-      {
-        "name": "./rendererStabilityUtils.js",
-        "count": 3
+        "name": "utils/actionUtils.js",
+        "count": 5
       }
     ],
     "highRiskFiles": [
       {
+        "path": "api/browserFallbackApi.js",
+        "lines": 1114,
+        "imports": 2,
+        "owner": "Utilities",
+        "criticality": "Low"
+      },
+      {
         "path": "App.jsx",
-        "lines": 12671,
-        "imports": 47,
+        "lines": 1654,
+        "imports": 74,
         "owner": "Renderer Shell",
         "criticality": "Critical"
+      },
+      {
+        "path": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+        "lines": 1072,
+        "imports": 8,
+        "owner": "Dashboard",
+        "criticality": "High"
       }
     ],
     "totalRoutes": 114,
-    "totalScreens": 36,
-    "totalComponents": 26,
-    "totalFeatures": 20,
-    "totalModules": 25,
-    "totalConfigFiles": 8,
+    "totalScreens": 41,
+    "totalComponents": 40,
+    "totalFeatures": 50,
+    "totalModules": 54,
+    "totalConfigFiles": 11,
     "circularImports": 0,
     "circularImportDetails": [],
-    "approximateTokenSavings": "~14186 tokens per AI operation"
+    "approximateTokenSavings": "~8592 tokens per AI operation"
   },
   "heatMap": {
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 47,
-        "lines": 12671,
+        "importCount": 74,
+        "lines": 1654,
         "category": "app",
         "owner": "Renderer Shell"
+      },
+      {
+        "path": "config/screenRegistry.jsx",
+        "importCount": 23,
+        "lines": 118,
+        "category": "config",
+        "owner": "Renderer Shell"
+      },
+      {
+        "path": "features/transactions/TransactionScreen.jsx",
+        "importCount": 16,
+        "lines": 610,
+        "category": "feature",
+        "owner": "Dashboard"
       },
       {
         "path": "print/PrintTemplateHost.jsx",
@@ -317,109 +345,105 @@
         "owner": "Print"
       },
       {
-        "path": "modules/helpAssistant/HelpAssistant.jsx",
-        "importCount": 11,
-        "lines": 147,
-        "category": "module",
-        "owner": "Help"
-      },
-      {
-        "path": "knowledge/registry.js",
-        "importCount": 10,
-        "lines": 156,
-        "category": "knowledge",
-        "owner": "Knowledge"
-      },
-      {
-        "path": "screens/DashboardScreen.jsx",
-        "importCount": 10,
-        "lines": 286,
-        "category": "screen",
+        "path": "features/accounting/AccountingScreen.jsx",
+        "importCount": 13,
+        "lines": 751,
+        "category": "feature",
         "owner": "Dashboard"
       },
       {
-        "path": "components/helpProductivity/index.jsx",
-        "importCount": 9,
-        "lines": 626,
-        "category": "component",
-        "owner": "Help"
-      },
-      {
-        "path": "screens/HealthCenter/HealthCenterScreen.jsx",
-        "importCount": 9,
-        "lines": 144,
-        "category": "screen",
-        "owner": "Health Center"
-      },
-      {
-        "path": "modules/erpBrain/loaders/repositoryLoader.js",
-        "importCount": 8,
-        "lines": 73,
-        "category": "module",
-        "owner": "Knowledge"
-      },
-      {
-        "path": "modules/helpAssistant/helpAssistantUtils.js",
-        "importCount": 7,
-        "lines": 302,
+        "path": "modules/helpAssistant/HelpAssistant.jsx",
+        "importCount": 12,
+        "lines": 158,
         "category": "module",
         "owner": "Help"
       },
       {
-        "path": "screens/CRAC/CRACManagementScreen.jsx",
-        "importCount": 5,
-        "lines": 100,
-        "category": "screen",
-        "owner": "CRAC"
+        "path": "componentRegistry/registry.js",
+        "importCount": 11,
+        "lines": 142,
+        "category": "other",
+        "owner": "Other"
+      },
+      {
+        "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+        "importCount": 11,
+        "lines": 682,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "features/accounting/VoucherProposalScreen.jsx",
+        "importCount": 11,
+        "lines": 280,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
+        "path": "features/inventory/InventoryReportScreen.jsx",
+        "importCount": 11,
+        "lines": 159,
+        "category": "feature",
+        "owner": "Master Data"
       }
     ],
     "mostDepended": [
       {
         "name": "react",
-        "count": 99
+        "count": 140
       },
       {
         "name": "utils/formatters.js",
-        "count": 29
+        "count": 52
+      },
+      {
+        "name": "components/common.jsx",
+        "count": 24
+      },
+      {
+        "name": "forms/index.jsx",
+        "count": 24
+      },
+      {
+        "name": "utils/optionSorting.js",
+        "count": 17
+      },
+      {
+        "name": "../common.jsx",
+        "count": 13
       },
       {
         "name": "./TemplateSections.jsx",
         "count": 13
       },
       {
-        "name": "forms/index.jsx",
+        "name": "utils/uiHelpers.js",
         "count": 11
+      },
+      {
+        "name": "panels/SmallComponents.jsx",
+        "count": 10
       },
       {
         "name": "./DrilldownBase.jsx",
         "count": 10
-      },
-      {
-        "name": "../common.jsx",
-        "count": 9
-      },
-      {
-        "name": "utils/uiHelpers.js",
-        "count": 7
-      },
-      {
-        "name": "components/common.jsx",
-        "count": 7
-      },
-      {
-        "name": "config/navigation.js",
-        "count": 6
-      },
-      {
-        "name": "./healthCenterConfig.js",
-        "count": 4
       }
     ],
     "highestFanOut": [
       {
         "path": "App.jsx",
-        "fanOut": 47,
+        "fanOut": 74,
         "category": "app"
+      },
+      {
+        "path": "config/screenRegistry.jsx",
+        "fanOut": 23,
+        "category": "config"
+      },
+      {
+        "path": "features/transactions/TransactionScreen.jsx",
+        "fanOut": 16,
+        "category": "feature"
       },
       {
         "path": "print/PrintTemplateHost.jsx",
@@ -427,86 +451,76 @@
         "category": "print"
       },
       {
+        "path": "features/accounting/AccountingScreen.jsx",
+        "fanOut": 13,
+        "category": "feature"
+      },
+      {
         "path": "modules/helpAssistant/HelpAssistant.jsx",
+        "fanOut": 12,
+        "category": "module"
+      },
+      {
+        "path": "componentRegistry/registry.js",
         "fanOut": 11,
-        "category": "module"
+        "category": "other"
       },
       {
-        "path": "knowledge/registry.js",
-        "fanOut": 10,
-        "category": "knowledge"
+        "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+        "fanOut": 11,
+        "category": "feature"
       },
       {
-        "path": "screens/DashboardScreen.jsx",
-        "fanOut": 10,
-        "category": "screen"
+        "path": "features/accounting/VoucherProposalScreen.jsx",
+        "fanOut": 11,
+        "category": "feature"
       },
       {
-        "path": "components/helpProductivity/index.jsx",
-        "fanOut": 9,
-        "category": "component"
-      },
-      {
-        "path": "screens/HealthCenter/HealthCenterScreen.jsx",
-        "fanOut": 9,
-        "category": "screen"
-      },
-      {
-        "path": "modules/erpBrain/loaders/repositoryLoader.js",
-        "fanOut": 8,
-        "category": "module"
-      },
-      {
-        "path": "modules/helpAssistant/helpAssistantUtils.js",
-        "fanOut": 7,
-        "category": "module"
-      },
-      {
-        "path": "screens/CRAC/CRACManagementScreen.jsx",
-        "fanOut": 5,
-        "category": "screen"
+        "path": "features/inventory/InventoryReportScreen.jsx",
+        "fanOut": 11,
+        "category": "feature"
       }
     ],
     "highestFanIn": [
       {
         "name": "react",
-        "count": 99
+        "count": 140
       },
       {
         "name": "index",
-        "count": 38
+        "count": 73
       },
       {
         "name": "formatters",
-        "count": 29
+        "count": 55
       },
       {
         "name": "common",
-        "count": 16
+        "count": 37
+      },
+      {
+        "name": "optionSorting",
+        "count": 17
       },
       {
         "name": "TemplateSections",
         "count": 13
       },
       {
+        "name": "uiHelpers",
+        "count": 11
+      },
+      {
+        "name": "SmallComponents",
+        "count": 11
+      },
+      {
         "name": "DrilldownBase",
         "count": 10
       },
       {
-        "name": "uiHelpers",
-        "count": 7
-      },
-      {
         "name": "navigation",
-        "count": 6
-      },
-      {
-        "name": "rendererStabilityUtils",
-        "count": 6
-      },
-      {
-        "name": "healthCenterConfig",
-        "count": 4
+        "count": 9
       }
     ],
     "mostCritical": [
@@ -517,8 +531,8 @@
       },
       {
         "path": "App.jsx",
-        "lines": 12671,
-        "imports": 47
+        "lines": 1654,
+        "imports": 74
       },
       {
         "path": "components/common.jsx",
@@ -527,17 +541,17 @@
       },
       {
         "path": "components/forms/index.jsx",
-        "lines": 364,
-        "imports": 1
+        "lines": 378,
+        "imports": 2
       },
       {
         "path": "config/navigation.js",
-        "lines": 321,
+        "lines": 330,
         "imports": 0
       },
       {
         "path": "config/viewDefinitions.js",
-        "lines": 302,
+        "lines": 447,
         "imports": 0
       },
       {
@@ -548,44 +562,44 @@
     ],
     "mostSharedComponents": [
       {
+        "name": "AddRecordPanel",
+        "reuseCount": 5
+      },
+      {
+        "name": "DrilldownPanel",
+        "reuseCount": 5
+      },
+      {
         "name": "CRACStatusCard",
         "reuseCount": 3
       },
       {
-        "name": "ClosureChecklist",
-        "reuseCount": 1
-      },
-      {
-        "name": "CRACDocumentPanel",
-        "reuseCount": 1
-      },
-      {
-        "name": "PaymentReadinessTable",
-        "reuseCount": 1
-      },
-      {
         "name": "MasterRecordsPanel",
-        "reuseCount": 1
+        "reuseCount": 2
       },
       {
-        "name": "StockAdjustmentControlPanel",
-        "reuseCount": 1
+        "name": "accountingTableConfig",
+        "reuseCount": 2
       },
       {
-        "name": "CertificationHistory",
-        "reuseCount": 1
+        "name": "BusinessVoucherIntelligencePanel",
+        "reuseCount": 2
       },
       {
-        "name": "GoLiveChecklist",
-        "reuseCount": 1
+        "name": "BillingVoucherScreen",
+        "reuseCount": 2
       },
       {
-        "name": "GoLiveWizard",
-        "reuseCount": 1
+        "name": "SummaryScreen",
+        "reuseCount": 2
       },
       {
-        "name": "ProductionReadinessScreen",
-        "reuseCount": 1
+        "name": "MasterImportTemplatesScreen",
+        "reuseCount": 2
+      },
+      {
+        "name": "TallyMasterMigrationAssistantScreen",
+        "reuseCount": 2
       }
     ]
   },
@@ -732,7 +746,7 @@
       "key": "master_import_templates",
       "category": "tool",
       "workflowReference": "General",
-      "screen": "in-App.jsx rendering"
+      "screen": "dedicated screen"
     },
     {
       "key": "tally_migration_assistant",
@@ -1287,9 +1301,10 @@
       ],
       "exports": [],
       "imports": [
-        "react"
+        "react",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 961,
+      "lines": 963,
       "riskLevel": "medium",
       "ownerModule": "Renderer Shell",
       "businessCriticality": "Low",
@@ -1327,9 +1342,10 @@
       "exports": [],
       "imports": [
         "react",
-        "../../utils/formatters.js"
+        "../../utils/formatters.js",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 485,
+      "lines": 486,
       "riskLevel": "medium",
       "ownerModule": "Master Data",
       "businessCriticality": "High",
@@ -1424,9 +1440,10 @@
         "../components/common.jsx",
         "../components/forms/index.jsx",
         "../utils/formatters.js",
-        "../utils/uiHelpers.js"
+        "../utils/uiHelpers.js",
+        "../utils/optionSorting.js"
       ],
-      "lines": 406,
+      "lines": 407,
       "riskLevel": "medium",
       "ownerModule": "Operations",
       "businessCriticality": "High",
@@ -1461,6 +1478,51 @@
         ],
         "relatedIPC": [
           "ipcRenderer.invoke (documents)"
+        ]
+      }
+    },
+    {
+      "path": "screens/MasterImportTemplatesScreen.jsx",
+      "components": [
+        "MasterImportTemplatesScreen",
+        "downloadCurrentErrorReport"
+      ],
+      "exports": [
+        "MasterImportTemplatesScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../components/presentation/index.jsx",
+        "../config/importTemplates.js",
+        "../utils/spreadsheetExport.js",
+        "../utils/formatters.js",
+        "../utils/importParsers.js",
+        "../utils/optionSorting.js"
+      ],
+      "lines": 298,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "MasterImportTemplatesScreen",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
         ]
       }
     },
@@ -1504,6 +1566,47 @@
         "relatedReports": [
           "Dashboard Summary"
         ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/ProfitSimulatorScreen.jsx",
+      "components": [
+        "ProfitSimulatorScreen"
+      ],
+      "exports": [
+        "ProfitSimulatorScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/common.jsx",
+        "../components/forms/index.jsx",
+        "../utils/formatters.js",
+        "../utils/optionSorting.js"
+      ],
+      "lines": 279,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Profitability Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "ProfitSimulatorScreen",
+        "relatedScreens": [],
+        "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
           "CompanyContext"
@@ -1562,6 +1665,49 @@
           "StockReportPrint",
           "DeliveryChallanPrint"
         ],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/MasterScreen.jsx",
+      "components": [
+        "validateForm",
+        "MasterScreen"
+      ],
+      "exports": [
+        "MasterScreen"
+      ],
+      "imports": [
+        "react",
+        "../components/forms/index.jsx",
+        "../components/tables/MasterRecordsPanel.jsx",
+        "../components/panels/AddRecordPanel.jsx",
+        "../config/confirmations.js",
+        "../utils/formUtils.js"
+      ],
+      "lines": 183,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "MasterScreen",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
         "relatedIPC": [
           "ipcRenderer.invoke"
         ]
@@ -1644,6 +1790,43 @@
           "RecoveryCenterScreen",
           "SafeModeScreen"
         ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/LoginScreen.jsx",
+      "components": [
+        "LoginScreen"
+      ],
+      "exports": [
+        "LoginScreen"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 120,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "LoginScreen",
+        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -1936,9 +2119,10 @@
       "imports": [
         "react",
         "../../components/forms/index.jsx",
-        "../../components/crac/ClosureChecklist.jsx"
+        "../../components/crac/ClosureChecklist.jsx",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 76,
+      "lines": 77,
       "riskLevel": "low",
       "ownerModule": "CRAC",
       "businessCriticality": "High",
@@ -2029,9 +2213,10 @@
       ],
       "imports": [
         "react",
-        "../../components/crac/CRACStatusCard.jsx"
+        "../../components/crac/CRACStatusCard.jsx",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 66,
+      "lines": 67,
       "riskLevel": "low",
       "ownerModule": "CRAC",
       "businessCriticality": "High",
@@ -2057,6 +2242,48 @@
           "Order Closure Report",
           "Payment Readiness"
         ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "screens/KeyboardShortcutScreen.jsx",
+      "components": [
+        "KeyboardShortcutScreen"
+      ],
+      "exports": [
+        "KeyboardShortcutScreen"
+      ],
+      "imports": [
+        "react",
+        "../config/keyboardShortcuts.js",
+        "../utils/optionSorting.js"
+      ],
+      "lines": 67,
+      "riskLevel": "low",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "KeyboardShortcutScreen",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
           "CompanyContext"
@@ -2112,21 +2339,24 @@
       }
     },
     {
-      "path": "screens/KeyboardShortcutScreen.jsx",
+      "path": "screens/SummaryScreen.jsx",
       "components": [
-        "KeyboardShortcutScreen"
+        "SummaryScreen"
       ],
       "exports": [
-        "KeyboardShortcutScreen"
+        "SummaryScreen"
       ],
       "imports": [
         "react",
-        "../config/keyboardShortcuts.js"
+        "../components/common.jsx",
+        "../components/panels/AddRecordPanel.jsx",
+        "../components/panels/SmallComponents.jsx",
+        "./ReadOnlySummaryReports.jsx"
       ],
-      "lines": 66,
+      "lines": 58,
       "riskLevel": "low",
-      "ownerModule": "Help",
-      "businessCriticality": "Low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
       "workflowReference": "General",
       "riskMetadata": {
@@ -2136,11 +2366,8 @@
         "extractionCandidate": "Screen Module"
       },
       "aiNavigation": {
-        "primaryEntryPoint": "KeyboardShortcutScreen",
-        "relatedScreens": [
-          "HelpTrainingScreen",
-          "KeyboardShortcutScreen"
-        ],
+        "primaryEntryPoint": "SummaryScreen",
+        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -2907,7 +3134,7 @@
         "../../utils/formatters.js",
         "../helpTraining/index.jsx"
       ],
-      "lines": 626,
+      "lines": 597,
       "riskLevel": "medium",
       "ownerModule": "Help",
       "businessCriticality": "Low",
@@ -3027,6 +3254,7 @@
         "FormActions",
         "StatusBadge",
         "FilterBar",
+        "getPresetDates",
         "ReportDateFilters",
         "ReportSelectFilter",
         "ShortcutHint",
@@ -3040,9 +3268,10 @@
         "WarningBanner"
       ],
       "imports": [
-        "react"
+        "react",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 364,
+      "lines": 378,
       "riskLevel": "medium",
       "ownerModule": "Renderer Shell",
       "businessCriticality": "Critical",
@@ -3178,6 +3407,150 @@
       }
     },
     {
+      "path": "components/panels/DrilldownPanel.jsx",
+      "components": [
+        "ReconciliationDrillTable",
+        "DrilldownPanel"
+      ],
+      "exports": [
+        "ReconciliationDrillTable",
+        "DrilldownPanel"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../features/accounting/drilldowns/drilldownUtils.js",
+        "./SmallComponents.jsx",
+        "../common.jsx"
+      ],
+      "lines": 282,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "DrilldownPanel",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/overlays/QuickCreateMasterDialog.jsx",
+      "components": [
+        "QuickCreateMasterDialog"
+      ],
+      "exports": [
+        "quickCreateRecords",
+        "QuickCreateMasterDialog"
+      ],
+      "imports": [
+        "react",
+        "../forms/index.jsx",
+        "../../config/confirmations.js",
+        "../../utils/formUtils.js",
+        "../../modules/quick-create/quickCreatePermissions.js",
+        "../../modules/quick-create/quickCreateDuplicateGuard.js"
+      ],
+      "lines": 274,
+      "riskLevel": "low",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "QuickCreateMasterDialog",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [
+          "ConfirmDialog",
+          "GlobalSearchOverlay",
+          "PrintPreviewDialog"
+        ],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/panels/SmallComponents.jsx",
+      "components": [
+        "PhasePanel",
+        "ValidationGuidanceBanner",
+        "SupplyOrderSummaryCard",
+        "VoucherLearnDialog",
+        "DeliveryChallanQuickForm",
+        "VoucherProposalTable"
+      ],
+      "exports": [
+        "PhasePanel",
+        "ValidationGuidanceBanner",
+        "SupplyOrderFieldSection",
+        "SupplyOrderSummaryCard",
+        "VoucherLearnDialog",
+        "DeliveryChallanQuickForm",
+        "DrilldownActionCenter",
+        "VoucherProposalTable"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../forms/index.jsx",
+        "../../utils/formatters.js"
+      ],
+      "lines": 252,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SmallComponents",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/overlays/index.jsx",
       "components": [
         "ModalPanel",
@@ -3203,7 +3576,7 @@
         "../common.jsx",
         "../../print/printUtils.js"
       ],
-      "lines": 241,
+      "lines": 243,
       "riskLevel": "low",
       "ownerModule": "Renderer Shell",
       "businessCriticality": "High",
@@ -3236,6 +3609,51 @@
       }
     },
     {
+      "path": "components/panels/AddRecordPanel.jsx",
+      "components": [
+        "AddRecordPanel"
+      ],
+      "exports": [
+        "AddRecordPanel"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../presentation/index.jsx",
+        "../../config/confirmations.js",
+        "../../config/importTemplates.js",
+        "../../utils/formatters.js",
+        "../../utils/spreadsheetExport.js",
+        "../../utils/importParsers.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 223,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "AddRecordPanel",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/layout/index.jsx",
       "components": [
         "NavigationSidebar",
@@ -3250,9 +3668,10 @@
       "imports": [
         "react",
         "../../config/navigation.js",
-        "../common.jsx"
+        "../common.jsx",
+        "../../utils/optionSorting.js"
       ],
-      "lines": 233,
+      "lines": 218,
       "riskLevel": "low",
       "ownerModule": "Renderer Shell",
       "businessCriticality": "High",
@@ -3385,6 +3804,49 @@
       }
     },
     {
+      "path": "components/entityPicker/SmartEntityPicker.jsx",
+      "components": [],
+      "exports": [
+        "SmartEntityPicker"
+      ],
+      "imports": [
+        "react",
+        "./EntityPickerRegistry.js",
+        "./useEntitySearch.js",
+        "./useEntityPickerKeyboard.js",
+        "./EntityPickerModal.jsx",
+        "./EntityPickerSearchInput.jsx",
+        "./EntityPickerResultList.jsx",
+        "../../modules/quick-create/quickCreatePermissions.js",
+        "../../modules/quick-create/quickCreateRegistry.js"
+      ],
+      "lines": 155,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "SmartEntityPicker",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/common.jsx",
       "components": [
         "IntelligenceCard",
@@ -3421,6 +3883,42 @@
         "relatedScreens": [
           "All screens via App.jsx"
         ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/entityPicker/EntityPickerRegistry.js",
+      "components": [
+        "getEntityPickerConfig"
+      ],
+      "exports": [
+        "getEntityPickerConfig",
+        "SUPPORTED_PICKER_TYPES"
+      ],
+      "imports": [],
+      "lines": 126,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerRegistry",
+        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -3546,6 +4044,41 @@
       }
     },
     {
+      "path": "components/entityPicker/useEntityPickerKeyboard.js",
+      "components": [],
+      "exports": [
+        "useEntityPickerKeyboard"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 105,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "useEntityPickerKeyboard",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/tables/MasterRecordsPanel.jsx",
       "components": [
         "MasterRecordsPanel"
@@ -3574,6 +4107,82 @@
         "relatedScreens": [
           "All screens via App.jsx"
         ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/entityPicker/useEntitySearch.js",
+      "components": [],
+      "exports": [
+        "useEntitySearch"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 81,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "useEntitySearch",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/presentation/index.jsx",
+      "components": [
+        "ImportResultSummary"
+      ],
+      "exports": [
+        "PanelHead",
+        "ImportResultSummary",
+        "TemplateFlowSteps",
+        "TemplateAuditNote",
+        "FileNameIndicator"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 51,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -3623,6 +4232,44 @@
           "Order Closure Report",
           "Payment Readiness"
         ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/help/HelpQuickActionsBar.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [
+        "react",
+        "../common.jsx",
+        "../../features/feedback/FeedbackLogPanel.jsx"
+      ],
+      "lines": 48,
+      "riskLevel": "low",
+      "ownerModule": "Help",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "HelpQuickActionsBar",
+        "relatedScreens": [
+          "HelpTrainingScreen",
+          "KeyboardShortcutScreen"
+        ],
+        "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
           "CompanyContext"
@@ -3763,6 +4410,84 @@
       }
     },
     {
+      "path": "components/workspace/index.jsx",
+      "components": [
+        "RuntimeBanner",
+        "TrainingModeBanner"
+      ],
+      "exports": [
+        "RuntimeBanner",
+        "TrainingModeBanner",
+        "ToastNotification",
+        "SidebarScrim"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 33,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/entityPicker/EntityPickerResultList.jsx",
+      "components": [
+        "EntityPickerResultList"
+      ],
+      "exports": [
+        "EntityPickerResultList"
+      ],
+      "imports": [
+        "./EntityPickerResultRow.jsx"
+      ],
+      "lines": 32,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerResultList",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/crac/ClosureChecklist.jsx",
       "components": [
         "ClosureChecklist"
@@ -3849,6 +4574,43 @@
       }
     },
     {
+      "path": "components/entityPicker/EntityPickerSearchInput.jsx",
+      "components": [
+        "EntityPickerSearchInput"
+      ],
+      "exports": [
+        "EntityPickerSearchInput"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 27,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerSearchInput",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/crac/CRACTimeline.jsx",
       "components": [],
       "exports": [
@@ -3883,6 +4645,41 @@
           "Order Closure Report",
           "Payment Readiness"
         ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/entityPicker/EntityPickerResultRow.jsx",
+      "components": [
+        "EntityPickerResultRow"
+      ],
+      "exports": [
+        "EntityPickerResultRow"
+      ],
+      "imports": [],
+      "lines": 25,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerResultRow",
+        "relatedScreens": [],
+        "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
           "CompanyContext"
@@ -3970,6 +4767,43 @@
       }
     },
     {
+      "path": "components/entityPicker/EntityPickerModal.jsx",
+      "components": [
+        "EntityPickerModal"
+      ],
+      "exports": [
+        "EntityPickerModal"
+      ],
+      "imports": [
+        "../FocusTrap.jsx"
+      ],
+      "lines": 16,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerModal",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/health/DiagnosticRow.jsx",
       "components": [
         "DiagnosticRow"
@@ -3997,6 +4831,37 @@
           "RecoveryCenterScreen",
           "SafeModeScreen"
         ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
+      "path": "components/entityPicker/index.js",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 9,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -4042,90 +4907,319 @@
           "ipcRenderer.invoke"
         ]
       }
-    },
-    {
-      "path": "components/workspace/index.jsx",
-      "components": [],
-      "exports": [
-        "RuntimeBanner",
-        "TrainingModeBanner",
-        "ToastNotification",
-        "SidebarScrim"
-      ],
-      "imports": [
-        "react"
-      ],
-      "lines": 22,
-      "riskLevel": "low",
-      "ownerModule": "Presentation",
-      "businessCriticality": "Low",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "General",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17C.1 (Presentation Extraction)",
-        "extractionCandidate": "Presentation Library"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "index",
-        "relatedScreens": [
-          "All screens via App.jsx"
-        ],
-        "relatedReports": [],
-        "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
-    },
-    {
-      "path": "components/presentation/index.jsx",
-      "components": [],
-      "exports": [
-        "PanelHead",
-        "ImportResultSummary",
-        "TemplateFlowSteps",
-        "TemplateAuditNote",
-        "FileNameIndicator"
-      ],
-      "imports": [
-        "react"
-      ],
-      "lines": 49,
-      "riskLevel": "low",
-      "ownerModule": "Presentation",
-      "businessCriticality": "Low",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "General",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17C.1 (Presentation Extraction)",
-        "extractionCandidate": "Presentation Library"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "index",
-        "relatedScreens": [
-          "All screens via App.jsx"
-        ],
-        "relatedReports": [],
-        "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
     }
   ],
   "features": [
+    {
+      "path": "features/accounting/accountingHelpers.js",
+      "components": [
+        "buildAllocationCorrectionForm"
+      ],
+      "exports": [
+        "buildAllocationCorrectionForm",
+        "allocationTargetOptions",
+        "formatCell"
+      ],
+      "imports": [
+        "../../utils/formatters.js"
+      ],
+      "lines": 37,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow"
+    },
+    {
+      "path": "features/accounting/AccountingScreen.jsx",
+      "components": [
+        "AccountingScreen",
+        "tableNameForControlRow",
+        "openOpeningBalancePanel"
+      ],
+      "exports": [
+        "AccountingScreen"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../utils/navigationScroll.js",
+        "../../utils/uiHelpers.js",
+        "../../components/helpProductivity/index.jsx",
+        "../../components/common.jsx",
+        "../../components/forms/index.jsx",
+        "../../components/panels/DrilldownPanel.jsx",
+        "../../components/accountingControls/index.jsx",
+        "../../screens/ReadOnlyReportFamilyScreen.jsx",
+        "./accountingTableConfig.js",
+        "./accountingHelpers.js",
+        "../../utils/actionUtils.js"
+      ],
+      "lines": 751,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/accountingTableConfig.js",
+      "components": [
+        "accountingTableConfig"
+      ],
+      "exports": [
+        "accountingTableConfig"
+      ],
+      "imports": [
+        "../../screens/ReadOnlyReportFamilyScreen.jsx"
+      ],
+      "lines": 387,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/AllocationWorkflowScreen.jsx",
+      "components": [
+        "AllocationWorkflowScreen"
+      ],
+      "exports": [
+        "AllocationWorkflowScreen"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../components/helpProductivity/index.jsx",
+        "../../components/common.jsx",
+        "../../components/forms/index.jsx"
+      ],
+      "lines": 381,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/BankStatementScreen.jsx",
+      "components": [
+        "normalizeImportHeader",
+        "BankStatementScreen"
+      ],
+      "exports": [
+        "BankStatementScreen"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../screens/BankRowsTable.jsx",
+        "../../components/common.jsx",
+        "../../components/forms/index.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../utils/actionUtils.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 358,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
+      "components": [
+        "BusinessVoucherIntelligencePanel"
+      ],
+      "exports": [
+        "BusinessVoucherIntelligencePanel"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "../../../components/common.jsx",
+        "./businessVoucherUtils.js"
+      ],
+      "lines": 323,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "components": [
+        "BusinessVoucherScreen",
+        "selectedItem",
+        "applyVoucherItem"
+      ],
+      "exports": [
+        "BusinessVoucherScreen"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/formatters.js",
+        "../../../components/helpProductivity/index.jsx",
+        "../../../components/common.jsx",
+        "../../../components/forms/index.jsx",
+        "../../../components/overlays/index.jsx",
+        "../../../components/panels/SmallComponents.jsx",
+        "./BusinessVoucherIntelligencePanel.jsx",
+        "./businessVoucherUtils.js",
+        "../../../utils/actionUtils.js",
+        "../../../components/entityPicker/SmartEntityPicker.jsx"
+      ],
+      "lines": 682,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/businessVouchers/businessVoucherUtils.js",
+      "components": [],
+      "exports": [
+        "voucherPlainLanguage",
+        "voucherTooltips",
+        "businessVoucherValidationMessages",
+        "businessVoucherPreview"
+      ],
+      "imports": [],
+      "lines": 169,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/drilldowns/drilldownUtils.js",
+      "components": [],
+      "exports": [
+        "buildDrilldownActions",
+        "drilldownStatusInfo",
+        "viewForSourceModule",
+        "dedupeDrilldownActions"
+      ],
+      "imports": [],
+      "lines": 195,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/VoucherEntryScreen.jsx",
+      "components": [
+        "VoucherEntryScreen"
+      ],
+      "exports": [
+        "VoucherEntryScreen"
+      ],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 177,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/VoucherProposalScreen.jsx",
+      "components": [
+        "VoucherProposalScreen"
+      ],
+      "exports": [
+        "VoucherProposalScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../components/panels/DrilldownPanel.jsx",
+        "../../components/forms/index.jsx",
+        "../../config/confirmations.js",
+        "../../components/helpProductivity/index.jsx",
+        "../../config/navigation.js",
+        "../../utils/formatters.js",
+        "../../utils/uiHelpers.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 280,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/auth/LoginScreen.jsx",
+      "components": [
+        "LoginScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react"
+      ],
+      "lines": 105,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General"
+    },
+    {
+      "path": "features/billing/billingHelpers.js",
+      "components": [],
+      "exports": [
+        "calculateInvoiceLine",
+        "uniqueInstitutionOptions",
+        "suggestedInvoiceNumber",
+        "orderLinesForBilling",
+        "pendingQuantityForLine",
+        "maxLineGstRate",
+        "orderProcuredQuantity",
+        "orderIssuedQuantity",
+        "billingOrderValidation",
+        "profitabilityPreviewForOrder",
+        "invoiceTimeline",
+        "lifecycleStage"
+      ],
+      "imports": [
+        "../../utils/formatters.js"
+      ],
+      "lines": 169,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow"
+    },
+    {
+      "path": "features/billing/BillingVoucherScreen.jsx",
+      "components": [
+        "BillingVoucherScreen",
+        "orderItem",
+        "resetForm",
+        "openQuickItem",
+        "useQuickExistingItem",
+        "saveQuickItem"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../utils/formUtils.js",
+        "../../utils/navigationScroll.js",
+        "../../components/helpProductivity/index.jsx",
+        "../../components/common.jsx",
+        "../../components/forms/index.jsx",
+        "../../components/overlays/index.jsx",
+        "../../components/entityPicker/SmartEntityPicker.jsx",
+        "./billingHelpers.js"
+      ],
+      "lines": 979,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
     {
       "path": "features/dashboards/dashboardConfig.js",
       "components": [],
@@ -4392,6 +5486,27 @@
       "workflowReference": "Dashboard Workflow"
     },
     {
+      "path": "features/dashboards/SummaryScreen.jsx",
+      "components": [
+        "SummaryScreen"
+      ],
+      "exports": [
+        "SummaryScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../components/panels/AddRecordPanel.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../screens/ReadOnlySummaryReports.jsx"
+      ],
+      "lines": 58,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow"
+    },
+    {
       "path": "features/dashboards/treasuryOverview.jsx",
       "components": [
         "TreasuryOverview"
@@ -4448,6 +5563,137 @@
       "workflowReference": "Dashboard Workflow"
     },
     {
+      "path": "features/feedback/FeedbackLogPanel.jsx",
+      "components": [
+        "screenLabel",
+        "FeedbackLogPanel"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../config/navigation.js"
+      ],
+      "lines": 267,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General"
+    },
+    {
+      "path": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "components": [
+        "MasterImportTemplatesScreen",
+        "downloadCurrentErrorReport"
+      ],
+      "exports": [
+        "MasterImportTemplatesScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../config/importTemplates.js",
+        "../../utils/formatters.js",
+        "../../utils/fileParsers.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 239,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow"
+    },
+    {
+      "path": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "components": [
+        "TallyLedgerBulkReviewUtilityPanel",
+        "TallyMigrationResultPanel",
+        "TallyMasterMigrationAssistantScreen"
+      ],
+      "exports": [
+        "TallyMasterMigrationAssistantScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/forms/index.jsx",
+        "../../components/common.jsx",
+        "../../components/presentation/index.jsx",
+        "../../config/confirmations.js",
+        "../../utils/spreadsheetExport.js",
+        "../../utils/formatters.js",
+        "../../utils/optionSorting.js"
+      ],
+      "lines": 1072,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow"
+    },
+    {
+      "path": "features/importExport/TallyXmlImportScreen.jsx",
+      "components": [
+        "TallyXmlImportScreen",
+        "chooseXmlInput"
+      ],
+      "exports": [
+        "TallyXmlImportScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../api/client.js",
+        "../../utils/spreadsheetExport.js",
+        "../../utils/formatters.js"
+      ],
+      "lines": 451,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General"
+    },
+    {
+      "path": "features/inventory/InventoryReportScreen.jsx",
+      "components": [
+        "InventoryReportScreen",
+        "WarehouseTransferQuickForm"
+      ],
+      "exports": [
+        "InventoryReportScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/panels/DrilldownPanel.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../components/forms/index.jsx",
+        "../../components/inventoryReports/index.jsx",
+        "../../screens/InventoryStockSummaryReport.jsx",
+        "../accounting/accountingHelpers.js",
+        "../../utils/formatters.js",
+        "../../utils/uiHelpers.js",
+        "../../utils/navigationScroll.js",
+        "../inventory/inventoryTableConfig.js"
+      ],
+      "lines": 159,
+      "ownerModule": "Master Data",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Inventory Workflow"
+    },
+    {
+      "path": "features/inventory/inventoryTableConfig.js",
+      "components": [
+        "inventoryTableConfig"
+      ],
+      "exports": [
+        "inventoryTableConfig"
+      ],
+      "imports": [],
+      "lines": 237,
+      "ownerModule": "Master Data",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Inventory Workflow"
+    },
+    {
       "path": "features/inventory/StockAdjustmentControlPanel.jsx",
       "components": [
         "selectedLabel",
@@ -4467,6 +5713,189 @@
       "businessCriticality": "Low",
       "changeFrequency": "Occasionally Modified",
       "workflowReference": "Inventory Workflow"
+    },
+    {
+      "path": "features/operations/operationsIntelligence.js",
+      "components": [
+        "normalizeOperationsQueueRow",
+        "buildOperationsContext",
+        "documentChecklist",
+        "calculateOperationalHealthScore",
+        "buildOperationsData"
+      ],
+      "exports": [
+        "documentChecklistColumns",
+        "operationDisplay",
+        "buildOperationsAttentionRows",
+        "normalizeOperationsQueueRow",
+        "filterOperationsAttentionRows",
+        "buildOperationsDashboardInsights",
+        "countUniqueOperationOrders",
+        "resolveOperationsLinks",
+        "idsMatch",
+        "sameText",
+        "buildOperationsIntelligence",
+        "buildOperationsContext",
+        "buildOperationalStatusTimeline",
+        "timelineStep",
+        "buildOperationalExceptions",
+        "calculateOperationalHealthScore",
+        "buildOrderClosureReadiness",
+        "recommendNextOperationalAction",
+        "deriveOperationalAttentionReason",
+        "buildOperationalAuditSignals",
+        "buildOperationsDrilldown",
+        "buildOperationsData",
+        "findOrderByOperationalRecord",
+        "operationalTarget",
+        "operationalTargetSection",
+        "documentMatchesOrder"
+      ],
+      "imports": [
+        "../../utils/formatters.js"
+      ],
+      "lines": 707,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/OperationsScreen.jsx",
+      "components": [
+        "OperationsScreen"
+      ],
+      "exports": [
+        "OperationsScreen"
+      ],
+      "imports": [
+        "react",
+        "../../components/common.jsx",
+        "../../components/operations/index.jsx",
+        "../../screens/OperationsDrilldownPanel.jsx",
+        "./operationsIntelligence.js",
+        "../../utils/formatters.js",
+        "../../utils/uiHelpers.js",
+        "../../utils/navigationScroll.js"
+      ],
+      "lines": 250,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/index.jsx",
+      "components": [],
+      "exports": [],
+      "imports": [],
+      "lines": 21,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "components": [
+        "SupplyOrderEntryForm"
+      ],
+      "exports": [
+        "SupplyOrderEntryForm"
+      ],
+      "imports": [
+        "react",
+        "../../../components/panels/SmallComponents.jsx",
+        "./SupplyOrderItemsGrid.jsx",
+        "./SupplyOrderReadinessPanel.jsx",
+        "./supplyOrderHelpers.js"
+      ],
+      "lines": 127,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/supplyOrderHelpers.js",
+      "components": [
+        "blankSupplyOrderItem",
+        "supplyOrderLineHasInput"
+      ],
+      "exports": [
+        "blankSupplyOrderItem",
+        "supplyOrderLineHasInput",
+        "itemById",
+        "calculatedSupplyOrderLine",
+        "normalizedSupplyOrderItems",
+        "supplyOrderItemsFromRecord",
+        "supplyOrderItemTotals",
+        "statusRequiresSupplyOrderItems",
+        "validateSupplyOrderItems",
+        "focusValidationTarget",
+        "supplyOrderDocumentReadiness",
+        "supplyOrderOperationalReadiness",
+        "buildSupplyOrderValidationErrors",
+        "nextSupplyOrderNumber"
+      ],
+      "imports": [],
+      "lines": 245,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Help & Training Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/SupplyOrderItemsGrid.jsx",
+      "components": [
+        "SupplyOrderItemsGrid"
+      ],
+      "exports": [
+        "SupplyOrderItemsGrid"
+      ],
+      "imports": [
+        "react",
+        "../../../components/forms/index.jsx",
+        "./supplyOrderHelpers.js",
+        "../../../utils/optionSorting.js"
+      ],
+      "lines": 130,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/SupplyOrderReadinessPanel.jsx",
+      "components": [
+        "SupplyOrderReadinessPanel"
+      ],
+      "exports": [
+        "SupplyOrderReadinessPanel"
+      ],
+      "imports": [],
+      "lines": 16,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
+    },
+    {
+      "path": "features/operations/supplyOrders/SupplyOrderRecordsPanel.jsx",
+      "components": [
+        "SupplyOrderRecordsPanel"
+      ],
+      "exports": [
+        "SupplyOrderRecordsPanel"
+      ],
+      "imports": [
+        "../../../components/common.jsx"
+      ],
+      "lines": 54,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Operations Workflow"
     },
     {
       "path": "features/reports/accountingIntelligence.jsx",
@@ -4489,6 +5918,37 @@
       "businessCriticality": "Low",
       "changeFrequency": "Occasionally Modified",
       "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/transactions/TransactionScreen.jsx",
+      "components": [
+        "orderLabel",
+        "TransactionScreen"
+      ],
+      "exports": [],
+      "imports": [
+        "react",
+        "../../utils/formatters.js",
+        "../../utils/formUtils.js",
+        "../../utils/navigationScroll.js",
+        "../../utils/errorGuidance.js",
+        "../../features/operations/supplyOrders/index.jsx",
+        "../../features/operations/supplyOrders/index.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../features/operations/supplyOrders/SupplyOrderRecordsPanel.jsx",
+        "../../features/inventory/StockAdjustmentControlPanel.jsx",
+        "../../features/inventory/StockAdjustmentControlPanel.jsx",
+        "../../components/panels/AddRecordPanel.jsx",
+        "../../components/panels/SmallComponents.jsx",
+        "../../components/common.jsx",
+        "../../utils/actionUtils.js",
+        "../../components/entityPicker/SmartEntityPicker.jsx"
+      ],
+      "lines": 610,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General"
     }
   ],
   "contexts": [
@@ -4596,11 +6056,13 @@
     "ipcRenderer.send"
   ],
   "risk": {
-    "highRiskCount": 1,
+    "highRiskCount": 3,
     "highRiskPaths": [
-      "App.jsx"
+      "api/browserFallbackApi.js",
+      "App.jsx",
+      "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 491,
+    "complexityScore": 683,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -4631,8 +6093,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 33965,
-    "totalImports": 353
+    "totalLines": 42219,
+    "totalImports": 683
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -4646,11 +6108,13 @@
     "electron": "Electron shell"
   },
   "riskAssessment": {
-    "highRiskCount": 1,
+    "highRiskCount": 3,
     "highRiskPaths": [
-      "App.jsx"
+      "api/browserFallbackApi.js",
+      "App.jsx",
+      "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 491,
+    "complexityScore": 683,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -4666,7 +6130,7 @@
   "evolution": {
     "current": {
       "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
-      "appJsxLines": 12671,
+      "appJsxLines": 1654,
       "cssLines": 7042,
       "style": "Monolithic"
     },
@@ -4687,6 +6151,14 @@
   },
   "edges": [
     {
+      "from": "api/browserFallbackApi.js",
+      "to": "../utils/formatters.js"
+    },
+    {
+      "from": "api/browserFallbackApi.js",
+      "to": "../utils/importParsers.js"
+    },
+    {
       "from": "App.jsx",
       "to": "react"
     },
@@ -4697,6 +6169,30 @@
     {
       "from": "App.jsx",
       "to": "./api/client.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./api/browserFallbackApi.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/accountingTableConfig.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/inventory/inventoryTableConfig.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/businessVouchers/businessVoucherUtils.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/businessVouchers/BusinessVoucherScreen.jsx"
     },
     {
       "from": "App.jsx",
@@ -4740,11 +6236,43 @@
     },
     {
       "from": "App.jsx",
+      "to": "./screens/LoginScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/importExport/MasterImportTemplatesScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/VoucherEntryScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/VoucherProposalScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/operations/OperationsScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/dashboards/SummaryScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/inventory/InventoryReportScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
       "to": "./components/forms/index.jsx"
     },
     {
       "from": "App.jsx",
       "to": "./components/tables/MasterRecordsPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./screens/MasterScreen.jsx"
     },
     {
       "from": "App.jsx",
@@ -4756,11 +6284,39 @@
     },
     {
       "from": "App.jsx",
+      "to": "./components/help/HelpQuickActionsBar.jsx"
+    },
+    {
+      "from": "App.jsx",
       "to": "./components/overlays/index.jsx"
     },
     {
       "from": "App.jsx",
+      "to": "./components/panels/AddRecordPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
       "to": "./components/operations/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/importExport/TallyMasterMigrationAssistantScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/importExport/TallyXmlImportScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/operations/supplyOrders/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/operations/operationsIntelligence.js"
     },
     {
       "from": "App.jsx",
@@ -4867,6 +6423,86 @@
       "to": "./stability/startupSelfTest.js"
     },
     {
+      "from": "App.jsx",
+      "to": "./components/panels/DrilldownPanel.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/billing/BillingVoucherScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/transactions/TransactionScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/AccountingScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/AllocationWorkflowScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./features/accounting/BankStatementScreen.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./utils/actionUtils.js"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./utils/fileParsers.js"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/shared.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/masters.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/operations.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/inventory.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/accounting.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/gst.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/reports.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/dashboards.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/help.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/utilities.json"
+    },
+    {
+      "from": "componentRegistry/registry.js",
+      "to": "./ownership/deployment.json"
+    },
+    {
+      "from": "componentRegistry/validators.js",
+      "to": "./schema.js"
+    },
+    {
       "from": "components/accountingControls/index.jsx",
       "to": "../common.jsx"
     },
@@ -4915,12 +6551,72 @@
       "to": "../common.jsx"
     },
     {
+      "from": "components/entityPicker/EntityPickerModal.jsx",
+      "to": "../FocusTrap.jsx"
+    },
+    {
+      "from": "components/entityPicker/EntityPickerResultList.jsx",
+      "to": "./EntityPickerResultRow.jsx"
+    },
+    {
+      "from": "components/entityPicker/EntityPickerSearchInput.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./EntityPickerRegistry.js"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./useEntitySearch.js"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./useEntityPickerKeyboard.js"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./EntityPickerModal.jsx"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./EntityPickerSearchInput.jsx"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./EntityPickerResultList.jsx"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "../../modules/quick-create/quickCreatePermissions.js"
+    },
+    {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "../../modules/quick-create/quickCreateRegistry.js"
+    },
+    {
+      "from": "components/entityPicker/useEntityPickerKeyboard.js",
+      "to": "react"
+    },
+    {
+      "from": "components/entityPicker/useEntitySearch.js",
+      "to": "react"
+    },
+    {
       "from": "components/FocusTrap.jsx",
       "to": "react"
     },
     {
       "from": "components/forms/index.jsx",
       "to": "react"
+    },
+    {
+      "from": "components/forms/index.jsx",
+      "to": "../../utils/optionSorting.js"
     },
     {
       "from": "components/health/DiagnosticRow.jsx",
@@ -4937,6 +6633,18 @@
     {
       "from": "components/health/VerificationResultBox.jsx",
       "to": "react"
+    },
+    {
+      "from": "components/help/HelpQuickActionsBar.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/help/HelpQuickActionsBar.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/help/HelpQuickActionsBar.jsx",
+      "to": "../../features/feedback/FeedbackLogPanel.jsx"
     },
     {
       "from": "components/helpProductivity/index.jsx",
@@ -5031,6 +6739,10 @@
       "to": "../common.jsx"
     },
     {
+      "from": "components/layout/index.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
       "from": "components/operations/index.jsx",
       "to": "react"
     },
@@ -5059,6 +6771,106 @@
       "to": "../../print/printUtils.js"
     },
     {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../../config/confirmations.js"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../../utils/formUtils.js"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../../modules/quick-create/quickCreatePermissions.js"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../../modules/quick-create/quickCreateDuplicateGuard.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../presentation/index.jsx"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../config/confirmations.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../config/importTemplates.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../utils/spreadsheetExport.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../utils/importParsers.js"
+    },
+    {
+      "from": "components/panels/AddRecordPanel.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "components/panels/DrilldownPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/panels/DrilldownPanel.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/panels/DrilldownPanel.jsx",
+      "to": "../../features/accounting/drilldowns/drilldownUtils.js"
+    },
+    {
+      "from": "components/panels/DrilldownPanel.jsx",
+      "to": "./SmallComponents.jsx"
+    },
+    {
+      "from": "components/panels/DrilldownPanel.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/panels/SmallComponents.jsx",
+      "to": "react"
+    },
+    {
+      "from": "components/panels/SmallComponents.jsx",
+      "to": "../common.jsx"
+    },
+    {
+      "from": "components/panels/SmallComponents.jsx",
+      "to": "../forms/index.jsx"
+    },
+    {
+      "from": "components/panels/SmallComponents.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "components/presentation/index.jsx",
+      "to": "react"
+    },
+    {
       "from": "components/settings/index.jsx",
       "to": "react"
     },
@@ -5073,6 +6885,378 @@
     {
       "from": "components/tables/MasterRecordsPanel.jsx",
       "to": "../common.jsx"
+    },
+    {
+      "from": "components/workspace/index.jsx",
+      "to": "react"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/DashboardScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../features/dashboards/drilldowns/index.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/SettingsScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/EnvironmentManager/EnvironmentManagerScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/HealthCenter/index.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "./viewDefinitions.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "./navigation.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/ProfitabilityScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/ProfitSimulatorScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../features/billing/BillingVoucherScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/DocumentsScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/CRAC/index.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/MasterDataTools/index.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/MasterImportTemplatesScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../features/importExport/TallyMasterMigrationAssistantScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../features/importExport/TallyXmlImportScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../modules/helpAssistant/HelpAssistant.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/KeyboardShortcutScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/HelpTrainingScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/SummaryScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../screens/SafeMode/index.js"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../modules/deployment/ProductionReadinessScreen.jsx"
+    },
+    {
+      "from": "config/screenRegistry.jsx",
+      "to": "../modules/deployment/GoLiveWizard.jsx"
+    },
+    {
+      "from": "features/accounting/accountingHelpers.js",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../utils/navigationScroll.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../components/panels/DrilldownPanel.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../components/accountingControls/index.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../screens/ReadOnlyReportFamilyScreen.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "./accountingTableConfig.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "./accountingHelpers.js"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "../../utils/actionUtils.js"
+    },
+    {
+      "from": "features/accounting/accountingTableConfig.js",
+      "to": "../../screens/ReadOnlyReportFamilyScreen.jsx"
+    },
+    {
+      "from": "features/accounting/AllocationWorkflowScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/AllocationWorkflowScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/AllocationWorkflowScreen.jsx",
+      "to": "../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "features/accounting/AllocationWorkflowScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/AllocationWorkflowScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../screens/BankRowsTable.jsx"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../utils/actionUtils.js"
+    },
+    {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
+      "to": "../../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
+      "to": "./businessVoucherUtils.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/overlays/index.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "./BusinessVoucherIntelligencePanel.jsx"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "./businessVoucherUtils.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../utils/actionUtils.js"
+    },
+    {
+      "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
+      "to": "../../../components/entityPicker/SmartEntityPicker.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherEntryScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/VoucherEntryScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/VoucherEntryScreen.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../components/panels/DrilldownPanel.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../config/confirmations.js"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../config/navigation.js"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/accounting/VoucherProposalScreen.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/auth/LoginScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/billing/billingHelpers.js",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../utils/formUtils.js"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../utils/navigationScroll.js"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../components/overlays/index.jsx"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "../../components/entityPicker/SmartEntityPicker.jsx"
+    },
+    {
+      "from": "features/billing/BillingVoucherScreen.jsx",
+      "to": "./billingHelpers.js"
     },
     {
       "from": "features/dashboards/dashboardContext.jsx",
@@ -5227,6 +7411,26 @@
       "to": "./DrilldownBase.jsx"
     },
     {
+      "from": "features/dashboards/SummaryScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/dashboards/SummaryScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/dashboards/SummaryScreen.jsx",
+      "to": "../../components/panels/AddRecordPanel.jsx"
+    },
+    {
+      "from": "features/dashboards/SummaryScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/dashboards/SummaryScreen.jsx",
+      "to": "../../screens/ReadOnlySummaryReports.jsx"
+    },
+    {
       "from": "features/dashboards/treasuryOverview.jsx",
       "to": "react"
     },
@@ -5247,8 +7451,212 @@
       "to": "../../utils/formatters.js"
     },
     {
+      "from": "features/feedback/FeedbackLogPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/feedback/FeedbackLogPanel.jsx",
+      "to": "../../config/navigation.js"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "../../config/importTemplates.js"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "../../utils/fileParsers.js"
+    },
+    {
+      "from": "features/importExport/MasterImportTemplatesScreen.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../components/presentation/index.jsx"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../config/confirmations.js"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../utils/spreadsheetExport.js"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
+      "to": "../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/importExport/TallyXmlImportScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/importExport/TallyXmlImportScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/importExport/TallyXmlImportScreen.jsx",
+      "to": "../../api/client.js"
+    },
+    {
+      "from": "features/importExport/TallyXmlImportScreen.jsx",
+      "to": "../../utils/spreadsheetExport.js"
+    },
+    {
+      "from": "features/importExport/TallyXmlImportScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../components/panels/DrilldownPanel.jsx"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../components/inventoryReports/index.jsx"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../screens/InventoryStockSummaryReport.jsx"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../accounting/accountingHelpers.js"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../../utils/navigationScroll.js"
+    },
+    {
+      "from": "features/inventory/InventoryReportScreen.jsx",
+      "to": "../inventory/inventoryTableConfig.js"
+    },
+    {
       "from": "features/inventory/StockAdjustmentControlPanel.jsx",
       "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/operations/operationsIntelligence.js",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../components/operations/index.jsx"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../screens/OperationsDrilldownPanel.jsx"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "./operationsIntelligence.js"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../utils/uiHelpers.js"
+    },
+    {
+      "from": "features/operations/OperationsScreen.jsx",
+      "to": "../../utils/navigationScroll.js"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "to": "../../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "to": "./SupplyOrderItemsGrid.jsx"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "to": "./SupplyOrderReadinessPanel.jsx"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderEntryForm.jsx",
+      "to": "./supplyOrderHelpers.js"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderItemsGrid.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderItemsGrid.jsx",
+      "to": "../../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderItemsGrid.jsx",
+      "to": "./supplyOrderHelpers.js"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderItemsGrid.jsx",
+      "to": "../../../utils/optionSorting.js"
+    },
+    {
+      "from": "features/operations/supplyOrders/SupplyOrderRecordsPanel.jsx",
+      "to": "../../../components/common.jsx"
     },
     {
       "from": "features/reports/accountingIntelligence.jsx",
@@ -5257,6 +7665,70 @@
     {
       "from": "features/reports/accountingIntelligence.jsx",
       "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../utils/formatters.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../utils/formUtils.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../utils/navigationScroll.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../utils/errorGuidance.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../features/operations/supplyOrders/index.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../features/operations/supplyOrders/index.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../features/operations/supplyOrders/SupplyOrderRecordsPanel.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../features/inventory/StockAdjustmentControlPanel.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../features/inventory/StockAdjustmentControlPanel.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../components/panels/AddRecordPanel.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../components/panels/SmallComponents.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../components/common.jsx"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../utils/actionUtils.js"
+    },
+    {
+      "from": "features/transactions/TransactionScreen.jsx",
+      "to": "../../components/entityPicker/SmartEntityPicker.jsx"
     },
     {
       "from": "knowledge/registry.js",
@@ -5331,12 +7803,128 @@
       "to": "react"
     },
     {
+      "from": "modules/erpAssistant/classifier/queryClassifier.js",
+      "to": "./categoryDefinitions.js"
+    },
+    {
+      "from": "modules/erpAssistant/response/answerContractBuilder.js",
+      "to": "../../erpBrain/services/sourceBackedAnswerBuilder.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/featureFunctionBridge.js",
+      "to": "../../../knowledge/feature-function-graph.json"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "../classifier/queryClassifier.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "../../erpBrain/services/sourceBackedSearchService.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "../../helpAssistant/contextualBrainHelp.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "../response/safetyEnforcer.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "../response/answerContractBuilder.js"
+    },
+    {
+      "from": "modules/erpAssistant/sources/knowledgeBridge.js",
+      "to": "./featureFunctionBridge.js"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantAnswerCard.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantAnswerCard.jsx",
+      "to": "./AssistantSourceRefs.jsx"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantAnswerCard.jsx",
+      "to": "./AssistantSafetyNotice.jsx"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantPanel.jsx",
+      "to": "../sources/knowledgeBridge.js"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantPanel.jsx",
+      "to": "../response/roleRenderer.js"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantPanel.jsx",
+      "to": "./AssistantAnswerCard.jsx"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantRoleProvider.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantSafetyNotice.jsx",
+      "to": "react"
+    },
+    {
+      "from": "modules/erpAssistant/ui/AssistantSourceRefs.jsx",
+      "to": "react"
+    },
+    {
       "from": "modules/erpBrain/index.js",
       "to": "./loaders/repositoryLoader.js"
     },
     {
       "from": "modules/erpBrain/index.js",
       "to": "./services/repositorySearchService.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./loaders/graphLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./loaders/manualLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./services/sourceBackedSearchIndex.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./services/sourceBackedSearchService.js"
+    },
+    {
+      "from": "modules/erpBrain/index.js",
+      "to": "./services/sourceBackedAnswerBuilder.js"
+    },
+    {
+      "from": "modules/erpBrain/loaders/graphLoader.js",
+      "to": "../../../knowledge/workflow-graph.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/graphLoader.js",
+      "to": "../../../knowledge/database-graph.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/graphLoader.js",
+      "to": "../../../knowledge/voucher-accounting-graph.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/graphLoader.js",
+      "to": "../../../knowledge/renderer-graph.json"
+    },
+    {
+      "from": "modules/erpBrain/loaders/manualLoader.js",
+      "to": "../data/manualIndex.js"
     },
     {
       "from": "modules/erpBrain/loaders/repositoryLoader.js",
@@ -5373,6 +7961,26 @@
     {
       "from": "modules/erpBrain/services/repositorySearchService.js",
       "to": "../loaders/repositoryLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/services/sourceBackedAnswerBuilder.js",
+      "to": "./sourceBackedSearchService.js"
+    },
+    {
+      "from": "modules/erpBrain/services/sourceBackedSearchIndex.js",
+      "to": "../loaders/repositoryLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/services/sourceBackedSearchIndex.js",
+      "to": "../loaders/graphLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/services/sourceBackedSearchIndex.js",
+      "to": "../loaders/manualLoader.js"
+    },
+    {
+      "from": "modules/erpBrain/services/sourceBackedSearchService.js",
+      "to": "./sourceBackedSearchIndex.js"
     },
     {
       "from": "modules/helpAssistant/HelpAssistant.jsx",
@@ -5417,6 +8025,10 @@
     {
       "from": "modules/helpAssistant/HelpAssistant.jsx",
       "to": "./helpAssistantReadiness.js"
+    },
+    {
+      "from": "modules/helpAssistant/HelpAssistant.jsx",
+      "to": "../erpAssistant/ui/AssistantPanel.jsx"
     },
     {
       "from": "modules/helpAssistant/HelpAssistantAnswer.jsx",
@@ -5487,608 +8099,56 @@
       "to": "./screenHelpAnswer.js"
     },
     {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "react"
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./helpAssistantKnowledge.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "../erpBrain/services/sourceBackedSearchService.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "../erpAssistant/sources/knowledgeBridge.js"
+    },
+    {
+      "from": "modules/helpAssistant/helpAssistantUtils.js",
+      "to": "./contextualBrainHelp.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateAuditBridge.js",
+      "to": "./quickCreateRegistry.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateController.js",
+      "to": "./quickCreateRegistry.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateController.js",
+      "to": "./quickCreatePermissions.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateController.js",
+      "to": "./quickCreateDuplicateGuard.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateController.js",
+      "to": "./quickCreateResultMapper.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreatePermissions.js",
+      "to": "../../components/helpProductivity/index.jsx"
+    },
+    {
+      "from": "modules/quick-create/quickCreatePermissions.js",
+      "to": "./quickCreateRegistry.js"
+    },
+    {
+      "from": "modules/quick-create/quickCreateResultMapper.js",
+      "to": "./quickCreateRegistry.js"
     },
     {
       "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/CreditNotePrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/DebitNotePrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/DeliveryChallanPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/FinancialReportPrints.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/GstReportPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/JournalVoucherPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/OperationalPrints.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/OutstandingReportPrints.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/PaymentVoucherPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/PurchaseVoucherPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/ReceiptVoucherPrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/SalesInvoicePrint.jsx"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "./templates/StockReportPrint.jsx"
-    },
-    {
-      "from": "print/printUtils.js",
       "to": "react"
-    },
-    {
-      "from": "print/printUtils.js",
-      "to": "react-dom/server"
-    },
-    {
-      "from": "print/printUtils.js",
-      "to": "./printTemplateConfig.js"
-    },
-    {
-      "from": "print/printUtils.js",
-      "to": "./PrintTemplateHost.jsx"
-    },
-    {
-      "from": "print/templates/CreditNotePrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/CreditNotePrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/DebitNotePrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/DebitNotePrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/DeliveryChallanPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/DeliveryChallanPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/FinancialReportPrints.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/FinancialReportPrints.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/GstReportPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/GstReportPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/JournalVoucherPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/JournalVoucherPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/OperationalPrints.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/OperationalPrints.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/OutstandingReportPrints.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/OutstandingReportPrints.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/PaymentVoucherPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/PaymentVoucherPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/PurchaseVoucherPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/PurchaseVoucherPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/ReceiptVoucherPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/ReceiptVoucherPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/SalesInvoicePrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/SalesInvoicePrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/StockReportPrint.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/StockReportPrint.jsx",
-      "to": "./TemplateSections.jsx"
-    },
-    {
-      "from": "print/templates/TemplateSections.jsx",
-      "to": "react"
-    },
-    {
-      "from": "print/templates/TemplateSections.jsx",
-      "to": "../printUtils.js"
-    },
-    {
-      "from": "screens/AllCompaniesReadOnlyScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/BankRowsTable.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/BankRowsTable.jsx",
-      "to": "../components/common.jsx"
-    },
-    {
-      "from": "screens/BankRowsTable.jsx",
-      "to": "../utils/formatters.js"
-    },
-    {
-      "from": "screens/CRAC/CRACEntryScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/CRAC/CRACEntryScreen.jsx",
-      "to": "../../components/crac/CRACStatusCard.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACManagementScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/CRAC/CRACManagementScreen.jsx",
-      "to": "../../components/crac/CRACStatusCard.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACManagementScreen.jsx",
-      "to": "../../components/crac/CRACTimeline.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACManagementScreen.jsx",
-      "to": "../../components/crac/CRACDocumentPanel.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACManagementScreen.jsx",
-      "to": "../../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACTrackerScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/CRAC/CRACTrackerScreen.jsx",
-      "to": "../../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACTrackerScreen.jsx",
-      "to": "../../components/crac/CRACTimeline.jsx"
-    },
-    {
-      "from": "screens/CRAC/CRACTrackerScreen.jsx",
-      "to": "../../components/crac/CRACStatusCard.jsx"
-    },
-    {
-      "from": "screens/CRAC/OrderClosureScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/CRAC/OrderClosureScreen.jsx",
-      "to": "../../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/CRAC/OrderClosureScreen.jsx",
-      "to": "../../components/crac/ClosureChecklist.jsx"
-    },
-    {
-      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
-      "to": "../../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/CRAC/PaymentReadinessScreen.jsx",
-      "to": "../../components/crac/PaymentReadinessTable.jsx"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../features/dashboards/dashboardConfig.js"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../features/dashboards/dashboardService.js"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../features/dashboards/widgetFramework.jsx"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../features/dashboards/dashboardContext.jsx"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../features/dashboards/treasuryOverview.jsx"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../config/storageKeys.js"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../components/dashboard/index.jsx"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../stability/rendererStabilityUtils.js"
-    },
-    {
-      "from": "screens/DashboardScreen.jsx",
-      "to": "../utils/uiHelpers.js"
-    },
-    {
-      "from": "screens/DocumentsScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/DocumentsScreen.jsx",
-      "to": "../components/common.jsx"
-    },
-    {
-      "from": "screens/DocumentsScreen.jsx",
-      "to": "../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/DocumentsScreen.jsx",
-      "to": "../utils/formatters.js"
-    },
-    {
-      "from": "screens/DocumentsScreen.jsx",
-      "to": "../utils/uiHelpers.js"
-    },
-    {
-      "from": "screens/EnvironmentManager/EnvironmentManagerScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/ErrorGuidancePanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/ErrorGuidancePanel.jsx",
-      "to": "./healthCenterConfig.js"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "../../components/health/index.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./ErrorGuidancePanel.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./PhaseLockRegistry.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./RecoveryCenterScreen.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./RuntimeDiagnosticsPanel.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./SafeModeScreen.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./SupportBundlePanel.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/HealthCenterScreen.jsx",
-      "to": "./VerificationConsole.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/PhaseLockRegistry.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/PhaseLockRegistry.jsx",
-      "to": "./healthCenterConfig.js"
-    },
-    {
-      "from": "screens/HealthCenter/RecoveryCenterScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/RecoveryCenterScreen.jsx",
-      "to": "./healthCenterConfig.js"
-    },
-    {
-      "from": "screens/HealthCenter/RuntimeDiagnosticsPanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/RuntimeDiagnosticsPanel.jsx",
-      "to": "../../components/health/index.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/SafeModeScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/SupportBundlePanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationCommandCard.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationConsole.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationConsole.jsx",
-      "to": "./healthCenterConfig.js"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationConsole.jsx",
-      "to": "./VerificationCommandCard.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationConsole.jsx",
-      "to": "./VerificationHistoryPanel.jsx"
-    },
-    {
-      "from": "screens/HealthCenter/VerificationHistoryPanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HelpTrainingScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/HelpTrainingScreen.jsx",
-      "to": "../components/helpTraining/index.jsx"
-    },
-    {
-      "from": "screens/HelpTrainingScreen.jsx",
-      "to": "../config/helpContent.js"
-    },
-    {
-      "from": "screens/HelpTrainingScreen.jsx",
-      "to": "../config/navigation.js"
-    },
-    {
-      "from": "screens/HelpTrainingScreen.jsx",
-      "to": "../utils/uiHelpers.js"
-    },
-    {
-      "from": "screens/InventoryStockSummaryReport.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/InventoryStockSummaryReport.jsx",
-      "to": "../components/inventoryReports/index.jsx"
-    },
-    {
-      "from": "screens/InventoryStockSummaryReport.jsx",
-      "to": "../features/reports/accountingIntelligence.jsx"
-    },
-    {
-      "from": "screens/InventoryStockSummaryReport.jsx",
-      "to": "../utils/formatters.js"
-    },
-    {
-      "from": "screens/InventoryStockSummaryReport.jsx",
-      "to": "../utils/uiHelpers.js"
-    },
-    {
-      "from": "screens/KeyboardShortcutScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/KeyboardShortcutScreen.jsx",
-      "to": "../config/keyboardShortcuts.js"
-    },
-    {
-      "from": "screens/MasterDataTools/MasterDataToolsScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/MasterDataTools/MasterDataToolsScreen.jsx",
-      "to": "../../utils/formatters.js"
-    },
-    {
-      "from": "screens/OperationsDrilldownPanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/OperationsDrilldownPanel.jsx",
-      "to": "../components/operations/index.jsx"
-    },
-    {
-      "from": "screens/ProfitabilityScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/ProfitabilityScreen.jsx",
-      "to": "../components/common.jsx"
-    },
-    {
-      "from": "screens/ProfitabilityScreen.jsx",
-      "to": "../components/forms/index.jsx"
-    },
-    {
-      "from": "screens/ProfitabilityScreen.jsx",
-      "to": "../utils/formatters.js"
-    },
-    {
-      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
-      "to": "../components/common.jsx"
-    },
-    {
-      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
-      "to": "../features/reports/accountingIntelligence.jsx"
-    },
-    {
-      "from": "screens/ReadOnlyReportFamilyScreen.jsx",
-      "to": "../utils/formatters.js"
-    },
-    {
-      "from": "screens/ReadOnlySummaryReports.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/ReadOnlySummaryReports.jsx",
-      "to": "../components/common.jsx"
-    },
-    {
-      "from": "screens/SafeMode/RendererCrashReportPanel.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-      "to": "../../stability/rendererCrashRegistry.js"
-    },
-    {
-      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-      "to": "../../stability/safeFallbackConfig.js"
-    },
-    {
-      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-      "to": "../../stability/rendererStabilityUtils.js"
-    },
-    {
-      "from": "screens/SafeMode/SafeModeRecoveryScreen.jsx",
-      "to": "./RendererCrashReportPanel.jsx"
-    },
-    {
-      "from": "screens/SettingsScreen.jsx",
-      "to": "react"
-    },
-    {
-      "from": "screens/SettingsScreen.jsx",
-      "to": "../api/client.js"
-    },
-    {
-      "from": "screens/SettingsScreen.jsx",
-      "to": "../components/settings/index.jsx"
-    },
-    {
-      "from": "stability/rendererCrashRegistry.js",
-      "to": "./rendererStabilityUtils.js"
-    },
-    {
-      "from": "stability/RendererErrorBoundary.jsx",
-      "to": "react"
-    },
-    {
-      "from": "stability/RendererErrorBoundary.jsx",
-      "to": "./rendererCrashRegistry.js"
-    },
-    {
-      "from": "stability/RendererErrorBoundary.jsx",
-      "to": "./rendererStabilityUtils.js"
-    },
-    {
-      "from": "stability/startupSelfTest.js",
-      "to": "../config/navigation.js"
-    },
-    {
-      "from": "stability/startupSelfTest.js",
-      "to": "./rendererStabilityUtils.js"
-    },
-    {
-      "from": "App.jsx",
-      "to": "./components/workspace/index.jsx"
-    },
-    {
-      "from": "App.jsx",
-      "to": "./components/presentation/index.jsx"
     }
   ]
 }

@@ -1515,6 +1515,87 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     ].forEach(([column, definition]) => addColumnIfMissing(db, "supply_orders", column, definition));
   }
 
+  function addProcurementPlanningTables(db) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS procurement_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        plan_number TEXT NOT NULL,
+        plan_date TEXT NOT NULL,
+        order_id INTEGER,
+        item_id INTEGER,
+        warehouse_id INTEGER,
+        required_quantity REAL NOT NULL DEFAULT 0,
+        available_stock REAL NOT NULL DEFAULT 0,
+        short_quantity REAL NOT NULL DEFAULT 0,
+        planned_quantity REAL NOT NULL DEFAULT 0,
+        expected_rate REAL,
+        estimated_value REAL,
+        supplier_id INTEGER,
+        priority TEXT NOT NULL DEFAULT 'medium',
+        status TEXT NOT NULL DEFAULT 'draft',
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, plan_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (order_id) REFERENCES supply_orders(id),
+        FOREIGN KEY (item_id) REFERENCES items(id),
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+      );
+    `);
+  }
+
+  function addPurchaseOrderTables(db) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS purchase_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL,
+        po_number TEXT NOT NULL,
+        po_date TEXT NOT NULL,
+        supply_type TEXT NOT NULL DEFAULT 'GeM',
+        gem_order_number TEXT,
+        gem_contract_number TEXT,
+        negotiation_id INTEGER,
+        department_id INTEGER,
+        employee_id INTEGER,
+        supplier_id INTEGER,
+        title TEXT,
+        description TEXT,
+        total_value REAL NOT NULL DEFAULT 0,
+        delivery_period TEXT,
+        payment_terms TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        converted_to_work_order INTEGER NOT NULL DEFAULT 0,
+        work_order_id INTEGER,
+        remarks TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT,
+        deleted_by INTEGER,
+        UNIQUE(company_id, po_number),
+        FOREIGN KEY (company_id) REFERENCES companies(id),
+        FOREIGN KEY (negotiation_id) REFERENCES negotiations(id),
+        FOREIGN KEY (department_id) REFERENCES government_departments(id),
+        FOREIGN KEY (employee_id) REFERENCES employees(id),
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+        FOREIGN KEY (work_order_id) REFERENCES supply_orders(id)
+      );
+    `);
+  }
+
+  function addPurchaseOrderConversionControls(db) {
+    if (!tableExists(db, "purchase_orders")) return;
+    addColumnIfMissing(db, "purchase_orders", "employee_id", "INTEGER REFERENCES employees(id)");
+  }
+
   function addLeadStageTables(db) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS leads (
@@ -1680,6 +1761,9 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     addRuntimeSoftDeleteColumns,
     addSupplierExtendedFields,
     addPhase15iCracTables,
-    addLeadStageTables
+    addLeadStageTables,
+    addPurchaseOrderTables,
+    addProcurementPlanningTables,
+    addPurchaseOrderConversionControls
   };
 }

@@ -2,22 +2,22 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0
-**Generated:** 2026-07-01T11:05:33.683Z
+**Generated:** 2026-07-20T09:37:42.262Z
 
 ---
 
 ## 1. Renderer Size
 | Metric | Value |
 |--------|-------|
-| Source Files | 153 |
-| Total Lines | 34,513 |
-| Import Statements | 349 |
-| App.jsx | 13290 lines (~665KB) |
+| Source Files | 248 |
+| Total Lines | 42,219 |
+| Import Statements | 683 |
+| App.jsx | 1654 lines (~83KB) |
 | CSS (single file) | 7,042 lines (125KB) |
-| Complexity Score | 491 |
-| Architecture Density | 2.28 imports/file |
+| Complexity Score | 683 |
+| Architecture Density | 2.75 imports/file |
 
-## 2. Screens (36 dedicated files, 114 routes)
+## 2. Screens (41 dedicated files, 114 routes)
 - **Master Data:** companies, employees, suppliers, items, banks, warehouses, ledgers, groups
 - **Transactions:** purchase, sales, receipt, payment, journal vouchers, credit/debit notes
 - **Dashboard:** main dashboard with drilldown panels
@@ -29,44 +29,44 @@
 - **CRAC:** CRAC management, entry, tracker, payment readiness, order closure (5 routes)
 - **Settings, Documents, Help, Health Center, Safe Mode, Deployment**
 
-## 3. Components (24 files)
+## 3. Components (40 files)
 - **Categories:** Layout, Overlays, Forms, Common UI, Tables, Health, CRAC, Help, Inventory, Operations, Accounting Controls, Dashboard
-- **Most Shared Components:** CRACStatusCard (3x), ClosureChecklist (1x), CRACDocumentPanel (1x)
-- **Avg Reuse:** 1x
+- **Most Shared Components:** AddRecordPanel (5x), DrilldownPanel (5x), CRACStatusCard (3x)
+- **Avg Reuse:** 2x
 
 ## 4. Ownership
-- **Help:** 23 files
-- **Dashboard:** 22 files
-- **Renderer Shell:** 20 files
+- **Dashboard:** 50 files
+- **Other:** 46 files
+- **Help:** 25 files
+- **Renderer Shell:** 24 files
+- **Knowledge:** 21 files
 - **Health Center:** 17 files
 - **Print:** 17 files
-- **Knowledge:** 15 files
+- **Utilities:** 12 files
 - **CRAC:** 11 files
+- **Master Data:** 5 files
 - **Deployment:** 5 files
-- **Utilities:** 4 files
 - **Accounting:** 3 files
 - **Inventory:** 3 files
 - **Operations:** 3 files
-- **Master Data:** 3 files
 - **Reports:** 3 files
 - **Settings:** 2 files
-- **Other:** 1 files
 - **Profitability:** 1 files
 
 ## 5. Business Criticality
-- **High:** 70 files
-- **Low:** 55 files
-- **Medium:** 21 files
+- **Low:** 114 files
+- **High:** 100 files
+- **Medium:** 27 files
 - **Critical:** 7 files
 
 ## 6. Change Frequency
-- **Occasionally Modified:** 111 files
-- **Stable:** 39 files
+- **Occasionally Modified:** 189 files
+- **Stable:** 56 files
 - **Frequently Modified:** 3 files
 
 ## 7. Architectural Pattern
 1. **Flat routing** — effectiveView state, no router library
-2. **Monolithic App.jsx** — 13290 lines with inline CRUD and view switching
+2. **Monolithic App.jsx** — 1654 lines with inline CRUD and view switching
 3. **Flat hierarchy** — App.jsx imports screens and components directly
 4. **Single CSS** — styles/app.css with 7,042 lines
 5. **Direct IPC** — apiClient prop passed from App.jsx
@@ -90,10 +90,12 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 ## 10. Risk Assessment
 | Risk Level | Count |
 |------------|-------|
-| High | 1 |
-| Medium | 20 |
-| Low | 132 |
-- **High:** `App.jsx` (13290 lines, 45 imports) — Renderer Shell
+| High | 3 |
+| Medium | 34 |
+| Low | 211 |
+- **High:** `api/browserFallbackApi.js` (1114 lines, 2 imports) — Utilities
+- **High:** `App.jsx` (1654 lines, 74 imports) — Renderer Shell
+- **High:** `features/importExport/TallyMasterMigrationAssistantScreen.jsx` (1072 lines, 8 imports) — Dashboard
 
 ## 11. Integration with Intelligence Layer
 | Graph | Status |

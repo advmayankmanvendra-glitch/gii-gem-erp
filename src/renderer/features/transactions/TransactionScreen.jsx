@@ -38,12 +38,17 @@ function defaultValueFor(type) {
   if (type === "quotation_status") return "draft";
   if (type === "negotiation_status") return "open";
   if (type === "installation_status") return "pending";
+  if (type === "purchase_order_status") return "draft";
+  if (type === "plan_priority") return "medium";
+  if (type === "procurement_plan_status") return "draft";
+  if (type === "computed_number") return 0;
   return "";
 }
 
 function validateTransaction(config, form) {
-  const required = config.fields.filter(([, , type]) => !["textarea"].includes(type)).slice(0, 4);
-  required.forEach(([name, label]) => {
+  const requiredNames = config.required || config.fields.filter(([, , type]) => !["textarea"].includes(type)).slice(0, 4).map(([name]) => name);
+  requiredNames.forEach((name) => {
+    const label = config.fields.find(([fieldName]) => fieldName === name)?.[1] || name.replaceAll("_", " ");
     if (!String(form[name] ?? "").trim()) throw new Error(`${label} is required`);
   });
   Object.entries(form).forEach(([key, value]) => {
@@ -64,8 +69,16 @@ function transactionPrimary(record, config) {
 }
 
 function transactionAmount(record) {
-  const value = record.computed_order_gross_value ?? record.order_gross_value ?? record.billing_value ?? record.payment_amount ?? record.purchase_value ?? record.expense_amount ?? record.fixed_amount ?? "";
+  const value = record.computed_order_gross_value ?? record.order_gross_value ?? record.billing_value ?? record.payment_amount ?? record.purchase_value ?? record.expense_amount ?? record.fixed_amount ?? record.grand_total ?? record.negotiated_amount ?? record.total_value ?? record.estimated_value ?? record.expected_value ?? "";
   return value === "" ? "-" : formatCurrency(Number(value || 0));
+}
+
+function transactionDate(record) {
+  return record.order_date || record.purchase_date || record.invoice_date || record.payment_date || record.lead_date || record.bid_submission_date || record.quotation_date || record.negotiation_date || record.po_date || record.plan_date || record.installation_date || "-";
+}
+
+function transactionStatus(record) {
+  return record.posting_status || record.status || record.order_status || "Draft";
 }
 
 function TransactionField({ name, label, type, value, references, onChange, error, api, companyId, role }) {
@@ -147,6 +160,24 @@ function TransactionField({ name, label, type, value, references, onChange, erro
   if (type === "installation_status") {
     return selectField(["pending", "in_progress", "completed", "delayed", "cancelled"], "pending");
   }
+  if (type === "purchase_order_status") {
+    return selectField(["draft", "issued", "accepted", "converted", "cancelled"], "draft");
+  }
+  if (type === "plan_priority") {
+    return selectField(["high", "medium", "low"], "medium");
+  }
+  if (type === "procurement_plan_status") {
+    return selectField(["draft", "planned", "approved", "completed", "cancelled"], "draft");
+  }
+  if (type === "computed_number") {
+    return (
+      <label className={fieldClass} data-field-name={name}>
+        {label}
+        <input type="number" value={value || 0} readOnly aria-readonly="true" />
+        {errorNote}
+      </label>
+    );
+  }
   if (type === "textarea") {
     return (
       <label className={`${fieldClass} wide`} data-field-name={name}>
@@ -188,7 +219,7 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate, 
   async function load() {
     setLoading(true);
     try {
-      const shouldLoadInventorySnapshot = table === "stock_adjustments" && api.getInventoryData;
+      const shouldLoadInventorySnapshot = ["stock_adjustments", "procurement_plans"].includes(table) && api.getInventoryData;
       const [rows, refs, inventory] = await Promise.all([
         api.listRecords(table, { ...filters, company_id: companyContext?.company_id }),
         api.getReferences(companyContext),
@@ -213,6 +244,25 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate, 
     setInventorySnapshot(null);
     setValidationErrors([]);
   }, [table]);
+
+  useEffect(() => {
+    if (table !== "procurement_plans" || !inventorySnapshot) return;
+    const stock = (inventorySnapshot.stockSummary || []).find((row) =>
+      Number(row.item_id || row.id) === Number(form.item_id) && Number(row.warehouse_id) === Number(form.warehouse_id)
+    );
+    const availableStock = Math.max(0, Number(stock?.closing_quantity || 0));
+    const shortQuantity = Math.max(0, Number(form.required_quantity || 0) - availableStock);
+    const estimatedValue = Number(form.planned_quantity || 0) * Number(form.expected_rate || 0);
+    if (Number(form.available_stock || 0) === availableStock
+      && Number(form.short_quantity || 0) === shortQuantity
+      && Number(form.estimated_value || 0) === estimatedValue) return;
+    setForm((current) => ({
+      ...current,
+      available_stock: availableStock,
+      short_quantity: shortQuantity,
+      estimated_value: estimatedValue
+    }));
+  }, [table, inventorySnapshot, form.item_id, form.warehouse_id, form.required_quantity, form.planned_quantity, form.expected_rate]);
 
   useEffect(() => {
     const prefillId = window.__giiGemPrefillRecordId;
@@ -362,6 +412,30 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate, 
     }
   }
 
+  async function convertPurchaseOrder(record) {
+    if (record.converted_to_work_order && record.work_order_id) {
+      window.__giiGemPrefillRecordId = record.work_order_id;
+      onNavigate?.("supply_orders");
+      return;
+    }
+    const confirmed = await confirmAction({
+      title: "Convert to Work Order",
+      message: `Create a draft Work Order from Purchase Order ${record.po_number}? The Purchase Order will be locked after conversion.`,
+      confirmLabel: "Convert",
+      cancelLabel: "Cancel"
+    });
+    if (!confirmed.confirmed) return;
+    try {
+      const result = await api.convertPurchaseOrderToWorkOrder(record.id, { company_id: companyContext?.company_id });
+      notify(`Work Order ${result.workOrder.order_number} created`);
+      await load();
+      window.__giiGemPrefillRecordId = result.workOrder.id;
+      onNavigate?.("supply_orders");
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
   if (isSupplyOrder) {
     return (
       <section className="supply-order-screen">
@@ -500,19 +574,21 @@ function TransactionScreen({ table, config, notify, companyContext, onNavigate, 
                 {records.map((record) => (
                   <tr key={record.id}>
                     {(() => {
-                      const locked = isRecordLocked(record);
+                      const convertedPurchaseOrder = table === "purchase_orders" && Number(record.converted_to_work_order || 0) === 1;
+                      const locked = isRecordLocked(record) || convertedPurchaseOrder;
                       return (
                         <>
                     <td><strong>{transactionPrimary(record, config)}</strong></td>
                     <td>{table === "supply_orders" ? `${record.order_item_count || 0} item(s)` : (orderLabel(record.order_id, references) || "-")}</td>
                     <td>{transactionAmount(record)}</td>
-                    <td>{record.order_date || record.purchase_date || record.invoice_date || record.payment_date || "-"}</td>
-                    <td><span className={`status ${(record.posting_status || "draft").toLowerCase().replaceAll(" ", "-")}`}>{record.posting_status || "Draft"}</span></td>
+                    <td>{transactionDate(record)}</td>
+                    <td><span className={`status ${transactionStatus(record).toLowerCase().replaceAll(" ", "-")}`}>{transactionStatus(record)}</span></td>
                     <td>
                       <div className="row-actions">
                         <button type="button" onClick={() => edit(record)} title={locked ? "Locked record" : "Edit"} disabled={locked}><Icon name="edit" /></button>
                         {table === "stock_adjustments" && <button type="button" onClick={() => approveStockAdjustment(record)} title="Approve adjustment" disabled={record.approval_status === "Approved" || record.posting_status === "Posted"}><Icon name="shield" /></button>}
                         {isStockTable && <button type="button" onClick={() => postStockRecord(record)} title="Post stock" disabled={record.posting_status === "Posted"}><Icon name="receipt" /></button>}
+                        {table === "purchase_orders" && <button type="button" onClick={() => convertPurchaseOrder(record)} title={convertedPurchaseOrder ? "Open linked Work Order" : "Convert to Work Order"}><Icon name="clipboard" /></button>}
                         <button type="button" onClick={() => remove(record)} title={locked ? "Locked record" : "Delete"} disabled={locked}><Icon name="trash" /></button>
                       </div>
                     </td>

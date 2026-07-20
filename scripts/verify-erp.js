@@ -42,6 +42,7 @@ const PIPELINE = [
   { name: "verify:flow",       cmd: `${NPM} run verify:flow`,        continueOn: [0, 1] },
   { name: "verify:phase10",    cmd: `${NPM} run verify:phase10`,     continueOn: [0, 1] },
   { name: "verify:entity-picker", cmd: `${NPM} run verify:entity-picker`, continueOn: [0, 1] },
+  { name: "verify:operational-stages", cmd: `${NPM} run verify:operational-stages`, continueOn: [0, 1] },
 ];
 
 /* ─── Helpers ─── */

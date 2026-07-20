@@ -29,6 +29,7 @@ import { createBillingService } from "../services/billingService.js";
 import { createDashboardService } from "../services/dashboardService.js";
 import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
+import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 
 export {
   APP_FOLDERS,
@@ -95,6 +96,41 @@ export const TRANSACTION_TABLES = {
       "order_status", "total_quantity", "order_taxable_value", "order_gst_amount", "order_gross_value", "remarks"
     ],
     required: ["order_number", "order_date", "department_id", "employee_id", "order_status"]
+  },
+  leads: {
+    label: "Lead / Tender",
+    fields: ["company_id", "lead_number", "title", "description", "source", "tender_number", "issuing_authority", "department_id", "expected_value", "bid_submission_date", "status", "probability", "remarks"],
+    required: ["lead_number", "title", "status"]
+  },
+  requirement_queries: {
+    label: "Requirement Query",
+    fields: ["company_id", "query_number", "title", "description", "department_id", "employee_id", "lead_id", "priority", "expected_quantity", "expected_value", "status", "remarks"],
+    required: ["query_number", "title", "status"]
+  },
+  quotations: {
+    label: "Quotation",
+    fields: ["company_id", "quotation_number", "requirement_query_id", "supplier_id", "supply_order_id", "quotation_date", "valid_until", "item_description", "quantity", "unit_price", "total_amount", "tax_amount", "grand_total", "status", "remarks"],
+    required: ["quotation_number", "supplier_id", "quotation_date", "status"]
+  },
+  negotiations: {
+    label: "Negotiation",
+    fields: ["company_id", "negotiation_number", "quotation_id", "supplier_id", "supply_order_id", "negotiation_date", "negotiator_name", "initial_amount", "negotiated_amount", "savings_amount", "status", "outcome_notes", "remarks"],
+    required: ["negotiation_number", "supplier_id", "negotiation_date", "status"]
+  },
+  purchase_orders: {
+    label: "Purchase Order / GeM Order",
+    fields: ["company_id", "po_number", "po_date", "supply_type", "gem_order_number", "gem_contract_number", "negotiation_id", "department_id", "employee_id", "supplier_id", "title", "description", "total_value", "delivery_period", "payment_terms", "status", "converted_to_work_order", "work_order_id", "remarks"],
+    required: ["po_number", "po_date", "department_id", "employee_id", "supplier_id", "status"]
+  },
+  procurement_plans: {
+    label: "Procurement Plan",
+    fields: ["company_id", "plan_number", "plan_date", "order_id", "item_id", "warehouse_id", "required_quantity", "available_stock", "short_quantity", "planned_quantity", "expected_rate", "estimated_value", "supplier_id", "priority", "status", "remarks"],
+    required: ["plan_number", "plan_date", "order_id", "item_id", "warehouse_id", "status"]
+  },
+  installations: {
+    label: "Installation",
+    fields: ["company_id", "installation_number", "delivery_challan_id", "supply_order_id", "department_id", "supervisor_employee_id", "installation_date", "completion_date", "status", "remarks", "document_id"],
+    required: ["installation_number", "supply_order_id", "status"]
   },
   procurements: {
     label: "Procurement",
@@ -581,6 +617,18 @@ export function migrate(db) {
 
   runMigration(db, "029_lead_stage_tables", () => {
     addLeadStageTables(db);
+  });
+
+  runMigration(db, "030_purchase_order_tables", () => {
+    addPurchaseOrderTables(db);
+  });
+
+  runMigration(db, "031_procurement_planning_tables", () => {
+    addProcurementPlanningTables(db);
+  });
+
+  runMigration(db, "032_purchase_order_conversion_controls", () => {
+    addPurchaseOrderConversionControls(db);
   });
 }
 
@@ -1507,7 +1555,9 @@ const {
   financialYearForDate,
   transactionDateFor,
   seedAccounts,
-  autoReserveOrderStock: (...args) => autoReserveOrderStock(...args)
+  autoReserveOrderStock: (...args) => autoReserveOrderStock(...args),
+  createProcurementPlanRecord: (...args) => createProcurementPlanRecord(...args),
+  updateProcurementPlanRecord: (...args) => updateProcurementPlanRecord(...args)
 });
 
 export {
@@ -1632,6 +1682,20 @@ const {
 });
 
 const {
+  createProcurementPlanRecord,
+  updateProcurementPlanRecord,
+  convertPurchaseOrderToWorkOrder
+} = createOperationalPlanningService({
+  cleanPayload,
+  getRecord,
+  createRecord,
+  auditLog,
+  inventoryStockSummary
+});
+
+export { convertPurchaseOrderToWorkOrder };
+
+const {
   parseImportFile, parseImportBuffer,
   normalizeHeader
 } = createImportParserService();
@@ -1731,7 +1795,10 @@ const {
   addRuntimeSoftDeleteColumns,
   addSupplierExtendedFields,
   addPhase15iCracTables,
-  addLeadStageTables
+  addLeadStageTables,
+  addPurchaseOrderTables,
+  addProcurementPlanningTables,
+  addPurchaseOrderConversionControls
 } = createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, backfillPostingStatuses, tableExists, ACCOUNTING_TABLES });
 
 export {

@@ -16,6 +16,7 @@ import {
   bulkImportRecords,
   closeFinancialYear,
   confirmDeliveryChallan,
+  convertPurchaseOrderToWorkOrder,
   createBankStatementImport,
   createBusinessVoucher,
   createDeliveryChallan,
@@ -780,6 +781,7 @@ function registerIpc() {
   ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
   ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
   ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+  ipcMain.handle("purchase-orders:convert-to-work-order", guarded("create", "records", (id, payload) => convertPurchaseOrderToWorkOrder(db, id, payload)));
   ipcMain.handle("records:search", (_event, entityType, searchTerm, options) => {
     if (!SUPPORTED_ENTITY_TYPES.includes(entityType)) throw new Error(`Unsupported entity type: ${entityType}`);
     return searchEntities(db, entityType, searchTerm, options);

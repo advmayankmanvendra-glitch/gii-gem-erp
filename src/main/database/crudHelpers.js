@@ -11,7 +11,9 @@ export function createCrudHelpers({
   financialYearForDate,
   transactionDateFor,
   seedAccounts,
-  autoReserveOrderStock
+  autoReserveOrderStock,
+  createProcurementPlanRecord,
+  updateProcurementPlanRecord
 }) {
   function tableExists(db, table) {
     return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
@@ -86,22 +88,7 @@ export function createCrudHelpers({
     allowed.forEach((field) => {
       cleaned[field] = payload[field] ?? "";
     });
-    [
-      "company_id",
-      "financial_year_id",
-      "order_id",
-      "billing_id",
-      "bank_id",
-      "department_id",
-      "employee_id",
-      "supplier_id",
-      "expense_head_id",
-      "procurement_id",
-      "order_item_id",
-      "item_id",
-      "warehouse_id",
-      "default_warehouse_id"
-    ].forEach((field) => {
+    Object.keys(cleaned).filter((field) => field === "id" || field.endsWith("_id")).forEach((field) => {
       if (Object.prototype.hasOwnProperty.call(cleaned, field) && cleaned[field] === "") cleaned[field] = null;
     });
     ALL_TABLES[table].required.forEach((field) => {
@@ -254,13 +241,14 @@ export function createCrudHelpers({
     const references = {
       companies: [
         ["supply_orders", "company_id"], ["procurements", "company_id"], ["expense_entries", "company_id"], ["invoices", "company_id"], ["payments", "company_id"],
-        ["vouchers", "company_id"], ["ledger_entries", "company_id"], ["cash_bank_ledger", "company_id"], ["documents", "company_id"], ["bank_statement_imports", "company_id"]
+        ["vouchers", "company_id"], ["ledger_entries", "company_id"], ["cash_bank_ledger", "company_id"], ["documents", "company_id"], ["bank_statement_imports", "company_id"],
+        ["leads", "company_id"], ["requirement_queries", "company_id"], ["quotations", "company_id"], ["negotiations", "company_id"], ["installations", "company_id"], ["purchase_orders", "company_id"], ["procurement_plans", "company_id"]
       ],
-      employees: [["supply_orders", "employee_id"]],
-      government_departments: [["supply_orders", "department_id"], ["receivables", "department_id"], ["stock_outwards", "department_id"], ["stock_returns", "department_id"]],
-      suppliers: [["procurements", "supplier_id"], ["supplier_payments", "supplier_id"], ["stock_inwards", "supplier_id"], ["stock_returns", "supplier_id"], ["batches", "supplier_id"]],
-      items: [["order_items", "item_id"], ["procurement_items", "item_id"], ["invoice_items", "item_id"], ["stock_inwards", "item_id"], ["stock_outwards", "item_id"], ["stock_adjustments", "item_id"], ["stock_returns", "item_id"], ["stock_ledger", "item_id"], ["serial_numbers", "item_id"], ["batches", "item_id"], ["inventory_movements", "item_id"], ["stock_reservations", "item_id"], ["goods_receipt_items", "item_id"], ["delivery_challan_items", "item_id"], ["warehouse_transfers", "item_id"]],
-      warehouses: [["stock_inwards", "warehouse_id"], ["stock_outwards", "warehouse_id"], ["stock_adjustments", "warehouse_id"], ["stock_returns", "warehouse_id"], ["stock_ledger", "warehouse_id"], ["serial_numbers", "warehouse_id"], ["batches", "warehouse_id"]],
+      employees: [["supply_orders", "employee_id"], ["requirement_queries", "employee_id"], ["installations", "supervisor_employee_id"], ["purchase_orders", "employee_id"]],
+      government_departments: [["supply_orders", "department_id"], ["receivables", "department_id"], ["stock_outwards", "department_id"], ["stock_returns", "department_id"], ["leads", "department_id"], ["requirement_queries", "department_id"], ["installations", "department_id"], ["purchase_orders", "department_id"]],
+      suppliers: [["procurements", "supplier_id"], ["supplier_payments", "supplier_id"], ["stock_inwards", "supplier_id"], ["stock_returns", "supplier_id"], ["batches", "supplier_id"], ["quotations", "supplier_id"], ["negotiations", "supplier_id"], ["purchase_orders", "supplier_id"], ["procurement_plans", "supplier_id"]],
+      items: [["order_items", "item_id"], ["procurement_items", "item_id"], ["invoice_items", "item_id"], ["stock_inwards", "item_id"], ["stock_outwards", "item_id"], ["stock_adjustments", "item_id"], ["stock_returns", "item_id"], ["stock_ledger", "item_id"], ["serial_numbers", "item_id"], ["batches", "item_id"], ["inventory_movements", "item_id"], ["stock_reservations", "item_id"], ["goods_receipt_items", "item_id"], ["delivery_challan_items", "item_id"], ["warehouse_transfers", "item_id"], ["procurement_plans", "item_id"]],
+      warehouses: [["stock_inwards", "warehouse_id"], ["stock_outwards", "warehouse_id"], ["stock_adjustments", "warehouse_id"], ["stock_returns", "warehouse_id"], ["stock_ledger", "warehouse_id"], ["serial_numbers", "warehouse_id"], ["batches", "warehouse_id"], ["procurement_plans", "warehouse_id"]],
       expense_heads: [["expense_entries", "expense_head_id"]],
       banks: [["payments", "bank_id"], ["supplier_payments", "bank_account_id"], ["expense_entries", "bank_account_id"], ["cash_bank_ledger", "bank_account_id"], ["bank_statement_imports", "bank_id"], ["bank_statement_entries", "bank_id"]]
     };
@@ -278,6 +266,12 @@ export function createCrudHelpers({
     }
     if (table === "supply_orders" && ["Locked", "Posted", "Reversed"].includes(record.posting_status)) {
       throw new Error("Supply order is locked and cannot be modified.");
+    }
+    if (table === "purchase_orders" && Number(record.converted_to_work_order || 0) === 1) {
+      throw new Error("Converted purchase orders are locked. Open the linked Work Order for further changes.");
+    }
+    if (table === "procurement_plans" && String(record.status || "").toLowerCase() === "completed") {
+      throw new Error("Completed procurement plans are locked. Create a new plan for further changes.");
     }
     if (table === "vouchers" && ["Posted", "Reversed"].includes(record.status)) {
       throw new Error("Posted vouchers cannot be edited or deleted. Use reversal.");
@@ -307,6 +301,7 @@ export function createCrudHelpers({
   function createRecord(db, table, payload) {
     assertWriteAllowed(table, "create");
     if (table === "supply_orders") return createSupplyOrderRecord(db, payload);
+    if (table === "procurement_plans") return createProcurementPlanRecord(db, payload);
     const data = cleanPayload(table, payload);
     const requiresCompanyContext = TRANSACTION_TABLES[table] || COMPANY_SPECIFIC_MASTER_TABLES.has(table);
     if (requiresCompanyContext && !data.company_id) {
@@ -350,6 +345,7 @@ export function createCrudHelpers({
   function updateRecord(db, table, id, payload) {
     assertWriteAllowed(table, "update");
     if (table === "supply_orders") return updateSupplyOrderRecord(db, id, payload);
+    if (table === "procurement_plans") return updateProcurementPlanRecord(db, id, payload);
     const oldRecord = getRecord(db, table, id);
     assertRecordEditable(table, oldRecord);
     const data = cleanPayload(table, payload);
@@ -428,7 +424,7 @@ export function createCrudHelpers({
       params.company_id = companyId;
     }
 
-    if (ACCOUNTING_TABLES.has(table) || MASTER_TABLES[table]) {
+    if (columnExists(db, table, "is_deleted")) {
       where.push("COALESCE(is_deleted, 0) = 0");
     }
     const finalClause = where.length ? `WHERE ${where.join(" AND ")}` : "";

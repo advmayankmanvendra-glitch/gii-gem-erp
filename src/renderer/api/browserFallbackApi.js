@@ -5,6 +5,28 @@ function sum(rows, key) {
   return rows.reduce((total, row) => total + Number(row[key] || 0), 0);
 }
 
+function normalizeFallbackProcurementPlan(db, payload) {
+  const item = db.items.find((row) => Number(row.id) === Number(payload.item_id)) || {};
+  const firstWarehouseId = db.warehouses.find((row) => row.status === "active")?.id;
+  const openingWarehouseId = Number(item.default_warehouse_id || firstWarehouseId || 0);
+  const openingStock = Number(payload.warehouse_id) === openingWarehouseId ? Number(item.opening_stock || 0) : 0;
+  const movementStock = (db.stock_ledger || [])
+    .filter((row) => Number(row.company_id || 1) === Number(payload.company_id || 1)
+      && Number(row.item_id) === Number(payload.item_id)
+      && Number(row.warehouse_id) === Number(payload.warehouse_id))
+    .reduce((total, row) => total + Number(row.inward_quantity || 0) - Number(row.outward_quantity || 0), 0);
+  const availableStock = Math.max(0, openingStock + movementStock);
+  const requiredQuantity = Math.max(0, Number(payload.required_quantity || 0));
+  const plannedQuantity = Math.max(0, Number(payload.planned_quantity || 0));
+  const expectedRate = Math.max(0, Number(payload.expected_rate || 0));
+  return {
+    ...payload,
+    available_stock: availableStock,
+    short_quantity: Math.max(0, requiredQuantity - availableStock),
+    estimated_value: plannedQuantity * expectedRate
+  };
+}
+
 function calculatePreviewProfit(db) {
   return db.supply_orders.map((order) => {
     const employee = db.employees.find((row) => row.id === Number(order.employee_id)) || {};
@@ -130,6 +152,13 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
     expense_heads: [{ id: 1, expense_head_name: "Authorization", default_calculation_method: "percentage_gross", default_percentage: 5, category: "Authorization", status: "active" }, { id: 2, expense_head_name: "L1 Expense", default_calculation_method: "percentage_gross", default_percentage: 2, category: "Tender", status: "active" }, { id: 3, expense_head_name: "Work Incentive", default_calculation_method: "percentage_gross", default_percentage: 10, category: "Work Incentive", status: "active" }],
     banks: [{ id: 1, bank_account_name: "SBI Current Account", bank_name: "SBI", account_number: "000000000001", ifsc: "SBIN0000001", opening_balance: 0, status: "active" }],
     supply_orders: [{ id: 1, order_number: "GEM-2026-001", order_date: "2026-06-09", department_id: 1, institution_name: "PWD Central Store", location: "Mumbai", employee_id: 1, supply_due_date: "2026-06-25", order_status: "Payment Pending", remarks: "Preview order" }],
+    leads: [],
+    requirement_queries: [],
+    quotations: [],
+    negotiations: [],
+    purchase_orders: [],
+    procurement_plans: [],
+    installations: [],
     procurements: [{ id: 1, order_id: 1, purchase_date: "2026-06-10", supplier_id: 1, purchase_invoice_number: "PIS-1001", purchase_value: 700000, purchase_gst: 126000, freight: 12000, loading_charges: 3000, amount_paid: 400000, remarks: "" }],
     expense_entries: [{ id: 1, order_id: 1, expense_head_id: 1, expense_category: "Authorization", calculation_method: "percentage_gross", percentage: 5, fixed_amount: 0, remarks: "" }, { id: 2, order_id: 1, expense_head_id: 2, expense_category: "Tender", calculation_method: "percentage_gross", percentage: 2, fixed_amount: 0, remarks: "" }, { id: 3, order_id: 1, expense_head_id: 3, expense_category: "Work Incentive", calculation_method: "percentage_gross", percentage: 10, fixed_amount: 0, remarks: "" }],
     invoices: [{ id: 1, order_id: 1, invoice_number: "GII-INV-001", invoice_date: "2026-06-15", billing_value: 1000000, gst_rate: 18, invoice_type: "Tax Invoice", remarks: "" }],
@@ -469,7 +498,7 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
         const rows = db.stock_ledger.filter((row) => Number(row.item_id) === Number(item.id) && Number(row.warehouse_id) === Number(warehouse.id));
         const closing_quantity = rows.reduce((sum, row) => sum + Number(row.inward_quantity || 0) - Number(row.outward_quantity || 0), Number(item.opening_stock || 0));
         const stock_value = rows.reduce((sum, row) => sum + (row.transaction_type === "Outward" ? -Number(row.value || 0) : Number(row.value || 0)), Number(item.opening_value || 0));
-        return { ...item, warehouse_name: warehouse.warehouse_name, closing_quantity, weighted_rate: closing_quantity > 0 ? stock_value / closing_quantity : Number(item.opening_rate || 0), stock_value, valuation_method: "Weighted Average" };
+        return { ...item, item_id: item.id, warehouse_id: warehouse.id, warehouse_name: warehouse.warehouse_name, closing_quantity, weighted_rate: closing_quantity > 0 ? stock_value / closing_quantity : Number(item.opening_rate || 0), stock_value, valuation_method: "Weighted Average" };
       }));
       return {
         references: { companies: db.companies, employees: db.employees, departments: db.government_departments, suppliers: db.suppliers, items: db.items, warehouses: db.warehouses, banks: db.banks, orders: db.supply_orders },
@@ -808,14 +837,17 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
         });
         if (changed) write(db);
       }
-      return db[table].filter((row) => {
+      return (db[table] || []).filter((row) => {
         const status = filters.status === "all" || !filters.status || row.status === filters.status;
         const match = !search || Object.values(row).join(" ").toLowerCase().includes(search);
-        return status && match;
+        const companyMatch = !filters.company_id || !row.company_id || Number(row.company_id) === Number(filters.company_id);
+        return Number(row.is_deleted || 0) !== 1 && status && match && companyMatch;
       }).sort((a, b) => b.id - a.id);
     },
     createRecord: async (table, payload) => {
       const db = read();
+      if (!Array.isArray(db[table])) throw new Error(`Unsupported table: ${table}`);
+      if (table === "procurement_plans") payload = normalizeFallbackProcurementPlan(db, payload);
       const record = { id: Date.now(), ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       db[table].push(record);
       write(db);
@@ -842,6 +874,8 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
     },
     updateRecord: async (table, id, payload) => {
       const db = read();
+      if (!Array.isArray(db[table])) throw new Error(`Unsupported table: ${table}`);
+      if (table === "procurement_plans") payload = normalizeFallbackProcurementPlan(db, payload);
       db[table] = db[table].map((row) => row.id === id ? { ...row, ...payload, updated_at: new Date().toISOString() } : row);
       write(db);
       return db[table].find((row) => row.id === id);
@@ -851,6 +885,35 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
       db[table] = db[table].filter((row) => row.id !== id);
       write(db);
       return true;
+    },
+    convertPurchaseOrderToWorkOrder: async (id, payload = {}) => {
+      const db = read();
+      const purchaseOrder = db.purchase_orders.find((row) => Number(row.id) === Number(id));
+      if (!purchaseOrder) throw new Error("Purchase Order was not found.");
+      if (purchaseOrder.converted_to_work_order) throw new Error("This Purchase Order has already been converted to a Work Order.");
+      const orderNumber = payload.order_number || `WO-${purchaseOrder.company_id || 1}-${purchaseOrder.po_number}`;
+      if (db.supply_orders.some((row) => row.order_number === orderNumber)) throw new Error(`Work Order number ${orderNumber} already exists.`);
+      const workOrder = {
+        id: Date.now(),
+        company_id: purchaseOrder.company_id,
+        order_number: orderNumber,
+        order_date: purchaseOrder.po_date,
+        department_id: purchaseOrder.department_id,
+        employee_id: purchaseOrder.employee_id,
+        institution_name: purchaseOrder.title || "",
+        supply_type: purchaseOrder.supply_type || "GeM",
+        gem_order_number: purchaseOrder.gem_order_number || "",
+        gem_contract_number: purchaseOrder.gem_contract_number || "",
+        order_status: "Draft",
+        remarks: `Converted from Purchase Order ${purchaseOrder.po_number}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      db.supply_orders.push(workOrder);
+      const updated = { ...purchaseOrder, converted_to_work_order: 1, work_order_id: workOrder.id, status: "converted", updated_at: new Date().toISOString() };
+      db.purchase_orders = db.purchase_orders.map((row) => Number(row.id) === Number(id) ? updated : row);
+      write(db);
+      return { purchaseOrder: updated, workOrder };
     },
     searchEntities: async (entityType, searchTerm, options = {}) => {
       const entityTable = { supplier: "suppliers", item: "items", ledger: "accounts", supply_order: "supply_orders", department: "government_departments", warehouse: "warehouses", employee: "employees", bank: "banks", expense_head: "expense_heads" }[entityType];

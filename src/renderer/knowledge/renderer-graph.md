@@ -2,14 +2,14 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0 (Enhanced)
-**Generated:** 2026-07-01T11:05:33.665Z
+**Generated:** 2026-07-20T09:37:42.242Z
 **Source:** `src/renderer/`
 
 ---
 
 ## 1. Architecture Overview
 
-The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 13290 App.jsx lines).
+The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1654 App.jsx lines).
 
 **Stack:** React → Vite → Electron → IPC → SQLite
 
@@ -19,46 +19,46 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 
 | Metric | Value |
 |--------|-------|
-| Total Files | 153 |
-| Total Lines | 34,513 |
-| Total Imports | 349 |
+| Total Files | 248 |
+| Total Lines | 42,219 |
+| Total Imports | 683 |
 | Routes | 114 |
-| Screens | 36 |
-| Components | 24 |
-| Features | 20 |
-| Layers | 11 |
-| Architecture Density | 2.28 imports/file |
+| Screens | 41 |
+| Components | 40 |
+| Features | 50 |
+| Layers | 12 |
+| Architecture Density | 2.75 imports/file |
 | Avg Imports/Screen | 3 |
-| Avg Component Reuse | 1x |
-| Largest Component | components/helpProductivity/index.jsx (626 lines) |
-| Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (961 lines) |
-| Complexity Score | 491 |
+| Avg Component Reuse | 2x |
+| Largest Component | components/helpProductivity/index.jsx (597 lines) |
+| Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (963 lines) |
+| Complexity Score | 683 |
 | Circular Imports | 0 |
-| Token Savings | ~14186 tokens per AI operation |
+| Token Savings | ~8592 tokens per AI operation |
 
 ### By Owner
-- **Help:** 23 files
-- **Dashboard:** 22 files
-- **Renderer Shell:** 20 files
+- **Dashboard:** 50 files
+- **Other:** 46 files
+- **Help:** 25 files
+- **Renderer Shell:** 24 files
+- **Knowledge:** 21 files
 - **Health Center:** 17 files
 - **Print:** 17 files
-- **Knowledge:** 15 files
+- **Utilities:** 12 files
 - **CRAC:** 11 files
+- **Master Data:** 5 files
 - **Deployment:** 5 files
-- **Utilities:** 4 files
 - **Accounting:** 3 files
 - **Inventory:** 3 files
 - **Operations:** 3 files
-- **Master Data:** 3 files
 - **Reports:** 3 files
 - **Settings:** 2 files
-- **Other:** 1 files
 - **Profitability:** 1 files
 
 ### By Criticality
-- **High:** 70 files
-- **Low:** 55 files
-- **Medium:** 21 files
+- **Low:** 114 files
+- **High:** 100 files
+- **Medium:** 27 files
 - **Critical:** 7 files
 
 ---
@@ -68,54 +68,54 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Highest Fan-Out (Most Imports)
 | File | Imports | Category | Owner |
 |------|---------|----------|-------|
-| App.jsx | 45 | app | Renderer Shell |
+| App.jsx | 74 | app | Renderer Shell |
+| config/screenRegistry.jsx | 23 | config | Renderer Shell |
+| features/transactions/TransactionScreen.jsx | 16 | feature | Dashboard |
 | print/PrintTemplateHost.jsx | 14 | print | Print |
-| modules/helpAssistant/HelpAssistant.jsx | 11 | module | Help |
-| knowledge/registry.js | 10 | knowledge | Knowledge |
-| screens/DashboardScreen.jsx | 10 | screen | Dashboard |
-| components/helpProductivity/index.jsx | 9 | component | Help |
-| screens/HealthCenter/HealthCenterScreen.jsx | 9 | screen | Health Center |
-| modules/erpBrain/loaders/repositoryLoader.js | 8 | module | Knowledge |
-| modules/helpAssistant/helpAssistantUtils.js | 7 | module | Help |
-| screens/CRAC/CRACManagementScreen.jsx | 5 | screen | CRAC |
+| features/accounting/AccountingScreen.jsx | 13 | feature | Dashboard |
+| modules/helpAssistant/HelpAssistant.jsx | 12 | module | Help |
+| componentRegistry/registry.js | 11 | other | Other |
+| features/accounting/businessVouchers/BusinessVoucherScreen.jsx | 11 | feature | Dashboard |
+| features/accounting/VoucherProposalScreen.jsx | 11 | feature | Dashboard |
+| features/inventory/InventoryReportScreen.jsx | 11 | feature | Master Data |
 
 ### Highest Fan-In (Most Imported By Others)
 | Module/File | Times Imported |
 |-------------|----------------|
-| react | 99 |
-| index | 38 |
-| formatters | 29 |
-| common | 16 |
+| react | 140 |
+| index | 73 |
+| formatters | 55 |
+| common | 37 |
+| optionSorting | 17 |
 | TemplateSections | 13 |
+| uiHelpers | 11 |
+| SmallComponents | 11 |
 | DrilldownBase | 10 |
-| uiHelpers | 7 |
-| navigation | 6 |
-| rendererStabilityUtils | 6 |
-| healthCenterConfig | 4 |
+| navigation | 9 |
 
 ### Most Shared Components
 | Component | Reuse Count |
 |-----------|-------------|
+| AddRecordPanel | 5 |
+| DrilldownPanel | 5 |
 | CRACStatusCard | 3 |
-| ClosureChecklist | 1 |
-| CRACDocumentPanel | 1 |
-| PaymentReadinessTable | 1 |
-| MasterRecordsPanel | 1 |
-| StockAdjustmentControlPanel | 1 |
-| CertificationHistory | 1 |
-| GoLiveChecklist | 1 |
-| GoLiveWizard | 1 |
-| ProductionReadinessScreen | 1 |
+| MasterRecordsPanel | 2 |
+| accountingTableConfig | 2 |
+| BusinessVoucherIntelligencePanel | 2 |
+| BillingVoucherScreen | 2 |
+| SummaryScreen | 2 |
+| MasterImportTemplatesScreen | 2 |
+| TallyMasterMigrationAssistantScreen | 2 |
 
 ### Critical Files (Business Criticality: Critical)
 | File | Lines | Imports |
 |------|-------|---------|
 | api/client.js | 98 | 0 |
-| App.jsx | 13290 | 45 |
+| App.jsx | 1654 | 74 |
 | components/common.jsx | 135 | 2 |
-| components/forms/index.jsx | 364 | 1 |
-| config/navigation.js | 321 | 0 |
-| config/viewDefinitions.js | 302 | 0 |
+| components/forms/index.jsx | 378 | 2 |
+| config/navigation.js | 330 | 0 |
+| config/viewDefinitions.js | 447 | 0 |
 | screens/DashboardScreen.jsx | 286 | 10 |
 
 ---
@@ -149,7 +149,7 @@ All routes via `effectiveView`. No React Router.
 | manual_voucher | voucher | Voucher Workflow | in-App.jsx rendering |
 | documents | general | Document Workflow | dedicated screen |
 | master_data_tools | tool | General | in-App.jsx rendering |
-| master_import_templates | tool | General | in-App.jsx rendering |
+| master_import_templates | tool | General | dedicated screen |
 | tally_migration_assistant | tool | General | in-App.jsx rendering |
 | tally_xml_import | tool | General | in-App.jsx rendering |
 | crac_management | crac | CRAC Workflow | in-App.jsx rendering |
@@ -174,21 +174,21 @@ All routes via `effectiveView`. No React Router.
 
 | File | Lines | Imports | Owner | Criticality | Change Frequency |
 |------|-------|---------|-------|-------------|-----------------|
-| components/helpProductivity/index.jsx | 626 | 9 | Help | Low | Occasionally Modified |
+| components/helpProductivity/index.jsx | 597 | 9 | Help | Low | Occasionally Modified |
 | components/operations/index.jsx | 489 | 4 | Operations | Low | Occasionally Modified |
-| components/forms/index.jsx | 364 | 1 | Renderer Shell | Critical | Occasionally Modified |
+| components/forms/index.jsx | 378 | 2 | Renderer Shell | Critical | Occasionally Modified |
 | components/inventoryReports/index.jsx | 326 | 4 | Inventory | Low | Stable |
 | components/dashboard/index.jsx | 293 | 2 | Dashboard | Low | Occasionally Modified |
-| components/overlays/index.jsx | 241 | 3 | Renderer Shell | High | Occasionally Modified |
-| components/layout/index.jsx | 233 | 3 | Renderer Shell | High | Occasionally Modified |
+| components/panels/DrilldownPanel.jsx | 282 | 5 | Other | Low | Occasionally Modified |
+| components/overlays/QuickCreateMasterDialog.jsx | 274 | 6 | Renderer Shell | Low | Occasionally Modified |
+| components/panels/SmallComponents.jsx | 252 | 4 | Other | Low | Occasionally Modified |
+| components/overlays/index.jsx | 243 | 3 | Renderer Shell | High | Occasionally Modified |
+| components/panels/AddRecordPanel.jsx | 223 | 9 | Other | Low | Occasionally Modified |
+| components/layout/index.jsx | 218 | 4 | Renderer Shell | High | Occasionally Modified |
 | components/helpTraining/index.jsx | 197 | 3 | Help | Low | Occasionally Modified |
 | components/inventoryReports/InventoryDashboardPanel.jsx | 165 | 4 | Inventory | Low | Stable |
+| components/entityPicker/SmartEntityPicker.jsx | 155 | 9 | Other | Low | Occasionally Modified |
 | components/common.jsx | 135 | 2 | Renderer Shell | Critical | Occasionally Modified |
-| components/settings/index.jsx | 120 | 2 | Settings | Low | Occasionally Modified |
-| components/accountingControls/index.jsx | 110 | 2 | Accounting | Low | Stable |
-| components/tables/MasterRecordsPanel.jsx | 88 | 2 | Renderer Shell | Low | Occasionally Modified |
-| components/crac/PaymentReadinessTable.jsx | 50 | 2 | CRAC | High | Occasionally Modified |
-| components/crac/CRACDocumentPanel.jsx | 39 | 1 | CRAC | High | Occasionally Modified |
 
 ---
 
@@ -233,7 +233,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 
 | Stage | Description | Key Metrics |
 |-------|-------------|-------------|
-| **Current** | Monolithic App.jsx, flat routing, single CSS | 13290 App.jsx lines, 7,042 CSS lines |
+| **Current** | Monolithic App.jsx, flat routing, single CSS | 1654 App.jsx lines, 7,042 CSS lines |
 | **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |
 | **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |
 | **Future** | DG-1, WG-1, AG-1 graphs — full intelligence layer | 6 active graphs |
@@ -244,13 +244,13 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 | Layer | Description | Files |
 |-------|-------------|-------|
 | 1. Shell | App shell + navigation | App.jsx, layout |
-| 2. Config | Static definitions | 8 config files |
+| 2. Config | Static definitions | 11 config files |
 | 3. API | IPC bridge | api/client.js |
 | 4. Print | Template printing | 17 print files |
-| 5. Screens | App screens | 36 screen files |
-| 6. Components | Shared UI | 24 component files |
-| 7. Features | Domain logic | 20 feature files |
-| 8. Modules | Subsystems | 25 module files |
+| 5. Screens | App screens | 41 screen files |
+| 6. Components | Shared UI | 40 component files |
+| 7. Features | Domain logic | 50 feature files |
+| 8. Modules | Subsystems | 54 module files |
 | 9. Knowledge | Metadata | 13 knowledge files |
 | 10. Stability | Recovery | 5 stability files |
 | 11. Styles | CSS | 1 style file |
