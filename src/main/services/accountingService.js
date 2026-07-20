@@ -109,14 +109,39 @@ export function createAccountingService(deps) {
 
   function createBalancedVoucher(db, payload) {
     const financialYear = assertOpenFinancialYear(db, payload.company_id, payload.voucher_date);
-    const totalDebit = payload.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-    const totalCredit = payload.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    const companyId = Number(payload.company_id || 0);
+    const lines = (payload.lines || []).map((line) => ({
+      account_id: Number(line.account_id || 0),
+      debit: Number(line.debit || 0),
+      credit: Number(line.credit || 0),
+      narration: line.narration || payload.narration || "",
+      linked_party_type: line.linked_party_type || null,
+      linked_party_id: line.linked_party_id || null
+    }));
+    if (lines.length < 2) throw new Error("At least two voucher lines are required");
+    const hasDebit = lines.some((line) => line.debit > 0 && line.credit === 0);
+    const hasCredit = lines.some((line) => line.credit > 0 && line.debit === 0);
+    if (!hasDebit) throw new Error("Voucher must have at least one debit line");
+    if (!hasCredit) throw new Error("Voucher must have at least one credit line");
+    if (lines.some((line) => !Number.isFinite(line.debit) || !Number.isFinite(line.credit))) {
+      throw new Error("Voucher amounts must be finite numbers");
+    }
+    if (lines.some((line) => line.debit < 0 || line.credit < 0)) throw new Error("Voucher amounts cannot be negative");
+    if (lines.some((line) => line.debit && line.credit)) throw new Error("A voucher line cannot have both debit and credit");
+    if (lines.some((line) => line.debit === 0 && line.credit === 0)) throw new Error("Voucher line with zero amount is not allowed");
+    lines.forEach((line) => {
+      const account = db.prepare("SELECT * FROM accounts WHERE id = ? AND is_deleted = 0").get(line.account_id);
+      if (!account) throw new Error(`Account ${line.account_id} not found or is deleted`);
+      if (Number(account.company_id) !== companyId) throw new Error(`Account ${line.account_id} belongs to a different company`);
+      if (account.status !== "active") throw new Error(`Account ${line.account_id} is not active`);
+    });
+    const totalDebit = lines.reduce((sum, line) => sum + line.debit, 0);
+    const totalCredit = lines.reduce((sum, line) => sum + line.credit, 0);
+    if (totalDebit === 0) throw new Error("Total debit must be non-zero");
+    if (totalCredit === 0) throw new Error("Total credit must be non-zero");
     if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
       throw new Error(`Unbalanced voucher: debit ${totalDebit}, credit ${totalCredit}`);
     }
-    payload.lines.forEach((line) => {
-      if (Number(line.debit || 0) < 0 || Number(line.credit || 0) < 0) throw new Error("Voucher amounts cannot be negative");
-    });
 
     const transaction = db.transaction(() => {
       const voucherNumber = payload.voucher_number || nextVoucherNumber(db, payload.company_id, payload.voucher_type.toUpperCase().replaceAll(" ", ""));
@@ -125,20 +150,20 @@ export function createAccountingService(deps) {
         VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Posted', @financial_year_id, 'Approved')
       `).run({ ...payload, voucher_number: voucherNumber, financial_year_id: financialYear.id });
       const voucherId = voucherResult.lastInsertRowid;
-      payload.lines.forEach((line) => {
+      lines.forEach((line) => {
         const lineResult = db.prepare(`
           INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id)
           VALUES (@voucher_id, @account_id, @debit, @credit, @narration, @linked_party_type, @linked_party_id)
         `).run({
           voucher_id: voucherId,
           account_id: line.account_id,
-          debit: Number(line.debit || 0),
-          credit: Number(line.credit || 0),
-          narration: line.narration || payload.narration || "",
-          linked_party_type: line.linked_party_type || null,
-          linked_party_id: line.linked_party_id || null
+          debit: line.debit,
+          credit: line.credit,
+          narration: line.narration,
+          linked_party_type: line.linked_party_type,
+          linked_party_id: line.linked_party_id
         });
-        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, Number(line.debit || 0), Number(line.credit || 0), payload.source_module, payload.source_id);
+        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, line.debit, line.credit, payload.source_module, payload.source_id);
       });
       auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit }) });
       const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(voucherId);

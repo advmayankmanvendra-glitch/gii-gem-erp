@@ -1811,7 +1811,8 @@ export {
   createAdvanceReceipt, createSupplierAdvance, adjustAdvanceReceipt,
   adjustSupplierAdvance, reverseAdvanceAdjustment, saveCreditTerm,
   createPartyOpeningBalance, createFinancialYear, updateFinancialYearStatus,
-  createOpeningBalance, closeFinancialYear, accountingData
+  createOpeningBalance, closeFinancialYear, accountingData,
+  trialBalance, profitLossReport, balanceSheetReport
 };
 
 export {

@@ -423,15 +423,17 @@ async function run() {
     const companyB = createCompany(db, "FSR-1 Isolation Probe Company");
     createFinancialYear(db, { company_id: companyB, financial_year_name: "FY 2025-26", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     const bankBeforeIsolationProbe = Number(accountingData(db, { company_id: companyId, date_from: "2025-04-01", date_to: "2026-03-31" }).trialBalance.find((row) => row.account_name === "Bank")?.debit || 0);
-    createBalancedVoucher(db, {
-      company_id: companyB,
-      voucher_date: "2025-05-29",
-      voucher_type: "Journal",
-      narration: "FSR-1 cross-company account probe",
-      source_module: "fsr_fixture",
-      source_id: null,
-      lines: [{ account_id: accounts.get("A100"), debit: 777, credit: 0 }, { account_id: accounts.get("E300"), debit: 0, credit: 777 }]
-    });
+    try {
+      createBalancedVoucher(db, {
+        company_id: companyB,
+        voucher_date: "2025-05-29",
+        voucher_type: "Journal",
+        narration: "FSR-1 cross-company account probe",
+        source_module: "fsr_fixture",
+        source_id: null,
+        lines: [{ account_id: accounts.get("A100"), debit: 777, credit: 0 }, { account_id: accounts.get("E300"), debit: 0, credit: 777 }]
+      });
+    } catch {}
     const bankAfterIsolationProbe = Number(accountingData(db, { company_id: companyId, date_from: "2025-04-01", date_to: "2026-03-31" }).trialBalance.find((row) => row.account_name === "Bank")?.debit || 0);
     record("12. Company isolation is enforced", round(bankAfterIsolationProbe) === round(bankBeforeIsolationProbe), `Company A Bank debit changed by ${round(bankAfterIsolationProbe - bankBeforeIsolationProbe)} after Company B used Company A account IDs`);
 

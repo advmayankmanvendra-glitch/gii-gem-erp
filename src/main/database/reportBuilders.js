@@ -756,8 +756,13 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     `).all(companyId);
   }
 
+  function postedVoucherFilter() {
+    return " AND EXISTS (SELECT 1 FROM vouchers v WHERE v.id = le.voucher_id AND v.status = 'Posted' AND v.is_deleted = 0 AND v.company_id = a.company_id)";
+  }
+
   function trialBalance(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
+    const voucherFilter = postedVoucherFilter();
     return db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type,
         COALESCE(SUM(le.debit), 0) + CASE WHEN a.normal_balance = 'Debit' THEN a.opening_balance ELSE 0 END debit,
@@ -767,7 +772,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
           ELSE COALESCE(SUM(le.debit - le.credit), 0) + a.opening_balance
         END balance
       FROM accounts a
-      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
+      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0
       GROUP BY a.id
       ORDER BY a.account_code
@@ -776,12 +781,13 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
 
   function profitLossReport(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
+    const voucherFilter = postedVoucherFilter();
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type,
         COALESCE(SUM(le.debit), 0) debit,
         COALESCE(SUM(le.credit), 0) credit
       FROM accounts a
-      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
+      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Income','Expense')
       GROUP BY a.id
       ORDER BY a.account_type, a.account_code
@@ -796,13 +802,14 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
 
   function balanceSheetReport(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
+    const voucherFilter = postedVoucherFilter();
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
         COALESCE(SUM(le.debit), 0) debit,
         COALESCE(SUM(le.credit), 0) credit,
         a.opening_balance
       FROM accounts a
-      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date <= ?${ledgerActiveWhere}
+      LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date <= ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Asset','Liability','Equity')
       GROUP BY a.id
       ORDER BY a.account_type, a.account_code
