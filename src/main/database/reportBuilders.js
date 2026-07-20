@@ -800,6 +800,18 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     return { rows, income, expenses, netProfit: income - expenses };
   }
 
+  function signedRowAmount(row) {
+    const debit = Number(row.debit || 0);
+    const credit = Number(row.credit || 0);
+    const opening = Number(row.opening_balance || 0);
+    if (row.account_type === "Asset") {
+      const signedOpening = row.normal_balance === "Debit" ? opening : -opening;
+      return debit - credit + signedOpening;
+    }
+    const signedOpening = row.normal_balance === "Credit" ? opening : -opening;
+    return credit - debit + signedOpening;
+  }
+
   function balanceSheetReport(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     const voucherFilter = postedVoucherFilter();
@@ -815,14 +827,14 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
       ORDER BY a.account_type, a.account_code
     `).all(dateTo, companyId).map((row) => ({
       ...row,
-      amount: row.normal_balance === "Credit"
-        ? Number(row.credit || 0) - Number(row.debit || 0) + Number(row.opening_balance || 0)
-        : Number(row.debit || 0) - Number(row.credit || 0) + Number(row.opening_balance || 0)
+      amount: signedRowAmount(row)
     }));
     const assets = rows.filter((row) => row.account_type === "Asset").reduce((sum, row) => sum + row.amount, 0);
     const liabilities = rows.filter((row) => row.account_type === "Liability").reduce((sum, row) => sum + row.amount, 0);
     const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => sum + row.amount, 0);
-    const pl = profitLossReport(db, companyId, dateFrom, dateTo).netProfit;
+    const fy = financialYearForDate(db, companyId, dateTo);
+    const currentProfitDateFrom = fy ? fy.start_date : dateFrom;
+    const pl = profitLossReport(db, companyId, currentProfitDateFrom, dateTo).netProfit;
     return { rows, assets, liabilities, equity, currentProfit: pl, liabilitiesAndEquity: liabilities + equity + pl };
   }
 
