@@ -2,10 +2,11 @@
 
 **Enterprise Version**
 
-**Date:** 2026-07-20  
-**Status:** Architectural specification — not yet machine-consumed  
+**Date:** 2026-07-21  
+**Status:** Permanent constitutional document — governing business architecture  
 **Applies to:** GOVERNMENT_SUPPLY_LIFECYCLE (permanent rule 30 — workflow governance registry)  
-**Future scope:** Payroll, AMC/Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing, Internal Expense
+**Future scope:** Payroll, AMC/Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing, Internal Expense  
+**Governance:** No workflow stage may be added, removed, reordered or modified without updating the WDM. WG-1, Help Assistant, ERP Brain and future automation shall derive metadata from the WDM wherever possible.
 
 ---
 
@@ -17,13 +18,15 @@ The Workflow Dependency Matrix fills that gap. It is the single authoritative so
 
 - purpose and prerequisites
 - data ownership and document output
-- accounting, inventory and GST impact
+- business entity ownership (for Brain, Graph and AI reasoning)
+- accounting, inventory and GST impact, including explicit voucher identification
 - approval rules and statuses
 - reversal path and modification boundary
 - reporting and dashboard consumers
+- source-of-truth mapping (prevents duplicate calculations)
 - brain/AI/audit knowledge
 
-Once populated, almost every downstream architectural asset (Workflow Graph, Help Assistant, Dashboard Intelligence, Audit Graph, Component Ownership Registry, Permission Engine, future automation) can derive its behaviour from the WDM instead of duplicating business logic.
+Once populated, almost every downstream architectural asset (Workflow Graph, Help Assistant, Dashboard Intelligence, Audit Graph, Component Ownership Registry, Permission Engine, Source-of-Truth Engine, future automation) can derive its behaviour from the WDM instead of duplicating business logic.
 
 ---
 
@@ -36,6 +39,7 @@ Every stage in the matrix declares the following fields:
 | **Stage ID** | Yes | Stable, unique identifier (e.g. `WDM-01`) |
 | **Stage Name** | Yes | Human-readable name matching the governance registry |
 | **Business Purpose** | Yes | Why this stage exists in the lifecycle |
+| **Entity Ownership** | Yes | The business entity this stage owns (Opportunity, Order, Dispatch, etc.) |
 | **Previous Stage** | Yes | Mandatory predecessor(s); `None` for the entry stage |
 | **Next Stage** | Yes | Allowed successor(s); `None` for the terminal stage |
 | **Entry Conditions** | Yes | What must already exist or be true before this stage can begin |
@@ -60,6 +64,8 @@ Every stage in the matrix declares the following fields:
 | **Updates** | Yes | Which records this stage modifies |
 | **Blocks** | Yes | Which stages cannot proceed until this stage completes |
 | **Unlocks** | Yes | Which stages become available after this stage completes |
+| **Voucher Produced** | Yes | The accounting voucher type this stage creates (None if no accounting impact) |
+| **Voucher Consumed** | Yes | The accounting voucher type consumed from a previous stage (None if read-only) |
 
 
 ## 3. Dependency Matrix: GOVERNMENT_SUPPLY_LIFECYCLE
@@ -71,6 +77,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-01` |
 | Stage Name | Lead / Tender |
 | Business Purpose | Capture initial business opportunity from a prospect or existing customer |
+| Entity Ownership | Opportunity |
 | Previous Stage | None |
 | Next Stage | Query / Requirement |
 | Entry Conditions | Customer exists or prospect contact recorded |
@@ -95,6 +102,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Lead status, probability, stage history |
 | Blocks | — |
 | Unlocks | WDM-02 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -105,6 +114,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-02` |
 | Stage Name | Query / Requirement |
 | Business Purpose | Capture detailed customer requirements, technical specifications and scope |
+| Entity Ownership | Requirement |
 | Previous Stage | Lead / Tender |
 | Next Stage | Quotation |
 | Entry Conditions | Lead qualified (WDM-01 exit condition met) |
@@ -129,6 +139,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Requirement status, linked lead |
 | Blocks | — |
 | Unlocks | WDM-03 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -139,6 +151,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-03` |
 | Stage Name | Quotation |
 | Business Purpose | Calculate price, prepare and submit formal quotation to customer |
+| Entity Ownership | Commercial Proposal |
 | Previous Stage | Query / Requirement |
 | Next Stage | Negotiation |
 | Entry Conditions | Approved requirement (WDM-02 exit condition met) |
@@ -163,6 +176,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Quotation status, linked requirement |
 | Blocks | — |
 | Unlocks | WDM-04 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -173,6 +188,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-04` |
 | Stage Name | Negotiation |
 | Business Purpose | Finalise price, terms and conditions with the customer |
+| Entity Ownership | Negotiation Record |
 | Previous Stage | Quotation |
 | Next Stage | Purchase Order / GeM Order |
 | Entry Conditions | Quotation acknowledged (WDM-03 exit condition met) |
@@ -197,6 +213,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Negotiation outcome, revised pricing |
 | Blocks | — |
 | Unlocks | WDM-05 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -207,6 +225,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-05` |
 | Stage Name | Purchase Order / GeM Order |
 | Business Purpose | Receive formal customer order; commit to supply |
+| Entity Ownership | Customer Order |
 | Previous Stage | Negotiation |
 | Next Stage | Work Order |
 | Entry Conditions | Agreed terms (WDM-04 exit condition met) |
@@ -231,6 +250,8 @@ Every stage in the matrix declares the following fields:
 | Updates | PO status, linked negotiation |
 | Blocks | — |
 | Unlocks | WDM-06 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -241,6 +262,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-06` |
 | Stage Name | Work Order |
 | Business Purpose | Origination point for execution; ties operational planning to the customer order |
+| Entity Ownership | Execution Order |
 | Previous Stage | Purchase Order / GeM Order |
 | Next Stage | Procurement Planning |
 | Entry Conditions | Verified customer PO (WDM-05 exit condition met) |
@@ -265,6 +287,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Work order status, linked PO |
 | Blocks | WDM-07 through WDM-18 |
 | Unlocks | WDM-07 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -275,6 +299,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-07` |
 | Stage Name | Procurement Planning |
 | Business Purpose | Determine sourcing strategy: make, buy, or use existing stock |
+| Entity Ownership | Procurement Requirement |
 | Previous Stage | Work Order |
 | Next Stage | Supplier Purchase Order |
 | Entry Conditions | Approved Work Order (WDM-06 exit condition met) |
@@ -299,6 +324,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Plan status, linked work order |
 | Blocks | WDM-08 |
 | Unlocks | WDM-08 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -309,6 +336,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-08` |
 | Stage Name | Supplier Purchase Order |
 | Business Purpose | Commit to purchase from supplier; initiate procurement |
+| Entity Ownership | Supplier Commitment |
 | Previous Stage | Procurement Planning |
 | Next Stage | Goods Receipt / GRN |
 | Entry Conditions | Approved procurement plan (WDM-07 exit condition met) |
@@ -333,6 +361,8 @@ Every stage in the matrix declares the following fields:
 | Updates | PO status, linked procurement plan |
 | Blocks | WDM-09 |
 | Unlocks | WDM-09 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -343,6 +373,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-09` |
 | Stage Name | Goods Receipt / GRN |
 | Business Purpose | Accept supplier material into inventory; record quantity and condition |
+| Entity Ownership | Goods Receipt |
 | Previous Stage | Supplier Purchase Order |
 | Next Stage | Inventory Reservation |
 | Entry Conditions | Supplier PO issued and acknowledged (WDM-08 exit condition met) |
@@ -367,6 +398,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Stock ledger, GRN status, linked PO receipt quantity |
 | Blocks | WDM-10 |
 | Unlocks | WDM-10 |
+| Voucher Produced | Purchase Voucher / Inventory Voucher |
+| Voucher Consumed | None |
 
 
 ### Stage 10 — Inventory Reservation
@@ -376,6 +409,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-10` |
 | Stage Name | Inventory Reservation |
 | Business Purpose | Allocate specific stock to a Work Order for planned delivery |
+| Entity Ownership | Stock Allocation |
 | Previous Stage | Goods Receipt / GRN |
 | Next Stage | Delivery Challan |
 | Entry Conditions | Goods available in stock (from GRN or existing inventory) |
@@ -400,6 +434,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Reservation status, linked stock ledger |
 | Blocks | WDM-11 |
 | Unlocks | WDM-11 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -410,6 +446,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-11` |
 | Stage Name | Delivery Challan |
 | Business Purpose | Physically issue stock from inventory for dispatch to customer |
+| Entity Ownership | Dispatch |
 | Previous Stage | Inventory Reservation |
 | Next Stage | Installation |
 | Entry Conditions | Stock reserved (WDM-10 exit condition met) |
@@ -434,6 +471,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Stock ledger, delivery challan status |
 | Blocks | WDM-12 |
 | Unlocks | WDM-12 |
+| Voucher Produced | Stock Issue Voucher |
+| Voucher Consumed | None |
 
 ---
 
@@ -444,6 +483,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-12` |
 | Stage Name | Installation |
 | Business Purpose | Install, configure and test delivered goods at customer site |
+| Entity Ownership | Installation |
 | Previous Stage | Delivery Challan |
 | Next Stage | CRAC |
 | Entry Conditions | Goods delivered (WDM-11 exit condition met); installation required per contract |
@@ -468,6 +508,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Installation status, linked work order |
 | Blocks | WDM-13 (if installation is required) |
 | Unlocks | WDM-13 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -478,6 +520,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-13` |
 | Stage Name | CRAC (Consignee Receipt and Acceptance Certificate) |
 | Business Purpose | Obtain formal customer acceptance of delivered and installed goods |
+| Entity Ownership | Acceptance |
 | Previous Stage | Installation (or Delivery Challan if installation not required) |
 | Next Stage | Sales Invoice / GST Invoice |
 | Entry Conditions | Goods delivered and (if required) installed |
@@ -502,6 +545,8 @@ Every stage in the matrix declares the following fields:
 | Updates | CRAC status, linked work order |
 | Blocks | WDM-14 |
 | Unlocks | WDM-14 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -512,6 +557,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-14` |
 | Stage Name | Sales Invoice / GST Invoice |
 | Business Purpose | Recognise revenue; raise tax-compliant invoice to customer |
+| Entity Ownership | Revenue Event |
 | Previous Stage | CRAC |
 | Next Stage | Department Receivable |
 | Entry Conditions | CRAC accepted (WDM-13 exit condition met) |
@@ -536,6 +582,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Vouchers, ledger entries, receivables, GST register |
 | Blocks | WDM-15 |
 | Unlocks | WDM-15 |
+| Voucher Produced | Sales Voucher |
+| Voucher Consumed | None |
 
 ---
 
@@ -546,6 +594,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-15` |
 | Stage Name | Department Receivable |
 | Business Purpose | Track the amount due from the customer department; manage collection |
+| Entity Ownership | Outstanding Asset |
 | Previous Stage | Sales Invoice / GST Invoice |
 | Next Stage | Receipt |
 | Entry Conditions | Invoice posted (WDM-14 exit condition met) |
@@ -570,6 +619,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Receivable status, ageing calculation |
 | Blocks | — |
 | Unlocks | WDM-16 |
+| Voucher Produced | None (created by Sales Voucher) |
+| Voucher Consumed | Sales Voucher |
 
 ---
 
@@ -580,6 +631,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-16` |
 | Stage Name | Receipt |
 | Business Purpose | Receive payment from customer; allocate against receivable |
+| Entity Ownership | Cash Realisation |
 | Previous Stage | Department Receivable |
 | Next Stage | Order Closure |
 | Entry Conditions | Receivable exists and is not fully collected (WDM-15 active) |
@@ -604,6 +656,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Vouchers, ledger entries, receivable allocation |
 | Blocks | WDM-17 |
 | Unlocks | WDM-17 |
+| Voucher Produced | Receipt Voucher |
+| Voucher Consumed | Sales Voucher |
 
 ---
 
@@ -614,6 +668,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-17` |
 | Stage Name | Order Closure |
 | Business Purpose | Formally close the order after all obligations fulfilled |
+| Entity Ownership | Completed Order |
 | Previous Stage | Receipt |
 | Next Stage | Profitability Analysis |
 | Entry Conditions | All payments received; all deliverables accepted (WDM-16 exit condition met) |
@@ -638,6 +693,8 @@ Every stage in the matrix declares the following fields:
 | Updates | Work order status to Closed |
 | Blocks | WDM-18 |
 | Unlocks | WDM-18 |
+| Voucher Produced | None |
+| Voucher Consumed | None |
 
 ---
 
@@ -648,6 +705,7 @@ Every stage in the matrix declares the following fields:
 | Stage ID | `WDM-18` |
 | Stage Name | Profitability Analysis |
 | Business Purpose | Measure financial outcome of the completed order |
+| Entity Ownership | Financial Analysis |
 | Previous Stage | Order Closure |
 | Next Stage | None |
 | Entry Conditions | Order closed (WDM-17 exit condition met) |
@@ -672,13 +730,15 @@ Every stage in the matrix declares the following fields:
 | Updates | None (read-only aggregation) |
 | Blocks | — |
 | Unlocks | — |
+| Voucher Produced | None (read-only) |
+| Voucher Consumed | All vouchers (read-only) |
 
 
 ---
 
 ## 4. Dependency Layers
 
-The matrix explicitly defines six dependency dimensions.
+The matrix explicitly defines seven dependency dimensions.
 
 ### 4.1 Workflow Dependency
 
@@ -722,14 +782,16 @@ Profitability Analysis
 
 ### 4.2 Accounting Dependency
 
+Every accounting-impacting stage produces or consumes a voucher. The `Voucher Produced` and `Voucher Consumed` fields in the matrix identify these explicitly. The voucher-to-ledger chain is:
+
 ```
 Supplier Purchase Order (commitment only)
   ↓
-GRN (inventory valuation)
+GRN (inventory valuation via Purchase Voucher / Inventory Voucher)
   ↓
-Sales Invoice / GST Invoice (revenue, GST output, receivable)
+Sales Invoice / GST Invoice (revenue, GST output, receivable via Sales Voucher)
   ↓
-Receipt (cash/bank, receivable reduction)
+Receipt (cash/bank, receivable reduction via Receipt Voucher)
   ↓
 Ledger → Trial Balance → P&L → Balance Sheet
 ```
@@ -792,6 +854,30 @@ CRAC
 Order Closure
 ```
 
+### 4.7 Document Dependency
+
+Documents themselves form a lifecycle chain — each document is evidence for the next stage:
+
+```
+Quotation
+  ↓
+Purchase Order (customer)
+  ↓
+Work Order
+  ↓
+Supplier Purchase Order
+  ↓
+Goods Receipt Note (GRN)
+  ↓
+Delivery Challan
+  ↓
+CRAC Certificate
+  ↓
+Tax Invoice
+  ↓
+Payment Receipt
+```
+
 ---
 
 ## 5. Source & Impact Model
@@ -818,6 +904,8 @@ Every stage declares four relationship categories:
 | Updates | `vouchers` (new Sales voucher), `ledger_entries`, `receivables`, `gst_registers` |
 | Blocks | Department Receivable (WDM-15) |
 | Unlocks | WDM-15 |
+| Voucher Produced | Sales Voucher |
+| Voucher Consumed | None |
 | Reports | Sales Register, GST Output Register, Receivables Ageing, P&L |
 | Dashboards | Billing Summary, Revenue Trend, GST Liability |
 | Brain | Invoicing workflow, GST compliance, revenue recognition |
@@ -883,6 +971,23 @@ Future Automation — conditional workflow triggers derived from Entry/Exit cond
                      and Blocks/Unlocks
 ```
 
+### 7.1 Five Foundational Graphs
+
+The WDM is the **business graph** that complements the five technical graphs:
+
+```
+Workflow Dependency Matrix (business graph)
+        │
+        ▼
+Workflow Graph (WG-1)         — stage sequence and dependencies
+Database Graph (DG-1)          — table ownership and entity mappings
+Renderer Graph (RG-1)          — screen and route assignments
+Audit Graph (AG-1)             — stage-level evidence chain
+Knowledge Graph (KG-1)         — business reasoning and AI context
+```
+
+Above these sits the **Enterprise Brain**, consuming all five graphs to drive the Help Assistant, AI explanations, permission engine, and future agent system.
+
 ---
 
 ## 8. Governance
@@ -906,10 +1011,12 @@ Changes to the WDM require architecture review when:
 The WDM is documentation-only in the current phase. Future phases may:
 
 1. Validate runtime route/stage metadata against the WDM
-2. Generate WG-1 graph nodes and edges from WDM rows
-3. Drive Help Assistant contextual answers from WDM fields
+2. Generate WG-1 graph nodes and edges from WDM rows, including Entity Ownership as node labels
+3. Drive Help Assistant contextual answers from WDM fields (Purpose, Entry/Exit conditions, Entity Ownership, Brain Knowledge)
 4. Constrain permission rules based on stage Risk Level and Approval Required
 5. Block reversal paths that do not match the Reversal Matrix
+6. Map voucher types to stages via the `Voucher Produced` / `Voucher Consumed` fields, enabling automated voucher-stage traceability
+7. Register source-of-truth mappings to prevent duplicate calculations and enforce data ownership boundaries
 
 ### 8.4 Future Workflow Slots
 
@@ -925,4 +1032,43 @@ The registry is designed to host additional workflows:
 | `LEGAL_CASE_BILLING_LIFECYCLE` | Legal Case |
 | `INTERNAL_EXPENSE_LIFECYCLE` | Expense Report |
 
-Each future workflow must define its own 28-field WDM row set.
+Each future workflow must define its own 31-field WDM row set.
+
+---
+
+## 9. Source of Truth Mapping
+
+Every field in the WDM should eventually answer: *where is the authoritative data for this information?* This prevents duplicate calculations and ensures React screens do not become accounting engines.
+
+| Information | Source of Truth |
+|---|---|
+| Customer identity, contact, address | Customer Master |
+| Item master, UOM, HSN/SAC | Item Master |
+| GST rate, HSN-SAC linkage | GST Master |
+| Price, discount, taxes | Quotation / Negotiation (commercial proposal) |
+| Quantity ordered | Purchase Order (customer) |
+| Quantity procured | Supplier Purchase Order |
+| Quantity received | Goods Receipt Note (GRN) |
+| Quantity dispatched | Delivery Challan |
+| Quantity accepted | CRAC Certificate |
+| Cost of goods | Purchase Voucher (supplier bill) |
+| Revenue | Sales Voucher (tax invoice) |
+| Receivable | Sales Voucher / Receivables subsystem |
+| Cash / Bank balance | Receipt Voucher / Bank Book |
+| Inventory quantity | Stock Ledger |
+| Inventory value | Inventory Ledger (GL) |
+| Profit / Loss | Financial Reports (P&L) |
+| Financial position | Balance Sheet |
+| Work order status | Supply Orders (`supply_orders.status`) |
+| Document evidence | Document Center (linked records) |
+
+### 9.1 Governance Implication
+
+No screen, service, or report may compute a value that belongs to a different source of truth. For example:
+
+- The **Delivery Challan screen** must not compute cost — that belongs to the Purchase Voucher.
+- The **Sales Invoice screen** must not compute stock quantity — that belongs to the Stock Ledger.
+- The **Dashboard** must not recompute trial balance totals — those belong to backend reports.
+- The **Renderer** must never post ledger entries or alter accounting data — that is the exclusive domain of backend services.
+
+Every new feature should register its data sources in this table before implementation begins.
