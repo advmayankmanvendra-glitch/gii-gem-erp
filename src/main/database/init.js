@@ -215,6 +215,7 @@ const DEFAULT_ACCOUNTS = [
   ["1300", "Input GST", "Asset", "Debit", 0],
   ["1400", "Inventory", "Asset", "Debit", 0],
   ["2000", "Trade Payables", "Liability", "Credit", 0],
+  ["2010", "Goods Received Not Invoiced", "Liability", "Credit", 0],
   ["2100", "GST Payable", "Liability", "Credit", 0],
   ["2110", "Output GST", "Liability", "Credit", 0],
   ["2200", "Expense Payable", "Liability", "Credit", 0],
@@ -224,6 +225,8 @@ const DEFAULT_ACCOUNTS = [
   ["4000", "Sales", "Income", "Credit", 0],
   ["5000", "Purchase", "Expense", "Debit", 0],
   ["5050", "Cost of Goods Sold", "Expense", "Debit", 0],
+  ["5060", "Inventory Adjustment Loss", "Expense", "Debit", 0],
+  ["4060", "Inventory Adjustment Gain", "Income", "Credit", 0],
   ["5100", "Work Incentive Expense", "Expense", "Debit", 0],
   ["5110", "Authorization Expense", "Expense", "Debit", 0],
   ["5120", "L1 Expense", "Expense", "Debit", 0],
@@ -985,7 +988,7 @@ function businessVoucherPayload(db, companyId, voucherKind, payload) {
     const inputGst = Number(payload.input_gst || payload.gst_amount || payload.purchase_gst || 0);
     const gross = taxable + inputGst;
     assertPositive(gross, "Purchase voucher amount");
-    const inventoryAccount = payload.inventory_enabled === false || payload.inventory_enabled === "0" ? "Purchase" : "Inventory";
+    const inventoryAccount = payload.inventory_enabled === false || payload.inventory_enabled === "0" ? "Purchase" : "Goods Received Not Invoiced";
     return {
       company_id: companyId,
       voucher_date: date,
@@ -1680,11 +1683,13 @@ const {
   stockBalance, weightedAverageCost, insertStockLedger,
   inventoryStockSummary, inventoryLowStockReport,
   postStockInward, postStockOutward, postStockAdjustment,
-  approveStockAdjustment, postStockReturn, inventoryData
+  approveStockAdjustment, postStockReturn, inventoryData,
+  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
 } = createInventoryService({
-  auditLog, activeRowClause, accountId, createBalancedVoucher,
-  autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData
-});
+    auditLog, activeRowClause, accountId, createBalancedVoucher,
+    autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData,
+    reverseVoucher
+  });
 
 const {
   createProcurementPlanRecord,
@@ -1817,7 +1822,8 @@ export {
   adjustSupplierAdvance, reverseAdvanceAdjustment, saveCreditTerm,
   createPartyOpeningBalance, createFinancialYear, updateFinancialYearStatus,
   createOpeningBalance, closeFinancialYear, accountingData,
-  trialBalance, profitLossReport, balanceSheetReport
+  trialBalance, profitLossReport, balanceSheetReport,
+  businessVoucherPayload
 };
 
 export {
@@ -1832,7 +1838,8 @@ export {
 
 export {
   postStockInward, postStockOutward, postStockAdjustment,
-  approveStockAdjustment, postStockReturn, inventoryData
+  approveStockAdjustment, postStockReturn, inventoryData,
+  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
 };
 
 export {

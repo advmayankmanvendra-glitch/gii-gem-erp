@@ -1,14 +1,15 @@
 # FSR-1 Financial Report Risk Register
 
-**Audit date:** 2026-07-20  
-**Open risks:** 11 (6 closed by FSR-2A.1 + FSR-2A.2 + FSR-2A.3)  
+**Audit date:** 2026-07-21
+**Open risks:** 10 (8 closed by FSR-2A.1 + FSR-2A.2 + FSR-2A.3 + FSR-2A.4)
 **Overall gate:** BLOCKED
 
 | ID | Severity | Finding | Evidence | Required phase | Status |
 |---|---|---|---|---|---|
 | ~~FSR-R01~~ | ~~CRITICAL~~ | ~~Balance Sheet mishandles contra assets/equity~~ | ~~Fixture difference -3,000~~ | ~~FSR-2A.2~~ | **CLOSED** |
-| FSR-R02 | CRITICAL | Stock inward/adjustments/returns lack GL bridge | Stock +1,000, Inventory GL +0 | FSR-2A.4 | OPEN |
-| FSR-R03 | CRITICAL | Purchase expense and outward COGS create hybrid/double-cost risk | Purchase Dr plus later COGS Dr | FSR-2A.4 | OPEN |
+| ~~FSR-R02~~ | ~~CRITICAL~~ | ~~Stock inward/adjustments/returns lack GL bridge~~ | ~~Stock +1,000, Inventory GL +0~~ | ~~FSR-2A.4~~ | **CLOSED** |
+| ~~FSR-R03~~ | ~~CRITICAL~~ | ~~Purchase expense and outward COGS create hybrid/double-cost risk~~ | ~~Purchase Dr plus later COGS Dr~~ | ~~FSR-2A.4~~ | **CLOSED** |
+| FSR-R18 | HIGH | Historical inventory/GL and Purchase/COGS remediation remains pending | Legacy stock movements and historical inventory purchases have not been backfilled or reconciled under the certified FSR-2A.4 model | Separate authorised historical-remediation phase | OPEN |
 | ~~FSR-R04~~ | ~~CRITICAL~~ | ~~Balance Sheet current profit depends on arbitrary `date_from`~~ | ~~As-on expected 23,380, ERP 0~~ | ~~FSR-2A.2~~ | **CLOSED** |
 | ~~FSR-R05~~ | ~~CRITICAL~~ | ~~Financial-year close cannot complete~~ | ~~`Invalid financial year status`, source remains Open~~ | ~~FSR-2A.3~~ | **CLOSED** |
 | ~~FSR-R06~~ | ~~CRITICAL~~ | ~~Draft/Cancelled voucher effects are not excluded by statements~~ | ~~Income changed +333~~ | ~~FSR-2A.1~~ | **CLOSED** |
@@ -81,6 +82,34 @@ No report redesign, statutory claim, release packaging or next major programme s
 - Remaining limitations: If no FY exists for dateTo, current profit is 0 (documented behaviour)
 - Closure: **Verified — CRITICAL risk closed**
 
+### FSR-2A.4 Risk Closures
+
+**FSR-R02 — Stock inward/adjustments/returns lack GL bridge** (CRITICAL)
+- Prior evidence: Stock +1,000, Inventory GL +0 — stock movements had zero GL effect
+- Code correction:
+  - `postStockInward()`: Added Dr Inventory / Cr GRNI balanced journal voucher
+  - `postStockOutward()`: Already posted Dr COGS / Cr Inventory — unchanged
+  - `postStockAdjustment()`: Added Dr Inventory / Cr Inventory Adjustment Gain (Increase); Dr Inventory Adjustment Loss / Cr Inventory (Decrease)
+  - `postStockReturn()`: Added Dr Inventory / Cr COGS (Department Return); Dr GRNI / Cr Inventory (Supplier Return, before invoice); Dr Trade Payables / Cr Inventory (Supplier Return, after invoice)
+  - All GL vouchers use `createBalancedVoucher()` with `source_module` = stock_inwards/stock_outwards/stock_adjustments/stock_returns
+  - All postings are wrapped in `db.transaction()` for atomicity
+- Account provisioning: Added "Goods Received Not Invoiced" (2010, Liability/Credit), "Inventory Adjustment Loss" (5060, Expense/Debit) and "Inventory Adjustment Gain" (4060, Income/Credit) to DEFAULT_ACCOUNTS
+- `businessVoucherPayload` for purchase: Uses GRNI (not Inventory/ Purchase) for inventory-enabled items
+- Test evidence: FSR-2A.4 verifier 55/55 PASS (FSR-2A.4C hardening added 16 checks: reversals, supplier-return after invoice, adj account split, locked-year, duplicate posting, coverage matrix); FSR-1 check 8 changed from FAIL to PASS
+- Remaining limitations: Atomic reversal added (LIFO-order), supplier-return after invoice distinguished, adj accounts split; no auto-reversal UI, no historical FY backfill
+- Closure: **Verified — CRITICAL risk closed**
+
+**FSR-R03 — Purchase expense and outward COGS double-cost risk** (CRITICAL)
+- Prior evidence: Purchase Dr 1000 + COGS Dr 300 = 1300 total expense for goods worth 1000
+- Code correction:
+  - `businessVoucherPayload` for `inventory_enabled: true` purchase vouchers debits "Goods Received Not Invoiced" instead of "Purchase"
+  - Non-inventory purchases continue to debit "Purchase" account
+  - Stock outward debits COGS at weighted-average cost
+  - No single inventory item can be expensed through both Purchase and COGS
+- Test evidence: FSR-2A.4 checks 29 (uses GRNI, not Inventory) and 30 (non-inventory uses Purchase) PASS; complete purchase-to-sale lifecycle verified
+- Remaining limitations: Backward compatibility with historical Purchase-debit transactions not addressed
+- Closure: **Verified — CRITICAL risk closed**
+
 ### FSR-2A.3 Risk Closure
 
 **FSR-R05 — Financial-year close cannot complete** (CRITICAL)
@@ -95,6 +124,17 @@ No report redesign, statutory claim, release packaging or next major programme s
 - Test evidence: FSR-2A.3 37/37 PASS; FSR-2A.2 25/25 PASS; FSR-2A.1 22/22 PASS; FSR-1 21/25 PASS (no regression)
 - Remaining limitations: No gap validation (FYs with a gap between source end and target start are accepted); inventory accounts (Stock, COGS) are excluded from carry-forward opening consumption (deferred to FSR-2A.4)
 - Closure: **Verified — CRITICAL risk closed**
+
+### FSR-2A.4 Historical Residual Risk
+
+**FSR-R18 — Historical inventory/GL and Purchase/COGS remediation remains pending** (HIGH)
+
+- Finding: FSR-2A.4 and FSR-2A.4C certify the prospective inventory-accounting paths. Historical stock movements and historical inventory purchases created before the certified implementation may still contain missing Inventory GL postings or Purchase-and-COGS double-cost effects.
+- Current correction: New stock inward, outward, return, adjustment, supplier-invoice and reversal paths now follow the certified perpetual-inventory and GRNI contracts.
+- Test evidence: FSR-2A.4C verifier passed 55/55 checks, including inventory reversals, supplier-return lifecycle, adjustment-account separation, locked-year enforcement and duplicate-posting prevention.
+- Historical limitation: No authorised backfill, adjustment voucher pack or production-database reconciliation has yet been executed for legacy transactions.
+- Required action: Perform a separately authorised, read-only historical reconciliation followed by an approved dry-run remediation programme. Any correction must preserve original evidence and use governed adjustment or reversal entries rather than silent data rewriting.
+- Closure: **OPEN — prospective paths certified; historical remediation remains pending**
 
 ## Risk acceptance boundary
 

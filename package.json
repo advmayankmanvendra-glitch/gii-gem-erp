@@ -53,6 +53,7 @@
     "verify:fsr2a1": "node scripts/verify-fsr-2a1.js",
     "verify:fsr2a2": "node scripts/verify-fsr-2a2.js",
     "verify:fsr2a3": "node scripts/verify-fsr-2a3.js",
+    "verify:fsr2a4": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-fsr-2a4.js",
     "test-data:pack-v1": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/create-erp-test-data-pack-v1.js"
   },
   "dependencies": {

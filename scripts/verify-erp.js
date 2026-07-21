@@ -43,6 +43,7 @@ const PIPELINE = [
   { name: "verify:phase10",    cmd: `${NPM} run verify:phase10`,     continueOn: [0, 1] },
   { name: "verify:entity-picker", cmd: `${NPM} run verify:entity-picker`, continueOn: [0, 1] },
   { name: "verify:operational-stages", cmd: `${NPM} run verify:operational-stages`, continueOn: [0, 1] },
+  { name: "verify:fsr2a4", cmd: `${NPM} run verify:fsr2a4`, continueOn: [0, 1] },
 ];
 
 /* ─── Helpers ─── */
@@ -53,7 +54,7 @@ function timestamp() {
 function run(cmd) {
   const start = Date.now();
   try {
-    const stdout = execSync(cmd, { cwd: ROOT, encoding: "utf-8", timeout: 300000 });
+    const stdout = execSync(cmd, { cwd: ROOT, encoding: "utf-8", timeout: 600000 });
     return { exitCode: 0, stdout, stderr: "", duration: Date.now() - start };
   } catch (e) {
     const exitCode = e.status != null ? e.status : 3;

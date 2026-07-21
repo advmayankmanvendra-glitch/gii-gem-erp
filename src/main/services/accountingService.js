@@ -372,6 +372,10 @@ export function createAccountingService(deps) {
       if (original.source_module === "payment") db.prepare("UPDATE payments SET posting_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
       if (original.source_module === "supplier_payment") db.prepare("UPDATE supplier_payments SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
       if (original.source_module === "expense") db.prepare("UPDATE expense_entries SET posting_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+      if (original.source_module === "stock_inwards") db.prepare("UPDATE stock_inwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+      if (original.source_module === "stock_outwards") db.prepare("UPDATE stock_outwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+      if (original.source_module === "stock_adjustments") db.prepare("UPDATE stock_adjustments SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+      if (original.source_module === "stock_returns") db.prepare("UPDATE stock_returns SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
 
       if (original.source_module === "billing") {
         db.prepare(`

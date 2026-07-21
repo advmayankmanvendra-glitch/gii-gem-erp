@@ -1,7 +1,7 @@
 export function createInventoryService(deps) {
   const {
     auditLog, activeRowClause, accountId, createBalancedVoucher,
-    autoReserveOrderStock, listRecords, referenceData
+    autoReserveOrderStock, listRecords, referenceData, reverseVoucher
   } = deps;
 
   function stockBalance(db, companyId, itemId, warehouseId) {
@@ -90,6 +90,7 @@ export function createInventoryService(deps) {
   function ensureStockNotPosted(row) {
     if (!row) throw new Error("Stock record not found");
     if (row.posting_status === "Posted") throw new Error("Stock record is already posted");
+    if (row.posting_status === "Reversed") throw new Error("Stock record is already reversed");
   }
 
   function serialWarrantyExpiry(date, warrantyMonths) {
@@ -171,9 +172,21 @@ export function createInventoryService(deps) {
       });
       syncSerialInward(db, row);
       syncBatchInward(db, row);
-      db.prepare("UPDATE stock_inwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      const grnVoucher = value > 0 ? createBalancedVoucher(db, {
+        company_id: row.company_id,
+        voucher_date: row.inward_date,
+        voucher_type: "Journal",
+        narration: `GRN receipt ${row.purchase_invoice_number || row.id}`,
+        source_module: "stock_inwards",
+        source_id: row.id,
+        lines: [
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: value, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: 0, credit: value }
+        ]
+      }) : null;
+      db.prepare("UPDATE stock_inwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(grnVoucher?.id || null, id);
       if (row.order_id) autoReserveOrderStock(db, row.order_id);
-      auditLog(db, { company_id: row.company_id, action: "stock_inward_posted", table_name: "stock_inwards", record_id: id, new_value: JSON.stringify(row) });
+      auditLog(db, { company_id: row.company_id, action: "stock_inward_posted", table_name: "stock_inwards", record_id: id, new_value: JSON.stringify({ row, voucher_id: grnVoucher?.id }) });
     });
     tx();
     return db.prepare("SELECT * FROM stock_inwards WHERE id = ?").get(id);
@@ -245,6 +258,7 @@ export function createInventoryService(deps) {
     if (!isIncrease && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Adjustment decrease exceeds available stock");
     const rate = Number(row.rate || 0) || weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
     const tx = db.transaction(() => {
+      const adjValue = Number(row.quantity || 0) * rate;
       insertStockLedger(db, {
         company_id: row.company_id,
         item_id: row.item_id,
@@ -255,12 +269,27 @@ export function createInventoryService(deps) {
         inward_quantity: isIncrease ? row.quantity : 0,
         outward_quantity: isIncrease ? 0 : row.quantity,
         rate,
-        value: Number(row.quantity || 0) * rate,
+        value: adjValue,
         source_module: "stock_adjustments",
         source_id: row.id
       });
-      db.prepare("UPDATE stock_adjustments SET posting_status = 'Posted', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
-      auditLog(db, { company_id: row.company_id, action: "stock_adjustment_posted", table_name: "stock_adjustments", record_id: id, new_value: JSON.stringify(row) });
+      const adjVoucher = adjValue > 0 ? createBalancedVoucher(db, {
+        company_id: row.company_id,
+        voucher_date: row.adjustment_date,
+        voucher_type: "Journal",
+        narration: `Stock ${isIncrease ? "increase" : "decrease"} adj ${row.reason || row.id}`,
+        source_module: "stock_adjustments",
+        source_id: row.id,
+        lines: isIncrease ? [
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: adjValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Inventory Adjustment Gain"), debit: 0, credit: adjValue }
+        ] : [
+          { account_id: accountId(db, row.company_id, "Inventory Adjustment Loss"), debit: adjValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: adjValue }
+        ]
+      }) : null;
+      db.prepare("UPDATE stock_adjustments SET posting_status = 'Posted', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(adjVoucher?.id || null, id);
+      auditLog(db, { company_id: row.company_id, action: "stock_adjustment_posted", table_name: "stock_adjustments", record_id: id, new_value: JSON.stringify({ row, voucher_id: adjVoucher?.id }) });
     });
     tx();
     return db.prepare("SELECT * FROM stock_adjustments WHERE id = ?").get(id);
@@ -275,6 +304,11 @@ export function createInventoryService(deps) {
     return db.prepare("SELECT * FROM stock_adjustments WHERE id = ?").get(id);
   }
 
+  function isGrniClearedForCompany(db, companyId) {
+    const grniRow = db.prepare("SELECT SUM(le.debit - le.credit) net FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = ? AND a.account_name = 'Goods Received Not Invoiced' AND a.is_deleted = 0").get(companyId);
+    return grniRow && Number(grniRow.net || 0) >= 0;
+  }
+
   function postStockReturn(db, id) {
     const row = db.prepare("SELECT * FROM stock_returns WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
     ensureStockNotPosted(row);
@@ -283,6 +317,7 @@ export function createInventoryService(deps) {
     if (!isDepartmentReturn && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Supplier return exceeds available stock");
     const rate = weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
     const tx = db.transaction(() => {
+      const retValue = Number(row.quantity || 0) * rate;
       insertStockLedger(db, {
         company_id: row.company_id,
         item_id: row.item_id,
@@ -293,15 +328,145 @@ export function createInventoryService(deps) {
         inward_quantity: isDepartmentReturn ? row.quantity : 0,
         outward_quantity: isDepartmentReturn ? 0 : row.quantity,
         rate,
-        value: Number(row.quantity || 0) * rate,
+        value: retValue,
         order_id: row.order_id,
         supplier_id: row.supplier_id,
         department_id: row.department_id,
         source_module: "stock_returns",
         source_id: row.id
       });
-      db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
-      auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify(row) });
+      const grniAlreadyCleared = !isDepartmentReturn && isGrniClearedForCompany(db, row.company_id);
+      const retVoucher = retValue > 0 ? createBalancedVoucher(db, {
+        company_id: row.company_id,
+        voucher_date: row.return_date,
+        voucher_type: "Journal",
+        narration: `Stock ${isDepartmentReturn ? "department" : "supplier"} return ${row.id}`,
+        source_module: "stock_returns",
+        source_id: row.id,
+        lines: isDepartmentReturn ? [
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: retValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Cost of Goods Sold"), debit: 0, credit: retValue }
+        ] : (grniAlreadyCleared ? [
+          { account_id: accountId(db, row.company_id, "Trade Payables"), debit: retValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: retValue }
+        ] : [
+          { account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: retValue, credit: 0 },
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: retValue }
+        ])
+      }) : null;
+      db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(retVoucher?.id || null, id);
+      auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify({ row, voucher_id: retVoucher?.id }) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_returns WHERE id = ?").get(id);
+  }
+
+  function reverseStockInward(db, id) {
+    const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    if (!row) throw new Error("Stock inward not found");
+    if (row.posting_status === "Reversed") throw new Error("Stock inward is already reversed");
+    if (row.posting_status !== "Posted") throw new Error("Stock inward is not posted");
+    const tx = db.transaction(() => {
+      const slRows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = 'stock_inwards' AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(id);
+      slRows.forEach((sl) => {
+        insertStockLedger(db, {
+          company_id: sl.company_id, item_id: sl.item_id, warehouse_id: sl.warehouse_id,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          document_number: `REV-IN-${id}`,
+          transaction_type: "Inward Reversal",
+          inward_quantity: sl.outward_quantity, outward_quantity: sl.inward_quantity,
+          rate: sl.rate, value: sl.value,
+          order_id: sl.order_id, supplier_id: sl.supplier_id,
+          source_module: "stock_inwards", source_id: id,
+          remarks: `Reversal of inward ${id}`
+        });
+      });
+      if (row.voucher_id) reverseVoucher(db, row.voucher_id, `Reversal of stock inward ${id}`);
+      db.prepare("UPDATE stock_inwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_inward_reversed", table_name: "stock_inwards", record_id: id, new_value: JSON.stringify({ reversal: true, original_voucher: row.voucher_id }) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_inwards WHERE id = ?").get(id);
+  }
+
+  function reverseStockOutward(db, id) {
+    const row = db.prepare("SELECT * FROM stock_outwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    if (!row) throw new Error("Stock outward not found");
+    if (row.posting_status === "Reversed") throw new Error("Stock outward is already reversed");
+    if (row.posting_status !== "Posted") throw new Error("Stock outward is not posted");
+    const tx = db.transaction(() => {
+      const slRows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = 'stock_outwards' AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(id);
+      slRows.forEach((sl) => {
+        insertStockLedger(db, {
+          company_id: sl.company_id, item_id: sl.item_id, warehouse_id: sl.warehouse_id,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          document_number: `REV-OUT-${id}`,
+          transaction_type: "Outward Reversal",
+          inward_quantity: sl.outward_quantity, outward_quantity: sl.inward_quantity,
+          rate: sl.rate, value: sl.value,
+          order_id: sl.order_id, department_id: sl.department_id,
+          source_module: "stock_outwards", source_id: id,
+          remarks: `Reversal of outward ${id}`
+        });
+      });
+      if (row.voucher_id) reverseVoucher(db, row.voucher_id, `Reversal of stock outward ${id}`);
+      db.prepare("UPDATE stock_outwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_outward_reversed", table_name: "stock_outwards", record_id: id, new_value: JSON.stringify({ reversal: true, original_voucher: row.voucher_id }) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_outwards WHERE id = ?").get(id);
+  }
+
+  function reverseStockAdjustment(db, id) {
+    const row = db.prepare("SELECT * FROM stock_adjustments WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    if (!row) throw new Error("Stock adjustment not found");
+    if (row.posting_status === "Reversed") throw new Error("Stock adjustment is already reversed");
+    if (row.posting_status !== "Posted") throw new Error("Stock adjustment is not posted");
+    const tx = db.transaction(() => {
+      const slRows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = 'stock_adjustments' AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(id);
+      slRows.forEach((sl) => {
+        insertStockLedger(db, {
+          company_id: sl.company_id, item_id: sl.item_id, warehouse_id: sl.warehouse_id,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          document_number: `REV-ADJ-${id}`,
+          transaction_type: "Adjustment Reversal",
+          inward_quantity: sl.outward_quantity, outward_quantity: sl.inward_quantity,
+          rate: sl.rate, value: sl.value,
+          source_module: "stock_adjustments", source_id: id,
+          remarks: `Reversal of adjustment ${id}`
+        });
+      });
+      if (row.voucher_id) reverseVoucher(db, row.voucher_id, `Reversal of stock adjustment ${id}`);
+      db.prepare("UPDATE stock_adjustments SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_adjustment_reversed", table_name: "stock_adjustments", record_id: id, new_value: JSON.stringify({ reversal: true, original_voucher: row.voucher_id }) });
+    });
+    tx();
+    return db.prepare("SELECT * FROM stock_adjustments WHERE id = ?").get(id);
+  }
+
+  function reverseStockReturn(db, id) {
+    const row = db.prepare("SELECT * FROM stock_returns WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
+    if (!row) throw new Error("Stock return not found");
+    if (row.posting_status === "Reversed") throw new Error("Stock return is already reversed");
+    if (row.posting_status !== "Posted") throw new Error("Stock return is not posted");
+    const tx = db.transaction(() => {
+      const slRows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = 'stock_returns' AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(id);
+      slRows.forEach((sl) => {
+        insertStockLedger(db, {
+          company_id: sl.company_id, item_id: sl.item_id, warehouse_id: sl.warehouse_id,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          document_number: `REV-RET-${id}`,
+          transaction_type: "Return Reversal",
+          inward_quantity: sl.outward_quantity, outward_quantity: sl.inward_quantity,
+          rate: sl.rate, value: sl.value,
+          order_id: sl.order_id, supplier_id: sl.supplier_id, department_id: sl.department_id,
+          source_module: "stock_returns", source_id: id,
+          remarks: `Reversal of return ${id}`
+        });
+      });
+      if (row.voucher_id) reverseVoucher(db, row.voucher_id, `Reversal of stock return ${id}`);
+      db.prepare("UPDATE stock_returns SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      auditLog(db, { company_id: row.company_id, action: "stock_return_reversed", table_name: "stock_returns", record_id: id, new_value: JSON.stringify({ reversal: true, original_voucher: row.voucher_id }) });
     });
     tx();
     return db.prepare("SELECT * FROM stock_returns WHERE id = ?").get(id);
@@ -664,6 +829,7 @@ export function createInventoryService(deps) {
     stockBalance, weightedAverageCost, insertStockLedger,
     inventoryStockSummary, inventoryLowStockReport,
     postStockInward, postStockOutward, postStockAdjustment,
-    approveStockAdjustment, postStockReturn, inventoryData
+    approveStockAdjustment, postStockReturn, inventoryData,
+    reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
   };
 }
