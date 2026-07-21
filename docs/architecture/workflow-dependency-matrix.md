@@ -913,7 +913,39 @@ Every stage declares four relationship categories:
 
 ---
 
-## 6. Reversal Matrix
+## 6. Stage Capability Matrix
+
+Every stage declares which capabilities are allowed. Capabilities govern permissions, UI visibility, workflow transitions, audit expectations, and AI guidance. Instead of hardcoding these rules into screens, they become governed metadata.
+
+| Stage | Create | Edit | Delete | Reverse | Print | Export | Approve | Cancel | Archive | Reopen |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Lead / Tender | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Query / Requirement | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Quotation | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Negotiation | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Purchase Order / GeM Order | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Work Order | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Procurement Planning | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Supplier Purchase Order | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Goods Receipt / GRN | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Inventory Reservation | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✗ |
+| Delivery Challan | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Installation | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| CRAC | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Sales Invoice / GST Invoice | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Department Receivable | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Receipt | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Order Closure | ✓ | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Profitability Analysis | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ |
+
+**Notes:**
+- **Delete** is universally `✗` — no stage permits direct record deletion. Use `Reverse` instead.
+- **Edit** is `✗` for GRN, Delivery Challan, CRAC, Invoice, Receipt, and Closure — once a record moves past these stages, modifications require reversal.
+- **Reopen** is `✗` for Purchase Order, Work Order, Supplier PO, GRN, Reservation, Delivery Challan, and Invoice — these stages lock downstream and reopening would bypass established reversals.
+
+---
+
+## 7. Reversal Matrix
 
 Every stage defines its correct reversal path. Direct deletion is never permitted for any stage that has produced records.
 
@@ -940,7 +972,7 @@ Every stage defines its correct reversal path. Direct deletion is never permitte
 
 ---
 
-## 7. Workflow Graph Derivation
+## 8. Workflow Graph Derivation
 
 Once the WDM is populated, it can automatically generate:
 
@@ -990,13 +1022,13 @@ Above these sits the **Enterprise Brain**, consuming all five graphs to drive th
 
 ---
 
-## 8. Governance
+## 9. Governance
 
-### 8.1 Authority
+### 9.1 Authority
 
 The WDM is governed by Permanent Architecture Rule 30 (Workflow Governance Registry). Every WDM row corresponds to a `lifecycle_stages` entry in the registry.
 
-### 8.2 Change Rules
+### 9.2 Change Rules
 
 Changes to the WDM require architecture review when:
 
@@ -1006,7 +1038,7 @@ Changes to the WDM require architecture review when:
 - a stage's Blocks/Unlocks relationships change
 - a new dependency dimension is introduced
 
-### 8.3 Enforcement
+### 9.3 Enforcement
 
 The WDM is documentation-only in the current phase. Future phases may:
 
@@ -1018,7 +1050,7 @@ The WDM is documentation-only in the current phase. Future phases may:
 6. Map voucher types to stages via the `Voucher Produced` / `Voucher Consumed` fields, enabling automated voucher-stage traceability
 7. Register source-of-truth mappings to prevent duplicate calculations and enforce data ownership boundaries
 
-### 8.4 Future Workflow Slots
+### 9.4 Future Workflow Slots
 
 The registry is designed to host additional workflows:
 
@@ -1036,7 +1068,7 @@ Each future workflow must define its own 31-field WDM row set.
 
 ---
 
-## 9. Source of Truth Mapping
+## 10. Source of Truth Mapping
 
 Every field in the WDM should eventually answer: *where is the authoritative data for this information?* This prevents duplicate calculations and ensures React screens do not become accounting engines.
 
@@ -1062,7 +1094,7 @@ Every field in the WDM should eventually answer: *where is the authoritative dat
 | Work order status | Supply Orders (`supply_orders.status`) |
 | Document evidence | Document Center (linked records) |
 
-### 9.1 Governance Implication
+### 10.1 Governance Implication
 
 No screen, service, or report may compute a value that belongs to a different source of truth. For example:
 
