@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { projectRoot } from "../database/init.js";
+import { getMetaValue, getOrCreateDatabaseId } from "../database/databaseIdentity.js";
+import { app } from "electron";
 
 function ensureFeedbackLogTable(db) {
   db.exec(`
@@ -12,6 +14,14 @@ function ensureFeedbackLogTable(db) {
       category TEXT NOT NULL DEFAULT 'suggestion' CHECK(category IN ('suggestion','bug','question','improvement','other')),
       message TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','acknowledged','resolved','closed')),
+      application_version TEXT NOT NULL DEFAULT '',
+      schema_version INTEGER NOT NULL DEFAULT 0,
+      release_channel TEXT NOT NULL DEFAULT '',
+      git_commit TEXT NOT NULL DEFAULT '',
+      database_id TEXT NOT NULL DEFAULT '',
+      screen_id TEXT NOT NULL DEFAULT '',
+      record_id INTEGER,
+      machine_id TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       resolved_at TEXT,
@@ -22,18 +32,57 @@ function ensureFeedbackLogTable(db) {
   `);
 }
 
+function addVersionColumns(db) {
+  const existing = db.prepare("PRAGMA table_info('feedback_log')").all().map((c) => c.name);
+  const additions = [
+    ["application_version", "TEXT NOT NULL DEFAULT ''"],
+    ["schema_version", "INTEGER NOT NULL DEFAULT 0"],
+    ["release_channel", "TEXT NOT NULL DEFAULT ''"],
+    ["git_commit", "TEXT NOT NULL DEFAULT ''"],
+    ["database_id", "TEXT NOT NULL DEFAULT ''"],
+    ["screen_id", "TEXT NOT NULL DEFAULT ''"],
+    ["record_id", "INTEGER"],
+    ["machine_id", "TEXT NOT NULL DEFAULT ''"],
+  ];
+  additions.forEach(([col, def]) => {
+    if (!existing.includes(col)) {
+      db.exec(`ALTER TABLE feedback_log ADD COLUMN ${col} ${def}`);
+    }
+  });
+}
+
 export function submitFeedback(db, payload) {
   ensureFeedbackLogTable(db);
-  const { company_id, user_id, user_name, category, message } = payload;
+  addVersionColumns(db);
+  const { company_id, user_id, user_name, category, message, screen_id, record_id } = payload;
   const result = db.prepare(`
-    INSERT INTO feedback_log (company_id, user_id, user_name, category, message)
-    VALUES (@company_id, @user_id, @user_name, @category, @message)
-  `).run({ company_id: company_id || null, user_id: user_id || null, user_name: user_name || "", category: category || "suggestion", message });
+    INSERT INTO feedback_log (company_id, user_id, user_name, category, message,
+      application_version, schema_version, release_channel, git_commit,
+      database_id, screen_id, record_id, machine_id)
+    VALUES (@company_id, @user_id, @user_name, @category, @message,
+      @application_version, @schema_version, @release_channel, @git_commit,
+      @database_id, @screen_id, @record_id, @machine_id)
+  `).run({
+    company_id: company_id || null,
+    user_id: user_id || null,
+    user_name: user_name || "",
+    category: category || "suggestion",
+    message,
+    application_version: payload.application_version || (app ? app.getVersion() : "") || "",
+    schema_version: Number(getMetaValue(db, "schema_version") || 0),
+    release_channel: payload.release_channel || process.env.GII_GEM_ERP_RELEASE_CHANNEL || "",
+    git_commit: payload.git_commit || process.env.GII_GEM_ERP_GIT_COMMIT || "",
+    database_id: getOrCreateDatabaseId(db),
+    screen_id: screen_id || "",
+    record_id: record_id || null,
+    machine_id: payload.machine_id || "",
+  });
   return { id: result.lastInsertRowid, success: true };
 }
 
 export function listFeedback(db, filters) {
   ensureFeedbackLogTable(db);
+  addVersionColumns(db);
   const category = filters?.category || null;
   const status = filters?.status || null;
   let sql = "SELECT * FROM feedback_log";
@@ -48,6 +97,7 @@ export function listFeedback(db, filters) {
 
 export function exportFeedback(db, format) {
   ensureFeedbackLogTable(db);
+  addVersionColumns(db);
   const rows = db.prepare("SELECT * FROM feedback_log ORDER BY created_at DESC").all();
   if (!rows.length) return { success: false, error: "No feedback entries to export." };
 
@@ -57,7 +107,10 @@ export function exportFeedback(db, format) {
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   let filePath;
-  const headers = ["id", "company_id", "user_id", "user_name", "category", "message", "status", "created_at", "updated_at", "resolved_at", "resolution_notes"];
+  const headers = ["id", "company_id", "user_id", "user_name", "category", "message", "status",
+    "application_version", "schema_version", "release_channel", "git_commit",
+    "database_id", "screen_id", "record_id", "machine_id",
+    "created_at", "updated_at", "resolved_at", "resolution_notes"];
 
   if (format === "csv") {
     filePath = path.join(exportsDir, `feedback-export-${timestamp}.csv`);

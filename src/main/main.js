@@ -95,6 +95,8 @@ import {
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { dbPath } from "./database/connection.js";
+import { resolveDataRootForPackaged, copyBundledDatabaseIfMissing, dataRoot, databasePath } from "./database/databasePathResolver.js";
+import { getOrCreateDatabaseId, setEnvironment, setApplicationVersion } from "./database/databaseIdentity.js";
 import { previewReset, executeReset, analyzeDependencies, executeEnhancedReset, rollbackReset } from "./services/operationalResetService.js";
 import { generateCertificate } from "./services/productionReadinessService.js";
 import {
@@ -124,6 +126,7 @@ import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelaye
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 import { searchEntities, SUPPORTED_ENTITY_TYPES } from "./services/entitySearchService.js";
+import { configureUpdater, checkForUpdates, downloadUpdate, quitAndInstall, getUpdaterStatus } from "./services/updateService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -171,41 +174,10 @@ function userContext(args, fallback = {}) {
   return { ...fallback, ...payload, user_id: userId };
 }
 
-function configuredDataRoot() {
-  if (process.env.GII_GEM_ERP_DATA_ROOT) {
-    return path.resolve(process.env.GII_GEM_ERP_DATA_ROOT);
-  }
-  return app.isPackaged ? app.getPath("userData") : sourceProjectRoot();
-}
-
-function copyBundledDatabaseIfNeeded(targetRoot) {
-  const targetDb = path.join(targetRoot, "database", DB_NAME);
-  if (!app.isPackaged || fs.existsSync(targetDb)) {
-    return null;
-  }
-
-  const candidates = [
-    path.join(process.resourcesPath || "", "database", DB_NAME),
-    path.join(app.getAppPath(), "database", DB_NAME),
-    path.join(path.dirname(app.getPath("exe")), "database", DB_NAME)
-  ];
-  const sourceDb = candidates.find((candidate) => candidate && fs.existsSync(candidate));
-  if (!sourceDb) {
-    return null;
-  }
-
-  fs.mkdirSync(path.dirname(targetDb), { recursive: true });
-  fs.copyFileSync(sourceDb, targetDb);
-  return { source: sourceDb, target: targetDb };
-}
-
 function configureRuntimeStorage() {
-  runtimeDataRoot = setRuntimeRoot(configuredDataRoot());
-  APP_FOLDERS.forEach((folder) => {
-    fs.mkdirSync(path.join(runtimeDataRoot, folder), { recursive: true });
-  });
-  const copiedDatabase = copyBundledDatabaseIfNeeded(runtimeDataRoot);
+  runtimeDataRoot = setRuntimeRoot(resolveDataRootForPackaged());
   ensureAppFolders(runtimeDataRoot);
+  const copiedDatabase = copyBundledDatabaseIfMissing(runtimeDataRoot);
   return { root: runtimeDataRoot, copiedDatabase };
 }
 
@@ -989,6 +961,9 @@ function registerIpc() {
     const result = executeReset(db, runtimeDataRoot, userId);
     db.close();
     db = initializeDatabase(runtimeDataRoot);
+    getOrCreateDatabaseId(db);
+    setEnvironment(db, app.isPackaged ? "production" : "development");
+    setApplicationVersion(db, app.getVersion());
     return result;
   });
 
@@ -1000,6 +975,9 @@ function registerIpc() {
     const result = executeEnhancedReset(db, runtimeDataRoot, userId);
     db.close();
     db = initializeDatabase(runtimeDataRoot);
+    getOrCreateDatabaseId(db);
+    setEnvironment(db, app.isPackaged ? "production" : "development");
+    setApplicationVersion(db, app.getVersion());
     return result;
   });
 
@@ -1023,6 +1001,11 @@ function registerIpc() {
   ipcMain.handle("feedback:submit", (_event, payload) => submitFeedback(db, payload));
   ipcMain.handle("feedback:list", (_event, filters) => listFeedback(db, filters));
   ipcMain.handle("feedback:export", (_event, format) => exportFeedback(db, format));
+
+  ipcMain.handle("update:check", () => checkForUpdates());
+  ipcMain.handle("update:download", () => downloadUpdate());
+  ipcMain.handle("update:install", () => quitAndInstall());
+  ipcMain.handle("update:status", () => getUpdaterStatus());
 }
 
 if (!hasSingleInstanceLock) {
@@ -1040,8 +1023,26 @@ if (!hasSingleInstanceLock) {
     configureRuntimeStorage();
     applyPendingRestore(runtimeDataRoot);
     db = initializeDatabase(runtimeDataRoot);
+    try {
+      getOrCreateDatabaseId(db);
+      setEnvironment(db, app.isPackaged ? "production" : "development");
+      setApplicationVersion(db, app.getVersion());
+    } catch (identityErr) {
+      safeMainLog("WARN", `Database identity init: ${identityErr.message}`);
+    }
     registerIpc();
     installApplicationMenu();
+
+    try {
+      configureUpdater({
+        enabled: app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR,
+        channel: app.isPackaged ? process.env.GII_GEM_ERP_RELEASE_CHANNEL || "stable" : "development",
+        repoUrl: process.env.GII_GEM_ERP_UPDATE_REPO || "",
+      });
+    } catch (updateErr) {
+      safeMainLog("WARN", `Updater init: ${updateErr.message}`);
+    }
+
     createWindow();
 
     app.on("activate", () => {

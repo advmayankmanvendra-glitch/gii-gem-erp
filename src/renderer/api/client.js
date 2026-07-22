@@ -73,7 +73,15 @@ const blockedPreviewActions = new Set([
   "restoreBackup",
   "getUpdateStatus",
   "openUpdateFolder",
-  "installUpdate"
+  "installUpdate",
+  "checkForUpdates",
+  "downloadUpdate",
+  "quitAndInstall",
+  "getAutoUpdateStatus"
+]);
+
+const previewDesktopSubscriptions = new Set([
+  "onUpdateDownloadProgress"
 ]);
 
 function previewBlocked(methodName) {
@@ -88,6 +96,7 @@ export function resolveApi(fallbackApi) {
   }
   return new Proxy({ ...fallbackApi, __runtime: "browser-preview", __readOnlyPreview: true }, {
     get(target, prop) {
+      if (previewDesktopSubscriptions.has(prop)) return () => () => {};
       if (blockedPreviewActions.has(prop)) return previewBlocked(prop);
       if (typeof target[prop] === "function") return target[prop];
       if (prop in target) return target[prop];

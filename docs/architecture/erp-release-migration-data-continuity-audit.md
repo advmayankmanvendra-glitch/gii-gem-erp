@@ -1,0 +1,191 @@
+# ERP Release, Migration and Data Continuity — Current-State Audit
+
+**Phase:** Stage 1  
+**Audit date:** 2026-07-22  
+**Application version:** 0.1.0-internal-test  
+**Codebase:** GII GeM ERP  
+
+---
+
+## 1. Database Path Resolution
+
+### Current resolver chain
+
+The database path is resolved by `dbPath()` in `src/main/database/connection.js` (line 34):
+
+```
+projectRoot()
+  └── configuredRuntimeRoot              (setRuntimeRoot() override)
+        └── process.env.GII_GEM_ERP_DATA_ROOT
+              └── sourceProjectRoot()    (process.cwd())
+```
+
+**Development path:** `{projectRoot}/database/gii_gem_erp.db`  
+**Packaged path:** `%APPDATA%/GII GeM ERP/database/gii_gem_erp.db` (via `app.getPath("userData")`)  
+**Env override:** `{GII_GEM_ERP_DATA_ROOT}/database/gii_gem_erp.db`
+
+**Legacy paths:** None detected — the codebase always resolves through `dbPath()`.
+
+**Risk: MEDIUM** — Three resolution paths can point to different locations across launches. The env-var override can change silently between sessions.
+
+---
+
+## 2. Database Initialization
+
+`initializeDatabase()` in `src/main/database/init.js` (line 258):
+
+```
+openDatabase(root)        → CREATE TABLE IF NOT EXISTS (55+ tables)
+  → migrate(db)           → 33 named migrations (003–033) via schema_migrations ledger
+  → seed(db)              → demo data if tables empty
+  → addPhase5AccountingControls(db)   → duplicate call (also migration 006)
+```
+
+- **55+ tables** use `CREATE TABLE IF NOT EXISTS` — never destructive
+- **33 migrations** tracked in `schema_migrations` — idempotent via ledger check
+- **Seed data** gated on table emptiness — only runs for fresh databases
+- **No DROP** operations anywhere in the codebase
+- **`addPhase5AccountingControls()`** called both as migration 006 and directly — duplicate
+
+**Risk: LOW** — Initialization is safe for existing databases. The duplicate call is harmless but confusing.
+
+---
+
+## 3. Migration System
+
+### Tracked migrations (33)
+
+| # | Name | Type |
+|---|------|------|
+| (implicit 001–002) | Core tables | Direct CREATE TABLE |
+| 003 | `003_accounting_ledger_foundation` | Columns + tables |
+| 004–033 | Named migrations (30 more) | ALTER TABLE, new tables, data backfill |
+
+### Migration runner
+
+```js
+function runMigration(db, migrationName, callback) {
+  // checks schema_migrations table — skips if already applied
+  // wraps callback + INSERT into a transaction
+}
+```
+
+**Findings:**
+- No integer `schema_version` — impossible to compare app version to DB schema
+- No rollback mechanism
+- No checksum verification
+- Migration 021 re-runs code from migration 003
+- Implicit "001" and "002" migrations are not recorded in the ledger
+
+**Risk: MEDIUM** — Works today but not resilient. A partially-failed migration leaves no trace beyond the missing ledger row. No version guard prevents a newer app from opening an older database.
+
+---
+
+## 4. Packaged Database Behavior
+
+**electron-builder config:** `extraResources` copies `database/gii_gem_erp.db` to `resources/database/`
+
+**On first install:** `copyBundledDatabaseIfNeeded()` copies the bundled DB to the runtime data root ONLY if no database exists.
+
+**Contents of bundled DB:** Full development database with demo users, transactions, and accounting data.
+
+**Risk: LOW** — The existing-database check prevents overwrite. However, a first-install users immediately sees demo data, not an empty ERP.
+
+---
+
+## 5. Backup/Restore
+
+**Module:** `src/main/services/backup.js`
+
+- `createBackup()` — file copy (fallback)
+- `createLiveBackup()` — WAL checkpoint + `better-sqlite3 backup()` API (preferred)
+- `listBackups()` — reads `backups/` directory
+- `restoreBackup()` — copy + WAL/SHM cleanup
+- `preparePendingRestore()` — for locked-file scenarios
+- `applyPendingRestore()` — on next startup
+
+**IPC:** `backup:create`, `backup:list`, `backup:restore`, `backup:open-folder`
+
+**Existing backup files:** 9 backup `.db` files in `backups/`
+
+**Risk: SAFE** — The backup system is well-designed. Live backup uses the SQLite backup API. Pending restore handles locked files gracefully.
+
+---
+
+## 6. Version Handling
+
+- **`package.json` version:** `0.1.0-internal-test` (pre-release)
+- **`app.getVersion()`** used in update status and health diagnostics
+- **No schema-version compatibility check** — a database from any version can be opened
+- **`compareUpdateVersions()`** — custom numeric semver parser for update installer detection
+
+**Risk: MEDIUM** — A database created by a newer app version could be silently opened by an older app, potentially encountering columns or tables that don't exist.
+
+---
+
+## 7. Release and Update Infrastructure
+
+**Current state: MANUAL**
+
+- `electron-updater` is NOT installed or configured
+- No `publish` config in `package.json`
+- Manual update process: user downloads EXE → places in `Documents/GII GeM ERP Updates/` → app detects via folder scan
+- `dist-installer/` contains NSIS Setup and Portable installers + `latest.yml`
+- `latest.yml` was generated by electron-builder but is NOT consumed by the app
+
+**Risk: CRITICAL** — No automated update delivery. Users must manually procure and place installer files. No digital signature verification. The manual `latest.yml` in `dist-installer/` is unused.
+
+---
+
+## 8. Database Identity
+
+**No database identity exists.** No `database_id`, `db_id`, `instance_id`, or `machine_id` is generated or stored. The database is identified only by its file path.
+
+**Risk: CRITICAL** — Two copies of the same database file are indistinguishable. Backup metadata cannot be linked to a specific instance. Future multi-machine sync is impossible without instance identity.
+
+---
+
+## 9. Multi-Machine Data-Divergence Risks
+
+| Scenario | Behavior | Risk |
+|----------|----------|------|
+| Copy DB to another machine | Two independent, diverging databases | CRITICAL |
+| Run dev + packaged simultaneously | Single-instance lock prevents | LOW |
+| Restore old backup over new data | Overwrites all current data | MEDIUM |
+| Test scripts | 27 scripts create temp databases | LOW (ephemeral) |
+
+---
+
+## 10. Required Remediation Sequence
+
+1. **Persistent data-root foundation** — Single governed path resolver, database identity
+2. **Legacy database migration** — Detect and migrate any databases at old locations
+3. **Migration system upgrade** — Version integer, checksums, rollback support
+4. **Compatibility guard** — App/schema version enforcement
+5. **Backup-before-migration** — Automatic backup before every schema change
+6. **Release history** — `application_release_history` ledger
+7. **Electron updater** — Replace manual update with electron-updater
+8. **Post-migration verification** — Accounting, inventory, workflow integrity checks
+9. **Upgrade fixtures** — Test database continuity across versions
+10. **Central multi-user transition plan** — Report on future architecture
+
+---
+
+## Summary
+
+| Area | Risk Level |
+|------|-----------|
+| Database path resolution | MEDIUM |
+| Database initialization | LOW |
+| Migration system | MEDIUM |
+| Packaged database | LOW |
+| Backup/restore | SAFE |
+| Version handling | MEDIUM |
+| Update infrastructure | **CRITICAL** |
+| Database identity | **CRITICAL** |
+| Multi-machine divergence | **CRITICAL** |
+
+**Three critical issues block production release:**
+1. No auto-update infrastructure
+2. No database instance identity
+3. No multi-machine divergence protection

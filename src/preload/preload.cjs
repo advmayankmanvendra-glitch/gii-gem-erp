@@ -106,6 +106,15 @@ const api = {
   getUpdateStatus: () => ipcRenderer.invoke("updates:status"),
   openUpdateFolder: () => ipcRenderer.invoke("updates:open-folder"),
   installUpdate: (installerPath) => ipcRenderer.invoke("updates:install", installerPath),
+  checkForUpdates: () => ipcRenderer.invoke("update:check"),
+  downloadUpdate: () => ipcRenderer.invoke("update:download"),
+  quitAndInstall: () => ipcRenderer.invoke("update:install"),
+  getAutoUpdateStatus: () => ipcRenderer.invoke("update:status"),
+  onUpdateDownloadProgress: (callback) => {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on("update:download-progress", listener);
+    return () => ipcRenderer.removeListener("update:download-progress", listener);
+  },
   printHtml: (preview) => ipcRenderer.invoke("print:html", preview),
   savePrintPdf: (preview) => ipcRenderer.invoke("print:pdf", preview),
   onPrintShortcut: (callback) => {

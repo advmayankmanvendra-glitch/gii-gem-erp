@@ -6,6 +6,10 @@ export function SettingsScreen({ notify, apiClient, confirmAction }) {
   const [backups, setBackups] = useState([]);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [autoUpdateStatus, setAutoUpdateStatus] = useState(null);
+  const [autoUpdateLoading, setAutoUpdateLoading] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   async function refresh() {
     try {
@@ -22,7 +26,55 @@ export function SettingsScreen({ notify, apiClient, confirmAction }) {
   useEffect(() => {
     refresh();
     refreshUpdates({ silent: true });
+    refreshAutoUpdateStatus({ silent: true });
   }, []);
+
+  useEffect(() => {
+    if (!isDesktopRuntime || typeof apiClient.onUpdateDownloadProgress !== "function") return undefined;
+    const cleanup = apiClient.onUpdateDownloadProgress((progress) => {
+      const normalized = Math.min(100, Math.max(0, Number(progress) || 0));
+      setUpdateProgress(normalized);
+      setIsDownloading(normalized < 100);
+      setAutoUpdateStatus((current) => current ? {
+        ...current,
+        status: normalized < 100 ? "downloading" : "downloaded",
+        progress: normalized,
+        message: normalized < 100
+          ? `Downloading update: ${Math.round(normalized)}%`
+          : "The update is ready to install.",
+        canCheck: false,
+        canDownload: false,
+        canInstall: normalized >= 100
+      } : current);
+    });
+    return typeof cleanup === "function" ? cleanup : undefined;
+  }, [apiClient]);
+
+  async function refreshAutoUpdateStatus(options = {}) {
+    if (!isDesktopRuntime) {
+      const previewStatus = {
+        isUpdaterActive: false,
+        status: "unavailable",
+        message: "Automatic updates are available in the installed Windows desktop app.",
+        canCheck: false,
+        canDownload: false,
+        canInstall: false,
+        progress: 0
+      };
+      setAutoUpdateStatus(previewStatus);
+      return previewStatus;
+    }
+    try {
+      const status = await apiClient.getAutoUpdateStatus();
+      setAutoUpdateStatus(status);
+      setUpdateProgress(Number(status?.progress || 0));
+      setIsDownloading(status?.status === "downloading");
+      return status;
+    } catch (error) {
+      if (!options.silent) notify(error.message, "error");
+      return null;
+    }
+  }
 
   async function refreshUpdates(options = {}) {
     if (!isDesktopRuntime) {
@@ -125,16 +177,86 @@ export function SettingsScreen({ notify, apiClient, confirmAction }) {
     }
   }
 
+  async function checkAutoUpdates() {
+    try {
+      setAutoUpdateLoading(true);
+      setUpdateProgress(null);
+      const result = await apiClient.checkForUpdates();
+      setAutoUpdateStatus(result);
+      setUpdateProgress(Number(result?.progress || 0));
+      if (result?.status === "available") {
+        notify(result.message || "An update is available.");
+      } else if (result?.status === "current") {
+        notify("This installation is up to date.");
+      } else if (result?.status === "unavailable") {
+        notify(result.message, "error");
+      }
+    } catch (error) {
+      notify(error.message, "error");
+      await refreshAutoUpdateStatus({ silent: true });
+    } finally {
+      setAutoUpdateLoading(false);
+    }
+  }
+
+  async function startDownload() {
+    if (!autoUpdateStatus?.canDownload) {
+      notify("Check for updates before starting a download.", "error");
+      return;
+    }
+    try {
+      setIsDownloading(true);
+      setUpdateProgress(0);
+      const result = await apiClient.downloadUpdate();
+      setAutoUpdateStatus(result);
+      setUpdateProgress(Number(result?.progress || 100));
+      notify(result?.message || "Update downloaded successfully.");
+    } catch (error) {
+      notify(error.message, "error");
+      await refreshAutoUpdateStatus({ silent: true });
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
+  async function installAutoUpdate() {
+    if (!autoUpdateStatus?.canInstall) {
+      notify("No downloaded update is ready to install.", "error");
+      return;
+    }
+    const confirmed = await confirmAction({
+      mode: "warning",
+      title: "Install Update",
+      message: "The app will quit and install the update. Save your work before continuing.",
+      confirmLabel: "Yes, Install Now",
+      cancelLabel: "Cancel",
+      moduleName: "settings"
+    });
+    if (!confirmed.confirmed) return;
+    try {
+      await apiClient.quitAndInstall();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+
   return (
     <SettingsPanel
       backups={backups}
       updateStatus={updateStatus}
       updateLoading={updateLoading}
+      autoUpdateStatus={autoUpdateStatus}
+      autoUpdateLoading={autoUpdateLoading}
+      updateProgress={updateProgress}
+      isDownloading={isDownloading}
       onCreateBackup={backup}
       onRestoreBackup={restore}
       onRefreshUpdates={refreshUpdates}
       onOpenUpdateFolder={openUpdateFolder}
       onInstallUpdate={installUpdate}
+      onCheckAutoUpdates={checkAutoUpdates}
+      onStartDownload={startDownload}
+      onInstallAutoUpdate={installAutoUpdate}
     />
   );
 }

@@ -21,7 +21,7 @@
     "rebuild:node": "npm rebuild better-sqlite3",
     "pack:win": "npm run build && electron-builder --win --dir",
     "dist:win": "npm run build && electron-builder --win nsis portable",
-    "lint:syntax": "node --check src/main/main.js && node --check src/main/config/verificationConfig.js && node --check src/main/services/safeDeleteService.js && node --check src/main/services/operationalPlanningService.js && node --check src/main/database/init.js && node --check src/preload/preload.cjs && node --check scripts/check-dev-port.js && node --check scripts/verify-knowledge.js && node --check scripts/verify-workflow-graph.js && node --check scripts/verify-database-graph.js && node --check scripts/verify-voucher-accounting-graph.js && node --check scripts/verify-financials.js && node --check scripts/verify-financial-report-structure.js && node --check scripts/verify-controls.js && node --check scripts/verify-audit.js && node --check scripts/verify-erp.js && node --check scripts/verify-erp-brain.js && node --check scripts/verify-help-assistant-brain.js && node --check scripts/verify-assistant-natural-language-relevance.js && node --check scripts/assistant-natural-query-bank.js && node --check scripts/lib/verificationProfiles.js && node --check scripts/verify-production-readiness-sql.js && node --check scripts/verify-fk-constraints.js && node --check scripts/verify-safe-delete.js && node --check scripts/verify-screen-actions.js && node --check scripts/verify-alphabetical-option-order.js && node --check scripts/verify-workflow-enforcement-foundation.js && node --check scripts/verify-entity-picker-integration.js && node --check scripts/verify-operational-stage-crud.js",
+    "lint:syntax": "node --check src/main/main.js && node --check src/main/config/verificationConfig.js && node --check src/main/services/safeDeleteService.js && node --check src/main/services/operationalPlanningService.js && node --check src/main/services/updateService.js && node --check src/main/database/init.js && node --check src/preload/preload.cjs && node --check scripts/check-dev-port.js && node --check scripts/verify-knowledge.js && node --check scripts/verify-workflow-graph.js && node --check scripts/verify-database-graph.js && node --check scripts/verify-voucher-accounting-graph.js && node --check scripts/verify-financials.js && node --check scripts/verify-financial-report-structure.js && node --check scripts/verify-controls.js && node --check scripts/verify-audit.js && node --check scripts/verify-erp.js && node --check scripts/verify-erp-brain.js && node --check scripts/verify-help-assistant-brain.js && node --check scripts/verify-assistant-natural-language-relevance.js && node --check scripts/assistant-natural-query-bank.js && node --check scripts/lib/verificationProfiles.js && node --check scripts/verify-production-readiness-sql.js && node --check scripts/verify-fk-constraints.js && node --check scripts/verify-safe-delete.js && node --check scripts/verify-screen-actions.js && node --check scripts/verify-alphabetical-option-order.js && node --check scripts/verify-workflow-enforcement-foundation.js && node --check scripts/verify-entity-picker-integration.js && node --check scripts/verify-operational-stage-crud.js && node --check scripts/verify-auto-updater.js",
     "verify:production-readiness-sql": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-production-readiness-sql.js",
     "verify:fk-constraints": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-fk-constraints.js",
     "verify:safe-delete": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-safe-delete.js",
@@ -54,11 +54,15 @@
     "verify:fsr2a2": "node scripts/verify-fsr-2a2.js",
     "verify:fsr2a3": "node scripts/verify-fsr-2a3.js",
     "verify:fsr2a4": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-fsr-2a4.js",
+    "verify:migration": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-migration.js",
+    "verify:database-path": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-database-path.js",
+    "verify:auto-updater": "node scripts/verify-auto-updater.js",
     "test-data:pack-v1": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/create-erp-test-data-pack-v1.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
     "better-sqlite3": "^12.2.0",
+    "electron-updater": "^6.8.9",
     "playwright": "^1.61.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
@@ -74,6 +78,7 @@
     "wait-on": "^8.0.0"
   },
   "build": {
+    "forceCodeSigning": true,
     "appId": "in.gestureindiainfrastructure.giigemerp",
     "productName": "GII GeM ERP",
     "directories": {
@@ -95,6 +100,7 @@
       }
     ],
     "win": {
+      "verifyUpdateCodeSignature": true,
       "target": [
         "nsis",
         "portable"
@@ -110,6 +116,11 @@
     },
     "portable": {
       "artifactName": "GII-GeM-ERP-Portable-${version}-${arch}.${ext}"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://releases.gestureindia.com/erp/",
+      "channel": "stable"
     }
   }
 }
