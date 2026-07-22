@@ -106,7 +106,8 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
   const defaultVisibleIds = safeArray(MODE_DEFAULT_VISIBLE[dashboardMode] || MODE_DEFAULT_VISIBLE.executive);
   const modeVisible = safeArray(safeHiddenCards[dashboardMode]);
 
-  const modeHiddenCards = modeVisible.length ? modeVisible : modeCards.filter((card) => !defaultVisibleIds.includes(card.id)).map((card) => card.id);
+  const hasExplicitConfig = dashboardMode in safeHiddenCards;
+  const modeHiddenCards = hasExplicitConfig ? modeVisible : modeCards.filter((card) => !defaultVisibleIds.includes(card.id)).map((card) => card.id);
   const visibleCards = modeCards.filter((card) => !modeHiddenCards.includes(card.id));
   const hiddenCardsList = modeCards.filter((card) => modeHiddenCards.includes(card.id));
 
