@@ -45,6 +45,7 @@ const PIPELINE = [
   { name: "verify:operational-stages", cmd: `${NPM} run verify:operational-stages`, continueOn: [0, 1] },
   { name: "verify:fsr2a4", cmd: `${NPM} run verify:fsr2a4`, continueOn: [0, 1] },
   { name: "verify:fsr2a5a", cmd: `${NPM} run verify:fsr2a5a`, continueOn: [0, 1] },
+  { name: "verify:fsr2a5b", cmd: `${NPM} run verify:fsr2a5b`, continueOn: [0, 1] },
 ];
 
 /* ─── Helpers ─── */
