@@ -1,3 +1,5 @@
+import { parseMoneyToMinor } from "../domain/money.js";
+
 export function createAccountingService(deps) {
   const {
     auditLog, cleanPayload, createRecord, updateRecord, deleteRecord,
@@ -138,8 +140,12 @@ export function createAccountingService(deps) {
     const totalCredit = lines.reduce((sum, line) => sum + line.credit, 0);
     if (totalDebit === 0) throw new Error("Total debit must be non-zero");
     if (totalCredit === 0) throw new Error("Total credit must be non-zero");
-    if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
-      throw new Error(`Unbalanced voucher: debit ${totalDebit}, credit ${totalCredit}`);
+    const debitMinors = lines.map(line => parseMoneyToMinor(line.debit));
+    const creditMinors = lines.map(line => parseMoneyToMinor(line.credit));
+    const totalDebitMinor = debitMinors.reduce((a, b) => a + b, 0);
+    const totalCreditMinor = creditMinors.reduce((a, b) => a + b, 0);
+    if (totalDebitMinor !== totalCreditMinor) {
+      throw new Error(`Unbalanced voucher in minor units: debit ${totalDebitMinor} paise, credit ${totalCreditMinor} paise (legacy: ${totalDebit}, ${totalCredit})`);
     }
 
     const transaction = db.transaction(() => {
@@ -149,10 +155,12 @@ export function createAccountingService(deps) {
         VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Posted', @financial_year_id, 'Approved')
       `).run({ ...payload, voucher_number: voucherNumber, financial_year_id: financialYear.id });
       const voucherId = voucherResult.lastInsertRowid;
-      lines.forEach((line) => {
+      lines.forEach((line, idx) => {
+        const lineMinorDebit = debitMinors[idx];
+        const lineMinorCredit = creditMinors[idx];
         const lineResult = db.prepare(`
-          INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id)
-          VALUES (@voucher_id, @account_id, @debit, @credit, @narration, @linked_party_type, @linked_party_id)
+          INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id, debit_minor, credit_minor)
+          VALUES (@voucher_id, @account_id, @debit, @credit, @narration, @linked_party_type, @linked_party_id, @debit_minor, @credit_minor)
         `).run({
           voucher_id: voucherId,
           account_id: line.account_id,
@@ -160,9 +168,11 @@ export function createAccountingService(deps) {
           credit: line.credit,
           narration: line.narration,
           linked_party_type: line.linked_party_type,
-          linked_party_id: line.linked_party_id
+          linked_party_id: line.linked_party_id,
+          debit_minor: lineMinorDebit,
+          credit_minor: lineMinorCredit
         });
-        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, line.debit, line.credit, payload.source_module, payload.source_id);
+        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, line.debit, line.credit, payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
       });
       auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit }) });
       const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(voucherId);
@@ -814,10 +824,12 @@ export function createAccountingService(deps) {
         { account_id: suspense, debit: amountCredit, credit: amountDebit }
       ]
     });
+    const openingDebitMinor = parseMoneyToMinor(amountDebit);
+    const openingCreditMinor = parseMoneyToMinor(amountCredit);
     const result = db.prepare(`
-      INSERT INTO opening_balances (company_id, financial_year_id, balance_type, linked_id, account_id, opening_debit, opening_credit, voucher_id, remarks, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(companyId, payload.financial_year_id, payload.party_type, payload.party_id, partyAccount, amountDebit, amountCredit, voucher.id, payload.narration || "", payload.created_by || null);
+      INSERT INTO opening_balances (company_id, financial_year_id, balance_type, linked_id, account_id, opening_debit, opening_credit, voucher_id, remarks, created_by, opening_debit_minor, opening_credit_minor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(companyId, payload.financial_year_id, payload.party_type, payload.party_id, partyAccount, amountDebit, amountCredit, voucher.id, payload.narration || "", payload.created_by || null, openingDebitMinor, openingCreditMinor);
     allocationAudit(db, companyId, "party_opening", result.lastInsertRowid, "create", null, payload, payload.narration || "");
     return db.prepare("SELECT * FROM opening_balances WHERE id = ?").get(result.lastInsertRowid);
   }
@@ -891,9 +903,11 @@ export function createAccountingService(deps) {
         { account_id: suspense, debit: credit, credit: debit }
       ]
     });
+    const openingDebitMinor = parseMoneyToMinor(debit);
+    const openingCreditMinor = parseMoneyToMinor(credit);
     const result = db.prepare(`
-      INSERT INTO opening_balances (company_id, financial_year_id, balance_type, linked_id, account_id, opening_debit, opening_credit, voucher_id, remarks, created_by)
-      VALUES (@company_id, @financial_year_id, @balance_type, @linked_id, @account_id, @opening_debit, @opening_credit, @voucher_id, @remarks, @created_by)
+      INSERT INTO opening_balances (company_id, financial_year_id, balance_type, linked_id, account_id, opening_debit, opening_credit, voucher_id, remarks, created_by, opening_debit_minor, opening_credit_minor)
+      VALUES (@company_id, @financial_year_id, @balance_type, @linked_id, @account_id, @opening_debit, @opening_credit, @voucher_id, @remarks, @created_by, @opening_debit_minor, @opening_credit_minor)
     `).run({
       company_id: companyId,
       financial_year_id: financialYearId,
@@ -904,7 +918,9 @@ export function createAccountingService(deps) {
       opening_credit: credit,
       voucher_id: voucher.id,
       remarks: payload.remarks || "",
-      created_by: payload.created_by || null
+      created_by: payload.created_by || null,
+      opening_debit_minor: openingDebitMinor,
+      opening_credit_minor: openingCreditMinor
     });
     auditLog(db, { company_id: companyId, action: "opening balance create", table_name: "opening_balances", record_id: result.lastInsertRowid, new_value: JSON.stringify({ voucher_id: voucher.id }) });
     return db.prepare("SELECT * FROM opening_balances WHERE id = ?").get(result.lastInsertRowid);
@@ -955,10 +971,13 @@ export function createAccountingService(deps) {
           openingCredit = Math.max(amount, 0);
           openingDebit = Math.max(-amount, 0);
         }
+        const closingBalanceMinor = parseMoneyToMinor(amount);
+        const openingDebitMinor = parseMoneyToMinor(openingDebit);
+        const openingCreditMinor = parseMoneyToMinor(openingCredit);
         db.prepare(`
-          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved')
-        `).run(companyId, fromId, toId, row.id, amount, openingDebit, openingCredit, approvedBy);
+          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status, closing_balance_minor, opening_debit_minor, opening_credit_minor)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?)
+        `).run(companyId, fromId, toId, row.id, amount, openingDebit, openingCredit, approvedBy, closingBalanceMinor, openingDebitMinor, openingCreditMinor);
       });
 
       if (Math.abs(pl.netProfit || 0) > 0) {
@@ -969,10 +988,13 @@ export function createAccountingService(deps) {
         let profitDebit = 0, profitCredit = 0;
         if (profitAmount >= 0) { profitCredit = profitAmount; }
         else { profitDebit = -profitAmount; }
+        const closingBalanceMinor = parseMoneyToMinor(profitAmount);
+        const profitDebitMinor = parseMoneyToMinor(profitDebit);
+        const profitCreditMinor = parseMoneyToMinor(profitCredit);
         db.prepare(`
-          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved')
-        `).run(companyId, fromId, toId, retainedAccount, profitAmount, profitDebit, profitCredit, approvedBy);
+          INSERT INTO carry_forward_entries (company_id, from_financial_year_id, to_financial_year_id, account_id, closing_balance, opening_debit, opening_credit, approved_by, status, closing_balance_minor, opening_debit_minor, opening_credit_minor)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Approved', ?, ?, ?)
+        `).run(companyId, fromId, toId, retainedAccount, profitAmount, profitDebit, profitCredit, approvedBy, closingBalanceMinor, profitDebitMinor, profitCreditMinor);
       }
 
       updateFinancialYearStatus(db, fromId, "Locked", approvedBy);

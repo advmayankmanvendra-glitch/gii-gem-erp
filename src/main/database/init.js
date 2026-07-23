@@ -18,6 +18,7 @@ import { createReportBuilders } from "./reportBuilders.js";
 import { createCrudHelpers } from "./crudHelpers.js";
 import { createSchemaFunctions } from "./schemaDefinitions.js";
 import { createSeedData } from "./seedData.js";
+import { parseMoneyToMinor } from "../domain/money.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
 import { createInventoryService } from "../services/inventoryService.js";
@@ -638,6 +639,10 @@ export function migrate(db) {
     addColumnIfMissing(db, "carry_forward_entries", "opening_debit", "REAL NOT NULL DEFAULT 0");
     addColumnIfMissing(db, "carry_forward_entries", "opening_credit", "REAL NOT NULL DEFAULT 0");
   });
+
+  runMigration(db, "034_fsr2a5b_money_shadow_columns", () => {
+    addMoneyShadowColumns(db);
+  });
 }
 
 function runMigration(db, migrationName, callback) {
@@ -1101,16 +1106,20 @@ function expenseLedgerForName(name = "") {
   return "Work Incentive Expense";
 }
 
-function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, sourceModule, sourceId) {
+function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, sourceModule, sourceId, debitMinor = null, creditMinor = null) {
   const ledgerActiveWhere = activeRowClause(db, "ledger_entries");
-  const previous = db.prepare(`SELECT running_balance FROM ledger_entries WHERE company_id = ? AND account_id = ?${ledgerActiveWhere} ORDER BY id DESC LIMIT 1`).get(companyId, accountIdValue);
+  const previous = db.prepare(`SELECT running_balance, running_balance_minor FROM ledger_entries WHERE company_id = ? AND account_id = ?${ledgerActiveWhere} ORDER BY id DESC LIMIT 1`).get(companyId, accountIdValue);
   const account = db.prepare("SELECT normal_balance FROM accounts WHERE id = ?").get(accountIdValue);
   const delta = account?.normal_balance === "Credit" ? credit - debit : debit - credit;
   const running = Number(previous?.running_balance || 0) + delta;
+  if (debitMinor === null) debitMinor = parseMoneyToMinor(debit);
+  if (creditMinor === null) creditMinor = parseMoneyToMinor(credit);
+  const deltaMinor = account?.normal_balance === "Credit" ? creditMinor - debitMinor : debitMinor - creditMinor;
+  const runningMinor = Number(previous?.running_balance_minor || 0) + deltaMinor;
   db.prepare(`
-    INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, source_module, source_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, running, sourceModule, sourceId);
+    INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, source_module, source_id, debit_minor, credit_minor, running_balance_minor)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, running, sourceModule, sourceId, debitMinor, creditMinor, runningMinor);
 }
 
 function updateCashBankLedger(db, { company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit = 0, credit = 0, payment_mode, utr_number, remarks }) {
@@ -1784,6 +1793,7 @@ const { seed } = createSeedData({
 
 const {
   addAccountingColumns,
+  addMoneyShadowColumns,
   addBillingVoucherEnhancementFields,
   addPhase6DAdvanceAdjustmentTables,
   addAllocationWorkflowTables,

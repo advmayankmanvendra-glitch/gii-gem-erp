@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { parseMoneyToMinor } from "../domain/money.js";
 
 export function createImportValidationService(deps) {
   const {
@@ -134,6 +135,19 @@ export function createImportValidationService(deps) {
       if (positive && parsed <= 0) errors.push(`${label} must be positive`);
       return Number.isFinite(parsed) ? parsed : raw;
     };
+    const moneyValue = (key, label, positive = false) => {
+      const raw = value(key);
+      if (!raw) return "";
+      let minor;
+      try {
+        minor = parseMoneyToMinor(raw);
+      } catch (e) {
+        errors.push(`${label}: ${e.message}`);
+        return raw;
+      }
+      if (positive && minor <= 0) errors.push(`${label} must be positive`);
+      return minor / 100;
+    };
     const dateValue = (key, label) => {
       const raw = value(key);
       if (!raw) return "";
@@ -227,7 +241,7 @@ export function createImportValidationService(deps) {
     } else if (table === "banks") {
       Object.assign(payload, pickRow(row, ["bank_account_name", "bank_name", "account_number", "ifsc", "status"]));
       payload.company_id = companyId;
-      payload.opening_balance = numberValue("opening_balance", "opening_balance") || 0;
+      payload.opening_balance = moneyValue("opening_balance", "opening_balance") || 0;
       if (!payload.bank_account_name) errors.push("bank_account_name is required");
       if (!payload.bank_name) errors.push("bank_name is required");
       payload.status ||= "active";
@@ -258,8 +272,8 @@ export function createImportValidationService(deps) {
       payload.delivery_period = value("delivery_period");
       payload.warranty_period = value("warranty_period");
       payload.payment_terms = value("payment_terms");
-      payload.emd_amount = numberValue("emd_amount", "emd_amount") || 0;
-      payload.security_deposit_amount = numberValue("security_deposit_amount", "security_deposit_amount") || 0;
+      payload.emd_amount = moneyValue("emd_amount", "emd_amount") || 0;
+      payload.security_deposit_amount = moneyValue("security_deposit_amount", "security_deposit_amount") || 0;
       payload.supply_due_date = dateValue("supply_due_date", "supply_due_date");
       payload.order_status = value("order_status") || "Received";
       payload.remarks = value("remarks");
@@ -294,10 +308,10 @@ export function createImportValidationService(deps) {
       payload.purchase_date = dateValue("purchase_date", "purchase_date");
       payload.supplier_id = findOne("suppliers", "supplier_name", requireValue("supplier_name"), "supplier_name");
       payload.purchase_invoice_number = requireValue("purchase_invoice_number");
-      payload.purchase_value = numberValue("purchase_value", "purchase_value", true);
-      payload.purchase_gst = numberValue("gst_amount", "gst_amount") || 0;
-      payload.freight = numberValue("freight", "freight") || 0;
-      payload.loading_charges = numberValue("loading_charges", "loading_charges") || 0;
+      payload.purchase_value = moneyValue("purchase_value", "purchase_value", true);
+      payload.purchase_gst = moneyValue("gst_amount", "gst_amount") || 0;
+      payload.freight = moneyValue("freight", "freight") || 0;
+      payload.loading_charges = moneyValue("loading_charges", "loading_charges") || 0;
       payload.amount_paid = 0;
       payload.remarks = value("remarks");
       payload.company_id = companyId;
@@ -307,14 +321,14 @@ export function createImportValidationService(deps) {
       payload.expense_category = value("expense_category");
       payload.calculation_method = value("calculation_method") || "fixed";
       payload.percentage = numberValue("percentage", "percentage") || 0;
-      payload.fixed_amount = numberValue("fixed_amount", "fixed_amount") || numberValue("expense_amount", "expense_amount") || 0;
+      payload.fixed_amount = moneyValue("fixed_amount", "fixed_amount") || moneyValue("expense_amount", "expense_amount") || 0;
       payload.remarks = value("remarks");
       payload.company_id = companyId;
     } else if (table === "invoices") {
       payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
       payload.invoice_number = requireValue("invoice_number");
       payload.invoice_date = dateValue("invoice_date", "invoice_date");
-      payload.billing_value = numberValue("billing_value", "billing_value", true);
+      payload.billing_value = moneyValue("billing_value", "billing_value", true);
       payload.gst_rate = numberValue("gst_rate", "gst_rate");
       payload.invoice_type = value("invoice_type") || "Tax Invoice";
       payload.remarks = value("remarks");
@@ -323,7 +337,7 @@ export function createImportValidationService(deps) {
     } else if (table === "payments") {
       payload.order_id = findOne("supply_orders", "order_number", requireValue("order_number"), "order_number");
       payload.payment_date = dateValue("payment_date", "payment_date");
-      payload.payment_amount = numberValue("payment_amount", "payment_amount", true);
+      payload.payment_amount = moneyValue("payment_amount", "payment_amount", true);
       payload.payment_mode = value("payment_mode") || "NEFT";
       payload.utr_number = value("utr_number");
       payload.bank_id = findOne("banks", "bank_account_name", value("bank_account"), "bank_account");

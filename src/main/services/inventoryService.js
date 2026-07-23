@@ -1,3 +1,5 @@
+import { parseMoneyToMinor } from "../domain/money.js";
+
 export function createInventoryService(deps) {
   const {
     auditLog, activeRowClause, accountId, createBalancedVoucher,
@@ -16,7 +18,13 @@ export function createInventoryService(deps) {
     `).get(companyId, itemId, warehouseId);
     const quantity = openingQuantity + Number(movement?.quantity || 0);
     const value = openingValue + Number(movement?.value || 0);
-    return { quantity, value: Math.max(0, value), rate: quantity > 0 ? Math.max(0, value) / quantity : Number(item.opening_rate || 0) };
+    const movementMinor = db.prepare(`
+      SELECT COALESCE(SUM(CASE WHEN transaction_type IN ('Inward','Adjustment Increase','Department Return') THEN value_minor ELSE -value_minor END), 0) value_minor
+      FROM stock_ledger
+      WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
+    `).get(companyId, itemId, warehouseId);
+    const valueMinor = parseMoneyToMinor(openingValue) + Number(movementMinor?.value_minor || 0);
+    return { quantity, value: Math.max(0, value), value_minor: Math.max(0, valueMinor), rate: quantity > 0 ? Math.max(0, value) / quantity : Number(item.opening_rate || 0) };
   }
 
   function weightedAverageCost(db, companyId, itemId, warehouseId) {
@@ -32,17 +40,22 @@ export function createInventoryService(deps) {
     const rate = Number(payload.rate || balanceBefore.rate || 0);
     const value = Number(payload.value || (inwardQuantity || outwardQuantity) * rate);
     const nextValue = Math.max(0, Number(balanceBefore.value || 0) + (inwardQuantity ? value : -value));
+    const valueMinor = parseMoneyToMinor(value);
+    const prevValueMinor = Number(balanceBefore.value_minor || 0);
+    const nextValueMinor = Math.max(0, prevValueMinor + (inwardQuantity ? valueMinor : -valueMinor));
     db.prepare(`
       INSERT INTO stock_ledger (
         company_id, item_id, warehouse_id, transaction_date, document_number, transaction_type,
         inward_quantity, outward_quantity, balance_quantity, rate, value, order_id, supplier_id,
         department_id, source_module, source_id, procurement_id, billing_id, quantity_in, quantity_out,
-        running_quantity, running_value, valuation_method, remarks, voucher_id
+        running_quantity, running_value, valuation_method, remarks, voucher_id,
+        value_minor, running_value_minor
       ) VALUES (
         @company_id, @item_id, @warehouse_id, @transaction_date, @document_number, @transaction_type,
         @inward_quantity, @outward_quantity, @balance_quantity, @rate, @value, @order_id, @supplier_id,
         @department_id, @source_module, @source_id, @procurement_id, @billing_id, @quantity_in, @quantity_out,
-        @running_quantity, @running_value, @valuation_method, @remarks, @voucher_id
+        @running_quantity, @running_value, @valuation_method, @remarks, @voucher_id,
+        @value_minor, @running_value_minor
       )
     `).run({
       ...payload,
@@ -62,7 +75,9 @@ export function createInventoryService(deps) {
       supplier_id: payload.supplier_id || null,
       department_id: payload.department_id || null,
       remarks: payload.remarks || null,
-      voucher_id: payload.voucher_id || null
+      voucher_id: payload.voucher_id || null,
+      value_minor: valueMinor,
+      running_value_minor: nextValueMinor
     });
     const info = db.prepare("SELECT last_insert_rowid() id").get();
     db.prepare(`

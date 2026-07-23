@@ -1,7 +1,7 @@
 # FSR-1 Financial Report Risk Register
 
-**Audit date:** 2026-07-21
-**Open risks:** 10 (8 closed by FSR-2A.1 + FSR-2A.2 + FSR-2A.3 + FSR-2A.4)
+**Audit date:** 2026-07-23
+**Open risks:** 10 (9 closed by FSR-2A.1–2A.5)
 **Overall gate:** BLOCKED
 
 | ID | Severity | Finding | Evidence | Required phase | Status |
@@ -19,7 +19,8 @@
 | FSR-R10 | HIGH | No governed account group/mapping registry | Schema/UI trace | FSR-2B | OPEN |
 | FSR-R11 | HIGH | Direct/indirect, current/non-current and contra mappings absent | COA matrix | FSR-2B | OPEN |
 | FSR-R12 | HIGH | Inventory lacks NRV/write-down controls | AS 2 comparison | FSR-2A/2B | OPEN |
-| FSR-R13 | HIGH | Money fields use ungoverned SQLite REAL representation | PRAGMA evidence | FSR-2A.5 | OPEN |
+| ~~FSR-R13~~ | ~~HIGH~~ | ~~Money fields use ungoverned SQLite REAL representation~~ | ~~PRAGMA evidence~~ | ~~FSR-2A.5~~ | **CLOSED** |
+| FSR-R19 | HIGH | Historical REAL money data not yet backfilled/reconciled | No production DB migration executed | Separate authorised backfill phase | OPEN |
 | FSR-R14 | MEDIUM | Comparative reports absent | No backend contract/UI columns | FSR-2C | OPEN |
 | FSR-R15 | MEDIUM | Renderer assigns accounting groups heuristically | `classifyAccountGroup` | FSR-2B/2C | OPEN |
 | FSR-R16 | MEDIUM | CSV/print output is not statement-grade | Raw CSV export, no statutory metadata | FSR-2D/2E | OPEN |
@@ -135,6 +136,24 @@ No report redesign, statutory claim, release packaging or next major programme s
 - Historical limitation: No authorised backfill, adjustment voucher pack or production-database reconciliation has yet been executed for legacy transactions.
 - Required action: Perform a separately authorised, read-only historical reconciliation followed by an approved dry-run remediation programme. Any correction must preserve original evidence and use governed adjustment or reversal entries rather than silent data rewriting.
 - Closure: **OPEN — prospective paths certified; historical remediation remains pending**
+
+### FSR-2A.5 Risk Closure
+
+**FSR-R13 — Money fields use ungoverned SQLite REAL representation** (HIGH)
+- Prior evidence: 74 MONEY fields (13 RATE, 31 QUANTITY, 12 PERCENTAGE) stored as SQLite REAL without governing contract
+- Code correction:
+  - Created `src/main/domain/money.js` — governed money utility with 17 functions: `parseMoneyToMinor`, `minorToDecimalString`, `minorToMajor`, `addMoney`, `subtractMoney`, `compareMoney`, `multiplyRateByQuantity`, `calculatePercentage`, `allocateMoney`, `assertMoney`, `assertSafeMoney`, `sumMoney`, `formatMoneyForDisplay`, `convertLegacyMajorToMinor`, `convertMinorToLegacyMajor`, `roundToMinor`, `exactEqual`
+  - All new writes go through `parseMoneyToMinor` → Safe Integer minor units (paise)
+  - Added 13 INTEGER `_minor` shadow columns across 7 tables (voucher_lines, ledger_entries, opening_balances, carry_forward_entries, accounts, stock_ledger, stock_valuation_ledger)
+  - Migration 034 `fsr2a5b_money_shadow_columns` calls `addMoneyShadowColumns()` to create columns and backfill
+  - Dual-write implemented in `accountingService.js` (createBalancedVoucher, createPartyOpeningBalance, createOpeningBalance, closeFinancialYear) and `inventoryService.js` (insertStockLedger, stockBalance)
+  - Report cutover: trialBalance, profitLossReport, balanceSheetReport, dayBook, gstSummary now read authoritative minor-unit columns with REAL\*100 COALESCE fallback
+  - Created `src/main/domain/moneyCompatibility.js` — migration state machine and disagreement policy (not_migrated, migrated_agrees, migrated_disagrees)
+  - Import validation (`importValidationService.js`) updated to use `parseMoneyToMinor` for all monetary fields
+  - Created `scripts/verify-fsr-2a5b.js` — 89 tests across 11 sections (A–K), all PASS
+- Test evidence: FSR-2A.5B verification **89/89 PASS**; full regression (22 suites) PASS; accounting/financials PASS
+- Remaining limitations: Historical REAL data in production databases not yet backfilled; renderer-side display formatting not yet governed to `formatMoneyForDisplay`; IPC transport uses major-unit floats (renderer expects them)
+- Closure: **Verified — HIGH risk closed for prospective paths. Historical money data remediation moved to FSR-R19.**
 
 ## Risk acceptance boundary
 

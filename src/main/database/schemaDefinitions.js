@@ -28,6 +28,25 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     }
   }
 
+  function addMoneyShadowColumns(db) {
+    const cols = [
+      ["accounts",             "opening_balance_minor",   "INTEGER NOT NULL DEFAULT 0"],
+      ["voucher_lines",        "debit_minor",             "INTEGER NOT NULL DEFAULT 0"],
+      ["voucher_lines",        "credit_minor",            "INTEGER NOT NULL DEFAULT 0"],
+      ["ledger_entries",       "debit_minor",             "INTEGER NOT NULL DEFAULT 0"],
+      ["ledger_entries",       "credit_minor",            "INTEGER NOT NULL DEFAULT 0"],
+      ["ledger_entries",       "running_balance_minor",   "INTEGER NOT NULL DEFAULT 0"],
+      ["opening_balances",     "opening_debit_minor",     "INTEGER NOT NULL DEFAULT 0"],
+      ["opening_balances",     "opening_credit_minor",    "INTEGER NOT NULL DEFAULT 0"],
+      ["carry_forward_entries","closing_balance_minor",   "INTEGER NOT NULL DEFAULT 0"],
+      ["carry_forward_entries","opening_debit_minor",     "INTEGER NOT NULL DEFAULT 0"],
+      ["carry_forward_entries","opening_credit_minor",    "INTEGER NOT NULL DEFAULT 0"],
+      ["stock_ledger",         "value_minor",             "INTEGER NOT NULL DEFAULT 0"],
+      ["stock_ledger",         "running_value_minor",     "INTEGER NOT NULL DEFAULT 0"],
+    ];
+    cols.forEach(([table, column, definition]) => addColumnIfMissing(db, table, column, definition));
+  }
+
   function addBillingVoucherEnhancementFields(db) {
     [
       ["gem_order_number", "TEXT"],
@@ -1740,6 +1759,7 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
 
   return {
     addAccountingColumns,
+    addMoneyShadowColumns,
     addBillingVoucherEnhancementFields,
     addPhase6DAdvanceAdjustmentTables,
     addAllocationWorkflowTables,

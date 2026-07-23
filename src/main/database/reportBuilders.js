@@ -1,6 +1,16 @@
+import { parseMoneyToMinor, minorToMajor } from "../domain/money.js";
+
 export function createReportBuilders({ activeRowClause, creditDueDate, allocationStatus, daysBetween, financialYearForDate }) {
   function round2(value) {
     return Math.round(Number(value || 0) * 100) / 100;
+  }
+
+  function minorAgg(prefix, column) {
+    return `COALESCE(SUM(${prefix}.${column}_minor), CAST(ROUND(COALESCE(SUM(${prefix}.${column}), 0) * 100) AS INTEGER))`;
+  }
+
+  function minorVal(table, column) {
+    return `COALESCE(${table}.${column}_minor, CAST(ROUND(COALESCE(${table}.${column}, 0) * 100) AS INTEGER))`;
   }
 
   function ageBucket(days) {
@@ -64,14 +74,18 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     return db.prepare(`
       SELECT v.id, v.voucher_date, v.voucher_number, v.voucher_type, v.narration, v.source_module,
         v.status,
-        COALESCE(SUM(vl.debit), 0) debit,
-        COALESCE(SUM(vl.credit), 0) credit
+        ${minorAgg("vl", "debit")} debit_minor_total,
+        ${minorAgg("vl", "credit")} credit_minor_total
       FROM vouchers v
       LEFT JOIN voucher_lines vl ON vl.voucher_id = v.id
       WHERE v.company_id = ? AND v.is_deleted = 0 AND v.voucher_date BETWEEN ? AND ?
       GROUP BY v.id
       ORDER BY v.voucher_date DESC, v.id DESC
-    `).all(companyId, dateFrom, dateTo);
+    `).all(companyId, dateFrom, dateTo).map((row) => ({
+      ...row,
+      debit: minorToMajor(Number(row.debit_minor_total || 0)),
+      credit: minorToMajor(Number(row.credit_minor_total || 0))
+    }));
   }
 
   function postingControlReport(db, companyId) {
@@ -765,32 +779,35 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const voucherFilter = postedVoucherFilter();
     const fy = financialYearForDate(db, companyId, dateFrom);
     const fyId = fy ? fy.id : null;
-    return db.prepare(`
+    const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
-        COALESCE(SUM(le.debit), 0) + COALESCE(
-          (SELECT COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
-          CASE WHEN a.normal_balance = 'Debit' THEN a.opening_balance ELSE 0 END
-        ) debit,
-        COALESCE(SUM(le.credit), 0) + COALESCE(
-          (SELECT COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
-          CASE WHEN a.normal_balance = 'Credit' THEN a.opening_balance ELSE 0 END
-        ) credit,
-        CASE
-          WHEN a.normal_balance = 'Credit' THEN COALESCE(SUM(le.credit - le.debit), 0) + COALESCE(
-            (SELECT COALESCE(SUM(cfe.opening_credit), 0) - COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
-            a.opening_balance
-          )
-          ELSE COALESCE(SUM(le.debit - le.credit), 0) + COALESCE(
-            (SELECT COALESCE(SUM(cfe.opening_debit), 0) - COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
-            a.opening_balance
-          )
-        END balance
+        ${minorAgg("le", "debit")} + COALESCE(
+          (SELECT ${minorAgg("cfe", "opening_debit")} FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+          CASE WHEN a.normal_balance = 'Debit' THEN ${minorVal("a", "opening_balance")} ELSE 0 END
+        ) debit_minor_total,
+        ${minorAgg("le", "credit")} + COALESCE(
+          (SELECT ${minorAgg("cfe", "opening_credit")} FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
+          CASE WHEN a.normal_balance = 'Credit' THEN ${minorVal("a", "opening_balance")} ELSE 0 END
+        ) credit_minor_total,
+        COALESCE(SUM(le.debit), 0) debit,
+        COALESCE(SUM(le.credit), 0) credit
       FROM accounts a
       LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0
       GROUP BY a.id
       ORDER BY a.account_code
-    `).all(fyId, fyId, fyId, fyId, dateFrom, dateTo, companyId);
+    `).all(fyId, fyId, dateFrom, dateTo, companyId).map((row) => {
+      const debitMinor = Number(row.debit_minor_total || 0);
+      const creditMinor = Number(row.credit_minor_total || 0);
+      const balanceMinor = row.normal_balance === "Credit" ? creditMinor - debitMinor : debitMinor - creditMinor;
+      return {
+        ...row,
+        debit: minorToMajor(debitMinor),
+        credit: minorToMajor(creditMinor),
+        balance: minorToMajor(balanceMinor)
+      };
+    });
+    return rows;
   }
 
   function profitLossReport(db, companyId, dateFrom, dateTo) {
@@ -798,32 +815,25 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const voucherFilter = postedVoucherFilter();
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type,
-        COALESCE(SUM(le.debit), 0) debit,
-        COALESCE(SUM(le.credit), 0) credit
+        ${minorAgg("le", "debit")} debit_minor_total,
+        ${minorAgg("le", "credit")} credit_minor_total
       FROM accounts a
       LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Income','Expense')
       GROUP BY a.id
       ORDER BY a.account_type, a.account_code
-    `).all(dateFrom, dateTo, companyId).map((row) => ({
-      ...row,
-      amount: row.account_type === "Income" ? Number(row.credit || 0) - Number(row.debit || 0) : Number(row.debit || 0) - Number(row.credit || 0)
-    }));
+    `).all(dateFrom, dateTo, companyId).map((row) => {
+      const debitMinor = Number(row.debit_minor_total || 0);
+      const creditMinor = Number(row.credit_minor_total || 0);
+      const amountMinor = row.account_type === "Income" ? creditMinor - debitMinor : debitMinor - creditMinor;
+      return {
+        id: row.id, account_code: row.account_code, account_name: row.account_name, account_type: row.account_type,
+        debit: minorToMajor(debitMinor), credit: minorToMajor(creditMinor), amount: minorToMajor(amountMinor)
+      };
+    });
     const income = rows.filter((row) => row.account_type === "Income").reduce((sum, row) => sum + row.amount, 0);
     const expenses = rows.filter((row) => row.account_type === "Expense").reduce((sum, row) => sum + row.amount, 0);
     return { rows, income, expenses, netProfit: income - expenses };
-  }
-
-  function signedRowAmount(row) {
-    const debit = Number(row.debit || 0);
-    const credit = Number(row.credit || 0);
-    const opening = Number(row.signed_opening || 0);
-    if (row.account_type === "Asset") {
-      const signedOpening = row.normal_balance === "Debit" ? opening : -opening;
-      return debit - credit + signedOpening;
-    }
-    const signedOpening = row.normal_balance === "Credit" ? opening : -opening;
-    return credit - debit + signedOpening;
   }
 
   function balanceSheetReport(db, companyId, dateFrom, dateTo) {
@@ -834,24 +844,40 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const ledgerStart = fy ? fy.start_date : "1900-01-01";
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
-        COALESCE(SUM(le.debit), 0) debit,
-        COALESCE(SUM(le.credit), 0) credit,
+        ${minorAgg("le", "debit")} debit_minor_total,
+        ${minorAgg("le", "credit")} credit_minor_total,
         COALESCE(
           CASE WHEN a.normal_balance = 'Debit'
-            THEN (SELECT COALESCE(SUM(cfe.opening_debit), 0) - COALESCE(SUM(cfe.opening_credit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
-            ELSE (SELECT COALESCE(SUM(cfe.opening_credit), 0) - COALESCE(SUM(cfe.opening_debit), 0) FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
+            THEN (SELECT ${minorAgg("cfe", "opening_debit")} - ${minorAgg("cfe", "opening_credit")} FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
+            ELSE (SELECT ${minorAgg("cfe", "opening_credit")} - ${minorAgg("cfe", "opening_debit")} FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?)
           END,
-          a.opening_balance
-        ) signed_opening
+          ${minorVal("a", "opening_balance")}
+        ) signed_opening_minor
       FROM accounts a
       LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0 AND a.account_type IN ('Asset','Liability','Equity')
       GROUP BY a.id
       ORDER BY a.account_type, a.account_code
-    `).all(fyId, fyId, ledgerStart, dateTo, companyId).map((row) => ({
-      ...row,
-      amount: signedRowAmount(row)
-    }));
+    `).all(fyId, fyId, ledgerStart, dateTo, companyId).map((row) => {
+      const debitMinor = Number(row.debit_minor_total || 0);
+      const creditMinor = Number(row.credit_minor_total || 0);
+      const openingMinor = Number(row.signed_opening_minor || 0);
+      let amountMinor;
+      if (row.account_type === "Asset") {
+        const signedOpening = row.normal_balance === "Debit" ? openingMinor : -openingMinor;
+        amountMinor = debitMinor - creditMinor + signedOpening;
+      } else {
+        const signedOpening = row.normal_balance === "Credit" ? openingMinor : -openingMinor;
+        amountMinor = creditMinor - debitMinor + signedOpening;
+      }
+      return {
+        ...row,
+        debit: minorToMajor(debitMinor),
+        credit: minorToMajor(creditMinor),
+        signed_opening: minorToMajor(openingMinor),
+        amount: minorToMajor(amountMinor)
+      };
+    });
     const assets = rows.filter((row) => row.account_type === "Asset").reduce((sum, row) => sum + row.amount, 0);
     const liabilities = rows.filter((row) => row.account_type === "Liability").reduce((sum, row) => sum + row.amount, 0);
     const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => sum + row.amount, 0);
@@ -881,20 +907,31 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   function gstSummary(db, companyId, dateFrom, dateTo) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     const input = db.prepare(`
-      SELECT COALESCE(SUM(le.debit - le.credit), 0) value
+      SELECT COALESCE(
+        SUM(COALESCE(le.debit_minor, CAST(ROUND(le.debit * 100) AS INTEGER)) - COALESCE(le.credit_minor, CAST(ROUND(le.credit * 100) AS INTEGER))),
+        0
+      ) value_minor
       FROM ledger_entries le
       JOIN accounts a ON a.id = le.account_id
       JOIN vouchers v ON v.id = le.voucher_id
       WHERE le.company_id = ? AND a.account_name = 'Input GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
-    `).get(companyId, dateFrom, dateTo).value;
+    `).get(companyId, dateFrom, dateTo).value_minor;
     const output = db.prepare(`
-      SELECT COALESCE(SUM(le.credit - le.debit), 0) value
+      SELECT COALESCE(
+        SUM(COALESCE(le.credit_minor, CAST(ROUND(le.credit * 100) AS INTEGER)) - COALESCE(le.debit_minor, CAST(ROUND(le.debit * 100) AS INTEGER))),
+        0
+      ) value_minor
       FROM ledger_entries le
       JOIN accounts a ON a.id = le.account_id
       JOIN vouchers v ON v.id = le.voucher_id
       WHERE le.company_id = ? AND a.account_name = 'Output GST' AND v.is_deleted = 0 AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}
-    `).get(companyId, dateFrom, dateTo).value;
-    return { inputGst: input, outputGst: output, netGstPayable: output - input, gstImpactOnProfitability: output - input };
+    `).get(companyId, dateFrom, dateTo).value_minor;
+    return {
+      inputGst: minorToMajor(Number(input || 0)),
+      outputGst: minorToMajor(Number(output || 0)),
+      netGstPayable: minorToMajor(Number(output || 0) - Number(input || 0)),
+      gstImpactOnProfitability: minorToMajor(Number(output || 0) - Number(input || 0))
+    };
   }
 
   function supplierPayableReport(db, companyId) {
