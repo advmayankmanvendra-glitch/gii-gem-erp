@@ -44,6 +44,7 @@ const PIPELINE = [
   { name: "verify:entity-picker", cmd: `${NPM} run verify:entity-picker`, continueOn: [0, 1] },
   { name: "verify:operational-stages", cmd: `${NPM} run verify:operational-stages`, continueOn: [0, 1] },
   { name: "verify:fsr2a4", cmd: `${NPM} run verify:fsr2a4`, continueOn: [0, 1] },
+  { name: "verify:fsr2a5a", cmd: `${NPM} run verify:fsr2a5a`, continueOn: [0, 1] },
 ];
 
 /* ─── Helpers ─── */

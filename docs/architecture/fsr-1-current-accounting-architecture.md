@@ -17,8 +17,9 @@ The deterministic FSR-1 fixture proved that basic Trial Balance and P&L arithmet
 |---|---|---|
 | Chart of Accounts | `src/main/database/init.js` `DEFAULT_ACCOUNTS`; `src/main/database/schemaDefinitions.js` `createAccountingTables` | 26 default ledgers; only five broad account types |
 | Account groups/sub-groups | `accounts.parent_account_id`; renderer `classifyAccountGroup` | No governed group registry or group aggregation |
-| Ledger creation | `src/main/services/accountingService.js` `createLedgerAccount` | Company scoped; permits direct unbalanced `opening_balance` values |
-| Opening balances | `createOpeningBalance`, `createPartyOpeningBalance`, `opening_balances` | Balanced voucher path exists; direct account opening balance remains a bypass |
+| Ledger creation | `src/main/services/accountingService.js` `createLedgerAccount` | Company scoped; `opening_balance` forced to 0 (FSR-2A.5A) |
+| Opening balances — governed | `createOpeningBalance`, `createPartyOpeningBalance`, `opening_balances` | Balanced voucher-backed path; validates FY ownership, status and opening-date bounds (FSR-2A.5A-D7) |
+| Opening balances — direct account field | `accounts.opening_balance` | Non-authoritative — Trial Balance `COALESCE` prefers `carry_forward_entries`; retain for backward compatibility only |
 | Voucher creation | `createManualVoucher`, `createBusinessVoucher`, guided-voucher functions | Manual path validates account ownership and lines |
 | Voucher approval/posting | `postGuidedVoucher`, `postSalesVoucher`, `postPurchaseVoucher`, `postReceiptVoucher`, `postSupplierPaymentVoucher` | Transactional posting exists; coverage differs by source module |
 | Journal generation | `createBalancedVoucher` | Writes voucher, lines, ledger, audit in one DB transaction |

@@ -60,6 +60,12 @@ At present, statement queries read `ledger_entries` without consistently revalid
 - Draft/Cancelled exclusion is not expressed in core statement SQL.
 - No database trigger/constraint enforces voucher-line balance or line-to-ledger equality.
 - `accounts.opening_balance` can be created without a balancing voucher.
+  **FSR-2A.5A resolution**: `createLedgerAccount` now forces `opening_balance = 0`;
+  `accounts` is in `WRITE_POLICY.accountingReadOnly` (generic `createRecord`/`updateRecord`
+  throws). The Trial Balance nested `COALESCE` prefers `carry_forward_entries` over
+  `a.opening_balance`, making the field **non-authoritative** in reports. The schema column
+  is retained for backward compatibility but has no report effect.
+  FSR-R08 **CLOSED**.
 - No governed money precision contract exists; journal values are SQLite `REAL`.
 - No accounting-to-stock reconciliation table or gate exists.
 - No account-group/statutory mapping registry exists.

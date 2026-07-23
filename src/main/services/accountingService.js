@@ -85,14 +85,13 @@ export function createAccountingService(deps) {
     const accountCode = String(payload.account_code || "").trim() || nextQuickLedgerAccountCode(db, companyId, accountType);
     const result = db.prepare(`
       INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
-      VALUES (@company_id, @account_code, @account_name, @account_type, @normal_balance, @opening_balance, 'active')
+      VALUES (@company_id, @account_code, @account_name, @account_type, @normal_balance, 0, 'active')
     `).run({
       company_id: companyId,
       account_code: accountCode,
       account_name: accountName,
       account_type: accountType,
-      normal_balance: normalBalance,
-      opening_balance: Number(payload.opening_balance || 0)
+      normal_balance: normalBalance
     });
     const record = db.prepare("SELECT * FROM accounts WHERE id = ?").get(result.lastInsertRowid);
     auditLog(db, {
@@ -797,6 +796,10 @@ export function createAccountingService(deps) {
     const amountCredit = Number(payload.opening_credit || 0);
     if (!companyId || !payload.party_type || !payload.party_id || !payload.financial_year_id || !payload.opening_date) throw new Error("Party, financial year and opening date are required");
     if ((amountDebit <= 0 && amountCredit <= 0) || (amountDebit > 0 && amountCredit > 0)) throw new Error("Enter either opening debit or opening credit");
+    const year = db.prepare("SELECT * FROM financial_years WHERE id = ? AND company_id = ?").get(payload.financial_year_id, companyId);
+    if (!year) throw new Error("Financial year does not belong to the selected company");
+    if (year.status !== "Open") throw new Error("Party opening balance can be entered only in an open financial year");
+    if (payload.opening_date < year.start_date || payload.opening_date > year.end_date) throw new Error("Opening date is outside the selected financial year");
     const partyAccount = partyControlAccount(db, companyId, payload.party_type);
     const suspense = accountId(db, companyId, "Opening Balance Suspense");
     const voucher = createBalancedVoucher(db, {

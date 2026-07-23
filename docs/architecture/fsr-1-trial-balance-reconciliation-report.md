@@ -59,6 +59,11 @@ Balanced ledger lines linked to Draft and Cancelled vouchers were inserted into 
 
 `createOpeningBalance` is balanced and voucher-backed, but `createLedgerAccount` also accepts a direct `opening_balance`. Trial Balance adds that value without an offsetting entry. A user-created direct opening can therefore make Trial Balance unequal.
 
+**FSR-2A.5A correction**: `createLedgerAccount` now forces `opening_balance = 0`.
+`accounts` is in `WRITE_POLICY.accountingReadOnly`. The Trial Balance COALESCE
+prefers `carry_forward_entries` over `a.opening_balance`, making the field
+**non-authoritative**. FSR-R08 CLOSED.
+
 ## Decision
 
 The report is a valid basic movement listing over clean ledger data, but it is not a certified Trial Balance contract. It must not be used as proof that statement classification, inventory, year-end continuity or company isolation is correct.

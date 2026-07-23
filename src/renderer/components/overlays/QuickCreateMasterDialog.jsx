@@ -138,15 +138,14 @@ const quickCreateConfigs = {
     accountApi: true,
     primary: "account_name",
     duplicateFields: ["account_name", "account_code"],
-    defaults: { account_name: "", account_code: "", account_type: "Expense", normal_balance: "Debit", opening_balance: 0 },
+    defaults: { account_name: "", account_code: "", account_type: "Expense", normal_balance: "Debit" },
     fields: [
       ["account_name", "Account Name", "text", true],
       ["account_code", "Account Code", "text"],
       ["account_type", "Account Type", "select", true, ["Asset", "Liability", "Equity", "Income", "Expense"]],
-      ["normal_balance", "Normal Balance", "select", true, ["Debit", "Credit"]],
-      ["opening_balance", "Opening Balance", "number"]
+      ["normal_balance", "Normal Balance", "select", true, ["Debit", "Credit"]]
     ],
-    payload: (form, context) => ({ ...form, company_id: context.company_id, opening_balance: Number(form.opening_balance || 0), source_module: context.source_module || "quick_create" }),
+    payload: (form, context) => ({ ...form, company_id: context.company_id, source_module: context.source_module || "quick_create" }),
     label: (row) => `${row.account_code} - ${row.account_name}`
   }
 };

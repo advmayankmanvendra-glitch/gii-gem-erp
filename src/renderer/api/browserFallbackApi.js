@@ -863,7 +863,7 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
         account_name: payload.account_name,
         account_type: payload.account_type || "Expense",
         normal_balance: payload.normal_balance || "Debit",
-        opening_balance: Number(payload.opening_balance || 0),
+        opening_balance: 0,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

@@ -14,7 +14,7 @@
 | ~~FSR-R05~~ | ~~CRITICAL~~ | ~~Financial-year close cannot complete~~ | ~~`Invalid financial year status`, source remains Open~~ | ~~FSR-2A.3~~ | **CLOSED** |
 | ~~FSR-R06~~ | ~~CRITICAL~~ | ~~Draft/Cancelled voucher effects are not excluded by statements~~ | ~~Income changed +333~~ | ~~FSR-2A.1~~ | **CLOSED** |
 | ~~FSR-R07~~ | ~~CRITICAL~~ | ~~Cross-company account references can contaminate reports~~ | ~~Bank changed +777~~ | ~~FSR-2A.1~~ | **CLOSED** |
-| FSR-R08 | CRITICAL | Direct ledger opening balances can bypass double entry | `createLedgerAccount.opening_balance` | FSR-2A.5 | OPEN |
+| ~~FSR-R08~~ | ~~CRITICAL~~ | ~~Direct ledger opening balances can bypass double entry~~ | ~~`createLedgerAccount.opening_balance`~~ | ~~FSR-2A.5A~~ | **CLOSED** |
 | ~~FSR-R09~~ | ~~HIGH~~ | ~~Empty posted vouchers are accepted~~ | ~~Executable empty-line probe~~ | ~~FSR-2A.1~~ | **CLOSED** |
 | FSR-R10 | HIGH | No governed account group/mapping registry | Schema/UI trace | FSR-2B | OPEN |
 | FSR-R11 | HIGH | Direct/indirect, current/non-current and contra mappings absent | COA matrix | FSR-2B | OPEN |
