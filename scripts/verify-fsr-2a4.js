@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(scriptPath), "..");
+const electronChild = process.argv.includes("--electron-child");
 
 if (!process.versions.electron) {
   const electronBinary = process.platform === "win32"
@@ -16,7 +17,20 @@ if (!process.versions.electron) {
     "--disable-accelerated-2d-canvas", "--in-process-gpu",
     scriptPath, "--electron-child"
   ], { cwd: repoRoot, env: process.env, stdio: "inherit" });
+  if (result.error) {
+    console.error(`FSR-2A.4 Electron spawn failed: ${result.error.message}`);
+    process.exit(1);
+  }
+  if (result.signal) {
+    console.error(`FSR-2A.4 Electron child ended by signal: ${result.signal}`);
+    process.exit(1);
+  }
   process.exit(Number.isInteger(result.status) ? result.status : 1);
+}
+
+if (!electronChild) {
+  console.error("FSR-2A.4 Electron child marker is missing.");
+  process.exit(1);
 }
 
 const results = [];
@@ -55,8 +69,13 @@ async function run() {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4-"));
   let db;
+  let db2;
+  let db3;
+  let db4;
+  const fixtureRoots = [root];
   let passedCount = 0;
   let failedCount = 0;
+  let finalExitCode = 1;
 
   try {
     db = initializeDatabase(root);
@@ -267,7 +286,9 @@ async function run() {
     /* ================================================================ */
     /* Check 23-25: GRNI clearing — post inward then purchase clears GRNI */
     /* ================================================================ */
-    const db2 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4b-")));
+    const root2 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4b-"));
+    fixtureRoots.push(root2);
+    db2 = initializeDatabase(root2);
     const c2 = createCompany(db2, "GRNI Clear Co");
     createFinancialYear(db2, { company_id: c2, financial_year_name: "FY 2025-26", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     createLedgerAccount(db2, { company_id: c2, account_code: "B100", account_name: "Inventory", account_type: "Asset", normal_balance: "Debit" });
@@ -376,7 +397,9 @@ async function run() {
     /* ================================================================ */
     /* Check 32: Zero-value inward does not create voucher */
     /* ================================================================ */
-    const db3 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4c-")));
+    const root3 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4c-"));
+    fixtureRoots.push(root3);
+    db3 = initializeDatabase(root3);
     const c3 = createCompany(db3, "ZeroVal Co");
     createFinancialYear(db3, { company_id: c3, financial_year_name: "FY 2025-26", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     createLedgerAccount(db3, { company_id: c3, account_code: "Z100", account_name: "Inventory", account_type: "Asset", normal_balance: "Debit" });
@@ -541,7 +564,9 @@ async function run() {
     /* ================================================================ */
     /* Hardening: Gap 2 — Supplier Return After Invoice (Check 48-49) */
     /* ================================================================ */
-    const db4 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4d-")));
+    const root4 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a4d-"));
+    fixtureRoots.push(root4);
+    db4 = initializeDatabase(root4);
     const c4 = createCompany(db4, "Supplier Return After Invoice Co");
     createFinancialYear(db4, { company_id: c4, financial_year_name: "FY 2025-26", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     createLedgerAccount(db4, { company_id: c4, account_code: "D100", account_name: "Inventory", account_type: "Asset", normal_balance: "Debit" });
@@ -681,16 +706,52 @@ async function run() {
     console.log(`\nPassed: ${allPassed}, Failed: ${allFailed}, Total: ${allPassed + allFailed}`);
     console.log(``);
     if (allFailed === 0) {
-      console.log(`FSR-2A.4 IMPLEMENTED — CERTIFICATION HARDENING REQUIRED`);
+      console.log(`FSR-2A.4 CERTIFIED — PERPETUAL INVENTORY ACCOUNTING CONTROLS PASS`);
+      finalExitCode = 0;
     } else {
-      console.log(`FSR-2A.4 HARDENING FAILED — INVENTORY GL BRIDGE DEFECTS REMAIN`);
-      process.exit(1);
+      console.log(`FSR-2A.4 NOT CERTIFIED — INVENTORY ACCOUNTING DEFECTS REMAIN`);
+      finalExitCode = 1;
     }
   } catch (err) {
     console.error(`\nFATAL: FSR-2A.4 verifier crashed - ${err.message}`);
     console.error(err.stack);
-    process.exit(1);
+    finalExitCode = 1;
+  } finally {
+    const cleanupFailures = [];
+    for (const fixtureDb of [db4, db3, db2, db]) {
+      if (!fixtureDb) continue;
+      try {
+        fixtureDb.close();
+      } catch (error) {
+        cleanupFailures.push(`database close: ${error?.message || error}`);
+      }
+    }
+    for (const fixtureRoot of [...fixtureRoots].reverse()) {
+      try {
+        fs.rmSync(fixtureRoot, { recursive: true, force: true });
+      } catch (error) {
+        cleanupFailures.push(`${fixtureRoot}: ${error?.message || error}`);
+      }
+    }
+    if (cleanupFailures.length === 0) {
+      console.log(`Fixture cleanup: PASS (${fixtureRoots.length} temporary database roots removed)`);
+    } else {
+      console.error(`Fixture cleanup: FAIL - ${cleanupFailures.join("; ")}`);
+      finalExitCode = 1;
+    }
   }
+  return finalExitCode;
 }
 
-run();
+async function main() {
+  const finalExitCode = await run();
+  process.exitCode = finalExitCode;
+  const { app } = await import("electron");
+  app.exit(finalExitCode);
+}
+
+main()
+  .catch((error) => {
+    console.error(`FATAL: FSR-2A.4 verifier termination failed - ${error?.stack || error}`);
+    process.exit(1);
+  });

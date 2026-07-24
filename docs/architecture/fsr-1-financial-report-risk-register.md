@@ -179,5 +179,31 @@ The FSR-2A.5C verifier (`scripts/verify-fsr-2a5c.js`) consolidates all prior FSR
 
 ## Risk acceptance boundary
 
-These findings cannot be accepted as cosmetic limitations. Operational screens may continue to be tested internally, but Trial Balance/P&L/Balance Sheet outputs must be labelled uncertified until the CRITICAL risks close and the populated verifier passes.
+The prospective accounting implementation is certified by populated FSR-2A
+fixtures. Trial Balance, Profit and Loss, and Balance Sheet amounts may be used
+for internal testing on fresh or approved non-production data.
 
+This certification does not close historical or release risks:
+
+- FSR-R18 remains OPEN for historical inventory/GL and Purchase/COGS
+  remediation.
+- FSR-R19 remains OPEN for historical production money migration and
+  reconciliation.
+- Production packaging remains BLOCKED until RMD-1 and applicable historical
+  remediation controls are separately certified.
+- FSR-2B may not alter the certified accounting source-of-truth contracts.
+
+### FSR-2A-L1 Stabilization Update - 2026-07-24
+
+- Focused reproduction: FSR-2A.1 22/22, FSR-2A.2 25/25, FSR-2A.3 37/37,
+  FSR-2A.4 55/55, FSR-2A.5A 81/81, FSR-2A.5B 89/89, and FSR-2A.5C 34/34
+  PASS.
+- Populated FSR-1 verifier: 23/25 PASS WITH WARNINGS. Only FSR-2B Check 9
+  (mapping registry) and Check 16 (renderer heuristic classification) remain.
+- Check 20 now passes an executable populated minor-unit authority,
+  reconciliation, report-preference, and mismatch-detection test.
+- Full ERP regression, renderer build, and Electron accounting smoke test pass.
+- FSR-R18: OPEN.
+- FSR-R19: OPEN.
+- Programme lock: BLOCKED until the reviewed lock commit and annotated restore
+  tag are separately authorized and created.

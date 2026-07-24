@@ -53,7 +53,7 @@
     "verify:fsr2a1": "node scripts/verify-fsr-2a1.js",
     "verify:fsr2a2": "node scripts/verify-fsr-2a2.js",
     "verify:fsr2a3": "node scripts/verify-fsr-2a3.js",
-    "verify:fsr2a4": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-fsr-2a4.js",
+    "verify:fsr2a4": "node scripts/verify-fsr-2a4.js",
     "verify:fsr2a5a": "node scripts/verify-fsr-2a5a.js",
     "verify:fsr2a5b": "node scripts/verify-fsr-2a5b.js",
     "verify:fsr2a5c": "node scripts/verify-fsr-2a5c.js",

@@ -41,6 +41,41 @@ function tableNames(db) {
   return new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name));
 }
 
+function financialReportSnapshot(data) {
+  return JSON.stringify({
+    trialBalance: data.trialBalance.map((row) => ({
+      id: row.id,
+      debit: row.debit,
+      credit: row.credit,
+      balance: row.balance
+    })),
+    profitLoss: {
+      income: data.profitLoss.income,
+      expenses: data.profitLoss.expenses,
+      netProfit: data.profitLoss.netProfit,
+      rows: data.profitLoss.rows.map((row) => ({
+        id: row.id,
+        debit: row.debit,
+        credit: row.credit,
+        amount: row.amount
+      }))
+    },
+    balanceSheet: {
+      assets: data.balanceSheet.assets,
+      liabilities: data.balanceSheet.liabilities,
+      equity: data.balanceSheet.equity,
+      currentProfit: data.balanceSheet.currentProfit,
+      liabilitiesAndEquity: data.balanceSheet.liabilitiesAndEquity,
+      rows: data.balanceSheet.rows.map((row) => ({
+        id: row.id,
+        debit: row.debit,
+        credit: row.credit,
+        amount: row.amount
+      }))
+    }
+  });
+}
+
 function createCompany(db, name) {
   return Number(db.prepare("INSERT INTO companies (company_name, status) VALUES (?, 'active')").run(name).lastInsertRowid);
 }
@@ -96,6 +131,9 @@ async function run() {
     inventoryData,
     postStockInward
   } = await import("../src/main/database/init.js");
+  const { SHADOW_COLUMNS } = await import("../src/main/database/moneyMigration.js");
+  const { checkMoneyIntegrity } = await import("../src/main/domain/moneyCompatibility.js");
+  const { parseMoneyToMinor } = await import("../src/main/domain/money.js");
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr1-"));
   let db;
@@ -331,11 +369,6 @@ async function run() {
     record("18. Trial Balance equality passes for fixture", actualTbDebit === actualTbCredit, `Debit ${actualTbDebit}; credit ${actualTbCredit}`);
     record("19. P&L agrees with independent fixture result", round(fullData.profitLoss.netProfit) === expected.netProfit, `Expected ${expected.netProfit}; ERP ${round(fullData.profitLoss.netProfit)}`);
 
-    const voucherLineTypes = db.prepare("PRAGMA table_info(voucher_lines)").all().filter((row) => ["debit", "credit"].includes(row.name)).map((row) => row.type);
-    const ledgerMoneyTypes = db.prepare("PRAGMA table_info(ledger_entries)").all().filter((row) => ["debit", "credit", "running_balance"].includes(row.name)).map((row) => row.type);
-    const governedMinorUnits = [...voucherLineTypes, ...ledgerMoneyTypes].every((type) => /INT/i.test(type));
-    record("20. Governed money representation is consistent", governedMinorUnits, `Voucher/ledger money column types: ${[...voucherLineTypes, ...ledgerMoneyTypes].join(", ")}; no integer-minor-unit contract`);
-
     createManualVoucher(db, {
       company_id: companyId,
       voucher_type: "Journal",
@@ -375,6 +408,188 @@ async function run() {
     const continuityStatus = db.prepare("SELECT status FROM financial_years WHERE id = ?").get(continuityFrom.id)?.status;
     const continuityRows = db.prepare("SELECT COUNT(*) count FROM carry_forward_entries WHERE company_id = ? AND from_financial_year_id = ?").get(continuityCompanyId, continuityFrom.id).count;
     record("22. Opening-to-closing continuity passes across financial years", !closeError && continuityStatus === "Locked" && continuityRows > 0, `Close error: ${closeError || "none"}; status ${continuityStatus}; carry rows ${continuityRows}`);
+
+    const check20Failures = [];
+    const requiredMinorColumns = [
+      { table: "voucher_lines", column: "debit_minor" },
+      { table: "voucher_lines", column: "credit_minor" },
+      { table: "ledger_entries", column: "debit_minor" },
+      { table: "ledger_entries", column: "credit_minor" },
+      { table: "ledger_entries", column: "running_balance_minor" },
+      { table: "carry_forward_entries", column: "closing_balance_minor" },
+      { table: "carry_forward_entries", column: "opening_debit_minor" },
+      { table: "carry_forward_entries", column: "opening_credit_minor" },
+      { table: "stock_ledger", column: "value_minor" },
+      { table: "stock_ledger", column: "running_value_minor" }
+    ];
+    const authoritativeMinorColumns = new Map();
+    [...requiredMinorColumns, ...SHADOW_COLUMNS.map((column) => ({ table: column.table, column: column.shadow }))]
+      .forEach((column) => authoritativeMinorColumns.set(`${column.table}.${column.column}`, column));
+
+    const populatedTables = new Set();
+    for (const { table, column } of authoritativeMinorColumns.values()) {
+      const schemaColumn = db.prepare(`PRAGMA table_info(${table})`).all().find((row) => row.name === column);
+      if (!schemaColumn) {
+        check20Failures.push(`missing ${table}.${column}`);
+        continue;
+      }
+      if (!/INT/i.test(String(schemaColumn.type || ""))) {
+        check20Failures.push(`${table}.${column} has SQLite type ${schemaColumn.type || "UNDECLARED"}, expected INTEGER`);
+      }
+      if (!populatedTables.has(table)) {
+        const rowCount = Number(db.prepare(`SELECT COUNT(*) count FROM ${table}`).get().count);
+        if (rowCount === 0) check20Failures.push(`${table} has no populated fixture rows`);
+        populatedTables.add(table);
+      }
+      const nullCount = Number(db.prepare(`SELECT COUNT(*) count FROM ${table} WHERE ${column} IS NULL`).get().count);
+      if (nullCount > 0) check20Failures.push(`${table}.${column} is null in ${nullCount} populated row(s)`);
+    }
+
+    const unpopulatedVoucherLines = db.prepare(`
+      SELECT vl.id
+      FROM voucher_lines vl
+      JOIN vouchers v ON v.id = vl.voucher_id
+      WHERE v.status = 'Posted' AND v.is_deleted = 0
+        AND (vl.debit_minor IS NULL OR vl.credit_minor IS NULL)
+    `).all();
+    if (unpopulatedVoucherLines.length > 0) {
+      check20Failures.push(`${unpopulatedVoucherLines.length} financially eligible voucher line(s) have null minor-unit values`);
+    }
+
+    const unpopulatedLedgerEntries = db.prepare(`
+      SELECT id FROM ledger_entries
+      WHERE debit_minor IS NULL OR credit_minor IS NULL
+    `).all();
+    if (unpopulatedLedgerEntries.length > 0) {
+      check20Failures.push(`${unpopulatedLedgerEntries.length} ledger entry row(s) have null minor-unit values`);
+    }
+
+    const voucherMinorImbalances = db.prepare(`
+      SELECT v.id, v.voucher_number,
+        COALESCE(SUM(vl.debit_minor), 0) debit_minor_total,
+        COALESCE(SUM(vl.credit_minor), 0) credit_minor_total
+      FROM vouchers v
+      JOIN voucher_lines vl ON vl.voucher_id = v.id
+      WHERE v.status = 'Posted' AND v.is_deleted = 0
+      GROUP BY v.id
+      HAVING COALESCE(SUM(vl.debit_minor), 0) <> COALESCE(SUM(vl.credit_minor), 0)
+    `).all();
+    if (voucherMinorImbalances.length > 0) {
+      check20Failures.push(`${voucherMinorImbalances.length} posted voucher(s) are not exactly balanced in minor units`);
+    }
+
+    const postingMinorVariances = db.prepare(`
+      WITH voucher_line_totals AS (
+        SELECT voucher_id, SUM(debit_minor) debit_minor, SUM(credit_minor) credit_minor
+        FROM voucher_lines
+        GROUP BY voucher_id
+      ),
+      ledger_entry_totals AS (
+        SELECT voucher_id, SUM(debit_minor) debit_minor, SUM(credit_minor) credit_minor
+        FROM ledger_entries
+        GROUP BY voucher_id
+      )
+      SELECT v.id, v.voucher_number
+      FROM vouchers v
+      LEFT JOIN voucher_line_totals vl ON vl.voucher_id = v.id
+      LEFT JOIN ledger_entry_totals le ON le.voucher_id = v.id
+      WHERE v.status = 'Posted' AND v.is_deleted = 0
+        AND (
+          COALESCE(vl.debit_minor, 0) <> COALESCE(le.debit_minor, 0)
+          OR COALESCE(vl.credit_minor, 0) <> COALESCE(le.credit_minor, 0)
+        )
+    `).all();
+    if (postingMinorVariances.length > 0) {
+      check20Failures.push(`${postingMinorVariances.length} voucher(s) have voucher-line/ledger-entry minor-unit variance`);
+    }
+
+    const voucherLineParityFailures = db.prepare(`
+      SELECT id, debit, credit, debit_minor, credit_minor FROM voucher_lines
+    `).all().filter((row) => (
+      Number(row.debit_minor) !== parseMoneyToMinor(row.debit)
+      || Number(row.credit_minor) !== parseMoneyToMinor(row.credit)
+    ));
+    if (voucherLineParityFailures.length > 0) {
+      check20Failures.push(`${voucherLineParityFailures.length} voucher line(s) disagree with governed legacy-to-minor conversion`);
+    }
+
+    const ledgerEntryParityFailures = db.prepare(`
+      SELECT id, debit, credit, debit_minor, credit_minor FROM ledger_entries
+    `).all().filter((row) => (
+      Number(row.debit_minor) !== parseMoneyToMinor(row.debit)
+      || Number(row.credit_minor) !== parseMoneyToMinor(row.credit)
+    ));
+    if (ledgerEntryParityFailures.length > 0) {
+      check20Failures.push(`${ledgerEntryParityFailures.length} ledger entry row(s) disagree with governed legacy-to-minor conversion`);
+    }
+
+    const baselineMoneyIntegrity = checkMoneyIntegrity(db);
+    if (baselineMoneyIntegrity.disagreementCount > 0) {
+      const affectedColumns = baselineMoneyIntegrity.disagreements
+        .map((entry) => `${entry.table}.${entry.shadow} (${entry.disagreements.length})`)
+        .join(", ");
+      check20Failures.push(`populated fixture has ${baselineMoneyIntegrity.disagreementCount} legacy/minor disagreement(s): ${affectedColumns}`);
+    }
+
+    const reportProbe = db.prepare(`
+      SELECT le.id, le.debit
+      FROM ledger_entries le
+      JOIN vouchers v ON v.id = le.voucher_id
+      WHERE v.company_id = ? AND v.status = 'Posted' AND v.is_deleted = 0
+        AND le.debit_minor > 0
+      ORDER BY le.id
+      LIMIT 1
+    `).get(companyId);
+    if (!reportProbe) {
+      check20Failures.push("no populated ledger debit exists for the report-authority probe");
+    } else {
+      const beforeReportSnapshot = financialReportSnapshot(accountingData(db, {
+        company_id: companyId,
+        date_from: "2025-04-01",
+        date_to: "2026-03-31"
+      }));
+      let mismatchDetected = false;
+      let reportUnchanged = false;
+      db.exec("SAVEPOINT fsr1_check20_legacy_probe");
+      try {
+        db.prepare("UPDATE ledger_entries SET debit = ? WHERE id = ?")
+          .run(Number(reportProbe.debit) + 123.45, reportProbe.id);
+        const afterReportSnapshot = financialReportSnapshot(accountingData(db, {
+          company_id: companyId,
+          date_from: "2025-04-01",
+          date_to: "2026-03-31"
+        }));
+        reportUnchanged = beforeReportSnapshot === afterReportSnapshot;
+        const mismatchIntegrity = checkMoneyIntegrity(db);
+        mismatchDetected = mismatchIntegrity.disagreementCount > baselineMoneyIntegrity.disagreementCount
+          && mismatchIntegrity.disagreements.some((entry) => (
+            entry.table === "ledger_entries"
+            && entry.shadow === "debit_minor"
+            && entry.disagreements.some((row) => Number(row.id) === Number(reportProbe.id))
+          ));
+      } finally {
+        db.exec("ROLLBACK TO fsr1_check20_legacy_probe");
+        db.exec("RELEASE fsr1_check20_legacy_probe");
+      }
+      if (!reportUnchanged) {
+        check20Failures.push("Trial Balance, Profit and Loss or Balance Sheet changed after altering only a legacy REAL mirror");
+      }
+      if (!mismatchDetected) {
+        check20Failures.push("checkMoneyIntegrity did not detect the temporary ledger_entries.debit/debit_minor disagreement");
+      }
+      const restoredMoneyIntegrity = checkMoneyIntegrity(db);
+      if (restoredMoneyIntegrity.disagreementCount !== baselineMoneyIntegrity.disagreementCount) {
+        check20Failures.push("temporary legacy/minor mismatch was not fully discarded by fixture cleanup");
+      }
+    }
+
+    record(
+      "20. Governed money representation is consistent",
+      check20Failures.length === 0,
+      check20Failures.length === 0
+        ? "Authoritative INTEGER minor-unit columns exist and are populated; posting and reports use minor units, while legacy REAL columns remain non-authoritative compatibility mirrors."
+        : check20Failures.join("; ")
+    );
 
     const perVoucherImbalances = db.prepare(`
       SELECT v.id, v.voucher_number, ROUND(SUM(vl.debit) - SUM(vl.credit), 2) difference
