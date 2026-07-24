@@ -1,8 +1,8 @@
 # FSR-1 Financial Report Risk Register
 
-**Audit date:** 2026-07-23
-**Open risks:** 10 (9 closed by FSR-2A.1–2A.5)
-**Overall gate:** BLOCKED
+**Audit date:** 2026-07-24
+**Open risks:** 9 (10 closed by FSR-2A.1–2A.5C)
+**Overall gate:** BLOCKED (accounting source of truth certified; FSR-2B required for statutory mappings)
 
 | ID | Severity | Finding | Evidence | Required phase | Status |
 |---|---|---|---|---|---|
@@ -154,6 +154,28 @@ No report redesign, statutory claim, release packaging or next major programme s
 - Test evidence: FSR-2A.5B verification **89/89 PASS**; full regression (22 suites) PASS; accounting/financials PASS
 - Remaining limitations: Historical REAL data in production databases not yet backfilled; renderer-side display formatting not yet governed to `formatMoneyForDisplay`; IPC transport uses major-unit floats (renderer expects them)
 - Closure: **Verified — HIGH risk closed for prospective paths. Historical money data remediation moved to FSR-R19.**
+
+### FSR-2A.5C Consolidated Recertification
+
+**FSR-2A.5C — Consolidated Accounting-Truth Recertification** (CLOSED — all 34 tests PASS)
+
+The FSR-2A.5C verifier (`scripts/verify-fsr-2a5c.js`) consolidates all prior FSR-2A controls into a single certification programme:
+
+| Section | Tests | Purpose |
+|---------|-------|---------|
+| 1-2. Fixture & Source-of-Truth | C1–C11 | Voucher balance, ledger equality, company/FY isolation, draft/cancelled exclusion, opening equality |
+| 3. Minor-Unit Authority | C12–C15 | Legacy REAL isolation, report minor-preference, exact reversal, safe integers |
+| 4. Report Recertification | C16–C20 | Trial Balance exact equality, P&L income/expense, net profit, Balance Sheet equation |
+| 5. Inventory & GL Bridge | C21–C25 | Inventory GL = stock ledger, GRNI clearing, COGS single recognition, stock lifecycle |
+| 6. Party Reconciliation | C26–C27 | Trade Receivables GL, Trade Payables GL with credit-normal sign convention |
+| 7. Financial-Year Continuity | C28–C30 | Full 16-account carry-forward, balanced opening, source-year continuity |
+| 8. Migration & Compatibility | C31–C34 | Shadow-column idempotency, backfill parity, dry-run non-mutation, negative handling |
+
+**Key technical fix (C20):** Balance Sheet equation used `signedMovement` for the Asset side, which computes `credit-debit` for credit-normal accounts. Contra-asset accounts (Accumulated Depreciation, Asset type / Credit normal) were incorrectly treated as increasing net assets. Fixed by using raw `debit_minor - credit_minor` aggregation instead, which correctly shows contra-asset credits reducing net assets. The discrepancy was exactly 2× the Accum Depr movement (1,000,000 paise).
+
+**Result: 34/34 PASS — FSR-2A ACCOUNTING TRUTH CERTIFIED.** All 17 certification categories PASS. Regression: FSR-2A.5A (81/81), FSR-2A.5B (89/89).
+
+**FSR-R19** remains OPEN — historical REAL-money data in production databases has not been backfilled or reconciled. This is a separate authorised remediation phase.
 
 ## Risk acceptance boundary
 
