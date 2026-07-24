@@ -2,7 +2,7 @@
 
 **Audit date:** 2026-07-24
 **Open risks:** 9 (10 closed by FSR-2A.1–2A.5C)
-**Overall gate:** BLOCKED (accounting source of truth certified; FSR-2B required for statutory mappings)
+**Overall gate:** PASS WITH WARNINGS (FSR-2A approved with conditions for FSR-2B; production packaging and release remain BLOCKED)
 
 | ID | Severity | Finding | Evidence | Required phase | Status |
 |---|---|---|---|---|---|
@@ -205,5 +205,9 @@ This certification does not close historical or release risks:
 - Full ERP regression, renderer build, and Electron accounting smoke test pass.
 - FSR-R18: OPEN.
 - FSR-R19: OPEN.
-- Programme lock: BLOCKED until the reviewed lock commit and annotated restore
-  tag are separately authorized and created.
+- Programme lock: FSR-2A accounting truth is certified and locked with
+  conditional approval for FSR-2B. The approval becomes effective only when
+  the annotated tag `fsr-2a-accounting-truth-lock-2026-07-24` points to the
+  lock commit containing the completed lock document set and is pushed.
+- FSR-R18 remains OPEN. FSR-R19 remains OPEN. RMD-1 remains BLOCKED.
+- Production packaging and release remain BLOCKED.

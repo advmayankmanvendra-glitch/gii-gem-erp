@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24
 **Plan status:** PASS
-**Restore point status:** NOT STARTED
+**Restore point status:** IN PROGRESS
 
 ## Intended Restore Point
 
@@ -10,15 +10,19 @@
 |---|---|
 | Branch | `phase-16-enterprise-crm-integration` |
 | Baseline before stabilization | `ec197bebb7b2c6ad86801bc67060e4638c2eeace` |
-| Lock commit | Pending separate authorization |
+| Lock commit | The commit containing the completed FSR-2A lock document set |
 | Annotated tag | `fsr-2a-accounting-truth-lock-2026-07-24` |
 | Tag message | `FSR-2A accounting truth locked: posting, statements, inventory, openings, financial-year continuity and exact money certified.` |
-| Remote push | Pending separate authorization |
+| Remote push | Required and remotely verified before FSR-2B begins |
 
 The tag must point to the reviewed commit containing the verifier corrections,
 runtime smoke-test corrections, all required lock documents, and the updated
 risk register. It must not point to the older `ec197be` commit because that
 commit does not contain the stabilization change set.
+
+The annotated tag name is the stable restore-point identity. The lock documents
+must not contain their own commit hash because amending the lock commit changes
+that hash.
 
 ## Creation Sequence
 
@@ -87,6 +91,8 @@ Then repeat the Electron accounting smoke test on a safe copy.
 
 ## Current Limitation
 
-The restore plan is complete, but neither the lock commit nor the annotated tag
-exists. No external operational database backup was created or verified in
-this programme. The final programme lock therefore remains BLOCKED.
+The conditional FSR-2B approval is not effective until the annotated tag
+`fsr-2a-accounting-truth-lock-2026-07-24` points to the lock commit containing
+the completed lock document set and is pushed. No external operational
+database backup was created or verified in this programme. RMD-1, production
+packaging, and production release remain BLOCKED.

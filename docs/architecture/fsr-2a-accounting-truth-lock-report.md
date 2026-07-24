@@ -6,7 +6,7 @@
 **Secondary categories:** Architecture, Reporting, Inventory, Governance
 **Branch:** `phase-16-enterprise-crm-integration`
 **Baseline commit:** `ec197bebb7b2c6ad86801bc67060e4638c2eeace`
-**Report status:** BLOCKED
+**Report status:** PASS WITH WARNINGS
 
 ## Executive Position
 
@@ -14,11 +14,14 @@ The implemented FSR-2A accounting controls are technically certified. All
 focused populated verifiers, the complete Enterprise Resource Planning (ERP)
 regression, the renderer build, and the Electron desktop smoke test passed.
 
-The formal programme lock is not complete. The stabilization corrections and
-this evidence pack are uncommitted, so the working tree is not a clean lock
-baseline and no governed restore tag exists. Under Permanent Architecture Rule
-27, FSR-2B must not begin until the lock commit and restore point are separately
-authorized, created, verified, and pushed.
+The FSR-2A accounting source-of-truth contract is certified and approved for
+lock with conditions. The approval becomes effective only when the annotated
+restore tag `fsr-2a-accounting-truth-lock-2026-07-24` points to the lock commit
+containing this completed evidence set and is pushed before FSR-2B begins.
+
+The stable tag name is the restore-point identity. This report intentionally
+does not embed the lock commit's own hash because amending that commit would
+change the hash.
 
 ## Phase Governance Summary
 
@@ -26,7 +29,7 @@ authorized, created, verified, and pushed.
 |---|---|
 | Feature classification | Accounting / Architecture / Reporting / Inventory / Governance |
 | Dependency assessment | PASS |
-| Dependencies satisfied | PASS for technical certification; BLOCKED for formal lock |
+| Dependencies satisfied | PASS |
 | Components changed | Smart Entity Picker and Quick Create wiring required by desktop smoke |
 | Services changed | Entity search query correction only |
 | Verifiers changed | FSR Check 20, FSR-2A.3/2A.4 cleanup, master lock matrix, entity picker integration |
@@ -38,9 +41,9 @@ authorized, created, verified, and pushed.
 | Enterprise Intelligence Layer | DG-1, KG-4, and WG-1 verifiers PASS; no graph schema change |
 | Desktop smoke test | PASS |
 | Production readiness classification | Internal Testing |
-| Production readiness gate | BLOCKED |
-| Known limitations | FSR-2B mappings, FSR-R18, FSR-R19, RMD-1, uncommitted lock baseline |
-| Safe to lock | BLOCKED |
+| Production packaging and release gate | BLOCKED by RMD-1 and applicable historical remediation |
+| Known limitations | FSR-2B mappings, FSR-R18, FSR-R19, RMD-1, annotated-tag activation condition |
+| Safe to lock | PASS WITH WARNINGS: effective only after the annotated-tag condition is satisfied |
 
 ## Programme History
 
@@ -93,8 +96,8 @@ was changed during stabilization.
 | Electron desktop smoke | PASS |
 | Temporary fixture cleanup | PASS |
 | Operational database isolation | PASS |
-| Clean lock baseline | FAILED |
-| Restore tag | NOT STARTED |
+| Reviewed lock document set | PASS |
+| Lock commit and restore-tag activation | IN PROGRESS |
 
 The FSR-1 Check 20 result is PASS: authoritative INTEGER minor-unit columns
 exist and are populated; posting and reports use minor units, while legacy REAL
@@ -193,8 +196,9 @@ automatic verified pre-migration backup, historical upgrade fixtures,
 failure-recovery certification, legacy-path reconciliation, and certified
 rollback controls.
 
-FSR-2B architecture work may proceed only after this lock is completed. No
-installer or production release may proceed until RMD-1 and applicable
+FSR-2B architecture work may proceed only after the annotated-tag activation
+condition is satisfied. RMD-1 remains BLOCKED. No installer, production
+packaging, or production release may proceed until RMD-1 and applicable
 historical remediation controls are separately certified.
 
 ## Remaining FSR-2B Gaps
@@ -207,10 +211,11 @@ inventory, report-total, drill-down, or audit contracts.
 
 ## Restore and Rollback
 
-The proposed restore tag is
-`fsr-2a-accounting-truth-lock-2026-07-24`. It must point to the reviewed lock
-commit containing the complete stabilization change set and evidence pack.
-The tag has not been created because separate authorization is required.
+The stable restore-point identity is the annotated tag
+`fsr-2a-accounting-truth-lock-2026-07-24`. It must point to the lock commit
+containing the complete stabilization change set and evidence pack and must be
+pushed before FSR-2B begins. The approval is not effective until both the local
+and remote tag resolve to that lock commit.
 
 Rollback means returning application source to that tagged commit and restoring
 a verified compatible database backup. Downgrading an already migrated
@@ -225,14 +230,22 @@ that compatibility path.
 | Full regression and desktop smoke | PASS |
 | Historical and release risks documented | PASS |
 | Lock report and gate prepared | PASS |
-| Reviewed lock commit exists | NOT STARTED |
-| Working tree clean at lock commit | FAILED |
-| Annotated restore tag exists and is verified | NOT STARTED |
-| Branch and tag pushed with authorization | NOT STARTED |
+| Final lock commit containing this evidence set | IN PROGRESS |
+| Working tree clean at lock commit | IN PROGRESS |
+| Annotated restore tag points to that lock commit | IN PROGRESS |
+| Branch and annotated tag pushed and remotely verified | IN PROGRESS |
+| FSR-2B approval | PASS WITH WARNINGS: effective only after the annotated-tag condition |
 
 ## Final Certification Position
 
-The accounting implementation is certified, but the programme is not yet
-locked because the governed commit and restore point do not exist.
+FSR-R18 remains OPEN. FSR-R19 remains OPEN. RMD-1 remains BLOCKED. Production
+packaging and release remain BLOCKED. FSR-2B may not alter the locked
+authoritative minor-unit, voucher, ledger, opening, carry-forward, inventory,
+report-total, drill-down, or audit contracts. Renderer grouping remains
+presentation-only and is not accounting authority.
 
-**FSR-2A LOCK NOT APPROVED — STABILIZATION OR RELEASE-BOUNDARY DEFECTS REMAIN**
+**FSR-2A ACCOUNTING TRUTH CERTIFIED AND LOCKED — APPROVED WITH CONDITIONS FOR FSR-2B**
+
+Effective condition: the annotated restore tag
+`fsr-2a-accounting-truth-lock-2026-07-24` must point to this lock commit and be
+pushed before FSR-2B begins.

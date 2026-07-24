@@ -77,7 +77,7 @@ still returned exit code 0 with no failed checks.
 
 | Required gate | Result |
 |---|---|
-| Clean Baseline | FAILED |
+| Final lock commit | IN PROGRESS |
 | FSR-2A.1 Reproduction | PASS |
 | FSR-2A.2 Reproduction | PASS |
 | FSR-2A.3 Reproduction | PASS |
@@ -90,11 +90,16 @@ still returned exit code 0 with no failed checks.
 | Renderer Build | PASS |
 | Electron Desktop Smoke Test | PASS |
 | Historical Risk Separation | PASS |
-| RMD-1 Release Boundary | PASS |
+| RMD-1 | BLOCKED |
+| Production packaging and release | BLOCKED |
+| FSR-R18 historical remediation | OPEN |
+| FSR-R19 historical remediation | OPEN |
 | Source-of-Truth Lock | PASS |
 | Restore Plan | PASS |
-| Executive Architecture Gate | BLOCKED |
+| Executive Architecture Gate | PASS WITH WARNINGS: annotated-tag activation required |
 
-The clean-baseline result is FAILED because the stabilization corrections and
-lock documentation have not yet been committed. This is a governance blocker,
-not an accounting verification failure.
+FSR-2A is certified and locked with conditional approval for FSR-2B. The
+approval becomes effective only when the annotated restore tag
+`fsr-2a-accounting-truth-lock-2026-07-24` points to the lock commit containing
+this matrix and is pushed before FSR-2B begins. FSR-2B may not alter the locked
+accounting source-of-truth contract.

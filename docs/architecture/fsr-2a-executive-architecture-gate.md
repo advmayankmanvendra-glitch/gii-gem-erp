@@ -1,7 +1,7 @@
 # FSR-2A Executive Architecture Gate
 
 **Date:** 2026-07-24
-**Decision:** BLOCKED
+**Decision:** APPROVED WITH CONDITIONS FOR FSR-2B
 **Scope:** FSR-1 and FSR-2A.1 through FSR-2A.5C
 **Next programme:** FSR-2B Chart of Accounts and Financial-Statement Mapping
 
@@ -69,30 +69,31 @@ No fatal runtime error appeared.
 | Electron desktop smoke | PASS |
 | Only assigned mapping/classification gaps remain | PASS |
 | Accounting truth protected from FSR-2B | PASS |
-| Clean reviewed lock commit | FAILED |
-| Governed restore tag | NOT STARTED |
+| Final lock commit containing this gate | IN PROGRESS |
+| Governed restore-tag activation | IN PROGRESS |
 
 ## Decision
 
-**BLOCKED FROM FSR-2B**
+**FSR-2A ACCOUNTING TRUTH CERTIFIED AND LOCKED — APPROVED WITH CONDITIONS FOR FSR-2B**
 
-The technical evidence satisfies the criteria for `APPROVED WITH CONDITIONS FOR
-FSR-2B`, but Permanent Architecture Rule 27 also requires a completed lock
-report, clean lock baseline, and restore point. The evidence pack and
-stabilization corrections are presently uncommitted, and the work order
-requires separate authorization before commit, push, or tag.
+The accounting source-of-truth contract is certified and locked. Approval for
+FSR-2B becomes effective only after the annotated restore tag
+`fsr-2a-accounting-truth-lock-2026-07-24` points to the lock commit containing
+this completed gate and is pushed.
 
-## Conditions Required To Lift The Block
+The tag name is the stable restore-point identity. This gate intentionally does
+not record the lock commit's own hash.
 
-1. Independently review the final diff.
-2. Commit only the intended stabilization and lock-document files.
-3. Confirm the working tree is clean and HEAD is the lock commit.
-4. Create and verify the annotated tag
-   `fsr-2a-accounting-truth-lock-2026-07-24`.
-5. Push the branch and tag only with owner authorization.
-6. Update this decision to `APPROVED WITH CONDITIONS FOR FSR-2B`.
+## Effective Condition
 
-After those steps, FSR-2B must:
+1. Commit the reviewed lock document set.
+2. Confirm the working tree is clean and HEAD is that lock commit.
+3. Confirm the annotated tag
+   `fsr-2a-accounting-truth-lock-2026-07-24` points to that lock commit.
+4. Push the branch and annotated tag with owner authorization.
+5. Verify the remote branch and annotated tag resolve to that lock commit.
+
+After the effective condition is satisfied, FSR-2B must:
 
 - preserve every FSR-2A source-of-truth contract;
 - perform no historical migration;
@@ -101,6 +102,10 @@ After those steps, FSR-2B must:
 - reintroduce no name-based backend classification; and
 - leave release approval blocked until separate RMD-1 certification.
 
+FSR-R18 remains OPEN. FSR-R19 remains OPEN. RMD-1 remains BLOCKED. Production
+packaging and release remain BLOCKED. Renderer grouping remains
+presentation-only and may not replace the locked accounting authority.
+
 ## Executive Recommendation
 
-**FSR-2A LOCK NOT APPROVED — STABILIZATION OR RELEASE-BOUNDARY DEFECTS REMAIN**
+**FSR-2A ACCOUNTING TRUTH CERTIFIED AND LOCKED — APPROVED WITH CONDITIONS FOR FSR-2B**

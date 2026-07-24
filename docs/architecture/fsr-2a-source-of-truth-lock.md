@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-24
 **Contract status:** PASS
-**Programme lock status:** BLOCKED
+**Programme lock status:** LOCKED with an effective-condition warning
 
 ## Locked Accounting Chain
 
@@ -85,5 +85,12 @@ phase; therefore, no graph version change was required.
 
 ## Boundary
 
-This source-of-truth contract is verified. The programme-level lock remains
-BLOCKED until the reviewed lock commit and restore tag exist.
+This source-of-truth contract is verified and locked. Approval for FSR-2B
+becomes effective only when the annotated restore tag
+`fsr-2a-accounting-truth-lock-2026-07-24` points to the lock commit containing
+this contract and is pushed before FSR-2B begins.
+
+FSR-R18 remains OPEN. FSR-R19 remains OPEN. RMD-1 remains BLOCKED. Production
+packaging and release remain BLOCKED. FSR-2B may not alter the authoritative
+minor-unit, voucher, ledger, opening, carry-forward, or inventory evidence.
+Renderer grouping remains presentation-only.
