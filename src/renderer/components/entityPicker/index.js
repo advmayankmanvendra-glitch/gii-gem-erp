@@ -6,3 +6,4 @@ export { EntityPickerResultRow } from "./EntityPickerResultRow.jsx";
 export { useEntitySearch } from "./useEntitySearch.js";
 export { useEntityPickerKeyboard } from "./useEntityPickerKeyboard.js";
 export { getEntityPickerConfig, SUPPORTED_PICKER_TYPES } from "./EntityPickerRegistry.js";
+export { getRememberedEntityPickerRecord, rememberEntityPickerRecord } from "./EntityPickerSelectionStore.js";

@@ -570,7 +570,7 @@ function main() {
   for (const [a,p] of Object.entries(cert)) console.log(`  ${p?"\x1b[32mPASS\x1b[0m":"\x1b[31mFAIL\x1b[0m"}  ${a}`);
 
   if (failed===0) {
-    console.log("\n\x1b[32mFSR-2A ACCOUNTING TRUTH CERTIFIED — READY FOR FSR-2B\x1b[0m\n");
+    console.log("\n\x1b[32mFSR-2A ACCOUNTING TRUTH CERTIFIED — FORMAL PROGRAMME LOCK GATE REQUIRED\x1b[0m\n");
   } else {
     console.log("\n\x1b[31mFSR-2A ACCOUNTING TRUTH NOT CERTIFIED — CORE ACCOUNTING DEFECTS REMAIN\x1b[0m\n");
   }

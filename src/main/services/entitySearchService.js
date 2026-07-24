@@ -102,7 +102,7 @@ function buildSearchQuery(config, searchTerm, limit, offset, companyId) {
         `WHEN LOWER(COALESCE(CAST(${qualified} AS TEXT), '')) = @exact_term THEN 0`,
         `WHEN LOWER(COALESCE(CAST(${qualified} AS TEXT), '')) LIKE @prefix_term THEN 1`
       ].join(" ");
-    }).join(" ELSE ");
+    }).join(" ");
     params.exact_term = term;
     params.prefix_term = `${term}%`;
     selectColumns.push(`(CASE ${rankCases} ELSE 3 END) AS rank`);
@@ -128,11 +128,15 @@ function buildSearchQuery(config, searchTerm, limit, offset, companyId) {
   const joins = config.joins ? config.joins.join(" ") : "";
   const where = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
   const rankOrder = config.rankField ? `rank, LOWER(COALESCE(CAST(${table}.${config.rankField} AS TEXT), ''))` : "rank";
+  const countParams = { ...params };
+  delete countParams.exact_term;
+  delete countParams.prefix_term;
 
   return {
     query: `SELECT ${table}.id, ${selectColumns.join(", ")} FROM ${table} ${joins} ${where} ORDER BY ${rankOrder} LIMIT @limit OFFSET @offset`,
     countQuery: `SELECT COUNT(*) as total FROM ${table} ${joins} ${where}`,
-    params: { ...params, limit, offset }
+    params: { ...params, limit, offset },
+    countParams
   };
 }
 
@@ -144,10 +148,10 @@ export function searchEntities(db, entityType, searchTerm, options = {}) {
   const offset = Math.max(Number(options.offset) || 0, 0);
   const companyId = Number(options.company_id) || 0;
 
-  const { query, countQuery, params } = buildSearchQuery(config, searchTerm, limit, offset, companyId);
+  const { query, countQuery, params, countParams } = buildSearchQuery(config, searchTerm, limit, offset, companyId);
 
   const results = db.prepare(query).all(params);
-  const { total } = db.prepare(countQuery).get(params);
+  const { total } = db.prepare(countQuery).get(countParams);
   const hasMore = offset + limit < total;
 
   return { results, hasMore, total, limit, offset };

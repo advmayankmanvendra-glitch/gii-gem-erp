@@ -7,12 +7,12 @@ import { EntityPickerSearchInput } from "./EntityPickerSearchInput.jsx";
 import { EntityPickerResultList } from "./EntityPickerResultList.jsx";
 import { canQuickCreate } from "../../modules/quick-create/quickCreatePermissions.js";
 import { getQuickCreateEntity } from "../../modules/quick-create/quickCreateRegistry.js";
-
-const storeRef = { current: null };
+import { getRememberedEntityPickerRecord, rememberEntityPickerRecord } from "./EntityPickerSelectionStore.js";
 
 export function SmartEntityPicker({ entityType, api, role, companyId, value, onChange, onQuickCreate, disabled, placeholder }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
+  const storeRef = useRef(null);
   const config = useMemo(() => getEntityPickerConfig(entityType), [entityType]);
 
   const searchApi = useEntitySearch(api, entityType, { companyId });
@@ -35,6 +35,7 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
 
   function handleSelect(record) {
     storeRef.current = record;
+    rememberEntityPickerRecord(entityType, record);
     onChange(record.id, record);
     setOpen(false);
   }
@@ -68,11 +69,16 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
 
   const selectedLabel = useMemo(() => {
     if (!value) return "";
-    if (storeRef.current && storeRef.current !== "quick-create-pending" && String(storeRef.current.id) === String(value)) {
-      return config?.resultPrimary(storeRef.current) || String(value);
+    const localRecord = storeRef.current && storeRef.current !== "quick-create-pending"
+      && String(storeRef.current.id) === String(value)
+      ? storeRef.current
+      : null;
+    const selectedRecord = localRecord || getRememberedEntityPickerRecord(entityType, value);
+    if (selectedRecord) {
+      return config?.resultPrimary(selectedRecord) || String(value);
     }
     return String(value);
-  }, [value, config]);
+  }, [value, config, entityType]);
 
   if (!config) {
     return <div className="field-error">Unknown entity type: {entityType}</div>;

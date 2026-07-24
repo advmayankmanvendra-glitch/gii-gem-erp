@@ -602,6 +602,7 @@ export function BusinessVoucherScreen({ notify, onNavigate, role, requestedVouch
           context={{ company_id: form.company_id, source_module: "voucher_dashboard" }}
           role={role}
           notify={notify}
+          api={api}
           onClose={() => setQuickCreate(null)}
           onCreated={handleQuickCreated}
         />

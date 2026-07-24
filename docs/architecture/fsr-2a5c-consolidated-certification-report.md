@@ -49,7 +49,11 @@ All 17 certification categories pass:
 - FSR-2A.5B: 89/89 PASS (regression)
 - FSR-2A.5C: 34/34 PASS (consolidated)
 
-**FSR-2A ACCOUNTING TRUTH CERTIFIED — READY FOR FSR-2B.**
+**FSR-2A ACCOUNTING TRUTH CERTIFIED — FORMAL PROGRAMME LOCK GATE REQUIRED.**
+
+Technical certification does not itself authorize FSR-2B. The FSR-2A
+stabilization, lock report, clean lock commit, restore point, and Executive
+Architecture Gate must complete first.
 
 ## Risk Register Update
 

@@ -4,6 +4,7 @@ import { confirmAction } from "../../config/confirmations.js";
 import { formChanged } from "../../utils/formUtils.js";
 import { assertQuickCreateAllowed } from "../../modules/quick-create/quickCreatePermissions.js";
 import { findDuplicate } from "../../modules/quick-create/quickCreateDuplicateGuard.js";
+import { rememberEntityPickerRecord } from "../entityPicker/EntityPickerSelectionStore.js";
 
 const quickCreateConfigs = {
   item: {
@@ -206,6 +207,7 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
         : config.accountApi
           ? await api.createLedgerAccount(payload)
           : await api.createRecord(config.table, payload);
+      rememberEntityPickerRecord(request.type, saved);
       notify(`${config.title.replace("Quick Create ", "")} created and selected`);
       await onCreated(request.type, saved, request);
       onClose();
@@ -215,6 +217,7 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
   }
 
   function useExisting() {
+    rememberEntityPickerRecord(request.type, duplicate);
     Promise.resolve(onCreated(request.type, duplicate, request)).then(onClose);
   }
 

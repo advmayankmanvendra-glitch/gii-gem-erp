@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { searchEntities } from "../src/main/services/entitySearchService.js";
 
 let passed = 0;
 let failed = 0;
@@ -19,6 +21,35 @@ check("entitySearchService has >= 8 entity types", backendTypes.length >= 8);
 const EXPECTED_BACKEND_TYPES = ["supplier", "item", "ledger", "supply_order", "department", "warehouse", "employee", "bank", "expense_head"];
 for (const et of EXPECTED_BACKEND_TYPES) {
   check(`entitySearchService supports "${et}"`, searchService.includes(`  ${et}: {`));
+}
+
+const entitySearchDb = new DatabaseSync(":memory:");
+try {
+  entitySearchDb.exec(`
+    CREATE TABLE suppliers (
+      id INTEGER PRIMARY KEY,
+      supplier_name TEXT,
+      supplier_code TEXT,
+      gstin TEXT,
+      supplier_contact TEXT,
+      contact_person TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      is_deleted INTEGER NOT NULL DEFAULT 0
+    );
+    INSERT INTO suppliers (id, supplier_name, supplier_code, gstin, supplier_contact, contact_person)
+    VALUES
+      (1, 'Alpha', 'SUP-001', 'GST-ALPHA', '9000000001', 'A Person'),
+      (2, 'Alpha Industrial', 'SUP-002', 'GST-BETA', '9000000002', 'B Person');
+  `);
+  const populatedSearch = searchEntities(entitySearchDb, "supplier", "alpha", { limit: 50, offset: 0 });
+  check("entity search executes a populated multi-field supplier query", populatedSearch.results.length === 2);
+  check("entity search ranks an exact supplier-name match first", populatedSearch.results[0]?.supplier_name === "Alpha");
+} catch (error) {
+  console.log(`  INFO: populated entity search failed: ${error.message}`);
+  check("entity search executes a populated multi-field supplier query", false);
+  check("entity search ranks an exact supplier-name match first", false);
+} finally {
+  entitySearchDb.close();
 }
 
 // --- 2. EntityPickerRegistry ---
@@ -42,6 +73,15 @@ check("SmartEntityPicker imports useEntitySearch", pickerSource.includes("useEnt
 check("SmartEntityPicker imports useEntityPickerKeyboard", pickerSource.includes("useEntityPickerKeyboard"));
 check("SmartEntityPicker imports canQuickCreate", pickerSource.includes("quickCreatePermissions"));
 check("SmartEntityPicker handles entityType prop", pickerSource.includes("entityType"));
+check("SmartEntityPicker keeps selection state per component", pickerSource.includes("const storeRef = useRef(null)") && !pickerSource.includes("const storeRef = { current: null }"));
+check("SmartEntityPicker resolves remembered Quick Create labels", pickerSource.includes("getRememberedEntityPickerRecord(entityType, value)"));
+
+const selectionStoreSource = readFileSync("src/renderer/components/entityPicker/EntityPickerSelectionStore.js", "utf8");
+check("entity picker selection store keys records by entity type and id", selectionStoreSource.includes("selectionKey(entityType, id)") && selectionStoreSource.includes("selectionRecords.set"));
+
+const quickCreateDialogSource = readFileSync("src/renderer/components/overlays/QuickCreateMasterDialog.jsx", "utf8");
+check("Quick Create remembers saved records for picker labels", quickCreateDialogSource.includes("rememberEntityPickerRecord(request.type, saved)"));
+check("Quick Create remembers reused duplicate records for picker labels", quickCreateDialogSource.includes("rememberEntityPickerRecord(request.type, duplicate)"));
 
 // --- 5. Integration in TransactionScreen ---
 const txSource = readFileSync("src/renderer/features/transactions/TransactionScreen.jsx", "utf8");
@@ -168,9 +208,11 @@ check("TransactionField passes role prop to SmartEntityPicker", txSource.include
 
 // BusinessVoucherScreen passes role to all SmartEntityPicker instances
 check("BusinessVoucherScreen passes role to SmartEntityPicker", !bvSource.includes('role="readonly"') && bvSource.includes("role={role}"));
+check("BusinessVoucherScreen passes api to QuickCreateMasterDialog", /<QuickCreateMasterDialog[\s\S]*?api=\{api\}[\s\S]*?\/>/.test(bvSource));
 
 // BillingVoucherScreen passes role to SmartEntityPicker (already checked above)
 check("BillingVoucherScreen passes role to SmartEntityPicker", billSource.includes("role={role}"));
+check("BillingVoucherScreen passes api to QuickCreateMasterDialog", /<QuickCreateMasterDialog[\s\S]*?api=\{api\}[\s\S]*?\/>/.test(billSource));
 
 // SmartEntityPicker calls canQuickCreate with role
 check("SmartEntityPicker calls canQuickCreate(..., role)", pickerSource.includes("canQuickCreate(config.quickCreateType, role)"));

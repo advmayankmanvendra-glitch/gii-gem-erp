@@ -43,6 +43,11 @@ async function run() {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3-"));
   let db;
+  let db2;
+  let db3;
+  let dbDraft;
+  let db4;
+  const fixtureRoots = [root];
   let passedCount = 0;
   let failedCount = 0;
 
@@ -163,7 +168,9 @@ async function run() {
 
     /* Verify carry-forward amounts — create a second fixture for detailed sign checks */
     /* Second isolated fixture */
-    const db2 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3b-")));
+    const root2 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3b-"));
+    fixtureRoots.push(root2);
+    db2 = initializeDatabase(root2);
     const c2 = createCompany(db2, "Sign Check Co");
     const fy1 = createFinancialYear(db2, { company_id: c2, financial_year_name: "FY1", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     const fy2 = createFinancialYear(db2, { company_id: c2, financial_year_name: "FY2", start_date: "2026-04-01", end_date: "2027-03-31", status: "Open" });
@@ -232,7 +239,9 @@ async function run() {
     /* ================================================================ */
     /* Check 18: Zero-result year creates no false profit transfer */
     /* ================================================================ */
-    const db3 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3c-")));
+    const root3 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3c-"));
+    fixtureRoots.push(root3);
+    db3 = initializeDatabase(root3);
     const c3 = createCompany(db3, "Zero Profit Co");
     const zfy1 = createFinancialYear(db3, { company_id: c3, financial_year_name: "ZFY1", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     const zfy2 = createFinancialYear(db3, { company_id: c3, financial_year_name: "ZFY2", start_date: "2026-04-01", end_date: "2027-03-31", status: "Open" });
@@ -330,7 +339,9 @@ async function run() {
     /* ================================================================ */
     /* Check 28: Draft postings remain excluded after close */
     /* ================================================================ */
-    const dbDraft = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3e-")));
+    const draftRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3e-"));
+    fixtureRoots.push(draftRoot);
+    dbDraft = initializeDatabase(draftRoot);
     const cDraft = createCompany(dbDraft, "Draft Test Co");
     const dFy1 = createFinancialYear(dbDraft, { company_id: cDraft, financial_year_name: "DFY1", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     const dFy2 = createFinancialYear(dbDraft, { company_id: cDraft, financial_year_name: "DFY2", start_date: "2026-04-01", end_date: "2027-03-31", status: "Open" });
@@ -364,7 +375,9 @@ async function run() {
     /* ================================================================ */
     /* Check 31: Two consecutive year closes preserve continuity */
     /* ================================================================ */
-    const db4 = initializeDatabase(fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3d-")));
+    const root4 = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3d-"));
+    fixtureRoots.push(root4);
+    db4 = initializeDatabase(root4);
     const c4 = createCompany(db4, "Multi Close Co");
     const mfy1 = createFinancialYear(db4, { company_id: c4, financial_year_name: "Y1", start_date: "2025-04-01", end_date: "2026-03-31", status: "Open" });
     const mfy2 = createFinancialYear(db4, { company_id: c4, financial_year_name: "Y2", start_date: "2026-04-01", end_date: "2027-03-31", status: "Open" });
@@ -429,13 +442,41 @@ async function run() {
       console.log(`FSR-2A.3 CERTIFIED — READY FOR INVENTORY ACCOUNTING MODEL CORRECTIONS`);
     } else {
       console.log(`FSR-2A.3 NOT CERTIFIED — FINANCIAL-YEAR CONTINUITY DEFECTS REMAIN`);
-      process.exit(1);
+      process.exitCode = 1;
     }
   } catch (err) {
     console.error(`\nFATAL: FSR-2A.3 verifier crashed - ${err.message}`);
     console.error(err.stack);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    const cleanupFailures = [];
+    for (const fixtureDb of [db4, dbDraft, db3, db2, db]) {
+      if (!fixtureDb) continue;
+      try {
+        fixtureDb.close();
+      } catch (error) {
+        cleanupFailures.push(`database close: ${error?.message || error}`);
+      }
+    }
+    for (const fixtureRoot of [...fixtureRoots].reverse()) {
+      try {
+        fs.rmSync(fixtureRoot, { recursive: true, force: true });
+      } catch (error) {
+        cleanupFailures.push(`${fixtureRoot}: ${error?.message || error}`);
+      }
+    }
+    if (cleanupFailures.length === 0) {
+      console.log(`Fixture cleanup: PASS (${fixtureRoots.length} temporary database roots removed)`);
+    } else {
+      console.error(`Fixture cleanup: FAIL - ${cleanupFailures.join("; ")}`);
+      process.exitCode = 1;
+    }
   }
 }
 
-run();
+run()
+  .then(() => process.exit(process.exitCode || 0))
+  .catch((error) => {
+    console.error(`FATAL: FSR-2A.3 verifier termination failed - ${error?.stack || error}`);
+    process.exit(1);
+  });

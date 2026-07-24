@@ -751,6 +751,7 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
           context={{ company_id: selectedCompanyId, source_module: "billing" }}
           role={role}
           notify={notify}
+          api={api}
           onClose={() => setQuickCreate(null)}
           onCreated={handleQuickCreated}
         />
