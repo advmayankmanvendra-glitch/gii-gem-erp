@@ -1749,9 +1749,11 @@ const {
   getAccountClassifications,
   getAccountMappingCoverage,
   getAccountMappingReviewQueue,
-  assignAccountGroup
+  assignAccountGroup,
+  createMappedLedgerAccount
 } = createAccountMappingService({
-  auditLog
+  auditLog,
+  createLedgerAccount
 });
 
 const {
@@ -1898,7 +1900,7 @@ export {
 export {
   getAccountMappingRegistry, getAccountClassifications,
   getAccountMappingCoverage, getAccountMappingReviewQueue,
-  assignAccountGroup
+  assignAccountGroup, createMappedLedgerAccount
 };
 
 export {

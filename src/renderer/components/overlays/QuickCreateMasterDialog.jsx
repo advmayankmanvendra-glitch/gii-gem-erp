@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { Field, SelectField } from "../forms/index.jsx";
+import { useEffect, useState } from "react";
+import { Field, SelectBox, SelectField } from "../forms/index.jsx";
 import { confirmAction } from "../../config/confirmations.js";
 import { formChanged } from "../../utils/formUtils.js";
 import { assertQuickCreateAllowed } from "../../modules/quick-create/quickCreatePermissions.js";
 import { findDuplicate } from "../../modules/quick-create/quickCreateDuplicateGuard.js";
 import { rememberEntityPickerRecord } from "../entityPicker/EntityPickerSelectionStore.js";
+import {
+  accountGroupOptions,
+  defaultNormalBalance
+} from "../../features/accounting/accountMappings/accountMappingOptions.js";
 
 const quickCreateConfigs = {
   item: {
@@ -139,14 +143,30 @@ const quickCreateConfigs = {
     accountApi: true,
     primary: "account_name",
     duplicateFields: ["account_name", "account_code"],
-    defaults: { account_name: "", account_code: "", account_type: "Expense", normal_balance: "Debit" },
+    defaults: {
+      account_name: "",
+      account_code: "",
+      account_type: "Expense",
+      normal_balance: "Debit",
+      account_group_id: "",
+      effective_from: "",
+      change_reason: "New ledger account created through Quick Create"
+    },
     fields: [
       ["account_name", "Account Name", "text", true],
       ["account_code", "Account Code", "text"],
       ["account_type", "Account Type", "select", true, ["Asset", "Liability", "Equity", "Income", "Expense"]],
-      ["normal_balance", "Normal Balance", "select", true, ["Debit", "Credit"]]
+      ["normal_balance", "Normal Balance", "select", true, ["Debit", "Credit"]],
+      ["account_group_id", "Account Group", "mapping_group", true],
+      ["effective_from", "Effective Date", "date", true],
+      ["change_reason", "Change Reason", "textarea", true]
     ],
-    payload: (form, context) => ({ ...form, company_id: context.company_id, source_module: context.source_module || "quick_create" }),
+    payload: (form, context) => ({
+      ...form,
+      account_group_id: Number(form.account_group_id),
+      company_id: context.company_id,
+      source_module: context.source_module || "quick_create"
+    }),
     label: (row) => `${row.account_code} - ${row.account_name}`
   }
 };
@@ -169,11 +189,59 @@ export function quickCreateRecords(type, sources = {}) {
 
 export function QuickCreateMasterDialog({ request, records, context = {}, role, notify, onClose, onCreated, api }) {
   const config = quickCreateConfigs[request?.type];
-  const baseline = { ...(config?.defaults || {}), ...(request?.defaults || {}) };
+  const baseline = {
+    ...(config?.defaults || {}),
+    ...(request?.type === "ledger_account" ? { effective_from: new Date().toISOString().slice(0, 10) } : {}),
+    ...(request?.defaults || {})
+  };
   const [form, setForm] = useState(baseline);
   const [duplicate, setDuplicate] = useState(null);
+  const [mappingRegistry, setMappingRegistry] = useState(null);
+  const [mappingLoadError, setMappingLoadError] = useState("");
+
+  useEffect(() => {
+    if (request?.type !== "ledger_account") return;
+    let active = true;
+    setMappingLoadError("");
+    Promise.resolve(api.getAccountMappingRegistry({
+      company_id: context.company_id,
+      as_of_date: form.effective_from
+    }))
+      .then((result) => {
+        if (active) setMappingRegistry(result);
+      })
+      .catch((error) => {
+        if (active) setMappingLoadError(error.message || "Account groups could not be loaded");
+      });
+    return () => {
+      active = false;
+    };
+  }, [request?.type, api, context.company_id]);
+
   if (!config) return null;
   const changed = formChanged(form, baseline);
+  const mappingOptions = request?.type === "ledger_account"
+    ? accountGroupOptions(
+      mappingRegistry,
+      form.account_type,
+      form.normal_balance,
+      form.effective_from
+    )
+    : [];
+
+  function updateFormField(name, value) {
+    setForm((current) => {
+      const next = { ...current, [name]: value };
+      if (name === "account_type") {
+        next.normal_balance = defaultNormalBalance(value);
+        next.account_group_id = "";
+      }
+      if (name === "normal_balance" || name === "effective_from") {
+        next.account_group_id = "";
+      }
+      return next;
+    });
+  }
 
   async function closeSafely() {
     if (!changed) {
@@ -193,6 +261,9 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
   async function save(createAnyway = false) {
     try {
       assertQuickCreateAllowed(request.type, role);
+      if (request.type === "ledger_account" && mappingLoadError) {
+        throw new Error(`${mappingLoadError}. Close and reopen Quick Create after checking the desktop session.`);
+      }
       config.fields.filter(([, , , required]) => required).forEach(([name, label]) => {
         if (!String(form[name] || "").trim()) throw new Error(`${label} is required`);
       });
@@ -248,12 +319,32 @@ export function QuickCreateMasterDialog({ request, records, context = {}, role, 
         <div className="quick-item-grid">
           {config.fields.map(([name, label, type, , optionsArg]) => {
             const dynamicOptions = (type === "select" || type === "datalist") && !optionsArg ? [...new Set(records.map((r) => r[name]).filter(Boolean))] : null;
-            if (type === "select" && optionsArg && !dynamicOptions) {
-              return <SelectField key={name} label={label} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} options={optionsArg} />;
+            if (type === "mapping_group") {
+              return (
+                <SelectBox
+                  key={name}
+                  label={label}
+                  value={form[name]}
+                  onChange={(value) => updateFormField(name, value)}
+                  options={mappingOptions}
+                />
+              );
             }
-            return <Field key={name} name={name} label={label} type={type} value={form[name]} onChange={(value) => setForm({ ...form, [name]: value })} options={dynamicOptions || optionsArg} />;
+            if (type === "select" && optionsArg && !dynamicOptions) {
+              return <SelectField key={name} label={label} value={form[name]} onChange={(value) => updateFormField(name, value)} options={optionsArg} />;
+            }
+            return <Field key={name} name={name} label={label} type={type} value={form[name]} onChange={(value) => updateFormField(name, value)} options={dynamicOptions || optionsArg} />;
           })}
         </div>
+        {request.type === "ledger_account" && (
+          <div className={mappingLoadError ? "account-mapping-inline-note error" : "account-mapping-inline-note"}>
+            {mappingLoadError
+              ? mappingLoadError
+              : mappingRegistry
+                ? `${mappingOptions.length} compatible governed account group(s) available.`
+                : "Loading governed account groups..."}
+          </div>
+        )}
         {duplicate && (
           <div className="duplicate-item-warning">
             <strong>Similar master already exists.</strong>

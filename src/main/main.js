@@ -25,7 +25,6 @@ import {
   createManualVoucher,
   createOpeningBalance,
   createAdvanceReceipt,
-  createLedgerAccount,
   createPartyOpeningBalance,
   createRecord,
   createDraftVoucherFromProposal,
@@ -82,6 +81,7 @@ import {
   getAccountMappingCoverage,
   getAccountMappingRegistry,
   getAccountMappingReviewQueue,
+  createMappedLedgerAccount,
   updateVoucherProposal,
   updateFinancialYearStatus,
   updateBankImportStatus,
@@ -858,7 +858,12 @@ function registerIpc() {
     if (!SUPPORTED_ENTITY_TYPES.includes(entityType)) throw new Error(`Unsupported entity type: ${entityType}`);
     return searchEntities(db, entityType, searchTerm, options);
   });
-  ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
+  ipcMain.handle(
+    "accounts:create-quick",
+    sessionGuarded("account_mapping", "account_mapping", (payload, actor) => (
+      createMappedLedgerAccount(db, payload, actor)
+    ))
+  );
 
   ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
   ipcMain.handle("backup:list", () => listBackups(runtimeDataRoot));

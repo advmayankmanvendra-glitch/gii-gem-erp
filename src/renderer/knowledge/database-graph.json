@@ -3,7 +3,7 @@
   "graphId": "DG-1",
   "graphName": "GII ERP Database Graph",
   "version": "1.1.0",
-  "generatedAt": "2026-07-29T00:00:00.000Z",
+  "generatedAt": "2026-07-29T15:29:58.865Z",
   "owner": "Architecture & Governance",
   "status": "active",
   "description": "Database intelligence graph mapping all GII GeM ERP tables, columns, relationships, service modules, posting functions, report sources, audit trails, and accounting protection boundaries.",
@@ -12984,11 +12984,11 @@
     },
     {
       "area": "accountMappingCutover",
-      "description": "FSR-2B.2A provides controlled effective-dated assignment, but report builders and renderer remain on the pre-cutover classification path until FSR-2B.3"
+      "description": "FSR-2B.2B exposes controlled effective-dated assignment through Chart of Accounts and atomic mapped Quick Create, but report builders remain on the pre-cutover classification path until FSR-2B.3"
     },
     {
       "area": "accountMappingReview",
-      "description": "Custom and imported accounts remain explicitly unmapped until users review them through the FSR-2B.2B Chart of Accounts workflow"
+      "description": "Custom and imported accounts remain explicitly unmapped until an authorized Administrator or Accountant completes review through the FSR-2B.2B Chart of Accounts workflow"
     }
   ],
   "compatibilityNotes": {

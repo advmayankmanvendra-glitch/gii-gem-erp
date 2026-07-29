@@ -2,20 +2,20 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0
-**Generated:** 2026-07-29T13:17:47.452Z
+**Generated:** 2026-07-29T15:29:58.865Z
 
 ---
 
 ## 1. Renderer Size
 | Metric | Value |
 |--------|-------|
-| Source Files | 249 |
-| Total Lines | 42,259 |
-| Import Statements | 685 |
+| Source Files | 251 |
+| Total Lines | 42,832 |
+| Import Statements | 694 |
 | App.jsx | 1664 lines (~83KB) |
 | CSS (single file) | 7,042 lines (125KB) |
-| Complexity Score | 684 |
-| Architecture Density | 2.75 imports/file |
+| Complexity Score | 693 |
+| Architecture Density | 2.76 imports/file |
 
 ## 2. Screens (41 dedicated files, 114 routes)
 - **Master Data:** companies, employees, suppliers, items, banks, warehouses, ledgers, groups
@@ -35,7 +35,7 @@
 - **Avg Reuse:** 2x
 
 ## 4. Ownership
-- **Dashboard:** 50 files
+- **Dashboard:** 52 files
 - **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
@@ -54,13 +54,13 @@
 - **Profitability:** 1 files
 
 ## 5. Business Criticality
-- **Low:** 115 files
+- **Low:** 117 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
 
 ## 6. Change Frequency
-- **Occasionally Modified:** 190 files
+- **Occasionally Modified:** 192 files
 - **Stable:** 56 files
 - **Frequently Modified:** 3 files
 
@@ -91,7 +91,7 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 | Risk Level | Count |
 |------------|-------|
 | High | 3 |
-| Medium | 34 |
+| Medium | 36 |
 | Low | 212 |
 - **High:** `api/browserFallbackApi.js` (1114 lines, 2 imports) — Utilities
 - **High:** `App.jsx` (1664 lines, 74 imports) — Renderer Shell

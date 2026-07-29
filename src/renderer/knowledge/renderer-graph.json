@@ -1,19 +1,19 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-29T13:17:47.433Z",
+  "generatedAt": "2026-07-29T15:29:58.842Z",
   "sourceRoot": "src/renderer/",
-  "filesScanned": 249,
+  "filesScanned": 251,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-29T13:17:47.434Z",
+    "generated": "2026-07-29T15:29:58.844Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "fileCount": 249,
-    "totalLines": 42259,
-    "totalImports": 685
+    "fileCount": 251,
+    "totalLines": 42832,
+    "totalImports": 694
   },
   "statistics": {
     "filesByCategory": {
@@ -22,7 +22,7 @@
       "other": 4,
       "component": 41,
       "config": 11,
-      "feature": 50,
+      "feature": 52,
       "knowledge": 13,
       "module": 54,
       "print": 17,
@@ -32,11 +32,11 @@
     },
     "filesByRisk": {
       "low": 212,
-      "medium": 34,
+      "medium": 36,
       "high": 3
     },
     "filesByCriticality": {
-      "Low": 115,
+      "Low": 117,
       "Critical": 7,
       "High": 100,
       "Medium": 27
@@ -47,7 +47,7 @@
       "Other": 47,
       "Accounting": 3,
       "CRAC": 11,
-      "Dashboard": 50,
+      "Dashboard": 52,
       "Health Center": 17,
       "Help": 25,
       "Inventory": 3,
@@ -63,7 +63,7 @@
     "filesByChangeFrequency": {
       "Stable": 56,
       "Frequently Modified": 3,
-      "Occasionally Modified": 190
+      "Occasionally Modified": 192
     },
     "avgImportsPerScreen": 3,
     "avgComponentReuse": 2,
@@ -76,7 +76,7 @@
       "lines": 963
     },
     "layerCount": 12,
-    "architectureDensity": 2.75,
+    "architectureDensity": 2.76,
     "mostConnected": [
       {
         "path": "App.jsx",
@@ -100,18 +100,18 @@
         "owner": "Dashboard"
       },
       {
+        "path": "features/accounting/AccountingScreen.jsx",
+        "importCount": 15,
+        "lines": 763,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
         "path": "print/PrintTemplateHost.jsx",
         "importCount": 14,
         "lines": 55,
         "category": "print",
         "owner": "Print"
-      },
-      {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "importCount": 13,
-        "lines": 751,
-        "category": "feature",
-        "owner": "Dashboard"
       },
       {
         "path": "modules/helpAssistant/HelpAssistant.jsx",
@@ -205,16 +205,16 @@
         "owner": "Health Center"
       },
       {
+        "path": "components/overlays/QuickCreateMasterDialog.jsx",
+        "importCount": 8,
+        "lines": 367,
+        "category": "component",
+        "owner": "Renderer Shell"
+      },
+      {
         "path": "features/accounting/BankStatementScreen.jsx",
         "importCount": 8,
         "lines": 358,
-        "category": "feature",
-        "owner": "Dashboard"
-      },
-      {
-        "path": "features/importExport/TallyMasterMigrationAssistantScreen.jsx",
-        "importCount": 8,
-        "lines": 1072,
         "category": "feature",
         "owner": "Dashboard"
       }
@@ -222,7 +222,7 @@
     "mostDepended": [
       {
         "name": "react",
-        "count": 140
+        "count": 141
       },
       {
         "name": "utils/formatters.js",
@@ -230,11 +230,11 @@
       },
       {
         "name": "components/common.jsx",
-        "count": 24
+        "count": 25
       },
       {
         "name": "forms/index.jsx",
-        "count": 24
+        "count": 25
       },
       {
         "name": "utils/optionSorting.js",
@@ -273,11 +273,11 @@
         "count": 6
       },
       {
-        "name": "panels/AddRecordPanel.jsx",
-        "count": 5
+        "name": "config/confirmations.js",
+        "count": 6
       },
       {
-        "name": "utils/actionUtils.js",
+        "name": "panels/AddRecordPanel.jsx",
         "count": 5
       }
     ],
@@ -307,12 +307,12 @@
     "totalRoutes": 114,
     "totalScreens": 41,
     "totalComponents": 41,
-    "totalFeatures": 50,
+    "totalFeatures": 52,
     "totalModules": 54,
     "totalConfigFiles": 11,
     "circularImports": 0,
     "circularImportDetails": [],
-    "approximateTokenSavings": "~8605 tokens per AI operation"
+    "approximateTokenSavings": "~8708 tokens per AI operation"
   },
   "heatMap": {
     "mostConnected": [
@@ -338,18 +338,18 @@
         "owner": "Dashboard"
       },
       {
+        "path": "features/accounting/AccountingScreen.jsx",
+        "importCount": 15,
+        "lines": 763,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
         "path": "print/PrintTemplateHost.jsx",
         "importCount": 14,
         "lines": 55,
         "category": "print",
         "owner": "Print"
-      },
-      {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "importCount": 13,
-        "lines": 751,
-        "category": "feature",
-        "owner": "Dashboard"
       },
       {
         "path": "modules/helpAssistant/HelpAssistant.jsx",
@@ -390,7 +390,7 @@
     "mostDepended": [
       {
         "name": "react",
-        "count": 140
+        "count": 141
       },
       {
         "name": "utils/formatters.js",
@@ -398,11 +398,11 @@
       },
       {
         "name": "components/common.jsx",
-        "count": 24
+        "count": 25
       },
       {
         "name": "forms/index.jsx",
-        "count": 24
+        "count": 25
       },
       {
         "name": "utils/optionSorting.js",
@@ -446,14 +446,14 @@
         "category": "feature"
       },
       {
+        "path": "features/accounting/AccountingScreen.jsx",
+        "fanOut": 15,
+        "category": "feature"
+      },
+      {
         "path": "print/PrintTemplateHost.jsx",
         "fanOut": 14,
         "category": "print"
-      },
-      {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "fanOut": 13,
-        "category": "feature"
       },
       {
         "path": "modules/helpAssistant/HelpAssistant.jsx",
@@ -484,11 +484,11 @@
     "highestFanIn": [
       {
         "name": "react",
-        "count": 140
+        "count": 141
       },
       {
         "name": "index",
-        "count": 73
+        "count": 74
       },
       {
         "name": "formatters",
@@ -496,7 +496,7 @@
       },
       {
         "name": "common",
-        "count": 37
+        "count": 38
       },
       {
         "name": "optionSorting",
@@ -526,7 +526,7 @@
     "mostCritical": [
       {
         "path": "api/client.js",
-        "lines": 99,
+        "lines": 100,
         "imports": 0
       },
       {
@@ -3300,6 +3300,57 @@
       }
     },
     {
+      "path": "components/overlays/QuickCreateMasterDialog.jsx",
+      "components": [
+        "QuickCreateMasterDialog"
+      ],
+      "exports": [
+        "quickCreateRecords",
+        "QuickCreateMasterDialog"
+      ],
+      "imports": [
+        "react",
+        "../forms/index.jsx",
+        "../../config/confirmations.js",
+        "../../utils/formUtils.js",
+        "../../modules/quick-create/quickCreatePermissions.js",
+        "../../modules/quick-create/quickCreateDuplicateGuard.js",
+        "../entityPicker/EntityPickerSelectionStore.js",
+        "../../features/accounting/accountMappings/accountMappingOptions.js"
+      ],
+      "lines": 367,
+      "riskLevel": "medium",
+      "ownerModule": "Renderer Shell",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Master Data Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Presentation Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "QuickCreateMasterDialog",
+        "relatedScreens": [
+          "All screens via App.jsx"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [
+          "ConfirmDialog",
+          "GlobalSearchOverlay",
+          "PrintPreviewDialog"
+        ],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/inventoryReports/index.jsx",
       "components": [
         "StockSummaryInteractiveTable",
@@ -3440,56 +3491,6 @@
         "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
-    },
-    {
-      "path": "components/overlays/QuickCreateMasterDialog.jsx",
-      "components": [
-        "QuickCreateMasterDialog"
-      ],
-      "exports": [
-        "quickCreateRecords",
-        "QuickCreateMasterDialog"
-      ],
-      "imports": [
-        "react",
-        "../forms/index.jsx",
-        "../../config/confirmations.js",
-        "../../utils/formUtils.js",
-        "../../modules/quick-create/quickCreatePermissions.js",
-        "../../modules/quick-create/quickCreateDuplicateGuard.js",
-        "../entityPicker/EntityPickerSelectionStore.js"
-      ],
-      "lines": 276,
-      "riskLevel": "low",
-      "ownerModule": "Renderer Shell",
-      "businessCriticality": "Low",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "Master Data Workflow",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17 (Stabilization)",
-        "extractionCandidate": "Presentation Library"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "QuickCreateMasterDialog",
-        "relatedScreens": [
-          "All screens via App.jsx"
-        ],
-        "relatedReports": [],
-        "relatedDialogs": [
-          "ConfirmDialog",
-          "GlobalSearchOverlay",
-          "PrintPreviewDialog"
-        ],
         "relatedContext": [
           "CompanyContext"
         ],
@@ -4988,9 +4989,11 @@
         "../../screens/ReadOnlyReportFamilyScreen.jsx",
         "./accountingTableConfig.js",
         "./accountingHelpers.js",
-        "../../utils/actionUtils.js"
+        "../../utils/actionUtils.js",
+        "./accountMappings/AccountMappingReviewPanel.jsx",
+        "./accountMappings/accountMappingOptions.js"
       ],
-      "lines": 751,
+      "lines": 763,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -5008,6 +5011,46 @@
         "../../screens/ReadOnlyReportFamilyScreen.jsx"
       ],
       "lines": 387,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/accountMappings/accountMappingOptions.js",
+      "components": [],
+      "exports": [
+        "canManageAccountMappings",
+        "defaultNormalBalance",
+        "governedPostingGroups",
+        "accountGroupOptions"
+      ],
+      "imports": [],
+      "lines": 86,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "components": [
+        "statusLabel",
+        "statementLabel",
+        "AccountMappingReviewPanel"
+      ],
+      "exports": [
+        "AccountMappingReviewPanel"
+      ],
+      "imports": [
+        "react",
+        "../../../components/common.jsx",
+        "../../../components/forms/index.jsx",
+        "../../../config/confirmations.js",
+        "../../../utils/formUtils.js",
+        "./accountMappingOptions.js"
+      ],
+      "lines": 371,
       "ownerModule": "Dashboard",
       "businessCriticality": "Low",
       "changeFrequency": "Occasionally Modified",
@@ -6098,7 +6141,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 684,
+    "complexityScore": 693,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6129,8 +6172,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 42259,
-    "totalImports": 685
+    "totalLines": 42832,
+    "totalImports": 694
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -6150,7 +6193,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 684,
+    "complexityScore": 693,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6839,6 +6882,10 @@
       "to": "../entityPicker/EntityPickerSelectionStore.js"
     },
     {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../../features/accounting/accountMappings/accountMappingOptions.js"
+    },
+    {
       "from": "components/panels/AddRecordPanel.jsx",
       "to": "react"
     },
@@ -7083,8 +7130,40 @@
       "to": "../../utils/actionUtils.js"
     },
     {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "./accountMappings/AccountMappingReviewPanel.jsx"
+    },
+    {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "./accountMappings/accountMappingOptions.js"
+    },
+    {
       "from": "features/accounting/accountingTableConfig.js",
       "to": "../../screens/ReadOnlyReportFamilyScreen.jsx"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "../../../components/common.jsx"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "../../../components/forms/index.jsx"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "../../../config/confirmations.js"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "../../../utils/formUtils.js"
+    },
+    {
+      "from": "features/accounting/accountMappings/AccountMappingReviewPanel.jsx",
+      "to": "./accountMappingOptions.js"
     },
     {
       "from": "features/accounting/AllocationWorkflowScreen.jsx",
@@ -8149,42 +8228,6 @@
     {
       "from": "modules/helpAssistant/helpAssistantUtils.js",
       "to": "../erpBrain/services/sourceBackedSearchService.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "../erpAssistant/sources/knowledgeBridge.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./contextualBrainHelp.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateAuditBridge.js",
-      "to": "./quickCreateRegistry.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateController.js",
-      "to": "./quickCreateRegistry.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateController.js",
-      "to": "./quickCreatePermissions.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateController.js",
-      "to": "./quickCreateDuplicateGuard.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateController.js",
-      "to": "./quickCreateResultMapper.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreatePermissions.js",
-      "to": "../../components/helpProductivity/index.jsx"
-    },
-    {
-      "from": "modules/quick-create/quickCreatePermissions.js",
-      "to": "./quickCreateRegistry.js"
     }
   ]
 }

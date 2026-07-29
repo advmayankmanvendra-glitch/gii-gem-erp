@@ -115,7 +115,7 @@ const QUICK_CREATE_ENTITIES = {
     entityType: "ledger_account",
     label: "Ledger Account",
     enabled: true,
-    permission: "new",
+    permission: "account_mapping",
     dialogType: "ledger_account",
     minimumForm: "LedgerAccountQuickCreate",
     duplicateGuard: "ledgerAccountIdentity",

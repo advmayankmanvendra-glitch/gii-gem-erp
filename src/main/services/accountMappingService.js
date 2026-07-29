@@ -47,7 +47,7 @@ function previousDate(value) {
 }
 
 export function createAccountMappingService(deps = {}) {
-  const { auditLog } = deps;
+  const { auditLog, createLedgerAccount } = deps;
 
   function assignmentSnapshot(db, assignmentId) {
     return db.prepare(`
@@ -470,11 +470,43 @@ export function createAccountMappingService(deps = {}) {
     return execute();
   }
 
+  function createMappedLedgerAccount(db, payload = {}, actor = {}) {
+    if (typeof createLedgerAccount !== "function") {
+      throw new Error("Ledger account creation service is unavailable");
+    }
+
+    const execute = db.transaction(() => {
+      const account = createLedgerAccount(db, {
+        ...payload,
+        user_id: actor.user_id || null
+      });
+      const mappingResult = assignAccountGroup(db, {
+        company_id: payload.company_id,
+        account_id: account.id,
+        account_group_id: payload.account_group_id,
+        effective_from: payload.effective_from,
+        change_reason: payload.change_reason
+      }, actor);
+
+      return {
+        ...account,
+        mapping_status: "MAPPED",
+        account_group_id: mappingResult.assignment?.account_group_id || null,
+        group_code: mappingResult.assignment?.group_code || null,
+        group_name: mappingResult.assignment?.group_name || null,
+        mapping: mappingResult.assignment || null
+      };
+    });
+
+    return execute();
+  }
+
   return {
     getAccountMappingRegistry,
     getAccountClassifications,
     getAccountMappingCoverage,
     getAccountMappingReviewQueue,
-    assignAccountGroup
+    assignAccountGroup,
+    createMappedLedgerAccount
   };
 }

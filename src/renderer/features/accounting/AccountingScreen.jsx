@@ -11,6 +11,8 @@ import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyRe
 import { accountingTableConfig } from "./accountingTableConfig.js";
 import { buildAllocationCorrectionForm, allocationTargetOptions, formatCell } from "./accountingHelpers.js";
 import { confirmAction, reversalConfirmOptions, postConfirmOptions, approveConfirmOptions } from "../../utils/actionUtils.js";
+import { AccountMappingReviewPanel } from "./accountMappings/AccountMappingReviewPanel.jsx";
+import { canManageAccountMappings } from "./accountMappings/accountMappingOptions.js";
 
 export function AccountingScreen({ view, notify, role, companyContext, onNavigate, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -24,6 +26,7 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
   const canPostControls = roleAllowsAction(role, "voucher");
   const canApproveControls = roleAllowsAction(role, "approve");
   const canManagePeriods = roleAllowsAction(role, "approve");
+  const canManageMappings = canManageAccountMappings(role);
 
   async function load() {
     try {
@@ -224,7 +227,7 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
         date_from: filters.date_from,
         date_to: filters.date_to
       };
-      if (mode === "account") payload.account_id = row.id;
+      if (mode === "account") payload.account_id = row.account_id || row.id;
       if (mode === "voucher") payload.voucher_id = row.voucher_id || row.id;
       if (mode === "source") {
         payload.source_module = row.source_module;
@@ -533,7 +536,16 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
       </ReportToolbar>
       {view === "financial_control" && <FinancialControlOverview data={data || {}} onDrill={openFinancialControlDrill} />}
       {["financial_years", "year_end_closing", "carry_forward", "opening_balances"].includes(view) && <LockedYearControlNotice data={data || {}} />}
-      {readOnlyReportFamily ? (
+      {view === "chart_accounts" && canManageMappings ? (
+        <AccountMappingReviewPanel
+          api={api}
+          companyId={companyContext?.company_id || filters.company_id}
+          asOfDate={filters.date_to}
+          role={role}
+          notify={notify}
+          onDrillAccount={(row) => openDrilldown(row, "account")}
+        />
+      ) : readOnlyReportFamily ? (
         <ReadOnlyReportFamilyTable
           view={view}
           data={data || {}}

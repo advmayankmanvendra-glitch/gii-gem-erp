@@ -2,7 +2,7 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0 (Enhanced)
-**Generated:** 2026-07-29T13:17:47.437Z
+**Generated:** 2026-07-29T15:29:58.848Z
 **Source:** `src/renderer/`
 
 ---
@@ -19,25 +19,25 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 
 | Metric | Value |
 |--------|-------|
-| Total Files | 249 |
-| Total Lines | 42,259 |
-| Total Imports | 685 |
+| Total Files | 251 |
+| Total Lines | 42,832 |
+| Total Imports | 694 |
 | Routes | 114 |
 | Screens | 41 |
 | Components | 41 |
-| Features | 50 |
+| Features | 52 |
 | Layers | 12 |
-| Architecture Density | 2.75 imports/file |
+| Architecture Density | 2.76 imports/file |
 | Avg Imports/Screen | 3 |
 | Avg Component Reuse | 2x |
 | Largest Component | components/helpProductivity/index.jsx (597 lines) |
 | Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (963 lines) |
-| Complexity Score | 684 |
+| Complexity Score | 693 |
 | Circular Imports | 0 |
-| Token Savings | ~8605 tokens per AI operation |
+| Token Savings | ~8708 tokens per AI operation |
 
 ### By Owner
-- **Dashboard:** 50 files
+- **Dashboard:** 52 files
 - **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
@@ -56,7 +56,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 - **Profitability:** 1 files
 
 ### By Criticality
-- **Low:** 115 files
+- **Low:** 117 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
@@ -71,8 +71,8 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 | App.jsx | 74 | app | Renderer Shell |
 | config/screenRegistry.jsx | 23 | config | Renderer Shell |
 | features/transactions/TransactionScreen.jsx | 16 | feature | Dashboard |
+| features/accounting/AccountingScreen.jsx | 15 | feature | Dashboard |
 | print/PrintTemplateHost.jsx | 14 | print | Print |
-| features/accounting/AccountingScreen.jsx | 13 | feature | Dashboard |
 | modules/helpAssistant/HelpAssistant.jsx | 12 | module | Help |
 | componentRegistry/registry.js | 11 | other | Other |
 | features/accounting/businessVouchers/BusinessVoucherScreen.jsx | 11 | feature | Dashboard |
@@ -82,10 +82,10 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Highest Fan-In (Most Imported By Others)
 | Module/File | Times Imported |
 |-------------|----------------|
-| react | 140 |
-| index | 73 |
+| react | 141 |
+| index | 74 |
 | formatters | 55 |
-| common | 37 |
+| common | 38 |
 | optionSorting | 17 |
 | TemplateSections | 13 |
 | uiHelpers | 11 |
@@ -110,7 +110,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Critical Files (Business Criticality: Critical)
 | File | Lines | Imports |
 |------|-------|---------|
-| api/client.js | 99 | 0 |
+| api/client.js | 100 | 0 |
 | App.jsx | 1664 | 74 |
 | components/common.jsx | 135 | 2 |
 | components/forms/index.jsx | 378 | 2 |
@@ -177,10 +177,10 @@ All routes via `effectiveView`. No React Router.
 | components/helpProductivity/index.jsx | 597 | 9 | Help | Low | Occasionally Modified |
 | components/operations/index.jsx | 489 | 4 | Operations | Low | Occasionally Modified |
 | components/forms/index.jsx | 378 | 2 | Renderer Shell | Critical | Occasionally Modified |
+| components/overlays/QuickCreateMasterDialog.jsx | 367 | 8 | Renderer Shell | Low | Occasionally Modified |
 | components/inventoryReports/index.jsx | 326 | 4 | Inventory | Low | Stable |
 | components/dashboard/index.jsx | 293 | 2 | Dashboard | Low | Occasionally Modified |
 | components/panels/DrilldownPanel.jsx | 282 | 5 | Other | Low | Occasionally Modified |
-| components/overlays/QuickCreateMasterDialog.jsx | 276 | 7 | Renderer Shell | Low | Occasionally Modified |
 | components/panels/SmallComponents.jsx | 252 | 4 | Other | Low | Occasionally Modified |
 | components/overlays/index.jsx | 243 | 3 | Renderer Shell | High | Occasionally Modified |
 | components/panels/AddRecordPanel.jsx | 223 | 9 | Other | Low | Occasionally Modified |
@@ -249,7 +249,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 | 4. Print | Template printing | 17 print files |
 | 5. Screens | App screens | 41 screen files |
 | 6. Components | Shared UI | 41 component files |
-| 7. Features | Domain logic | 50 feature files |
+| 7. Features | Domain logic | 52 feature files |
 | 8. Modules | Subsystems | 54 module files |
 | 9. Knowledge | Metadata | 13 knowledge files |
 | 10. Stability | Recovery | 5 stability files |
