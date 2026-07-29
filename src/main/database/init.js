@@ -18,6 +18,11 @@ import { createReportBuilders } from "./reportBuilders.js";
 import { createCrudHelpers } from "./crudHelpers.js";
 import { createSchemaFunctions } from "./schemaDefinitions.js";
 import { createSeedData } from "./seedData.js";
+import {
+  FSR2B1_MIGRATION_NAME,
+  applyAccountMappingRegistryMigration,
+  ensureAccountMappingRegistry
+} from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -185,6 +190,9 @@ const ACCOUNTING_TABLES = new Set([
   "invoices",
   "payments",
   "accounts",
+  "account_groups",
+  "financial_statement_mappings",
+  "account_group_assignments",
   "vouchers",
   "voucher_lines",
   "ledger_entries",
@@ -243,6 +251,9 @@ export const WRITE_POLICY = {
   transaction: new Set(Object.keys(TRANSACTION_TABLES)),
   accountingReadOnly: new Set([
     "accounts",
+    "account_groups",
+    "financial_statement_mappings",
+    "account_group_assignments",
     "vouchers",
     "voucher_lines",
     "ledger_entries",
@@ -260,6 +271,7 @@ export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
   migrate(db);
   seed(db);
+  ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   return db;
 }
@@ -642,6 +654,10 @@ export function migrate(db) {
 
   runMigration(db, "034_fsr2a5b_money_shadow_columns", () => {
     addMoneyShadowColumns(db);
+  });
+
+  runMigration(db, FSR2B1_MIGRATION_NAME, () => {
+    applyAccountMappingRegistryMigration(db);
   });
 }
 

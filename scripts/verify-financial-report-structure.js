@@ -335,9 +335,22 @@ async function run() {
     const inventoryGlAfter = Number(accountingData(db, { company_id: companyId, date_from: "2025-04-01", date_to: "2026-03-31" }).balanceSheet.rows.find((row) => row.account_name === "Inventory")?.amount || 0);
     record("8. Inventory value reconciles", round(inventoryGlAfter - inventoryGlBefore) === round(stockItem?.stock_value || 0), `Stock subledger increased ${round(stockItem?.stock_value || 0)}; Inventory GL increased ${round(inventoryGlAfter - inventoryGlBefore)}`);
 
-    const accountColumns = columnNames(db, "accounts");
-    const hasGroupRegistry = tables.has("account_groups") || tables.has("financial_statement_mappings");
-    record("9. Group totals equal ledger totals", hasGroupRegistry && accountColumns.has("financial_statement_section"), "No governed account-group/report-mapping registry exists; renderer grouping is heuristic");
+    const hasGroupRegistry = [
+      "account_groups",
+      "financial_statement_mappings",
+      "account_group_assignments"
+    ].every((table) => tables.has(table));
+    const backendRowsHaveStatementMapping = fullData.trialBalance.every((row) => (
+      Object.hasOwn(row, "structure_group")
+      && Object.hasOwn(row, "financial_statement_section")
+    ));
+    record(
+      "9. Group totals equal ledger totals",
+      hasGroupRegistry && backendRowsHaveStatementMapping,
+      hasGroupRegistry
+        ? "FSR-2B.1 registry foundation exists; backend report grouping and executable group-total parity are deferred to FSR-2B.3"
+        : "No governed account-group/report-mapping registry exists"
+    );
 
     const postingVariance = db.prepare(`
       SELECT v.id, v.voucher_number,

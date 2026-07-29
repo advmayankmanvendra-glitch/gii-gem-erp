@@ -2,18 +2,20 @@
   "schemaVersion": "1.0.0",
   "graphId": "DG-1",
   "graphName": "GII ERP Database Graph",
-  "version": "1.0.0",
-  "generatedAt": "2026-07-20T04:00:00.000Z",
+  "version": "1.1.0",
+  "generatedAt": "2026-07-29T00:00:00.000Z",
   "owner": "Architecture & Governance",
   "status": "active",
   "description": "Database intelligence graph mapping all GII GeM ERP tables, columns, relationships, service modules, posting functions, report sources, audit trails, and accounting protection boundaries.",
   "sourceFiles": [
     "src/main/database/init.js",
+    "src/main/database/accountMappingRegistry.js",
     "src/main/database/schemaDefinitions.js",
     "src/main/database/crudHelpers.js",
     "src/main/database/reportBuilders.js",
     "src/main/database/seedData.js",
     "src/main/services/accountingService.js",
+    "src/main/services/accountMappingService.js",
     "src/main/services/inventoryService.js",
     "src/main/services/operationalPlanningService.js",
     "src/main/services/billingService.js",
@@ -5060,6 +5062,499 @@
       "accountingProtected": true,
       "notes": "Core chart of accounts. Referenced by every voucher_line and ledger_entry. Parent_account_id enables hierarchical account grouping.",
       "knownGaps": []
+    },
+    {
+      "id": "account_groups",
+      "tableName": "account_groups",
+      "title": "Account Group Registry",
+      "category": "Accounting Core",
+      "status": "active",
+      "sourceFile": "src/main/database/accountMappingRegistry.js",
+      "schemaVersion": "035",
+      "owningModule": "accountMapping",
+      "relatedWorkflowStage": null,
+      "relatedScreen": null,
+      "primaryKey": "id",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false,
+          "description": "Primary key"
+        },
+        {
+          "name": "group_code",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable governed account-group code"
+        },
+        {
+          "name": "group_name",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "User-facing account-group name"
+        },
+        {
+          "name": "parent_group_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": true,
+          "description": "Parent account group"
+        },
+        {
+          "name": "account_type",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Compatible broad account type"
+        },
+        {
+          "name": "normal_balance",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Normal Debit or Credit balance"
+        },
+        {
+          "name": "contra_behavior",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Normal or contra presentation behavior"
+        },
+        {
+          "name": "posting_allowed",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Whether ledger accounts may be assigned directly"
+        },
+        {
+          "name": "system_protected",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "System-governed protection flag"
+        },
+        {
+          "name": "display_order",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable hierarchy display order"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Active or inactive status"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Creation timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Update timestamp"
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "parent_group_id"
+          ],
+          "references": "account_groups",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Self-referencing governed hierarchy"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "group_code"
+          ],
+          "unique": true,
+          "description": "Stable group codes are unique"
+        },
+        {
+          "columns": [
+            "parent_group_id",
+            "display_order"
+          ],
+          "unique": false,
+          "description": "Hierarchy traversal"
+        }
+      ],
+      "hasSoftDelete": false,
+      "hasPostingStatus": false,
+      "hasApprovalStatus": false,
+      "hasAuditImpact": true,
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "genericCrudAllowed": false,
+      "accountingProtected": true,
+      "notes": "Governed classification registry only. It does not post vouchers or alter accounting amounts.",
+      "knownGaps": [
+        "Controlled mapping administration is deferred to FSR-2B.2"
+      ]
+    },
+    {
+      "id": "financial_statement_mappings",
+      "tableName": "financial_statement_mappings",
+      "title": "Financial Statement Mapping Registry",
+      "category": "Accounting Core",
+      "status": "active",
+      "sourceFile": "src/main/database/accountMappingRegistry.js",
+      "schemaVersion": "035",
+      "owningModule": "accountMapping",
+      "relatedWorkflowStage": null,
+      "relatedScreen": null,
+      "primaryKey": "id",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false,
+          "description": "Primary key"
+        },
+        {
+          "name": "reporting_profile_code",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable reporting-profile code"
+        },
+        {
+          "name": "reporting_profile_version",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Reporting-profile version"
+        },
+        {
+          "name": "account_group_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Governed account group"
+        },
+        {
+          "name": "statement_code",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Balance Sheet or Profit and Loss"
+        },
+        {
+          "name": "section_code",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable statement-section code"
+        },
+        {
+          "name": "section_name",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Statement-section name"
+        },
+        {
+          "name": "subsection_code",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable statement-subsection code"
+        },
+        {
+          "name": "subsection_name",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Statement-subsection name"
+        },
+        {
+          "name": "current_non_current",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Current, non-current, or not-applicable classification"
+        },
+        {
+          "name": "presentation_sign",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Presentation instruction only; never posting math"
+        },
+        {
+          "name": "display_order",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Stable statement display order"
+        },
+        {
+          "name": "effective_from",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "First effective reporting date"
+        },
+        {
+          "name": "effective_to",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": true,
+          "description": "Last effective reporting date"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Active, superseded, or inactive status"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Creation timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Update timestamp"
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "account_group_id"
+          ],
+          "references": "account_groups",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Statement placement belongs to a governed account group"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "reporting_profile_code",
+            "reporting_profile_version",
+            "statement_code",
+            "display_order"
+          ],
+          "unique": false,
+          "description": "Reporting-profile statement lookup"
+        }
+      ],
+      "hasSoftDelete": false,
+      "hasPostingStatus": false,
+      "hasApprovalStatus": false,
+      "hasAuditImpact": true,
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "genericCrudAllowed": false,
+      "accountingProtected": true,
+      "notes": "Versioned report placement metadata. Monetary values remain authoritative in ledger minor-unit columns.",
+      "knownGaps": [
+        "Report-builder consumption is deferred to FSR-2B.3"
+      ]
+    },
+    {
+      "id": "account_group_assignments",
+      "tableName": "account_group_assignments",
+      "title": "Account Group Assignments",
+      "category": "Accounting Core",
+      "status": "active",
+      "sourceFile": "src/main/database/accountMappingRegistry.js",
+      "schemaVersion": "035",
+      "owningModule": "accountMapping",
+      "relatedWorkflowStage": null,
+      "relatedScreen": null,
+      "primaryKey": "id",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false,
+          "description": "Primary key"
+        },
+        {
+          "name": "company_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Company context"
+        },
+        {
+          "name": "account_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Assigned Chart of Accounts ledger"
+        },
+        {
+          "name": "account_group_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Governed assigned account group"
+        },
+        {
+          "name": "effective_from",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "First effective assignment date"
+        },
+        {
+          "name": "effective_to",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": true,
+          "description": "Last effective assignment date"
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Active, superseded, or inactive status"
+        },
+        {
+          "name": "provenance",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "System seed, manual, or reviewed import source"
+        },
+        {
+          "name": "assigned_by",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": true,
+          "description": "User who approved the assignment"
+        },
+        {
+          "name": "change_reason",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": true,
+          "description": "Assignment reason and audit context"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Creation timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "Update timestamp"
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id"
+          ],
+          "references": "companies",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Assignment company context"
+        },
+        {
+          "columns": [
+            "account_id"
+          ],
+          "references": "accounts",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Assigned account"
+        },
+        {
+          "columns": [
+            "account_group_id"
+          ],
+          "references": "account_groups",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Assigned governed account group"
+        },
+        {
+          "columns": [
+            "assigned_by"
+          ],
+          "references": "users",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Assignment approver"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "company_id",
+            "account_id",
+            "effective_from",
+            "effective_to",
+            "status"
+          ],
+          "unique": false,
+          "description": "Historical company-scoped assignment lookup"
+        },
+        {
+          "columns": [
+            "account_id"
+          ],
+          "unique": true,
+          "description": "One open active assignment per account"
+        }
+      ],
+      "hasSoftDelete": false,
+      "hasPostingStatus": false,
+      "hasApprovalStatus": false,
+      "hasAuditImpact": true,
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "genericCrudAllowed": false,
+      "accountingProtected": true,
+      "notes": "Company-scoped and effective-dated account classification. Custom accounts remain unmapped until reviewed.",
+      "knownGaps": [
+        "Controlled assignment writes and user interface are deferred to FSR-2B.2"
+      ]
     },
     {
       "id": "vouchers",
@@ -10724,6 +11219,60 @@
       "relatedWorkflowStage": null
     },
     {
+      "fromTable": "account_groups",
+      "toTable": "account_groups",
+      "relationshipType": "FK",
+      "sourceColumn": "parent_group_id",
+      "targetColumn": "id",
+      "businessMeaning": "Governed account-group hierarchy",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "financial_statement_mappings",
+      "toTable": "account_groups",
+      "relationshipType": "FK",
+      "sourceColumn": "account_group_id",
+      "targetColumn": "id",
+      "businessMeaning": "Financial-statement placement belongs to an account group",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "account_group_assignments",
+      "toTable": "companies",
+      "relationshipType": "FK",
+      "sourceColumn": "company_id",
+      "targetColumn": "id",
+      "businessMeaning": "Account classification is company scoped",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "account_group_assignments",
+      "toTable": "accounts",
+      "relationshipType": "FK",
+      "sourceColumn": "account_id",
+      "targetColumn": "id",
+      "businessMeaning": "Assignment classifies a Chart of Accounts ledger",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "account_group_assignments",
+      "toTable": "account_groups",
+      "relationshipType": "FK",
+      "sourceColumn": "account_group_id",
+      "targetColumn": "id",
+      "businessMeaning": "Assignment selects a governed account group",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "account_group_assignments",
+      "toTable": "users",
+      "relationshipType": "FK",
+      "sourceColumn": "assigned_by",
+      "targetColumn": "id",
+      "businessMeaning": "Assignment records the approving user when applicable",
+      "relatedWorkflowStage": null
+    },
+    {
       "fromTable": "vouchers",
       "toTable": "companies",
       "relationshipType": "FK",
@@ -10998,6 +11547,14 @@
       "service": "audit",
       "tables": [
         "audit_log"
+      ]
+    },
+    {
+      "service": "accountMapping",
+      "tables": [
+        "account_groups",
+        "financial_statement_mappings",
+        "account_group_assignments"
       ]
     }
   ],
@@ -12036,6 +12593,15 @@
       "tables": [
         "crac_records"
       ]
+    },
+    {
+      "migrationVersion": "035",
+      "migrationName": "fsr2b1_account_mapping_registry",
+      "tables": [
+        "account_groups",
+        "financial_statement_mappings",
+        "account_group_assignments"
+      ]
     }
   ],
   "seedMappings": [
@@ -12084,6 +12650,19 @@
       "seedFunction": "seedFinancialYears",
       "tables": [
         "financial_years"
+      ]
+    },
+    {
+      "seedFunction": "seedAccountMappingRegistry",
+      "tables": [
+        "account_groups",
+        "financial_statement_mappings"
+      ]
+    },
+    {
+      "seedFunction": "backfillDefaultAccountMappings",
+      "tables": [
+        "account_group_assignments"
       ]
     }
   ],
@@ -12225,6 +12804,54 @@
       "verificationScript": "verify:accounting"
     },
     {
+      "table": "account_groups",
+      "reason": "Governed Chart of Accounts classification cannot be changed through generic CRUD",
+      "blockedCRUD": [
+        "create",
+        "edit",
+        "delete"
+      ],
+      "controllingService": "accountMappingService",
+      "relatedReports": [
+        "trialBalance",
+        "profitLossReport",
+        "balanceSheetReport"
+      ],
+      "verificationScript": "verify:fsr2b1"
+    },
+    {
+      "table": "financial_statement_mappings",
+      "reason": "Financial-statement placement is governed and versioned",
+      "blockedCRUD": [
+        "create",
+        "edit",
+        "delete"
+      ],
+      "controllingService": "accountMappingService",
+      "relatedReports": [
+        "trialBalance",
+        "profitLossReport",
+        "balanceSheetReport"
+      ],
+      "verificationScript": "verify:fsr2b1"
+    },
+    {
+      "table": "account_group_assignments",
+      "reason": "Company-scoped effective-dated account classification requires controlled assignment",
+      "blockedCRUD": [
+        "create",
+        "edit",
+        "delete"
+      ],
+      "controllingService": "accountMappingService",
+      "relatedReports": [
+        "trialBalance",
+        "profitLossReport",
+        "balanceSheetReport"
+      ],
+      "verificationScript": "verify:fsr2b1"
+    },
+    {
       "table": "financial_years",
       "reason": "FY open/close/lock state controls posting permissions",
       "blockedCRUD": [
@@ -12353,6 +12980,14 @@
     {
       "area": "columnAudit",
       "description": "Column-level audit granularity not yet tracked - audit_log captures old/new JSON but column details not structured"
+    },
+    {
+      "area": "accountMappingCutover",
+      "description": "FSR-2B.1 registry is read-only; report builders and renderer remain on the pre-cutover classification path until FSR-2B.3"
+    },
+    {
+      "area": "accountMappingReview",
+      "description": "Custom and imported accounts remain explicitly unmapped until controlled assignment and review are implemented in FSR-2B.2"
     }
   ],
   "compatibilityNotes": {
@@ -12374,23 +13009,23 @@
     "cascadeBehavior": "ON DELETE CASCADE is explicitly set only for supply_ordersâ†’order_items and a few others â€” most FK cascade behavior is application-managed"
   },
   "statistics": {
-    "totalTables": 70,
-    "totalRelationships": 51,
-    "totalServiceModules": 14,
+    "totalTables": 73,
+    "totalRelationships": 57,
+    "totalServiceModules": 15,
     "totalPostingFunctions": 22,
     "totalReportSources": 26,
-    "totalAccountingProtectedTables": 11,
+    "totalAccountingProtectedTables": 21,
     "totalWorkflowMappings": 10,
-    "totalKnownGaps": 5,
+    "totalKnownGaps": 7,
     "totalAuditMappings": 16,
     "totalWritePolicyMappings": 7,
-    "totalMigrationMappings": 15,
-    "totalSeedMappings": 5
+    "totalMigrationMappings": 16,
+    "totalSeedMappings": 7
   },
   "metadata": {
     "generationTool": "Manual curation",
     "generationCommand": "N/A (hand-authored)",
-    "lastValidated": "2026-07-14",
+    "lastValidated": "2026-07-29",
     "validationMethod": "npm run verify:database-graph"
   }
 }

@@ -766,7 +766,7 @@ async function auditDg1() {
     else warn(`DG-1: Missing posting functions: ${missing.join(", ")}`);
 
     // No database behavior changed (read-only check)
-    pass("DG-1: Audit completed — no runtime database behavior modified");
+    pass("DG-1: Database graph audit completed");
   } catch (e) {
     fail(`DG-1: Parse error — ${e.message}`);
   }

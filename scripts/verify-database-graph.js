@@ -216,6 +216,12 @@ check(
   reportedTableCount === actualTableCount,
   `statistics.totalTables=${reportedTableCount}, actual tables.length=${actualTableCount}`
 );
+const actualProtectedCount = tables.filter((table) => table.accountingProtected === true).length;
+check(
+  "DG-1: statistics.totalAccountingProtectedTables matches protected tables",
+  stats.totalAccountingProtectedTables === actualProtectedCount,
+  `statistics=${stats.totalAccountingProtectedTables}, actual=${actualProtectedCount}`
+);
 
 // ---- 16. supply_orders has relatedWorkflowStage = "WORK_ORDER" ----
 if (supplyOrders) {
@@ -254,7 +260,33 @@ if (accountsTable) {
   );
 }
 
-// ---- 19. ledger_entries column count >= 12 ----
+// ---- 19. FSR-2B.1 mapping registry is represented and protected ----
+const mappingTableIds = [
+  "account_groups",
+  "financial_statement_mappings",
+  "account_group_assignments"
+];
+const mappingTables = mappingTableIds.map((id) => tables.find((table) => table.id === id));
+check(
+  "DG-1: FSR-2B.1 mapping registry tables exist",
+  mappingTables.every(Boolean),
+  mappingTables.filter(Boolean).map((table) => table.id).join(", ")
+);
+check(
+  "DG-1: FSR-2B.1 mapping registry is accounting protected",
+  mappingTables.every((table) => table?.accountingProtected === true && table?.genericCrudAllowed === false),
+  "All mapping tables must block generic CRUD"
+);
+check(
+  "DG-1: FSR-2B.1 mapping registry source files are declared",
+  sourceFilesDeclared(graph, [
+    "src/main/database/accountMappingRegistry.js",
+    "src/main/services/accountMappingService.js"
+  ]),
+  "Registry and read-only service sources"
+);
+
+// ---- 20. ledger_entries column count >= 12 ----
 const ledgerEntries = tables.find((t) => t.id === "ledger_entries");
 if (ledgerEntries) {
   const colCount = (ledgerEntries.columns || []).length;
@@ -265,7 +297,7 @@ if (ledgerEntries) {
   );
 }
 
-// ---- 20. No runtime source files are modified (read-only check) ----
+// ---- 21. No runtime source files are modified (read-only check) ----
 const sourceFiles = graph.sourceFiles || [];
 const modifiedFiles = [];
 sourceFiles.forEach((sf) => {
@@ -286,6 +318,11 @@ check(
 // ---- Meta checks: graph metadata fields ----
 check("DG-1: graphId is DG-1", graph.graphId === "DG-1", `graphId: ${graph.graphId}`);
 check("DG-1: schemaVersion defined", !!graph.schemaVersion, graph.schemaVersion || "Missing");
+
+function sourceFilesDeclared(graphData, requiredFiles) {
+  const declared = new Set(graphData.sourceFiles || []);
+  return requiredFiles.every((file) => declared.has(file));
+}
 
 // ---- Print results ----
 function printResults() {
