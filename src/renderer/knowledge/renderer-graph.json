@@ -1,26 +1,26 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-20T09:37:42.236Z",
+  "generatedAt": "2026-07-29T13:17:47.433Z",
   "sourceRoot": "src/renderer/",
-  "filesScanned": 248,
+  "filesScanned": 249,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-20T09:37:42.237Z",
+    "generated": "2026-07-29T13:17:47.434Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "fileCount": 248,
-    "totalLines": 42219,
-    "totalImports": 683
+    "fileCount": 249,
+    "totalLines": 42259,
+    "totalImports": 685
   },
   "statistics": {
     "filesByCategory": {
       "api": 2,
       "app": 1,
       "other": 4,
-      "component": 40,
+      "component": 41,
       "config": 11,
       "feature": 50,
       "knowledge": 13,
@@ -31,12 +31,12 @@
       "util": 10
     },
     "filesByRisk": {
-      "low": 211,
+      "low": 212,
       "medium": 34,
       "high": 3
     },
     "filesByCriticality": {
-      "Low": 114,
+      "Low": 115,
       "Critical": 7,
       "High": 100,
       "Medium": 27
@@ -44,7 +44,7 @@
     "filesByOwner": {
       "Utilities": 12,
       "Renderer Shell": 24,
-      "Other": 46,
+      "Other": 47,
       "Accounting": 3,
       "CRAC": 11,
       "Dashboard": 50,
@@ -63,7 +63,7 @@
     "filesByChangeFrequency": {
       "Stable": 56,
       "Frequently Modified": 3,
-      "Occasionally Modified": 189
+      "Occasionally Modified": 190
     },
     "avgImportsPerScreen": 3,
     "avgComponentReuse": 2,
@@ -81,7 +81,7 @@
       {
         "path": "App.jsx",
         "importCount": 74,
-        "lines": 1654,
+        "lines": 1664,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -130,7 +130,7 @@
       {
         "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
         "importCount": 11,
-        "lines": 682,
+        "lines": 683,
         "category": "feature",
         "owner": "Dashboard"
       },
@@ -156,9 +156,16 @@
         "owner": "Help"
       },
       {
+        "path": "components/entityPicker/SmartEntityPicker.jsx",
+        "importCount": 10,
+        "lines": 161,
+        "category": "component",
+        "owner": "Other"
+      },
+      {
         "path": "features/billing/BillingVoucherScreen.jsx",
         "importCount": 10,
-        "lines": 979,
+        "lines": 980,
         "category": "feature",
         "owner": "Dashboard"
       },
@@ -172,16 +179,9 @@
       {
         "path": "screens/DashboardScreen.jsx",
         "importCount": 10,
-        "lines": 286,
+        "lines": 287,
         "category": "screen",
         "owner": "Dashboard"
-      },
-      {
-        "path": "components/entityPicker/SmartEntityPicker.jsx",
-        "importCount": 9,
-        "lines": 155,
-        "category": "component",
-        "owner": "Other"
       },
       {
         "path": "components/helpProductivity/index.jsx",
@@ -291,7 +291,7 @@
       },
       {
         "path": "App.jsx",
-        "lines": 1654,
+        "lines": 1664,
         "imports": 74,
         "owner": "Renderer Shell",
         "criticality": "Critical"
@@ -306,20 +306,20 @@
     ],
     "totalRoutes": 114,
     "totalScreens": 41,
-    "totalComponents": 40,
+    "totalComponents": 41,
     "totalFeatures": 50,
     "totalModules": 54,
     "totalConfigFiles": 11,
     "circularImports": 0,
     "circularImportDetails": [],
-    "approximateTokenSavings": "~8592 tokens per AI operation"
+    "approximateTokenSavings": "~8605 tokens per AI operation"
   },
   "heatMap": {
     "mostConnected": [
       {
         "path": "App.jsx",
         "importCount": 74,
-        "lines": 1654,
+        "lines": 1664,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -368,7 +368,7 @@
       {
         "path": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
         "importCount": 11,
-        "lines": 682,
+        "lines": 683,
         "category": "feature",
         "owner": "Dashboard"
       },
@@ -526,12 +526,12 @@
     "mostCritical": [
       {
         "path": "api/client.js",
-        "lines": 98,
+        "lines": 99,
         "imports": 0
       },
       {
         "path": "App.jsx",
-        "lines": 1654,
+        "lines": 1664,
         "imports": 74
       },
       {
@@ -556,7 +556,7 @@
       },
       {
         "path": "screens/DashboardScreen.jsx",
-        "lines": 286,
+        "lines": 287,
         "imports": 10
       }
     ],
@@ -1546,7 +1546,7 @@
         "../stability/rendererStabilityUtils.js",
         "../utils/uiHelpers.js"
       ],
-      "lines": 286,
+      "lines": 287,
       "riskLevel": "low",
       "ownerModule": "Dashboard",
       "businessCriticality": "Critical",
@@ -3464,9 +3464,10 @@
         "../../config/confirmations.js",
         "../../utils/formUtils.js",
         "../../modules/quick-create/quickCreatePermissions.js",
-        "../../modules/quick-create/quickCreateDuplicateGuard.js"
+        "../../modules/quick-create/quickCreateDuplicateGuard.js",
+        "../entityPicker/EntityPickerSelectionStore.js"
       ],
-      "lines": 274,
+      "lines": 276,
       "riskLevel": "low",
       "ownerModule": "Renderer Shell",
       "businessCriticality": "Low",
@@ -3818,9 +3819,10 @@
         "./EntityPickerSearchInput.jsx",
         "./EntityPickerResultList.jsx",
         "../../modules/quick-create/quickCreatePermissions.js",
-        "../../modules/quick-create/quickCreateRegistry.js"
+        "../../modules/quick-create/quickCreateRegistry.js",
+        "./EntityPickerSelectionStore.js"
       ],
-      "lines": 155,
+      "lines": 161,
       "riskLevel": "low",
       "ownerModule": "Other",
       "businessCriticality": "Low",
@@ -4728,6 +4730,40 @@
       }
     },
     {
+      "path": "components/entityPicker/EntityPickerSelectionStore.js",
+      "components": [],
+      "exports": [
+        "rememberEntityPickerRecord",
+        "getRememberedEntityPickerRecord"
+      ],
+      "imports": [],
+      "lines": 17,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "EntityPickerSelectionStore",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/health/VerificationResultBox.jsx",
       "components": [
         "VerificationResultBox"
@@ -4847,7 +4883,7 @@
       "components": [],
       "exports": [],
       "imports": [],
-      "lines": 9,
+      "lines": 10,
       "riskLevel": "low",
       "ownerModule": "Other",
       "businessCriticality": "Low",
@@ -5066,7 +5102,7 @@
         "../../../utils/actionUtils.js",
         "../../../components/entityPicker/SmartEntityPicker.jsx"
       ],
-      "lines": 682,
+      "lines": 683,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -5214,7 +5250,7 @@
         "../../components/entityPicker/SmartEntityPicker.jsx",
         "./billingHelpers.js"
       ],
-      "lines": 979,
+      "lines": 980,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -6062,7 +6098,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 683,
+    "complexityScore": 684,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6093,8 +6129,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 42219,
-    "totalImports": 683
+    "totalLines": 42259,
+    "totalImports": 685
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -6114,7 +6150,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 683,
+    "complexityScore": 684,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6130,7 +6166,7 @@
   "evolution": {
     "current": {
       "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
-      "appJsxLines": 1654,
+      "appJsxLines": 1664,
       "cssLines": 7042,
       "style": "Monolithic"
     },
@@ -6599,6 +6635,10 @@
       "to": "../../modules/quick-create/quickCreateRegistry.js"
     },
     {
+      "from": "components/entityPicker/SmartEntityPicker.jsx",
+      "to": "./EntityPickerSelectionStore.js"
+    },
+    {
       "from": "components/entityPicker/useEntityPickerKeyboard.js",
       "to": "react"
     },
@@ -6793,6 +6833,10 @@
     {
       "from": "components/overlays/QuickCreateMasterDialog.jsx",
       "to": "../../modules/quick-create/quickCreateDuplicateGuard.js"
+    },
+    {
+      "from": "components/overlays/QuickCreateMasterDialog.jsx",
+      "to": "../entityPicker/EntityPickerSelectionStore.js"
     },
     {
       "from": "components/panels/AddRecordPanel.jsx",
@@ -8141,14 +8185,6 @@
     {
       "from": "modules/quick-create/quickCreatePermissions.js",
       "to": "./quickCreateRegistry.js"
-    },
-    {
-      "from": "modules/quick-create/quickCreateResultMapper.js",
-      "to": "./quickCreateRegistry.js"
-    },
-    {
-      "from": "print/PrintTemplateHost.jsx",
-      "to": "react"
     }
   ]
 }

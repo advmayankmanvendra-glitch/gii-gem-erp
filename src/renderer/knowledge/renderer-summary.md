@@ -2,19 +2,19 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0
-**Generated:** 2026-07-20T09:37:42.262Z
+**Generated:** 2026-07-29T13:17:47.452Z
 
 ---
 
 ## 1. Renderer Size
 | Metric | Value |
 |--------|-------|
-| Source Files | 248 |
-| Total Lines | 42,219 |
-| Import Statements | 683 |
-| App.jsx | 1654 lines (~83KB) |
+| Source Files | 249 |
+| Total Lines | 42,259 |
+| Import Statements | 685 |
+| App.jsx | 1664 lines (~83KB) |
 | CSS (single file) | 7,042 lines (125KB) |
-| Complexity Score | 683 |
+| Complexity Score | 684 |
 | Architecture Density | 2.75 imports/file |
 
 ## 2. Screens (41 dedicated files, 114 routes)
@@ -29,14 +29,14 @@
 - **CRAC:** CRAC management, entry, tracker, payment readiness, order closure (5 routes)
 - **Settings, Documents, Help, Health Center, Safe Mode, Deployment**
 
-## 3. Components (40 files)
+## 3. Components (41 files)
 - **Categories:** Layout, Overlays, Forms, Common UI, Tables, Health, CRAC, Help, Inventory, Operations, Accounting Controls, Dashboard
 - **Most Shared Components:** AddRecordPanel (5x), DrilldownPanel (5x), CRACStatusCard (3x)
 - **Avg Reuse:** 2x
 
 ## 4. Ownership
 - **Dashboard:** 50 files
-- **Other:** 46 files
+- **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
 - **Knowledge:** 21 files
@@ -54,19 +54,19 @@
 - **Profitability:** 1 files
 
 ## 5. Business Criticality
-- **Low:** 114 files
+- **Low:** 115 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
 
 ## 6. Change Frequency
-- **Occasionally Modified:** 189 files
+- **Occasionally Modified:** 190 files
 - **Stable:** 56 files
 - **Frequently Modified:** 3 files
 
 ## 7. Architectural Pattern
 1. **Flat routing** — effectiveView state, no router library
-2. **Monolithic App.jsx** — 1654 lines with inline CRUD and view switching
+2. **Monolithic App.jsx** — 1664 lines with inline CRUD and view switching
 3. **Flat hierarchy** — App.jsx imports screens and components directly
 4. **Single CSS** — styles/app.css with 7,042 lines
 5. **Direct IPC** — apiClient prop passed from App.jsx
@@ -92,9 +92,9 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 |------------|-------|
 | High | 3 |
 | Medium | 34 |
-| Low | 211 |
+| Low | 212 |
 - **High:** `api/browserFallbackApi.js` (1114 lines, 2 imports) — Utilities
-- **High:** `App.jsx` (1654 lines, 74 imports) — Renderer Shell
+- **High:** `App.jsx` (1664 lines, 74 imports) — Renderer Shell
 - **High:** `features/importExport/TallyMasterMigrationAssistantScreen.jsx` (1072 lines, 8 imports) — Dashboard
 
 ## 11. Integration with Intelligence Layer

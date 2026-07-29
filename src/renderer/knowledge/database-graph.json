@@ -22,6 +22,7 @@
     "src/main/services/operationsService.js",
     "src/main/services/bankReconciliationService.js",
     "src/main/services/authService.js",
+    "src/main/services/desktopSessionService.js",
     "src/main/services/dashboardService.js",
     "src/main/services/documentService.js",
     "src/main/services/importParserService.js",
@@ -12849,7 +12850,7 @@
         "profitLossReport",
         "balanceSheetReport"
       ],
-      "verificationScript": "verify:fsr2b1"
+      "verificationScript": "verify:fsr2b2a"
     },
     {
       "table": "financial_years",
@@ -12983,11 +12984,11 @@
     },
     {
       "area": "accountMappingCutover",
-      "description": "FSR-2B.1 registry is read-only; report builders and renderer remain on the pre-cutover classification path until FSR-2B.3"
+      "description": "FSR-2B.2A provides controlled effective-dated assignment, but report builders and renderer remain on the pre-cutover classification path until FSR-2B.3"
     },
     {
       "area": "accountMappingReview",
-      "description": "Custom and imported accounts remain explicitly unmapped until controlled assignment and review are implemented in FSR-2B.2"
+      "description": "Custom and imported accounts remain explicitly unmapped until users review them through the FSR-2B.2B Chart of Accounts workflow"
     }
   ],
   "compatibilityNotes": {

@@ -36,6 +36,7 @@ import { createDashboardService } from "../services/dashboardService.js";
 import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
+import { createAccountMappingService } from "../services/accountMappingService.js";
 
 export {
   APP_FOLDERS,
@@ -1744,6 +1745,16 @@ const {
 });
 
 const {
+  getAccountMappingRegistry,
+  getAccountClassifications,
+  getAccountMappingCoverage,
+  getAccountMappingReviewQueue,
+  assignAccountGroup
+} = createAccountMappingService({
+  auditLog
+});
+
+const {
   bulkImportRecords, listImportBatches, previewImportRollback,
   rollbackImportBatch, listItemImportBatches,
   deleteItemImportBatch, deleteUnusedImportedItems,
@@ -1882,6 +1893,12 @@ export {
 
 export {
   authenticate, changeUserPassword, enforcePermission
+};
+
+export {
+  getAccountMappingRegistry, getAccountClassifications,
+  getAccountMappingCoverage, getAccountMappingReviewQueue,
+  assignAccountGroup
 };
 
 export {

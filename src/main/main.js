@@ -78,11 +78,16 @@ import {
   uploadDocument,
   approveVoucherProposal,
   generateVoucherProposalsForImport,
+  getAccountClassifications,
+  getAccountMappingCoverage,
+  getAccountMappingRegistry,
+  getAccountMappingReviewQueue,
   updateVoucherProposal,
   updateFinancialYearStatus,
   updateBankImportStatus,
   updateRecord,
   updateGuidedVoucherStatus,
+  assignAccountGroup,
   APP_FOLDERS,
   DB_NAME,
   changeUserPassword,
@@ -124,11 +129,16 @@ import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelaye
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 import { searchEntities, SUPPORTED_ENTITY_TYPES } from "./services/entitySearchService.js";
+import { createDesktopSessionService } from "./services/desktopSessionService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 let db;
 let runtimeDataRoot = "";
+const desktopSessions = createDesktopSessionService({
+  auditLog,
+  enforcePermission
+});
 
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("disable-gpu");
@@ -213,6 +223,26 @@ function guarded(permission, moduleName, handler) {
   return (_event, ...args) => {
     enforcePermission(db, permission, userContext(args, { module: moduleName, table_name: moduleName }));
     return handler(...args);
+  };
+}
+
+function sessionGuarded(permission, moduleName, handler) {
+  return (event, ...args) => {
+    const payload = firstPayload(args);
+    const user = desktopSessions.requirePermission(
+      db,
+      event.sender.id,
+      permission,
+      {
+        ...payload,
+        module: moduleName,
+        table_name: moduleName
+      }
+    );
+    return handler(...args, {
+      user_id: user.id,
+      user_role: user.role
+    });
   };
 }
 
@@ -440,6 +470,7 @@ function createWindow() {
       sandbox: true
     }
   });
+  const senderId = win.webContents.id;
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -460,6 +491,10 @@ function createWindow() {
 
   win.webContents.on("render-process-gone", (_event, details) => {
     safeMainLog("error", `[renderer-process-gone] ${JSON.stringify(details)}`);
+  });
+
+  win.webContents.on("destroyed", () => {
+    desktopSessions.clearSession(senderId);
   });
 
   win.webContents.on("before-input-event", (event, input) => {
@@ -585,8 +620,15 @@ function installApplicationMenu() {
 }
 
 function registerIpc() {
-  ipcMain.handle("auth:login", (_event, credentials) => {
-    return authenticate(db, credentials.username, credentials.password);
+  ipcMain.handle("auth:login", (event, credentials) => {
+    const user = authenticate(db, credentials.username, credentials.password);
+    if (user) desktopSessions.bindSession(event.sender.id, user);
+    else desktopSessions.clearSession(event.sender.id);
+    return user;
+  });
+  ipcMain.handle("auth:logout", (event) => {
+    desktopSessions.clearSession(event.sender.id);
+    return { success: true };
   });
   ipcMain.handle("auth:change-password", (_event, payload) => {
     return changeUserPassword(db, payload);
@@ -599,6 +641,36 @@ function registerIpc() {
   ipcMain.handle("references:list", (_event, filters) => referenceData(db, filters));
   ipcMain.handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
   ipcMain.handle("accounting:data", (_event, filters) => accountingData(db, filters));
+  ipcMain.handle(
+    "account-mapping:registry",
+    sessionGuarded("account_mapping", "account_mapping", (filters) => (
+      getAccountMappingRegistry(db, filters)
+    ))
+  );
+  ipcMain.handle(
+    "account-mapping:classifications",
+    sessionGuarded("account_mapping", "account_mapping", (filters) => (
+      getAccountClassifications(db, filters)
+    ))
+  );
+  ipcMain.handle(
+    "account-mapping:coverage",
+    sessionGuarded("account_mapping", "account_mapping", (filters) => (
+      getAccountMappingCoverage(db, filters)
+    ))
+  );
+  ipcMain.handle(
+    "account-mapping:review-queue",
+    sessionGuarded("account_mapping", "account_mapping", (filters) => (
+      getAccountMappingReviewQueue(db, filters)
+    ))
+  );
+  ipcMain.handle(
+    "account-mapping:assign",
+    sessionGuarded("account_mapping", "account_mapping", (payload, actor) => (
+      assignAccountGroup(db, payload, actor)
+    ))
+  );
   ipcMain.handle("bank:data", (_event, filters) => bankStatementData(db, filters));
   ipcMain.handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
   ipcMain.handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));

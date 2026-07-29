@@ -286,6 +286,19 @@ check(
   "Registry and read-only service sources"
 );
 
+check(
+  "DG-1: FSR-2B.2A session-bound assignment evidence is declared",
+  sourceFilesDeclared(graph, [
+    "src/main/services/desktopSessionService.js"
+  ])
+    && graph.accountingProtectionMappings.some((mapping) => (
+      mapping.table === "account_group_assignments"
+      && mapping.controllingService === "accountMappingService"
+      && mapping.verificationScript === "verify:fsr2b2a"
+    )),
+  "Session identity and controlled assignment verifier"
+);
+
 // ---- 20. ledger_entries column count >= 12 ----
 const ledgerEntries = tables.find((t) => t.id === "ledger_entries");
 if (ledgerEntries) {

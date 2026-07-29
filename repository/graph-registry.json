@@ -73,7 +73,7 @@
       "owner": "Architecture & Governance",
       "status": "Active",
       "purpose": "Renderer dependency graph, routes, screens, components, contexts, dialogs, IPC",
-      "entryCount": 248,
+      "entryCount": 249,
       "lastUpdated": "2026-07-20",
       "generationTool": "scripts/build-renderer-graph.js",
       "generationCommand": "node scripts/build-renderer-graph.js",

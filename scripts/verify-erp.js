@@ -80,6 +80,7 @@ const PIPELINE = [
   { name: "verify:fsr2a5b", cmd: `${NPM} run verify:fsr2a5b`, continueOn: [0, 1] },
   { name: "verify:fsr2a5c", cmd: `${NPM} run verify:fsr2a5c`, continueOn: [0, 1] },
   { name: "verify:fsr2b1", cmd: `${NPM} run verify:fsr2b1`, continueOn: [0, 1] },
+  { name: "verify:fsr2b2a", cmd: `${NPM} run verify:fsr2b2a`, continueOn: [0, 1] },
   {
     name: "verify:financial-reports",
     cmd: `${NPM} run verify:financial-reports`,
@@ -224,6 +225,7 @@ function main() {
     "verify:fsr2a5b",
     "verify:fsr2a5c",
     "verify:fsr2b1",
+    "verify:fsr2b2a",
   ]);
 
   const hasFunctionalFailure = steps.some(

@@ -353,6 +353,16 @@ function App() {
     notify.timer = window.setTimeout(() => setToast(null), 2600);
   };
 
+  async function logout() {
+    try {
+      await api.logout();
+    } catch {
+      // The local renderer session must still close if the main process is unavailable.
+    } finally {
+      setSession(null);
+    }
+  }
+
   async function loadCompanies() {
     if (!session) return;
     try {
@@ -1372,7 +1382,7 @@ function App() {
           collapsed={rightUtilityCollapsed}
           onToggle={toggleRightUtilitySidebar}
           session={session}
-          onLogout={() => setSession(null)}
+          onLogout={logout}
           companies={safeCompanies}
           companyContext={companyContext}
           currentCompanyId={currentCompanyId}

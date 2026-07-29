@@ -10,13 +10,77 @@ function requiredCompanyId(value) {
 
 function normalizedDate(value) {
   const date = String(value || "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || Number.isNaN(parsed.getTime())
+    || parsed.toISOString().slice(0, 10) !== date
+  ) {
     throw new Error("Account mapping date must use YYYY-MM-DD");
   }
   return date;
 }
 
-export function createAccountMappingService() {
+function requiredId(value, label) {
+  const id = Number(value || 0);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`${label} is required for account mapping`);
+  }
+  return id;
+}
+
+function requiredReason(value) {
+  const reason = String(value || "").trim();
+  if (!reason) {
+    throw new Error("Change reason is required for account mapping");
+  }
+  if (reason.length > 500) {
+    throw new Error("Change reason must be 500 characters or fewer");
+  }
+  return reason;
+}
+
+function previousDate(value) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+export function createAccountMappingService(deps = {}) {
+  const { auditLog } = deps;
+
+  function assignmentSnapshot(db, assignmentId) {
+    return db.prepare(`
+      SELECT
+        assignment.*,
+        account.account_code,
+        account.account_name,
+        group_row.group_code,
+        group_row.group_name
+      FROM account_group_assignments assignment
+      JOIN accounts account ON account.id = assignment.account_id
+      JOIN account_groups group_row ON group_row.id = assignment.account_group_id
+      WHERE assignment.id = ?
+    `).get(assignmentId);
+  }
+
+  function writeAssignmentAudit(db, payload) {
+    if (typeof auditLog !== "function") {
+      throw new Error("Account mapping audit service is unavailable");
+    }
+    auditLog(db, {
+      company_id: payload.company_id,
+      user_id: payload.user_id,
+      user_role: payload.user_role,
+      action: payload.action,
+      module: "account_mapping",
+      table_name: "account_group_assignments",
+      record_id: payload.record_id,
+      old_value: payload.old_value ? JSON.stringify(payload.old_value) : null,
+      new_value: JSON.stringify(payload.new_value)
+    });
+  }
+
   function getAccountMappingRegistry(db, filters = {}) {
     const profileCode = String(filters.reporting_profile_code || DEFAULT_REPORTING_PROFILE.code);
     const profileVersion = String(filters.reporting_profile_version || DEFAULT_REPORTING_PROFILE.version);
@@ -163,9 +227,254 @@ export function createAccountMappingService() {
     };
   }
 
+  function getAccountMappingReviewQueue(db, filters = {}) {
+    return getAccountClassifications(db, filters).filter(
+      (row) => row.mapping_status !== "MAPPED"
+    );
+  }
+
+  function assignAccountGroup(db, payload = {}, actor = {}) {
+    const companyId = requiredCompanyId(payload.company_id);
+    const accountId = requiredId(payload.account_id, "Account");
+    const accountGroupId = requiredId(payload.account_group_id, "Account group");
+    const effectiveFrom = normalizedDate(payload.effective_from);
+    const changeReason = requiredReason(payload.change_reason);
+    const userId = requiredId(actor.user_id, "Authenticated user");
+    const userRole = String(actor.user_role || "").trim();
+
+    const execute = db.transaction(() => {
+      const account = db.prepare(`
+        SELECT id, company_id, account_code, account_name, account_type,
+          normal_balance, status, COALESCE(is_deleted, 0) is_deleted
+        FROM accounts
+        WHERE id = ?
+      `).get(accountId);
+      if (!account || account.status !== "active" || Number(account.is_deleted) === 1) {
+        throw new Error("Select an active account before assigning its account group");
+      }
+      if (Number(account.company_id) !== companyId) {
+        throw new Error("The selected account does not belong to the current company");
+      }
+
+      const group = db.prepare(`
+        SELECT id, group_code, group_name, account_type, normal_balance,
+          posting_allowed, status
+        FROM account_groups
+        WHERE id = ?
+      `).get(accountGroupId);
+      if (!group || group.status !== "active") {
+        throw new Error("Select an active account group");
+      }
+      if (Number(group.posting_allowed) !== 1) {
+        throw new Error("Select a posting account group, not a statement heading");
+      }
+      if (account.account_type !== group.account_type) {
+        throw new Error(
+          `Account type ${account.account_type} is incompatible with ${group.group_name}`
+        );
+      }
+      if (account.normal_balance !== group.normal_balance) {
+        throw new Error(
+          `Account normal balance ${account.normal_balance} is incompatible with ${group.group_name}`
+        );
+      }
+      const statementMapping = db.prepare(`
+        SELECT id
+        FROM financial_statement_mappings
+        WHERE account_group_id = ?
+          AND reporting_profile_code = ?
+          AND reporting_profile_version = ?
+          AND status = 'active'
+          AND effective_from <= ?
+          AND (effective_to IS NULL OR effective_to >= ?)
+        ORDER BY effective_from DESC, id DESC
+        LIMIT 1
+      `).get(
+        accountGroupId,
+        DEFAULT_REPORTING_PROFILE.code,
+        DEFAULT_REPORTING_PROFILE.version,
+        effectiveFrom,
+        effectiveFrom
+      );
+      if (!statementMapping) {
+        throw new Error(
+          "The selected account group has no active governed financial-statement mapping."
+        );
+      }
+
+      const exactDated = db.prepare(`
+        SELECT *
+        FROM account_group_assignments
+        WHERE account_id = ? AND effective_from = ?
+        LIMIT 1
+      `).get(accountId, effectiveFrom);
+
+      if (exactDated && exactDated.status !== "active") {
+        throw new Error(
+          "This date already has a retired mapping. Use a governed historical correction phase."
+        );
+      }
+
+      if (exactDated) {
+        const oldValue = assignmentSnapshot(db, exactDated.id);
+        if (Number(exactDated.account_group_id) === accountGroupId) {
+          writeAssignmentAudit(db, {
+            company_id: companyId,
+            user_id: userId,
+            user_role: userRole,
+            action: "account_mapping_assignment_confirmed",
+            record_id: exactDated.id,
+            old_value: oldValue,
+            new_value: {
+              assignment: oldValue,
+              confirmation_reason: changeReason,
+              changed: false
+            }
+          });
+          return {
+            changed: false,
+            assignment: oldValue,
+            message: "The account already has this mapping from the selected date."
+          };
+        }
+
+        db.prepare(`
+          UPDATE account_group_assignments
+          SET account_group_id = ?,
+              provenance = 'MANUAL',
+              assigned_by = ?,
+              change_reason = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(accountGroupId, userId, changeReason, exactDated.id);
+        const newValue = assignmentSnapshot(db, exactDated.id);
+        writeAssignmentAudit(db, {
+          company_id: companyId,
+          user_id: userId,
+          user_role: userRole,
+          action: "account_mapping_same_date_corrected",
+          record_id: exactDated.id,
+          old_value: oldValue,
+          new_value: newValue
+        });
+        return {
+          changed: true,
+          assignment: newValue,
+          message: "The dated account mapping was corrected."
+        };
+      }
+
+      const laterAssignment = db.prepare(`
+        SELECT *
+        FROM account_group_assignments
+        WHERE account_id = ?
+          AND status = 'active'
+          AND effective_from > ?
+        ORDER BY effective_from, id
+        LIMIT 1
+      `).get(accountId, effectiveFrom);
+      if (laterAssignment) {
+        throw new Error(
+          "A later account mapping already exists. Use a governed historical correction phase."
+        );
+      }
+
+      const effectiveAssignment = db.prepare(`
+        SELECT *
+        FROM account_group_assignments
+        WHERE account_id = ?
+          AND status = 'active'
+          AND effective_from <= ?
+          AND (effective_to IS NULL OR effective_to >= ?)
+        ORDER BY effective_from DESC, id DESC
+        LIMIT 1
+      `).get(accountId, effectiveFrom, effectiveFrom);
+
+      if (
+        effectiveAssignment
+        && Number(effectiveAssignment.account_group_id) === accountGroupId
+      ) {
+        const existingValue = assignmentSnapshot(db, effectiveAssignment.id);
+        writeAssignmentAudit(db, {
+          company_id: companyId,
+          user_id: userId,
+          user_role: userRole,
+          action: "account_mapping_assignment_confirmed",
+          record_id: effectiveAssignment.id,
+          old_value: existingValue,
+          new_value: {
+            assignment: existingValue,
+            confirmation_reason: changeReason,
+            changed: false
+          }
+        });
+        return {
+          changed: false,
+          assignment: existingValue,
+          message: "The account already has this mapping on the selected date."
+        };
+      }
+
+      let previousValue = null;
+      let closedPreviousValue = null;
+      if (effectiveAssignment) {
+        previousValue = assignmentSnapshot(db, effectiveAssignment.id);
+        db.prepare(`
+          UPDATE account_group_assignments
+          SET effective_to = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(previousDate(effectiveFrom), effectiveAssignment.id);
+        closedPreviousValue = assignmentSnapshot(db, effectiveAssignment.id);
+      }
+
+      const insertResult = db.prepare(`
+        INSERT INTO account_group_assignments (
+          company_id, account_id, account_group_id, effective_from,
+          effective_to, status, provenance, assigned_by, change_reason
+        ) VALUES (?, ?, ?, ?, NULL, 'active', 'MANUAL', ?, ?)
+      `).run(
+        companyId,
+        accountId,
+        accountGroupId,
+        effectiveFrom,
+        userId,
+        changeReason
+      );
+      const assignmentId = Number(insertResult.lastInsertRowid);
+      const newValue = assignmentSnapshot(db, assignmentId);
+      writeAssignmentAudit(db, {
+        company_id: companyId,
+        user_id: userId,
+        user_role: userRole,
+        action: previousValue
+          ? "account_mapping_assignment_changed"
+          : "account_mapping_assignment_created",
+        record_id: assignmentId,
+        old_value: previousValue,
+        new_value: previousValue
+          ? {
+            closed_assignment: closedPreviousValue,
+            new_assignment: newValue
+          }
+          : newValue
+      });
+      return {
+        changed: true,
+        assignment: newValue,
+        message: previousValue
+          ? "The account mapping was changed with its history preserved."
+          : "The account mapping was assigned."
+      };
+    });
+
+    return execute();
+  }
+
   return {
     getAccountMappingRegistry,
     getAccountClassifications,
-    getAccountMappingCoverage
+    getAccountMappingCoverage,
+    getAccountMappingReviewQueue,
+    assignAccountGroup
   };
 }

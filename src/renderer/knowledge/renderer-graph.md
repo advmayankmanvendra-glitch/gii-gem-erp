@@ -2,14 +2,14 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0 (Enhanced)
-**Generated:** 2026-07-20T09:37:42.242Z
+**Generated:** 2026-07-29T13:17:47.437Z
 **Source:** `src/renderer/`
 
 ---
 
 ## 1. Architecture Overview
 
-The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1654 App.jsx lines).
+The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1664 App.jsx lines).
 
 **Stack:** React → Vite → Electron → IPC → SQLite
 
@@ -19,12 +19,12 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 
 | Metric | Value |
 |--------|-------|
-| Total Files | 248 |
-| Total Lines | 42,219 |
-| Total Imports | 683 |
+| Total Files | 249 |
+| Total Lines | 42,259 |
+| Total Imports | 685 |
 | Routes | 114 |
 | Screens | 41 |
-| Components | 40 |
+| Components | 41 |
 | Features | 50 |
 | Layers | 12 |
 | Architecture Density | 2.75 imports/file |
@@ -32,13 +32,13 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 | Avg Component Reuse | 2x |
 | Largest Component | components/helpProductivity/index.jsx (597 lines) |
 | Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (963 lines) |
-| Complexity Score | 683 |
+| Complexity Score | 684 |
 | Circular Imports | 0 |
-| Token Savings | ~8592 tokens per AI operation |
+| Token Savings | ~8605 tokens per AI operation |
 
 ### By Owner
 - **Dashboard:** 50 files
-- **Other:** 46 files
+- **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
 - **Knowledge:** 21 files
@@ -56,7 +56,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 - **Profitability:** 1 files
 
 ### By Criticality
-- **Low:** 114 files
+- **Low:** 115 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
@@ -110,13 +110,13 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Critical Files (Business Criticality: Critical)
 | File | Lines | Imports |
 |------|-------|---------|
-| api/client.js | 98 | 0 |
-| App.jsx | 1654 | 74 |
+| api/client.js | 99 | 0 |
+| App.jsx | 1664 | 74 |
 | components/common.jsx | 135 | 2 |
 | components/forms/index.jsx | 378 | 2 |
 | config/navigation.js | 330 | 0 |
 | config/viewDefinitions.js | 447 | 0 |
-| screens/DashboardScreen.jsx | 286 | 10 |
+| screens/DashboardScreen.jsx | 287 | 10 |
 
 ---
 
@@ -180,14 +180,14 @@ All routes via `effectiveView`. No React Router.
 | components/inventoryReports/index.jsx | 326 | 4 | Inventory | Low | Stable |
 | components/dashboard/index.jsx | 293 | 2 | Dashboard | Low | Occasionally Modified |
 | components/panels/DrilldownPanel.jsx | 282 | 5 | Other | Low | Occasionally Modified |
-| components/overlays/QuickCreateMasterDialog.jsx | 274 | 6 | Renderer Shell | Low | Occasionally Modified |
+| components/overlays/QuickCreateMasterDialog.jsx | 276 | 7 | Renderer Shell | Low | Occasionally Modified |
 | components/panels/SmallComponents.jsx | 252 | 4 | Other | Low | Occasionally Modified |
 | components/overlays/index.jsx | 243 | 3 | Renderer Shell | High | Occasionally Modified |
 | components/panels/AddRecordPanel.jsx | 223 | 9 | Other | Low | Occasionally Modified |
 | components/layout/index.jsx | 218 | 4 | Renderer Shell | High | Occasionally Modified |
 | components/helpTraining/index.jsx | 197 | 3 | Help | Low | Occasionally Modified |
 | components/inventoryReports/InventoryDashboardPanel.jsx | 165 | 4 | Inventory | Low | Stable |
-| components/entityPicker/SmartEntityPicker.jsx | 155 | 9 | Other | Low | Occasionally Modified |
+| components/entityPicker/SmartEntityPicker.jsx | 161 | 10 | Other | Low | Occasionally Modified |
 | components/common.jsx | 135 | 2 | Renderer Shell | Critical | Occasionally Modified |
 
 ---
@@ -233,7 +233,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 
 | Stage | Description | Key Metrics |
 |-------|-------------|-------------|
-| **Current** | Monolithic App.jsx, flat routing, single CSS | 1654 App.jsx lines, 7,042 CSS lines |
+| **Current** | Monolithic App.jsx, flat routing, single CSS | 1664 App.jsx lines, 7,042 CSS lines |
 | **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |
 | **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |
 | **Future** | DG-1, WG-1, AG-1 graphs — full intelligence layer | 6 active graphs |
@@ -248,7 +248,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 | 3. API | IPC bridge | api/client.js |
 | 4. Print | Template printing | 17 print files |
 | 5. Screens | App screens | 41 screen files |
-| 6. Components | Shared UI | 40 component files |
+| 6. Components | Shared UI | 41 component files |
 | 7. Features | Domain logic | 50 feature files |
 | 8. Modules | Subsystems | 54 module files |
 | 9. Knowledge | Metadata | 13 knowledge files |
