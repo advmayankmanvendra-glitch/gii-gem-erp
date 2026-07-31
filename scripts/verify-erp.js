@@ -19,6 +19,7 @@ import { execSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate } from "./lib/masterVerificationPolicy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -55,6 +56,8 @@ function validateFinancialReportKnownGaps(stdout) {
 const PIPELINE = [
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
+  { name: "verify:master-policy", cmd: `${NPM} run verify:master-policy`, continueOn: [0, 1] },
+  { name: "verify:screen-actions", cmd: `${NPM} run verify:screen-actions`, continueOn: [0, 1] },
   { name: "verify:knowledge",  cmd: `${NPM} run verify:knowledge`,   continueOn: [0, 1] },
   { name: "verify:audit",      cmd: `${NPM} run verify:audit`,       continueOn: [0, 1] },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
@@ -211,31 +214,9 @@ function main() {
    * Blocking steps:  accounting, financials, controls, voucher-inventory, flow, phase10
    * Non-blocking:    lint, build, knowledge (observations), audit (architecture warnings)
    */
-  const LOCK_BLOCKING_STEPS = new Set([
-    "verify:accounting",
-    "verify:financials",
-    "verify:controls",
-    "verify:voucher-inventory",
-    "verify:flow",
-    "verify:phase10",
-    "verify:fsr2a1",
-    "verify:fsr2a2",
-    "verify:fsr2a3",
-    "verify:fsr2a4",
-    "verify:fsr2a5a",
-    "verify:fsr2a5b",
-    "verify:fsr2a5c",
-    "verify:fsr2b1",
-    "verify:fsr2b2a",
-  ]);
-
-  const hasFunctionalFailure = steps.some(
-    (s) => LOCK_BLOCKING_STEPS.has(s.name) && s.exitCode >= EXIT.WARNING
-  );
-  const hasBlockingFailure = steps.some((s) => s.exitCode >= EXIT.FAIL);
   const workingTreeStatus = gitWorkingTreeStatus();
-  const workingTreeClean = workingTreeStatus.length === 0;
-  const safeToLock = !hasFunctionalFailure && !hasBlockingFailure && workingTreeClean;
+  const lockGate = evaluateMasterLockGate(steps, workingTreeStatus);
+  const { safeToLock, workingTreeClean } = lockGate;
 
   /* ─── Generate report ─── */
   const report = [
@@ -264,6 +245,7 @@ function main() {
     `| Process Exit Code | **${processExit}** |`,
     `| Safe to Commit | **${safeToCommit ? "Yes" : "No"}** |`,
     `| Working Tree Clean | **${workingTreeClean ? "Yes" : "No"}** |`,
+    `| Mandatory Lock Checks Complete | **${lockGate.missingBlockingSteps.length === 0 ? "Yes" : "No"}** |`,
     `| Safe to Lock | **${safeToLock ? "Yes" : "No"}** |`,
     ``,
     `## Safe-to-Lock Governance Policy`,
@@ -279,6 +261,7 @@ function main() {
     `| Workflow integrity | Yes |`,
     `| Phase 10 flow integrity | Yes |`,
     `| FSR-2A accounting-truth certification | Yes |`,
+    `| FSR-2B.1 / 2A / 2B mapping verification | Yes |`,
     `| Dirty or unversioned working tree | **Yes** |`,
     `| Known FSR-2B mapping/classification gaps | **No** |`,
     `| Audit observations (architecture) | **No** |`,
@@ -307,6 +290,9 @@ function main() {
     !workingTreeClean
       ? `\`\`\`\n${workingTreeStatus.slice(0, 4000)}\n\`\`\``
       : ``,
+    lockGate.missingBlockingSteps.length
+      ? `Missing mandatory lock checks: ${lockGate.missingBlockingSteps.join(", ")}`
+      : `All mandatory lock checks executed.`,
     ``,
     `## Details`,
     ``,

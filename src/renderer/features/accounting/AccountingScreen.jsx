@@ -13,6 +13,7 @@ import { buildAllocationCorrectionForm, allocationTargetOptions, formatCell } fr
 import { confirmAction, reversalConfirmOptions, postConfirmOptions, approveConfirmOptions } from "../../utils/actionUtils.js";
 import { AccountMappingReviewPanel } from "./accountMappings/AccountMappingReviewPanel.jsx";
 import { canManageAccountMappings } from "./accountMappings/accountMappingOptions.js";
+import { FinancialYearInputDialog, OpeningBalanceInputDialog } from "./components/AccountingInputDialogs.jsx";
 
 export function AccountingScreen({ view, notify, role, companyContext, onNavigate, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -23,6 +24,8 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
   const [drilldown, setDrilldown] = useState(null);
   const [allocationCorrection, setAllocationCorrection] = useState(null);
   const [allocationCorrectionForm, setAllocationCorrectionForm] = useState(buildAllocationCorrectionForm("receipt"));
+  const [financialYearDialogOpen, setFinancialYearDialogOpen] = useState(false);
+  const [openingBalanceDialog, setOpeningBalanceDialog] = useState(null);
   const canPostControls = roleAllowsAction(role, "voucher");
   const canApproveControls = roleAllowsAction(role, "approve");
   const canManagePeriods = roleAllowsAction(role, "approve");
@@ -462,26 +465,41 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
     }
   }
 
-  async function createFinancialYearFromPrompt() {
+  function openFinancialYearDialog() {
     if (!companyContext?.company_id) {
       notify("Select Current Company before creating a financial year", "error");
       return;
     }
-    const name = window.prompt("Financial year name (example: FY 2027-28)");
-    if (!name) return;
-    const start = window.prompt("Start date (YYYY-MM-DD)");
-    const end = window.prompt("End date (YYYY-MM-DD)");
-    if (!start || !end) return;
+    setFinancialYearDialogOpen(true);
+  }
+
+  async function createFinancialYear(form) {
+    const name = form.financial_year_name.trim();
+    if (!name || !form.start_date || !form.end_date) {
+      notify("Financial year name, start date and end date are required", "error");
+      return;
+    }
+    if (form.end_date < form.start_date) {
+      notify("Financial year end date must be on or after its start date", "error");
+      return;
+    }
     try {
-      await api.createFinancialYear({ company_id: companyContext.company_id, financial_year_name: name, start_date: start, end_date: end, status: "Open" });
+      await api.createFinancialYear({
+        company_id: companyContext.company_id,
+        financial_year_name: name,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        status: "Open"
+      });
       notify("Financial year created");
-      load();
+      setFinancialYearDialogOpen(false);
+      await load();
     } catch (error) {
       notify(error.message, "error");
     }
   }
 
-  async function openOpeningBalancePanel() {
+  function openOpeningBalancePanel() {
     if (!companyContext?.company_id) {
       notify("Select Current Company before posting opening balance", "error");
       return;
@@ -492,8 +510,21 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
       notify("Open financial year and account are required", "error");
       return;
     }
-    const amount = Number(window.prompt(`Opening debit amount for ${account.account_name}`) || 0);
-    if (amount <= 0) return;
+    setOpeningBalanceDialog({ account, year });
+  }
+
+  async function createOpeningBalance(amountValue) {
+    const amount = Number(amountValue);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      notify("Opening debit amount must be greater than zero", "error");
+      return;
+    }
+    const { account, year } = openingBalanceDialog || {};
+    if (!account?.id || !year?.id) {
+      notify("The selected account or financial year is no longer available. Reopen Add Opening and try again.", "error");
+      return;
+    }
+    setOpeningBalanceDialog(null);
     const confirmed = await confirmAction({
       ...postConfirmOptions("opening_balances", account.id),
       message: "Do you want to post this opening balance? Once posted, it may affect trial balance and financial statements."
@@ -510,7 +541,7 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
         remarks: "Opening balance entered from control screen"
       });
       notify("Opening balance voucher posted");
-      load();
+      await load();
     } catch (error) {
       notify(error.message, "error");
     }
@@ -530,7 +561,7 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
             onPresetChange={(date_from, date_to) => setFilters((prev) => ({ ...prev, date_from, date_to }))}
           />
           <ReportActionButtons onExport={() => exportRows(config.title, rows)} onPrint={requestPrintPreview} />
-          {view === "financial_years" && <button className="ghost-btn" onClick={createFinancialYearFromPrompt} disabled={!canManagePeriods}>New FY</button>}
+          {view === "financial_years" && <button className="ghost-btn" onClick={openFinancialYearDialog} disabled={!canManagePeriods}>New FY</button>}
           {view === "opening_balances" && <button className="ghost-btn" onClick={openOpeningBalancePanel} disabled={!canPostControls} data-action-key="opening_balances.add_opening">Add Opening</button>}
           {view === "year_end_closing" && <button className="ghost-btn" onClick={closeYearFromPrompt} disabled={!canManagePeriods}>Close Year</button>}
       </ReportToolbar>
@@ -757,6 +788,17 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
         </div>
       )}
       {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} onDrillVoucher={(row) => openDrilldown(row, "voucher")} />}
+      {financialYearDialogOpen && (
+        <FinancialYearInputDialog onClose={() => setFinancialYearDialogOpen(false)} onSubmit={createFinancialYear} />
+      )}
+      {openingBalanceDialog && (
+        <OpeningBalanceInputDialog
+          account={openingBalanceDialog.account}
+          financialYear={openingBalanceDialog.year}
+          onClose={() => setOpeningBalanceDialog(null)}
+          onSubmit={createOpeningBalance}
+        />
+      )}
     </section>
   );
 }

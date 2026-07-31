@@ -312,6 +312,7 @@ function App() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const confirmResolverRef = useRef(null);
   const exitConfirmResolverRef = useRef(null);
+  const exitRequestPendingRef = useRef(false);
   const lastExitEscRef = useRef(0);
   const currentTitle = viewTitles[view] || [masterViews[view]?.title || transactionViews[view]?.title, masterViews[view]?.description || transactionViews[view]?.description];
   const effectiveView = routeAliases[view] || view;
@@ -484,6 +485,29 @@ function App() {
     setTimeout(resetWorkspaceScroll, 50);
   }
 
+  async function requestApplicationExit() {
+    if (exitRequestPendingRef.current) return;
+    exitRequestPendingRef.current = true;
+    try {
+      const handler = window.__giiGemExitHandler;
+      if (!handler) {
+        window.__giiGemIsExiting = true;
+        api.forceClose?.();
+        return;
+      }
+      const result = await handler();
+      if (result?.confirmed) {
+        window.__giiGemIsExiting = true;
+        api.forceClose?.();
+      }
+    } catch (error) {
+      window.__giiGemIsExiting = false;
+      notify(error?.message || "The ERP could not exit. Please try again.", "error");
+    } finally {
+      exitRequestPendingRef.current = false;
+    }
+  }
+
   useEffect(() => {
     window.__giiGemConfirm = (options = {}) => new Promise((resolve) => {
       confirmResolverRef.current = resolve;
@@ -554,6 +578,8 @@ function App() {
       });
     });
     return () => {
+      window.__giiGemExitHandler = null;
+      exitConfirmResolverRef.current?.({ confirmed: false, reason: "" });
       exitConfirmResolverRef.current = null;
     };
   }, []);
@@ -570,26 +596,14 @@ function App() {
 
   useEffect(() => {
     if (!api.onConfirmClose) return;
-    const unsub = api.onConfirmClose(async () => {
-      const handler = window.__giiGemExitHandler;
-      if (!handler) {
-        window.__giiGemIsExiting = true;
-        api.forceClose?.();
-        return;
-      }
-      const result = await handler();
-      if (result?.confirmed) {
-        window.__giiGemIsExiting = true;
-        api.forceClose?.();
-      }
-    });
+    const unsub = api.onConfirmClose(requestApplicationExit);
     return () => unsub?.();
   }, []);
 
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key !== "Escape" || !session) return;
-      if (confirmDialog) {
+      if (confirmDialog || productivityLearnOpen || printPreview) {
         return;
       }
       if (globalSearchOpen) {
@@ -631,7 +645,11 @@ function App() {
         document.activeElement?.blur?.();
         return;
       }
-      if (view === "dashboard") return;
+      if (view === "dashboard") {
+        event.preventDefault();
+        void requestApplicationExit();
+        return;
+      }
       event.preventDefault();
       const now = Date.now();
       if (now - lastExitEscRef.current < 900) {
@@ -656,7 +674,7 @@ function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, navSearch, view, hasUnsavedChanges, navigationHistory]);
+  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, contextShortcutOpen, userPreferencesOpen, contextHelpOpen, productivityLearnOpen, firstTourOpen, printPreview, navSearch, view, hasUnsavedChanges, navigationHistory]);
 
   function toggleFavorite(key) {
     setFavorites((current) => current.includes(key) ? current.filter((item) => item !== key) : [key, ...current].slice(0, 2));
@@ -1221,7 +1239,12 @@ function App() {
   }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, view, navigationHistory]);
 
   if (!session) {
-    return <LoginScreen onLogin={setSession} notify={notify} toast={toast} api={api} />;
+    return (
+      <>
+        <LoginScreen onLogin={setSession} notify={notify} toast={toast} api={api} />
+        {confirmDialog && <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />}
+      </>
+    );
   }
 
   return (

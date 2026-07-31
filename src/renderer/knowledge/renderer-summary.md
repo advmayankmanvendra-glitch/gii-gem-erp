@@ -2,20 +2,20 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0
-**Generated:** 2026-07-29T15:29:58.865Z
+**Generated:** 2026-07-31T16:36:23.712Z
 
 ---
 
 ## 1. Renderer Size
 | Metric | Value |
 |--------|-------|
-| Source Files | 251 |
-| Total Lines | 42,832 |
-| Import Statements | 694 |
-| App.jsx | 1664 lines (~83KB) |
+| Source Files | 252 |
+| Total Lines | 43,083 |
+| Import Statements | 699 |
+| App.jsx | 1687 lines (~84KB) |
 | CSS (single file) | 7,042 lines (125KB) |
-| Complexity Score | 693 |
-| Architecture Density | 2.76 imports/file |
+| Complexity Score | 697 |
+| Architecture Density | 2.77 imports/file |
 
 ## 2. Screens (41 dedicated files, 114 routes)
 - **Master Data:** companies, employees, suppliers, items, banks, warehouses, ledgers, groups
@@ -35,7 +35,7 @@
 - **Avg Reuse:** 2x
 
 ## 4. Ownership
-- **Dashboard:** 52 files
+- **Dashboard:** 53 files
 - **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
@@ -54,19 +54,19 @@
 - **Profitability:** 1 files
 
 ## 5. Business Criticality
-- **Low:** 117 files
+- **Low:** 118 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
 
 ## 6. Change Frequency
-- **Occasionally Modified:** 192 files
+- **Occasionally Modified:** 193 files
 - **Stable:** 56 files
 - **Frequently Modified:** 3 files
 
 ## 7. Architectural Pattern
 1. **Flat routing** — effectiveView state, no router library
-2. **Monolithic App.jsx** — 1664 lines with inline CRUD and view switching
+2. **Monolithic App.jsx** — 1687 lines with inline CRUD and view switching
 3. **Flat hierarchy** — App.jsx imports screens and components directly
 4. **Single CSS** — styles/app.css with 7,042 lines
 5. **Direct IPC** — apiClient prop passed from App.jsx
@@ -92,9 +92,9 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 |------------|-------|
 | High | 3 |
 | Medium | 36 |
-| Low | 212 |
+| Low | 213 |
 - **High:** `api/browserFallbackApi.js` (1114 lines, 2 imports) — Utilities
-- **High:** `App.jsx` (1664 lines, 74 imports) — Renderer Shell
+- **High:** `App.jsx` (1687 lines, 74 imports) — Renderer Shell
 - **High:** `features/importExport/TallyMasterMigrationAssistantScreen.jsx` (1072 lines, 8 imports) — Dashboard
 
 ## 11. Integration with Intelligence Layer

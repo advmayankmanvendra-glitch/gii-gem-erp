@@ -6,6 +6,7 @@ import { ReportActionButtons } from "../../components/forms/index.jsx";
 import { PhasePanel } from "../../components/panels/SmallComponents.jsx";
 import { confirmAction } from "../../utils/actionUtils.js";
 import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
+import { BankMatchInputDialog } from "./components/AccountingInputDialogs.jsx";
 
 function normalizeImportHeader(header) {
   return header.trim().toLowerCase().replaceAll(/\s+/g, "_").replaceAll(/[^a-z0-9_]/g, "").replace(/^_|_$/g, "");
@@ -84,6 +85,7 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
   const [form, setForm] = useState({ company_id: companyContext?.company_id || "", bank_id: "", bank_name: "Generic Format", file_name: "", remarks: "" });
   const [mapping, setMapping] = useState({});
   const [selectedImportId, setSelectedImportId] = useState("");
+  const [manualMatchEntry, setManualMatchEntry] = useState(null);
 
   async function load(filters = {}) {
     setLoading(true);
@@ -221,11 +223,28 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
     }
   }
 
-  async function manualMatch(entry) {
-    const moduleName = window.prompt("Match module: vouchers, invoices, payments, supplier_payments, procurements, supply_orders", entry.matched_module || "payments");
-    if (!moduleName) return;
-    const recordId = Number(window.prompt("Record ID to link", entry.matched_record_id || ""));
-    if (!recordId) return;
+  function openManualMatch(entry) {
+    setManualMatchEntry(entry);
+  }
+
+  async function manualMatch(form) {
+    const moduleName = form.matched_module;
+    const recordId = Number(form.matched_record_id);
+    const allowedModules = ["invoices", "payments", "procurements", "supplier_payments", "supply_orders", "vouchers"];
+    if (!allowedModules.includes(moduleName)) {
+      notify("Select a supported ERP module for this bank match", "error");
+      return;
+    }
+    if (!Number.isInteger(recordId) || recordId <= 0) {
+      notify("Record ID must be a positive whole number", "error");
+      return;
+    }
+    const entry = manualMatchEntry;
+    if (!entry?.id) {
+      notify("The selected bank entry is no longer available. Reopen Manual Match and try again.", "error");
+      return;
+    }
+    setManualMatchEntry(null);
     const confirmed = await confirmAction({
       mode: "warning",
       title: "Manual Bank Match",
@@ -337,7 +356,7 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
           <button className="ghost-btn danger" type="button" onClick={() => changeStatus("Rejected")}>Reject</button>
           <button className="primary-btn" type="button" onClick={generateProposals}>Generate Proposals</button>
         </div>
-        <BankRowsTable rows={previewRows.length ? previewRows : entries} onMatch={manualMatch} />
+        <BankRowsTable rows={previewRows.length ? previewRows : entries} onMatch={openManualMatch} />
       </section>
 
       {view === "bank_reconciliation" && (
@@ -351,6 +370,9 @@ export function BankStatementScreen({ view, notify, companyContext, api }) {
           </div>
           <BankRowsTable rows={data?.matches || []} matchReport />
         </section>
+      )}
+      {manualMatchEntry && (
+        <BankMatchInputDialog entry={manualMatchEntry} onClose={() => setManualMatchEntry(null)} onSubmit={manualMatch} />
       )}
     </div>
   );

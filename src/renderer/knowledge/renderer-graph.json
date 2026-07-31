@@ -1,19 +1,19 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-29T15:29:58.842Z",
+  "generatedAt": "2026-07-31T16:36:23.692Z",
   "sourceRoot": "src/renderer/",
-  "filesScanned": 251,
+  "filesScanned": 252,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-29T15:29:58.844Z",
+    "generated": "2026-07-31T16:36:23.692Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "fileCount": 251,
-    "totalLines": 42832,
-    "totalImports": 694
+    "fileCount": 252,
+    "totalLines": 43083,
+    "totalImports": 699
   },
   "statistics": {
     "filesByCategory": {
@@ -22,7 +22,7 @@
       "other": 4,
       "component": 41,
       "config": 11,
-      "feature": 52,
+      "feature": 53,
       "knowledge": 13,
       "module": 54,
       "print": 17,
@@ -31,12 +31,12 @@
       "util": 10
     },
     "filesByRisk": {
-      "low": 212,
+      "low": 213,
       "medium": 36,
       "high": 3
     },
     "filesByCriticality": {
-      "Low": 117,
+      "Low": 118,
       "Critical": 7,
       "High": 100,
       "Medium": 27
@@ -47,7 +47,7 @@
       "Other": 47,
       "Accounting": 3,
       "CRAC": 11,
-      "Dashboard": 52,
+      "Dashboard": 53,
       "Health Center": 17,
       "Help": 25,
       "Inventory": 3,
@@ -63,7 +63,7 @@
     "filesByChangeFrequency": {
       "Stable": 56,
       "Frequently Modified": 3,
-      "Occasionally Modified": 192
+      "Occasionally Modified": 193
     },
     "avgImportsPerScreen": 3,
     "avgComponentReuse": 2,
@@ -76,12 +76,12 @@
       "lines": 963
     },
     "layerCount": 12,
-    "architectureDensity": 2.76,
+    "architectureDensity": 2.77,
     "mostConnected": [
       {
         "path": "App.jsx",
         "importCount": 74,
-        "lines": 1664,
+        "lines": 1687,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -93,16 +93,16 @@
         "owner": "Renderer Shell"
       },
       {
-        "path": "features/transactions/TransactionScreen.jsx",
+        "path": "features/accounting/AccountingScreen.jsx",
         "importCount": 16,
-        "lines": 610,
+        "lines": 805,
         "category": "feature",
         "owner": "Dashboard"
       },
       {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "importCount": 15,
-        "lines": 763,
+        "path": "features/transactions/TransactionScreen.jsx",
+        "importCount": 16,
+        "lines": 610,
         "category": "feature",
         "owner": "Dashboard"
       },
@@ -198,6 +198,13 @@
         "owner": "Other"
       },
       {
+        "path": "features/accounting/BankStatementScreen.jsx",
+        "importCount": 9,
+        "lines": 380,
+        "category": "feature",
+        "owner": "Dashboard"
+      },
+      {
         "path": "screens/HealthCenter/HealthCenterScreen.jsx",
         "importCount": 9,
         "lines": 144,
@@ -210,19 +217,12 @@
         "lines": 367,
         "category": "component",
         "owner": "Renderer Shell"
-      },
-      {
-        "path": "features/accounting/BankStatementScreen.jsx",
-        "importCount": 8,
-        "lines": 358,
-        "category": "feature",
-        "owner": "Dashboard"
       }
     ],
     "mostDepended": [
       {
         "name": "react",
-        "count": 141
+        "count": 142
       },
       {
         "name": "utils/formatters.js",
@@ -291,7 +291,7 @@
       },
       {
         "path": "App.jsx",
-        "lines": 1664,
+        "lines": 1687,
         "imports": 74,
         "owner": "Renderer Shell",
         "criticality": "Critical"
@@ -307,19 +307,19 @@
     "totalRoutes": 114,
     "totalScreens": 41,
     "totalComponents": 41,
-    "totalFeatures": 52,
+    "totalFeatures": 53,
     "totalModules": 54,
     "totalConfigFiles": 11,
     "circularImports": 0,
     "circularImportDetails": [],
-    "approximateTokenSavings": "~8708 tokens per AI operation"
+    "approximateTokenSavings": "~8767 tokens per AI operation"
   },
   "heatMap": {
     "mostConnected": [
       {
         "path": "App.jsx",
         "importCount": 74,
-        "lines": 1664,
+        "lines": 1687,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -331,16 +331,16 @@
         "owner": "Renderer Shell"
       },
       {
-        "path": "features/transactions/TransactionScreen.jsx",
+        "path": "features/accounting/AccountingScreen.jsx",
         "importCount": 16,
-        "lines": 610,
+        "lines": 805,
         "category": "feature",
         "owner": "Dashboard"
       },
       {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "importCount": 15,
-        "lines": 763,
+        "path": "features/transactions/TransactionScreen.jsx",
+        "importCount": 16,
+        "lines": 610,
         "category": "feature",
         "owner": "Dashboard"
       },
@@ -390,7 +390,7 @@
     "mostDepended": [
       {
         "name": "react",
-        "count": 141
+        "count": 142
       },
       {
         "name": "utils/formatters.js",
@@ -441,13 +441,13 @@
         "category": "config"
       },
       {
-        "path": "features/transactions/TransactionScreen.jsx",
+        "path": "features/accounting/AccountingScreen.jsx",
         "fanOut": 16,
         "category": "feature"
       },
       {
-        "path": "features/accounting/AccountingScreen.jsx",
-        "fanOut": 15,
+        "path": "features/transactions/TransactionScreen.jsx",
+        "fanOut": 16,
         "category": "feature"
       },
       {
@@ -484,11 +484,11 @@
     "highestFanIn": [
       {
         "name": "react",
-        "count": 141
+        "count": 142
       },
       {
         "name": "index",
-        "count": 74
+        "count": 75
       },
       {
         "name": "formatters",
@@ -531,7 +531,7 @@
       },
       {
         "path": "App.jsx",
-        "lines": 1664,
+        "lines": 1687,
         "imports": 74
       },
       {
@@ -4971,6 +4971,7 @@
       "components": [
         "AccountingScreen",
         "tableNameForControlRow",
+        "openFinancialYearDialog",
         "openOpeningBalancePanel"
       ],
       "exports": [
@@ -4991,9 +4992,10 @@
         "./accountingHelpers.js",
         "../../utils/actionUtils.js",
         "./accountMappings/AccountMappingReviewPanel.jsx",
-        "./accountMappings/accountMappingOptions.js"
+        "./accountMappings/accountMappingOptions.js",
+        "./components/AccountingInputDialogs.jsx"
       ],
-      "lines": 763,
+      "lines": 805,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -5094,9 +5096,10 @@
         "../../components/forms/index.jsx",
         "../../components/panels/SmallComponents.jsx",
         "../../utils/actionUtils.js",
-        "../../utils/optionSorting.js"
+        "../../utils/optionSorting.js",
+        "./components/AccountingInputDialogs.jsx"
       ],
-      "lines": 358,
+      "lines": 380,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -5162,6 +5165,30 @@
       ],
       "imports": [],
       "lines": 169,
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Accounting Workflow"
+    },
+    {
+      "path": "features/accounting/components/AccountingInputDialogs.jsx",
+      "components": [
+        "ControlledInputDialog",
+        "FinancialYearInputDialog",
+        "OpeningBalanceInputDialog",
+        "BankMatchInputDialog"
+      ],
+      "exports": [
+        "FinancialYearInputDialog",
+        "OpeningBalanceInputDialog",
+        "BankMatchInputDialog"
+      ],
+      "imports": [
+        "react",
+        "../../../components/FocusTrap.jsx",
+        "../../../components/overlays/index.jsx"
+      ],
+      "lines": 164,
       "ownerModule": "Dashboard",
       "businessCriticality": "Low",
       "changeFrequency": "Occasionally Modified",
@@ -6141,7 +6168,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 693,
+    "complexityScore": 697,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6172,8 +6199,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 42832,
-    "totalImports": 694
+    "totalLines": 43083,
+    "totalImports": 699
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -6193,7 +6220,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 693,
+    "complexityScore": 697,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6209,7 +6236,7 @@
   "evolution": {
     "current": {
       "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
-      "appJsxLines": 1664,
+      "appJsxLines": 1687,
       "cssLines": 7042,
       "style": "Monolithic"
     },
@@ -7138,6 +7165,10 @@
       "to": "./accountMappings/accountMappingOptions.js"
     },
     {
+      "from": "features/accounting/AccountingScreen.jsx",
+      "to": "./components/AccountingInputDialogs.jsx"
+    },
+    {
       "from": "features/accounting/accountingTableConfig.js",
       "to": "../../screens/ReadOnlyReportFamilyScreen.jsx"
     },
@@ -7218,6 +7249,10 @@
       "to": "../../utils/optionSorting.js"
     },
     {
+      "from": "features/accounting/BankStatementScreen.jsx",
+      "to": "./components/AccountingInputDialogs.jsx"
+    },
+    {
       "from": "features/accounting/businessVouchers/BusinessVoucherIntelligencePanel.jsx",
       "to": "react"
     },
@@ -7276,6 +7311,18 @@
     {
       "from": "features/accounting/businessVouchers/BusinessVoucherScreen.jsx",
       "to": "../../../components/entityPicker/SmartEntityPicker.jsx"
+    },
+    {
+      "from": "features/accounting/components/AccountingInputDialogs.jsx",
+      "to": "react"
+    },
+    {
+      "from": "features/accounting/components/AccountingInputDialogs.jsx",
+      "to": "../../../components/FocusTrap.jsx"
+    },
+    {
+      "from": "features/accounting/components/AccountingInputDialogs.jsx",
+      "to": "../../../components/overlays/index.jsx"
     },
     {
       "from": "features/accounting/VoucherEntryScreen.jsx",
@@ -8208,26 +8255,6 @@
     {
       "from": "modules/helpAssistant/helpAssistantUtils.js",
       "to": "./helpAssistantIntentMap.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./helpAssistantScoring.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./helpAssistantReadiness.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./screenHelpAnswer.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./helpAssistantKnowledge.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "../erpBrain/services/sourceBackedSearchService.js"
     }
   ]
 }

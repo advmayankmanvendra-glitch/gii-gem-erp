@@ -2,14 +2,14 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0 (Enhanced)
-**Generated:** 2026-07-29T15:29:58.848Z
+**Generated:** 2026-07-31T16:36:23.696Z
 **Source:** `src/renderer/`
 
 ---
 
 ## 1. Architecture Overview
 
-The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1664 App.jsx lines).
+The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1687 App.jsx lines).
 
 **Stack:** React → Vite → Electron → IPC → SQLite
 
@@ -19,25 +19,25 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 
 | Metric | Value |
 |--------|-------|
-| Total Files | 251 |
-| Total Lines | 42,832 |
-| Total Imports | 694 |
+| Total Files | 252 |
+| Total Lines | 43,083 |
+| Total Imports | 699 |
 | Routes | 114 |
 | Screens | 41 |
 | Components | 41 |
-| Features | 52 |
+| Features | 53 |
 | Layers | 12 |
-| Architecture Density | 2.76 imports/file |
+| Architecture Density | 2.77 imports/file |
 | Avg Imports/Screen | 3 |
 | Avg Component Reuse | 2x |
 | Largest Component | components/helpProductivity/index.jsx (597 lines) |
 | Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (963 lines) |
-| Complexity Score | 693 |
+| Complexity Score | 697 |
 | Circular Imports | 0 |
-| Token Savings | ~8708 tokens per AI operation |
+| Token Savings | ~8767 tokens per AI operation |
 
 ### By Owner
-- **Dashboard:** 52 files
+- **Dashboard:** 53 files
 - **Other:** 47 files
 - **Help:** 25 files
 - **Renderer Shell:** 24 files
@@ -56,7 +56,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 - **Profitability:** 1 files
 
 ### By Criticality
-- **Low:** 117 files
+- **Low:** 118 files
 - **High:** 100 files
 - **Medium:** 27 files
 - **Critical:** 7 files
@@ -70,8 +70,8 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 |------|---------|----------|-------|
 | App.jsx | 74 | app | Renderer Shell |
 | config/screenRegistry.jsx | 23 | config | Renderer Shell |
+| features/accounting/AccountingScreen.jsx | 16 | feature | Dashboard |
 | features/transactions/TransactionScreen.jsx | 16 | feature | Dashboard |
-| features/accounting/AccountingScreen.jsx | 15 | feature | Dashboard |
 | print/PrintTemplateHost.jsx | 14 | print | Print |
 | modules/helpAssistant/HelpAssistant.jsx | 12 | module | Help |
 | componentRegistry/registry.js | 11 | other | Other |
@@ -82,8 +82,8 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Highest Fan-In (Most Imported By Others)
 | Module/File | Times Imported |
 |-------------|----------------|
-| react | 141 |
-| index | 74 |
+| react | 142 |
+| index | 75 |
 | formatters | 55 |
 | common | 38 |
 | optionSorting | 17 |
@@ -111,7 +111,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 | File | Lines | Imports |
 |------|-------|---------|
 | api/client.js | 100 | 0 |
-| App.jsx | 1664 | 74 |
+| App.jsx | 1687 | 74 |
 | components/common.jsx | 135 | 2 |
 | components/forms/index.jsx | 378 | 2 |
 | config/navigation.js | 330 | 0 |
@@ -233,7 +233,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 
 | Stage | Description | Key Metrics |
 |-------|-------------|-------------|
-| **Current** | Monolithic App.jsx, flat routing, single CSS | 1664 App.jsx lines, 7,042 CSS lines |
+| **Current** | Monolithic App.jsx, flat routing, single CSS | 1687 App.jsx lines, 7,042 CSS lines |
 | **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |
 | **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |
 | **Future** | DG-1, WG-1, AG-1 graphs — full intelligence layer | 6 active graphs |
@@ -249,7 +249,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 | 4. Print | Template printing | 17 print files |
 | 5. Screens | App screens | 41 screen files |
 | 6. Components | Shared UI | 41 component files |
-| 7. Features | Domain logic | 52 feature files |
+| 7. Features | Domain logic | 53 feature files |
 | 8. Modules | Subsystems | 54 module files |
 | 9. Knowledge | Metadata | 13 knowledge files |
 | 10. Stability | Recovery | 5 stability files |

@@ -1,7 +1,7 @@
 {
   "enterpriseIntelligenceLayer": "1.0.0",
   "registryVersion": "1.1.0",
-  "generatedAt": "2026-07-29T15:29:58.865Z",
+  "generatedAt": "2026-07-31T16:36:23.692Z",
   "description": "Single discovery point for all Enterprise Intelligence Layer repositories. AI tools must load this registry first before loading any graph.",
   "compatibilityMatrix": {
     "BRAIN-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "RG-1": "^1.0" } },
@@ -73,8 +73,8 @@
       "owner": "Architecture & Governance",
       "status": "Active",
       "purpose": "Renderer dependency graph, routes, screens, components, contexts, dialogs, IPC",
-      "entryCount": 251,
-      "lastUpdated": "2026-07-29",
+      "entryCount": 252,
+      "lastUpdated": "2026-07-31",
       "generationTool": "scripts/build-renderer-graph.js",
       "generationCommand": "node scripts/build-renderer-graph.js",
       "sourceDirectories": ["src/renderer/"],
