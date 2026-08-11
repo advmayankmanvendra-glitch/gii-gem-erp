@@ -903,9 +903,114 @@ async function auditAg1() {
   if (!shouldRun("ag-1")) return;
   console.log("\n=== AG-1 Audit Pack ===");
 
-  info("AG-1: Audit graph not yet implemented — planned future phase");
-  console.log("AG-1: Expected source: audit log system, KG-1 metadata");
-  console.log("AG-1: Expected output: TBD");
+  const ag1Path = resolve(ROOT, "src/renderer/knowledge/audit-graph.json");
+  const ag1SchemaPath = resolve(ROOT, "repository/schema/audit-graph.schema.json");
+  const ag1ScriptPath = resolve(ROOT, "scripts/verify-audit-graph.js");
+
+  // 1. Existence
+  if (existsSync(ag1Path)) {
+    pass("AG-1: Audit graph file exists");
+  } else {
+    info("AG-1: Audit graph file not found — planned future phase");
+    return;
+  }
+
+  if (existsSync(ag1SchemaPath)) pass("AG-1: Audit graph schema exists");
+  else info("AG-1: Schema not found");
+
+  if (existsSync(ag1ScriptPath)) pass("AG-1: Standalone validation script exists");
+  else info("AG-1: Standalone validation script not found");
+
+  // 2. Parse and validate structure
+  try {
+    const raw = readFileSync(ag1Path, "utf-8");
+    const ag1 = JSON.parse(raw);
+
+    // 3. Identity
+    if (ag1.graphId === "AG-1") pass(`AG-1: graphId = ${ag1.graphId}`);
+    else fail(`AG-1: graphId expected AG-1, got ${ag1.graphId}`);
+    pass(`AG-1: version = ${ag1.version}, status = ${ag1.status}, schemaVersion = ${ag1.schemaVersion}`);
+
+    // 4. EIL contract fields
+    const requiredFields = [
+      "schemaVersion", "graphId", "generatedAt", "owner", "description",
+      "dependencies", "relationships", "risk", "metadata", "statistics",
+      "compatibility", "futureExtensions"
+    ];
+    const missingFields = requiredFields.filter((f) => ag1[f] === undefined);
+    if (missingFields.length === 0) pass("AG-1: EIL schema contract fields present");
+    else fail(`AG-1: Missing EIL contract fields: ${missingFields.join(", ")}`);
+
+    // 5. Core sections
+    if (Array.isArray(ag1.eventCatalog)) pass(`AG-1: ${ag1.eventCatalog.length} audit events catalogued`);
+    else fail("AG-1: eventCatalog array missing");
+    if (Array.isArray(ag1.modules)) pass(`AG-1: ${ag1.modules.length} audit modules`);
+    else fail("AG-1: modules array missing");
+    if (Array.isArray(ag1.criticalActions)) pass(`AG-1: ${ag1.criticalActions.length} critical actions classified`);
+    else fail("AG-1: criticalActions array missing");
+    if (Array.isArray(ag1.auditStores)) pass(`AG-1: ${ag1.auditStores.length} audit stores documented`);
+    else fail("AG-1: auditStores array missing");
+    if (Array.isArray(ag1.mutations)) pass(`AG-1: ${ag1.mutations.length} table mutation mappings`);
+    else fail("AG-1: mutations array missing");
+    if (Array.isArray(ag1.actors)) pass(`AG-1: ${ag1.actors.length} actor roles`);
+    else fail("AG-1: actors array missing");
+    if (Array.isArray(ag1.approvals)) pass(`AG-1: ${ag1.approvals.length} approval flows`);
+    else fail("AG-1: approvals array missing");
+    if (Array.isArray(ag1.complianceControls)) pass(`AG-1: ${ag1.complianceControls.length} compliance controls`);
+    else fail("AG-1: complianceControls array missing");
+
+    // 6. Critical action classification spot-checks
+    const criticalSet = new Set(ag1.criticalActions || []);
+    const mustBeCritical = [
+      "voucher posting", "voucher reversal", "guided_voucher_posted",
+      "year close and carry forward", "financial year create", "opening balance create",
+      "stock_inward_posted", "operational_reset", "admin_password_reset",
+      "password_recovery_reset", "bulk import", "rollback import", "hard_delete"
+    ];
+    const missingCritical = mustBeCritical.filter((a) => !criticalSet.has(a));
+    if (missingCritical.length === 0) pass("AG-1: Core accounting/security actions classified critical");
+    else fail(`AG-1: Actions missing from criticalActions: ${missingCritical.join(", ")}`);
+
+    // 7. Every critical catalog event is in criticalActions
+    const criticalEvents = (ag1.eventCatalog || []).filter((e) => e.severity === "critical");
+    const uncataloguedCritical = criticalEvents
+      .map((e) => e.action)
+      .filter((a) => !criticalSet.has(a));
+    if (uncataloguedCritical.length === 0) pass(`AG-1: ${criticalEvents.length} critical events all mapped in criticalActions`);
+    else fail(`AG-1: Critical events missing from criticalActions: ${uncataloguedCritical.join(", ")}`);
+
+    // 8. No live business data (graph must stay read-only and free of live rows)
+    const livePatterns = [/record_id["\]]\s*:\s*\d+/, /user_id["\]]\s*:\s*\d+/, /company_id["\]]\s*:\s*\d+/, /voucher_number["\]]\s*:/];
+    const liveHits = livePatterns.filter((re) => re.test(raw));
+    if (liveHits.length === 0) pass("AG-1: No live business data embedded in graph");
+    else warn(`AG-1: Possible live data patterns detected (${liveHits.length})`);
+
+    // 9. Source documents resolve
+    const sourceMissing = (ag1.sourceDocuments || []).filter((p) => !existsSync(resolve(ROOT, p)));
+    if (sourceMissing.length === 0) pass(`AG-1: All ${(ag1.sourceDocuments || []).length} source documents resolve`);
+    else warn(`AG-1: Missing source references: ${sourceMissing.join(", ")}`);
+
+    // 10. Registry sync
+    const regPath = resolve(ROOT, "repository/graph-registry.json");
+    if (existsSync(regPath)) {
+      const reg = JSON.parse(readFileSync(regPath, "utf-8"));
+      const agReg = reg.graphs?.find((g) => g.graphId === "AG-1");
+      if (agReg && agReg.status === "Active") {
+        pass("AG-1: Registered in graph registry as Active");
+      } else {
+        warn(`AG-1: Registry entry not Active (${agReg ? `status=${agReg.status}` : "not found"})`);
+      }
+    }
+
+    // 11. Stats integrity
+    const stats = ag1.statistics || {};
+    if (stats.totalEvents === ag1.eventCatalog?.length) pass(`AG-1: statistics totalEvents matches (${stats.totalEvents})`);
+    else fail(`AG-1: statistics totalEvents ${stats.totalEvents} != catalog ${ag1.eventCatalog?.length}`);
+
+    pass("AG-1: Audit graph audit completed — descriptive, read-only, no runtime behavior modified");
+  } catch (e) {
+    fail(`AG-1: Parse error — ${e.message}`);
+  }
 }
 
 /* ═══════════════════════════════════════════

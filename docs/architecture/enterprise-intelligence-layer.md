@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Status:** Active (Frozen)
-**Last Updated:** 2026-07-01
+**Last Updated:** 2026-08-11
 
 ---
 
@@ -23,9 +23,9 @@ Future AI tools (Codex, OpenCode, ChatGPT, and internal AI systems) shall use th
 | ERP Knowledge Repository | BRAIN-1 | **Active** | Business knowledge, glossary, modules, workflows, navigation, business rules |
 | Metadata Registry | KG-1 | **Active** | Metadata, ownership, permissions, risks, traceability, correction policies |
 | Renderer Intelligence Graph | RG-1 | **Active** | Renderer dependency graph, routes, screens, components, contexts, dialogs, IPC |
-| Database Intelligence Graph | DG-1 | Planned | Database schema, tables, columns, relationships, indices, triggers |
-| Workflow Intelligence Graph | WG-1 | Planned | Workflow graph, lifecycle states, transitions, pre/post conditions |
-| Audit Intelligence Graph | AG-1 | Planned | Audit events, mutations, users, approvals, compliance |
+| Database Intelligence Graph | DG-1 | **Active** | Database schema, tables, columns, relationships, indices, triggers |
+| Workflow Intelligence Graph | WG-1 | **Active** | Workflow graph, lifecycle states, transitions, pre/post conditions |
+| Audit Intelligence Graph | AG-1 | **Active** | Audit events, mutations, users, approvals, compliance |
 
 ---
 
@@ -125,7 +125,9 @@ Active graph regeneration:
 - **RG-1** — `scripts/build-renderer-graph.js` — regenerated when renderer source changes significantly
 - **BRAIN-1** — Hand-authored — regenerated during architecture audit phases
 - **KG-1** — Hand-authored — regenerated during architecture audit phases
-- **DG-1, WG-1, AG-1** — TBD (future phases)
+- **DG-1** — Hand-authored — regenerated when database schema or service structure changes significantly
+- **WG-1** — Hand-authored — regenerated when lifecycle stages or governance rules change
+- **AG-1** — Hand-authored from the audit action catalog — regenerated when audit actions, audit tables, or audit modules change in `src/main`
 
 ---
 
@@ -188,13 +190,15 @@ The Enterprise Intelligence Layer is designed to grow. Future additions must:
 | AI Planning Layer | AI tools propose changes, EIL validates impact across all graphs before code is written |
 | Self-documenting architecture | EIL becomes source of truth — code generation, refactoring, and docs derived from graphs |
 
-Planned future graphs:
+All six Enterprise Intelligence Layer graphs are now implemented:
 
 | Graph | Phase | Purpose |
 |-------|-------|---------|
-| DG-1 | Future | Database Intelligence Graph |
-| WG-1 | Future | Workflow Intelligence Graph |
-| AG-1 | Future | Audit Intelligence Graph |
+| DG-1 | Complete | Database Intelligence Graph |
+| WG-1 | Complete | Workflow Intelligence Graph |
+| AG-1 | Complete | Audit Intelligence Graph |
+
+No new graph is currently registered as planned.
 
 ---
 
@@ -226,6 +230,9 @@ All active graphs are verified by `scripts/verify-audit.js`:
 | BRAIN-1 | brain-1 | `verify:audit --phase=brain-1` |
 | KG-1 | kg-1 | `verify:audit --phase=kg-1` |
 | RG-1 | rg-1 | `verify:audit --phase=rg-1` |
+| DG-1 | dg-1 | `npm run verify:database-graph` |
+| WG-1 | wg-1 | `npm run verify:workflow-graph` |
+| AG-1 | ag-1 | `npm run verify:audit-graph` |
 
 ---
 

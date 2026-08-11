@@ -1,7 +1,7 @@
 {
   "enterpriseIntelligenceLayer": "1.0.0",
   "registryVersion": "1.1.0",
-  "generatedAt": "2026-07-31T16:36:23.692Z",
+  "generatedAt": "2026-08-11T00:00:00.000Z",
   "description": "Single discovery point for all Enterprise Intelligence Layer repositories. AI tools must load this registry first before loading any graph.",
   "compatibilityMatrix": {
     "BRAIN-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "RG-1": "^1.0" } },
@@ -10,7 +10,7 @@
     "DG-1": { "version": "1.1.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
     "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
-    "AG-1": { "version": "0.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
+    "AG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
     "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } }
   },
   "dependencies": {
@@ -180,21 +180,24 @@
     {
       "graphId": "AG-1",
       "title": "Audit Intelligence Graph",
-      "version": "0.0.0",
-      "schema": "TBD",
-      "location": "TBD",
+      "version": "1.0.0",
+      "schema": "repository/schema/audit-graph.schema.json",
+      "location": "src/renderer/knowledge/audit-graph.json",
       "owner": "Architecture & Governance",
-      "status": "Planned",
+      "status": "Active",
       "purpose": "Audit events, mutations, users, approvals, compliance",
-      "entryCount": 0,
-      "lastUpdated": "N/A",
-      "generationTool": "TBD",
-      "generationCommand": "TBD",
-      "sourceDirectories": ["TBD"],
-      "validationMethod": "TBD",
-      "regenerationTrigger": "Future phase",
+      "entryCount": 97,
+      "lastUpdated": "2026-08-11",
+      "generationTool": "Manual curation from audit action catalog",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": [
+        "src/main/services/",
+        "src/main/database/"
+      ],
+      "validationMethod": "npm run verify:audit-graph",
+      "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
-      "schemaVersion": "0.0.0",
+      "schemaVersion": "1.0.0",
       "futureGraph": "N/A"
     }
   ]

@@ -1,0 +1,343 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:ag-1:schema:1.0.0",
+  "title": "AG-1 Audit Intelligence Graph Schema",
+  "description": "JSON Schema for the AG-1 Audit Intelligence Graph. Follows the Enterprise Intelligence Layer schema contract. Frozen at schemaVersion 1.0.0.",
+  "type": "object",
+  "schemaVersion": "1.0.0",
+  "graphId": "AG-1",
+  "required": [
+    "schemaVersion", "graphId", "generatedAt", "owner", "description",
+    "version", "status",
+    "dependencies", "relationships", "auditStores",
+    "modules", "eventCatalog", "mutations", "actors", "approvals",
+    "complianceControls", "criticalActions", "trustBoundaries",
+    "knownGaps", "sourceDocuments", "validationRules",
+    "risk", "metadata", "statistics", "compatibility", "futureExtensions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the AG-1 schema.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier.",
+      "enum": ["AG-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owner of this audit graph.",
+      "enum": ["Architecture & Governance"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the audit graph."
+    },
+    "version": {
+      "type": "string",
+      "description": "Graph data version."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "partial", "planned", "deprecated"],
+      "description": "Graph lifecycle status."
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Graph dependency declarations.",
+      "required": ["dependsOn", "dependedBy"],
+      "properties": {
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dependedBy": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "Cross-graph relationship notes.",
+      "properties": {
+        "graphReferences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["graphId", "role"],
+            "properties": {
+              "graphId": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "auditStores": {
+      "type": "array",
+      "description": "Physical audit trail stores captured by the graph.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["storeId", "tableName", "purpose", "columns"],
+        "properties": {
+          "storeId": { "type": "string" },
+          "tableName": { "type": "string" },
+          "purpose": { "type": "string" },
+          "integrityMechanism": { "type": "string" },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "purpose": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "description": "Audit module catalog (module field values used across the ERP).",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["moduleId", "label"],
+        "properties": {
+          "moduleId": { "type": "string" },
+          "label": { "type": "string" },
+          "primaryServices": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "auditLogTable": { "type": "string" }
+        }
+      }
+    },
+    "eventCatalog": {
+      "type": "array",
+      "description": "Audit action event catalog. Each entry maps an action to its module, severity, affected table, and source locations.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["eventId", "action", "module", "severity"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "action": { "type": "string" },
+          "module": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "sensitive", "informational"]
+          },
+          "table": { "type": "string" },
+          "description": { "type": "string" },
+          "sourceFiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "actorRole": { "type": "string" }
+        }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "description": "Table mutation mapping — which audit actions mutate which tables.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["tableName", "actions"],
+        "properties": {
+          "tableName": { "type": "string" },
+          "actions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "mutationSeverity": {
+            "type": "string",
+            "enum": ["critical", "sensitive", "informational"]
+          },
+          "writePolicy": { "type": "string" }
+        }
+      }
+    },
+    "actors": {
+      "type": "array",
+      "description": "Audit actor (user role) categories captured in the graph.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["actorId", "role"],
+        "properties": {
+          "actorId": { "type": "string" },
+          "role": { "type": "string" },
+          "permissionContext": { "type": "string" },
+          "sensitiveActions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "description": "Approval workflow audit events captured in the graph.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["approvalId", "flow", "stages"],
+        "properties": {
+          "approvalId": { "type": "string" },
+          "flow": { "type": "string" },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["stage", "auditAction"],
+              "properties": {
+                "stage": { "type": "string" },
+                "auditAction": { "type": "string" },
+                "severity": {
+                  "type": "string",
+                  "enum": ["critical", "sensitive", "informational"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "complianceControls": {
+      "type": "array",
+      "description": "Compliance and integrity controls that protect the audit trail.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["controlId", "name", "mechanism", "verifiedBy"],
+        "properties": {
+          "controlId": { "type": "string" },
+          "name": { "type": "string" },
+          "mechanism": { "type": "string" },
+          "verifiedBy": { "type": "string" }
+        }
+      }
+    },
+    "criticalActions": {
+      "type": "array",
+      "description": "Actions classified as critical that must always be audit logged.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "trustBoundaries": {
+      "type": "array",
+      "description": "IPC channels and write paths that can create audit entries.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["boundaryId", "channel", "direction"],
+        "properties": {
+          "boundaryId": { "type": "string" },
+          "channel": { "type": "string" },
+          "direction": {
+            "type": "string",
+            "enum": ["main_to_db", "renderer_to_main", "renderer_to_db"]
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "knownGaps": {
+      "type": "array",
+      "description": "Known unimplemented or partial audit coverage.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "gap": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "plannedPhase": { "type": "string" }
+        }
+      }
+    },
+    "sourceDocuments": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Source files used to build this graph."
+    },
+    "validationRules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Rules that the audit graph must satisfy."
+    },
+    "risk": {
+      "type": "object",
+      "description": "Risk assessment.",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Graph metadata.",
+      "required": ["modules", "events", "mutations", "actors", "approvals", "complianceControls", "criticalActions", "auditStores", "trustBoundaries"],
+      "properties": {
+        "modules": { "type": "integer" },
+        "events": { "type": "integer" },
+        "mutations": { "type": "integer" },
+        "actors": { "type": "integer" },
+        "approvals": { "type": "integer" },
+        "complianceControls": { "type": "integer" },
+        "criticalActions": { "type": "integer" },
+        "auditStores": { "type": "integer" },
+        "trustBoundaries": { "type": "integer" }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Aggregate counts and metrics.",
+      "required": ["totalEvents", "criticalEvents", "sensitiveEvents", "informationalEvents"],
+      "properties": {
+        "totalEvents": { "type": "integer" },
+        "criticalEvents": { "type": "integer" },
+        "sensitiveEvents": { "type": "integer" },
+        "informationalEvents": { "type": "integer" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility with other graphs.",
+      "required": ["version", "compatibleWith"],
+      "properties": {
+        "version": { "type": "string" },
+        "compatibleWith": { "type": "object" }
+      }
+    },
+    "futureExtensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Notes on future extensions."
+    }
+  }
+}

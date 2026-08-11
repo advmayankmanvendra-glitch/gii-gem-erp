@@ -22,9 +22,9 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | BRAIN-1 | ERP Knowledge Graph | BRAIN-1 | Structured ERP knowledge — modules, workflows, reports, screens, rules, glossary, navigation, errors | `src/renderer/modules/erpBrain/repository/` | `repository/*/index.json` | Read-only | erpBrain | verify:audit --phase=brain-1 | **Active** |
 | KG-1 | Metadata / Impact Graph | KG-1 | Metadata registry — source/impact, risk, permissions, correction policies | `src/renderer/knowledge/modules/` | `knowledge/modules/*.js` | Read-only | knowledge | verify:audit --phase=kg-1 | **Active** |
 | RG-1 | Renderer Dependency Graph | 17L | Renderer import/screen/component/IPC/database dependency map | `src/renderer/` | `knowledge/renderer-graph.json`, `knowledge/renderer-graph.md`, `knowledge/renderer-summary.md` | Read-only | knowledge | verify:audit --phase=17-l | **Active** |
-| DG-1 | Database Graph | Future | Database tables, columns, relationships, triggers, indices | `src/main/database/` | TBD | Read-only | TBD | verify:audit --phase=dg-1 | Planned |
-| WG-1 | Workflow Graph | Future | Business workflow state machines, transitions, pre/post conditions | TBD | TBD | Read-only | TBD | verify:audit --phase=wg-1 | Planned |
-| AG-1 | Audit Graph | Future | Audit event lineage — events → modules → screens → data mutations → users | TBD | TBD | Read-only | TBD | verify:audit --phase=ag-1 | Planned |
+| DG-1 | Database Graph | DG-1 | Database tables, columns, relationships, triggers, indices | `src/main/database/`, `src/main/services/` | `knowledge/database-graph.json` | Read-only | knowledge | verify:audit --phase=dg-1 | **Active** |
+| WG-1 | Workflow Graph | WG-1 | Business workflow state machines, transitions, pre/post conditions | `docs/architecture/`, `src/main/services/` | `knowledge/workflow-graph.json` | Read-only | knowledge | verify:audit --phase=wg-1 | **Active** |
+| AG-1 | Audit Graph | AG-1 | Audit event lineage — events → modules → screens → data mutations → users | `src/main/services/`, `src/main/database/` | `knowledge/audit-graph.json` | Read-only | knowledge | verify:audit --phase=ag-1 | **Active** |
 
 ## Graph Integrity Rules (Common to All Graphs)
 
@@ -46,7 +46,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | RG-1 | `verify:audit --phase=17-l` | Graph existence, dependency count, circular imports, large files, direct DB imports, safe-extraction candidates |
 | DG-1 | `verify:audit --phase=dg-1` | Table/column/FK/index/trigger mapping, sensitive table classification, orphan/reset/migration risk |
 | WG-1 | `verify:audit --phase=wg-1` | State/transition mapping, pre/post conditions, blocked/recovery paths, lifecycle gap detection |
-| AG-1 | `verify:audit --phase=ag-1` | Event→module→screen→mutation→user mapping, critical action classification, missing coverage, tamper-risk |
+| AG-1 | `verify:audit --phase=ag-1` | Event→module→screen→mutation→user mapping, critical action classification, missing coverage, tamper-risk; also `npm run verify:audit-graph` |
 
 ## Exit Codes
 
@@ -62,3 +62,4 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-06-30 | Architecture Governance | Initial registry — BRAIN-1, KG-1 active; RG-1 planned; DG-1, WG-1, AG-1 future |
+| 1.1 | 2026-08-11 | Architecture Governance | AG-1 Audit Graph Active — audit action catalog, schema, validation pack; DG-1/WG-1 reflect Active |
