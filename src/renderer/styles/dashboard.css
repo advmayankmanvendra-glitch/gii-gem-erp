@@ -52,6 +52,11 @@
   color: #111;
 }
 
+.dashboard-customizer-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .dashboard-customizer {
   display: grid;
   gap: 14px;

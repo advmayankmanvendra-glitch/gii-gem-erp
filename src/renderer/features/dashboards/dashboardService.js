@@ -31,8 +31,7 @@ export const COMPARISON_OPTIONS = [
   { value: "none", label: "No Comparison" },
   { value: "previous_period", label: "Compare with Previous Period" },
   { value: "same_period_last_year", label: "Compare with Same Period Last Year" },
-  { value: "previous_fy", label: "Compare with Previous Financial Year" },
-  { value: "budget", label: "Compare with Budget" }
+  { value: "previous_fy", label: "Compare with Previous Financial Year" }
 ];
 
 function startOfWeek(date) {
@@ -62,10 +61,8 @@ function getQuarterEnd(date) {
 }
 
 function prevQuarterStartQuarter(date) {
-  const q = Math.floor(date.getMonth() / 3);
-  const prevQ = q === 0 ? 3 : q - 1;
-  const prevYear = q === 0 ? date.getFullYear() - 1 : date.getFullYear();
-  return new Date(prevYear, prevQ * 3 - 3, 1);
+  const currentQuarterStart = getQuarterStart(date);
+  return new Date(currentQuarterStart.getFullYear(), currentQuarterStart.getMonth() - 3, 1);
 }
 
 function prevQuarterEndQuarter(date) {
@@ -95,7 +92,7 @@ export function getFinancialYearOptions() {
     const d = new Date(now.getFullYear() + offset, now.getMonth(), 1);
     const fy = getFinancialYear(d);
     if (!options.find((o) => o.label === fy.label)) {
-      options.push({ value: `${fy.startYear}-${fy.endYear}`, label: fy.label, start: fy.start, end: fy.end });
+      options.push({ value: `${fy.startYear}-${fy.endYear}`, label: fy.label, startYear: fy.startYear, endYear: fy.endYear, start: fy.start, end: fy.end });
     }
   }
   return options.sort((a, b) => b.start - a.start);
@@ -106,7 +103,7 @@ function formatDate(d) {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function getPeriodRange(period, fyStart, fyEnd) {
+export function getPeriodRange(period, fyStart, fyEnd) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
@@ -170,11 +167,6 @@ function getPreviousPeriodRange(period, range) {
   if (period === "previous_financial_year") {
     return null;
   }
-  if (period === "this_quarter" || period === "last_quarter") {
-    const quarterMs = 90 * 24 * 60 * 60 * 1000;
-    return { start: new Date(range.start.getTime() - quarterMs), end: new Date(range.start.getTime() - 1) };
-  }
-
   return { start: new Date(range.start.getTime() - diff - 1), end: new Date(range.start.getTime() - 1) };
 }
 
@@ -200,7 +192,7 @@ function formatComparisonLabel(mode, range) {
   switch (mode) {
     case "none": return null;
     case "previous_period": return "vs Previous Period";
-    case "same_period_last_year": return `vs Same Period Last Year (${range?.start ? range.start.getFullYear() - 1 : "..."})`;
+    case "same_period_last_year": return `vs Same Period Last Year (${range?.start ? range.start.getFullYear() : "..."})`;
     case "previous_fy": return `vs Previous FY`;
     case "budget": return "vs Budget";
     default: return null;
@@ -219,10 +211,13 @@ function computeVariance(current, previous) {
 
 export function useFinancialYear() {
   const [selectedFy, setSelectedFy] = useState(() => {
-    const stored = window.localStorage?.getItem(DASHBOARD_FY_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return { ...parsed, start: new Date(parsed.start), end: new Date(parsed.end) };
+    const parsed = readJsonPreference(DASHBOARD_FY_KEY, null);
+    if (parsed?.start && parsed?.end) {
+      const start = new Date(parsed.start);
+      const end = new Date(parsed.end);
+      if (Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && start <= end) {
+        return { ...parsed, start, end };
+      }
     }
     return getFinancialYear(new Date());
   });
@@ -290,7 +285,10 @@ export function usePeriod(fyStart, fyEnd) {
 }
 
 export function useComparison(period, range) {
-  const [comparisonMode, setComparisonState] = useState(() => window.localStorage?.getItem(DASHBOARD_COMPARISON_KEY) || "none");
+  const [comparisonMode, setComparisonState] = useState(() => {
+    const stored = window.localStorage?.getItem(DASHBOARD_COMPARISON_KEY) || "none";
+    return COMPARISON_OPTIONS.some((option) => option.value === stored) ? stored : "none";
+  });
 
   const setComparison = useCallback((value) => {
     setComparisonState(value);
@@ -300,6 +298,10 @@ export function useComparison(period, range) {
   let comparisonRange = null;
   if (comparisonMode === "previous_period") comparisonRange = getPreviousPeriodRange(period, range);
   else if (comparisonMode === "same_period_last_year") comparisonRange = getSamePeriodLastYearRange(range);
+  else if (comparisonMode === "previous_fy" && range?.start) {
+    const previous = getFinancialYear(new Date(range.start.getFullYear() - 1, 3, 1));
+    comparisonRange = { start: previous.start, end: previous.end };
+  }
 
   const comparisonLabel = formatComparisonLabel(comparisonMode, comparisonRange);
 
@@ -315,8 +317,23 @@ export function useComparison(period, range) {
   return { comparisonMode, setComparison, comparisonRange, comparisonLabel, applyComparison };
 }
 
-export function useDashboardData(apiClient, companyContext) {
+function formatDashboardFilterDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function dashboardFilters(companyContext, range) {
+  const filters = { ...companyContext };
+  if (range?.start && Number.isFinite(range.start.getTime())) filters.date_from = formatDashboardFilterDate(range.start);
+  if (range?.end && Number.isFinite(range.end.getTime())) filters.date_to = formatDashboardFilterDate(range.end);
+  return filters;
+}
+
+export function useDashboardData(apiClient, companyContext, range, comparisonRange) {
   const [counts, setCounts] = useState(null);
+  const [comparisonCounts, setComparisonCounts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshTime, setRefreshTime] = useState(null);
@@ -328,23 +345,31 @@ export function useDashboardData(apiClient, companyContext) {
     if (!apiClient || !companyContext) return;
     setLoading(true);
     setError(null);
+    const currentFilters = dashboardFilters(companyContext, range);
+    const priorFilters = comparisonRange ? dashboardFilters(companyContext, comparisonRange) : null;
+    const accountingRequest = apiClient.getAccountingData && companyContext.company_scope !== "all"
+      ? apiClient.getAccountingData(companyContext)
+      : Promise.resolve(null);
     Promise.allSettled([
-      apiClient.getDashboardCounts(companyContext),
-      apiClient.getBankLedgers ? apiClient.getBankLedgers(companyContext) : Promise.resolve([]),
-      apiClient.getAccountingData ? apiClient.getAccountingData(companyContext) : Promise.resolve(null)
-    ]).then(([countsResult, bankResult, accountingResult]) => {
+      apiClient.getDashboardCounts(currentFilters),
+      accountingRequest,
+      priorFilters ? apiClient.getDashboardCounts(priorFilters) : Promise.resolve(null)
+    ]).then(([countsResult, accountingResult, comparisonResult]) => {
       if (!mountedRef.current) return;
       const nextCounts = countsResult.status === "fulfilled" ? countsResult.value : null;
-      const nextBanks = bankResult.status === "fulfilled" ? bankResult.value : [];
       const nextAccounting = accountingResult.status === "fulfilled" ? accountingResult.value : null;
+      const nextBanks = Array.isArray(nextAccounting?.banks)
+        ? nextAccounting.banks
+        : (Array.isArray(nextAccounting?.references?.banks) ? nextAccounting.references.banks : []);
       if (countsResult.status === "fulfilled") setCounts(nextCounts);
       else setError(countsResult.reason?.message || "Failed to load dashboard data");
+      setComparisonCounts(comparisonResult.status === "fulfilled" ? comparisonResult.value : null);
       setBankLedgers(nextBanks);
       setTreasury(buildTreasuryOverview(nextCounts, nextAccounting, nextBanks));
       setRefreshTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
       setLoading(false);
     });
-  }, [apiClient, companyContext]);
+  }, [apiClient, companyContext, comparisonRange?.end?.getTime(), comparisonRange?.start?.getTime(), range?.end?.getTime(), range?.start?.getTime()]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -352,7 +377,7 @@ export function useDashboardData(apiClient, companyContext) {
     return () => { mountedRef.current = false; };
   }, [fetchData]);
 
-  return { counts, loading, error, refreshTime, bankLedgers, treasury, refresh: fetchData };
+  return { counts, comparisonCounts, loading, error, refreshTime, bankLedgers, treasury, refresh: fetchData };
 }
 
 export function resolveCardValue(card, counts) {

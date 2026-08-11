@@ -243,7 +243,22 @@ export function createBillingService(deps) {
 
   function orderProfitability(db, filters = {}) {
     const companyId = Number(filters.company_id || 0);
-    const where = companyId ? "WHERE so.company_id = @company_id AND COALESCE(so.is_deleted, 0) = 0" : "WHERE so.company_id IN (SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0) AND COALESCE(so.is_deleted, 0) = 0";
+    const conditions = [
+      companyId
+        ? "so.company_id = @company_id"
+        : "so.company_id IN (SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0)",
+      "COALESCE(so.is_deleted, 0) = 0"
+    ];
+    const params = companyId ? { company_id: companyId } : {};
+    if (filters.date_from) {
+      conditions.push("so.order_date >= @date_from");
+      params.date_from = filters.date_from;
+    }
+    if (filters.date_to) {
+      conditions.push("so.order_date <= @date_to");
+      params.date_to = filters.date_to;
+    }
+    const where = `WHERE ${conditions.join(" AND ")}`;
     const orders = db.prepare(`
       SELECT so.*, gd.department_name, e.employee_name, e.incentive_percentage
       FROM supply_orders so
@@ -251,7 +266,7 @@ export function createBillingService(deps) {
       LEFT JOIN employees e ON e.id = so.employee_id
       ${where}
       ORDER BY so.id DESC
-    `).all(companyId ? { company_id: companyId } : {});
+    `).all(params);
     return orders.map((order) => calculateProfitability(db, order));
   }
 

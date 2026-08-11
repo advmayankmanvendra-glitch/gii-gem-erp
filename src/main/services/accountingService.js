@@ -1081,7 +1081,7 @@ export function createAccountingService(deps) {
       departments: db.prepare("SELECT id, department_name FROM government_departments WHERE status = 'active'").all(),
       suppliers: db.prepare("SELECT id, supplier_name FROM suppliers WHERE status = 'active'").all(),
       employees: db.prepare("SELECT id, employee_name FROM employees WHERE status = 'active'").all(),
-      banks: db.prepare("SELECT id, bank_account_name, bank_name FROM banks WHERE company_id = ? AND status = 'active'").all(companyId)
+      banks: db.prepare("SELECT id, bank_account_name, bank_name, account_number, ifsc FROM banks WHERE company_id = ? AND status = 'active'").all(companyId)
     };
   }
 

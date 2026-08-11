@@ -842,7 +842,8 @@ export function createInventoryService(deps) {
 
   return {
     stockBalance, weightedAverageCost, insertStockLedger,
-    inventoryStockSummary, inventoryLowStockReport,
+    inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
+    procurementRequirementReport,
     postStockInward, postStockOutward, postStockAdjustment,
     approveStockAdjustment, postStockReturn, inventoryData,
     reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn

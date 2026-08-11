@@ -58,6 +58,7 @@ const PIPELINE = [
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
   { name: "verify:master-policy", cmd: `${NPM} run verify:master-policy`, continueOn: [0, 1] },
   { name: "verify:screen-actions", cmd: `${NPM} run verify:screen-actions`, continueOn: [0, 1] },
+  { name: "verify:dashboard-wiring", cmd: `${NPM} run verify:dashboard-wiring`, continueOn: [0, 1] },
   { name: "verify:knowledge",  cmd: `${NPM} run verify:knowledge`,   continueOn: [0, 1] },
   { name: "verify:audit",      cmd: `${NPM} run verify:audit`,       continueOn: [0, 1] },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },

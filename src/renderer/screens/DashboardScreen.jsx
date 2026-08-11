@@ -1,31 +1,55 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { DASHBOARD_MODE_LABELS, MODE_CARDS, MODE_DEFAULT_VISIBLE } from "../features/dashboards/dashboardConfig.js";
 import { useFinancialYear, usePeriod, useComparison, useDashboardData, resolveCardValue, PERIOD_OPTIONS, COMPARISON_OPTIONS, buildExportContext } from "../features/dashboards/dashboardService.js";
 import { WidgetContainer, WorkQueueWidget, WidgetGrid, WidgetToolbar } from "../features/dashboards/widgetFramework.jsx";
 import { DashboardProvider, useDashboardContext } from "../features/dashboards/dashboardContext.jsx";
 import { TreasuryOverview } from "../features/dashboards/treasuryOverview.jsx";
-import { DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_WIDGET_ORDER_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
+import { DASHBOARD_AUTO_REFRESH_KEY, DASHBOARD_HIDDEN_CARDS_KEY, DASHBOARD_PINNED_CARDS_KEY, DASHBOARD_WIDGET_ORDER_KEY, DASHBOARD_VIEW_KEY } from "../config/storageKeys.js";
 import { ContextBar, DashboardViewToolbar, DashboardCustomizer, DashboardSetupChecklist } from "../components/dashboard/index.jsx";
 import { safeArray, safeObject } from "../stability/rendererStabilityUtils.js";
 import { readJsonPreference } from "../utils/uiHelpers.js";
 
+function defaultHiddenCardIds(mode) {
+  const cards = safeArray(MODE_CARDS[mode] || MODE_CARDS.executive);
+  const visibleIds = safeArray(MODE_DEFAULT_VISIBLE[mode] || MODE_DEFAULT_VISIBLE.executive);
+  return cards.filter((card) => !visibleIds.includes(card.id)).map((card) => card.id);
+}
+
 function DashboardInner({ notify, setView, companyContext, apiClient }) {
-  const { counts, loading, error, refreshTime, treasury, refresh: refreshData } = useDashboardData(apiClient, companyContext);
   const { selectedFy, setFinancialYear, fyOptions } = useFinancialYear();
   const { period, setPeriod, range, label: periodLabel, customLabel, setCustomLabel, customFrom, setCustomFrom, customTo, setCustomTo, applyCustomRange, resetCustomRange } = usePeriod(selectedFy.start, selectedFy.end);
-  const { comparisonMode, setComparison, comparisonLabel, applyComparison } = useComparison(period, range);
+  const { comparisonMode, setComparison, comparisonRange, comparisonLabel, applyComparison } = useComparison(period, range);
+  const { counts, comparisonCounts, loading, error, refreshTime, treasury, refresh: refreshData } = useDashboardData(apiClient, companyContext, range, comparisonRange);
   const { dashboardMode, setDashboardMode, navigateWithContext } = useDashboardContext();
   const [customizing, setCustomizing] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(() => readJsonPreference(DASHBOARD_AUTO_REFRESH_KEY, false) === true);
   const [hiddenCards, setHiddenCards] = useState(() => safeObject(readJsonPreference(DASHBOARD_HIDDEN_CARDS_KEY, {})));
   const [pinnedCards, setPinnedCards] = useState(() => safeArray(readJsonPreference(DASHBOARD_PINNED_CARDS_KEY, [])));
-  const [widgetOrder, setWidgetOrder] = useState(() => safeArray(readJsonPreference(DASHBOARD_WIDGET_ORDER_KEY, {})));
+  const [widgetOrder, setWidgetOrder] = useState(() => safeObject(readJsonPreference(DASHBOARD_WIDGET_ORDER_KEY, {})));
 
   const modeCards = safeArray(MODE_CARDS[dashboardMode] || MODE_CARDS.executive);
 
   function persist(key, value) {
-    window.localStorage?.setItem(key, value);
+    try {
+      window.localStorage?.setItem(key, value);
+    } catch {
+      notify?.("This Dashboard preference could not be saved on this computer.", "warning");
+    }
   }
+
+  const toggleAutoRefresh = useCallback(() => {
+    setAutoRefresh((current) => {
+      const next = !current;
+      persist(DASHBOARD_AUTO_REFRESH_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    const timer = window.setInterval(refreshData, 60000);
+    return () => window.clearInterval(timer);
+  }, [autoRefresh, refreshData]);
 
   const changeMode = useCallback((mode) => {
     setDashboardMode(mode);
@@ -35,7 +59,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
   const toggleCardVisibility = useCallback((cardId) => {
     setHiddenCards((current) => {
       const safe = safeObject(current);
-      const currentHidden = safeArray(safe[dashboardMode] || []);
+      const currentHidden = dashboardMode in safe ? safeArray(safe[dashboardMode]) : defaultHiddenCardIds(dashboardMode);
       const nextHidden = currentHidden.includes(cardId) ? currentHidden.filter((id) => id !== cardId) : [...currentHidden, cardId];
       const next = { ...safe, [dashboardMode]: nextHidden };
       persist(DASHBOARD_HIDDEN_CARDS_KEY, JSON.stringify(next));
@@ -56,7 +80,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
   const addWidget = useCallback((cardId) => {
     setHiddenCards((current) => {
       const safe = safeObject(current);
-      const currentHidden = safeArray(safe[dashboardMode] || []);
+      const currentHidden = dashboardMode in safe ? safeArray(safe[dashboardMode]) : defaultHiddenCardIds(dashboardMode);
       const nextHidden = currentHidden.filter((id) => id !== cardId);
       const next = { ...safe, [dashboardMode]: nextHidden };
       persist(DASHBOARD_HIDDEN_CARDS_KEY, JSON.stringify(next));
@@ -67,13 +91,30 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
   const removeWidget = useCallback((cardId) => {
     setHiddenCards((current) => {
       const safe = safeObject(current);
-      const currentHidden = safeArray(safe[dashboardMode] || []);
+      const currentHidden = dashboardMode in safe ? safeArray(safe[dashboardMode]) : defaultHiddenCardIds(dashboardMode);
       const nextHidden = currentHidden.includes(cardId) ? currentHidden : [...currentHidden, cardId];
       const next = { ...safe, [dashboardMode]: nextHidden };
       persist(DASHBOARD_HIDDEN_CARDS_KEY, JSON.stringify(next));
       return next;
     });
   }, [dashboardMode]);
+
+  const moveWidget = useCallback((cardId, direction) => {
+    setWidgetOrder((current) => {
+      const currentOrder = safeObject(current);
+      const orderedIds = [...modeCards]
+        .sort((left, right) => (currentOrder[`${dashboardMode}:${left.id}`] ?? 0) - (currentOrder[`${dashboardMode}:${right.id}`] ?? 0))
+        .map((card) => card.id);
+      const currentIndex = orderedIds.indexOf(cardId);
+      const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedIds.length) return currentOrder;
+      [orderedIds[currentIndex], orderedIds[nextIndex]] = [orderedIds[nextIndex], orderedIds[currentIndex]];
+      const next = { ...currentOrder };
+      orderedIds.forEach((id, index) => { next[`${dashboardMode}:${id}`] = index + 1; });
+      persist(DASHBOARD_WIDGET_ORDER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [dashboardMode, modeCards]);
 
   const resizeWidget = useCallback((cardId, size) => {
     const key = `${DASHBOARD_VIEW_KEY}:size`;
@@ -103,11 +144,10 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
 
   const safeHiddenCards = safeObject(hiddenCards);
   const safePinnedCards = safeArray(pinnedCards);
-  const defaultVisibleIds = safeArray(MODE_DEFAULT_VISIBLE[dashboardMode] || MODE_DEFAULT_VISIBLE.executive);
   const modeVisible = safeArray(safeHiddenCards[dashboardMode]);
 
   const hasExplicitConfig = dashboardMode in safeHiddenCards;
-  const modeHiddenCards = hasExplicitConfig ? modeVisible : modeCards.filter((card) => !defaultVisibleIds.includes(card.id)).map((card) => card.id);
+  const modeHiddenCards = hasExplicitConfig ? modeVisible : defaultHiddenCardIds(dashboardMode);
   const visibleCards = modeCards.filter((card) => !modeHiddenCards.includes(card.id));
   const hiddenCardsList = modeCards.filter((card) => modeHiddenCards.includes(card.id));
 
@@ -164,7 +204,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
         refreshTime={refreshTime}
         onRefresh={refreshData}
         autoRefresh={autoRefresh}
-        onAutoRefreshToggle={() => setAutoRefresh((a) => !a)}
+        onAutoRefreshToggle={toggleAutoRefresh}
         fyStart={selectedFy.start}
         fyEnd={selectedFy.end}
         exportContext={exportContext}
@@ -187,6 +227,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
           pinnedCards={safePinnedCards}
           onToggleCardVisibility={toggleCardVisibility}
           onTogglePinnedCard={togglePinnedCard}
+          onMoveCard={moveWidget}
         />
       )}
 
@@ -219,6 +260,9 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
           <WidgetGrid>
             {sortedCards.map((card) => {
               const value = resolveCardValue(card, counts);
+              const comparisonData = ["currency", "number"].includes(card.format) && comparisonCounts
+                ? applyComparison(resolveCardValue(card, comparisonCounts), value)
+                : null;
               const isPinned = safePinnedCards.includes(`${dashboardMode}:${card.id}`);
               const isWorkQueue = ["pending_procurement", "pending_billing", "pending_documents", "pending_supply", "pending_delivery", "low_stock"].includes(card.id);
 
@@ -233,6 +277,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
                     refreshTime={refreshTime}
                     periodLabel={periodLabel}
                     comparisonLabel={comparisonLabel}
+                    comparisonData={comparisonData}
                     isPinned={isPinned}
                     onOpen={handleDrillDown}
                     onTogglePin={togglePinnedCard}
@@ -253,6 +298,7 @@ function DashboardInner({ notify, setView, companyContext, apiClient }) {
                   refreshTime={refreshTime}
                   periodLabel={periodLabel}
                   comparisonLabel={comparisonLabel}
+                  comparisonData={comparisonData}
                   isPinned={isPinned}
                   onOpen={handleDrillDown}
                   onTogglePin={togglePinnedCard}

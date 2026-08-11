@@ -211,7 +211,8 @@ export function DashboardCustomizer({
   modeHiddenCards,
   pinnedCards,
   onToggleCardVisibility,
-  onTogglePinnedCard
+  onTogglePinnedCard,
+  onMoveCard
 }) {
   return (
     <section className="panel dashboard-customizer">
@@ -229,9 +230,13 @@ export function DashboardCustomizer({
                 <input type="checkbox" checked={!hidden} onChange={() => onToggleCardVisibility(card.id)} />
                 <span>{card.label}</span>
               </label>
-              <button type="button" className={pinned ? "pinned" : ""} onClick={() => onTogglePinnedCard(card.id)}>
-                {pinned ? "Pinned" : "Pin"}
-              </button>
+              <div className="dashboard-customizer-actions">
+                <button type="button" onClick={() => onMoveCard(card.id, "up")} title="Move widget up">Up</button>
+                <button type="button" onClick={() => onMoveCard(card.id, "down")} title="Move widget down">Down</button>
+                <button type="button" className={pinned ? "pinned" : ""} onClick={() => onTogglePinnedCard(card.id)}>
+                  {pinned ? "Pinned" : "Pin"}
+                </button>
+              </div>
             </div>
           );
         })}

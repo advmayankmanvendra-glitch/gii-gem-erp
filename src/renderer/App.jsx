@@ -41,6 +41,7 @@ import {
   roleAllowsAction
 } from "./components/helpProductivity/index.jsx";
 import { NavigationSidebar, RightUtilitySidebar, WorkspaceFrame } from "./components/layout/index.jsx";
+import { RuntimeBanner, SidebarScrim, ToastNotification, TrainingModeBanner } from "./components/workspace/index.jsx";
 import HelpQuickActionsBar from "./components/help/HelpQuickActionsBar.jsx";
 import { ConfirmDialog, GlobalSearchOverlay, PrintPreviewDialog, QuickCreateMasterDialog, quickCreateRecords } from "./components/overlays/index.jsx";
 import { AddRecordPanel } from "./components/panels/AddRecordPanel.jsx";
@@ -1310,12 +1311,8 @@ function App() {
           onReset={() => { setView("dashboard"); setRefreshNonce((current) => current + 1); }}
         >
           <div className="screen-host" key={`${effectiveView}-${refreshNonce}`}>
-            {!isDesktopRuntime && (
-              <div className="runtime-banner">
-                <strong>Browser Preview Only:</strong> this screen is not connected to the SQLite desktop database. Real saving, posting, backup, restore, uploads and accounting entries require opening GII GeM ERP in the Windows Electron desktop app.
-              </div>
-            )}
-            {trainingMode && <div className="training-banner"><strong>Training Mode:</strong> sample guidance is active. Live accounting data is not changed by the training workspace.</div>}
+            <RuntimeBanner isDesktopRuntime={isDesktopRuntime} />
+            <TrainingModeBanner trainingMode={trainingMode} />
             {allCompaniesReadOnly ? (
               <AllCompaniesReadOnlyScreen
                 companies={safeCompanies}
@@ -1430,7 +1427,7 @@ function App() {
           extension={utilityExtension}
         />
       </RendererErrorBoundary>
-      {mobileSidebarOpen && <button className="sidebar-scrim" type="button" aria-label="Close menu" onClick={() => setMobileSidebarOpen(false)} />}
+      {mobileSidebarOpen && <SidebarScrim onClose={() => setMobileSidebarOpen(false)} />}
       {confirmDialog && <ConfirmDialog dialog={confirmDialog} onResolve={resolveConfirmation} />}
       {globalSearchOpen && <GlobalSearchOverlay query={globalSearchQuery} setQuery={setGlobalSearchQuery} results={globalSearchResults} onNavigate={(key) => { setGlobalSearchOpen(false); setGlobalSearchQuery(""); navigate(key); }} onClose={() => setGlobalSearchOpen(false)} />}
       {shortcutHelpOpen && <ShortcutHelpDialog onClose={() => setShortcutHelpOpen(false)} />}
@@ -1440,7 +1437,7 @@ function App() {
       {productivityLearnOpen && <ProductivityLearnDialog view={effectiveView} onClose={() => setProductivityLearnOpen(false)} onOpenTraining={() => { setProductivityLearnOpen(false); navigate("help_training"); }} />}
       {firstTourOpen && <FirstTimeTour onClose={() => setFirstTourOpen(false)} onOpenHelp={() => { setFirstTourOpen(false); navigate("help_training"); }} />}
       {printPreview && <PrintPreviewDialog preview={printPreview} onClose={() => setPrintPreview(null)} notify={notify} desktopApi={api} />}
-      {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
+      <ToastNotification toast={toast} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ export const LOCK_BLOCKING_STEPS = new Set([
   "build",
   "verify:master-policy",
   "verify:screen-actions",
+  "verify:dashboard-wiring",
   "verify:accounting",
   "verify:financials",
   "verify:controls",

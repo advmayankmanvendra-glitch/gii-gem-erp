@@ -15,7 +15,7 @@ export function buildTreasuryOverview(counts, accountingData, bankLedgers = []) 
 
   const balanceForRows = (rows) => rows.reduce((sum, row) => sum + Number(row.debit || 0) - Number(row.credit || 0), 0);
   const cashRows = rowsByBank.get(0) || cashBankRows.filter((row) => String(row.payment_mode || "").toLowerCase() === "cash");
-  const cashBalance = balanceForRows(cashRows);
+  const cashBalance = cashBankRows.length ? balanceForRows(cashRows) : Number(counts?.cashBankBalance || 0);
   const bankAccounts = bankRows.map((bank) => {
     const bankId = Number(bank.id || bank.bank_account_id || 0);
     const rows = rowsByBank.get(bankId) || [];

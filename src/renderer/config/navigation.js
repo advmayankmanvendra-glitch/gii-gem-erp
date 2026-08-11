@@ -24,6 +24,8 @@ const viewTitles = {
   outstanding_reports: ["Outstanding Reports", "Receivable and payable outstanding reports."],
   employee_reports: ["Employee Reports", "Employee performance and incentive reports."],
   documents: ["Documents", "Uploaded supporting document register."],
+  supply_orders: ["Supply Orders", "Create and manage Work Order / Supply Order records and their operational lifecycle."],
+  invoices: ["Billing Voucher", "Create and review sales and GST invoice records linked to Supply Orders."],
   operations_dashboard: ["Operations Dashboard", "Order, procurement, billing, collection and document command center."],
   order_items: ["Order Items", "Item-wise ordered quantity, taxable value, GST and billed balance."],
   order_lifecycle: ["Order Lifecycle", "Operational progress from order receipt to procurement, issue, billing and collection."],

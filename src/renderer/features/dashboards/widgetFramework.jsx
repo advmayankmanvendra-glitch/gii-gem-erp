@@ -17,15 +17,15 @@ function widgetIntegrity(card, value) {
   return "Reconciled";
 }
 
-function ComparisonRow({ comparison }) {
+function ComparisonRow({ comparison, format }) {
   if (!comparison) return null;
   const arrow = comparison.trend === "up" ? "▲" : comparison.trend === "down" ? "▼" : "→";
   const color = comparison.trend === "up" ? "#1a7f37" : comparison.trend === "down" ? "#cf222e" : "#8a9aa8";
   return (
     <div className="widget-comparison" style={{ color }}>
-      <span className="comparison-previous">{formatCardValue(comparison.previous, "currency")}</span>
+      <span className="comparison-previous">{formatCardValue(comparison.previous, format)}</span>
       <span className="comparison-arrow">{arrow}</span>
-      <span className="comparison-value">{formatCardValue(comparison.current, "currency")}</span>
+      <span className="comparison-value">{formatCardValue(comparison.current, format)}</span>
       <span className="comparison-variance">{comparison.variancePercent >= 0 ? "+" : ""}{comparison.variancePercent.toFixed(1)}%</span>
     </div>
   );
@@ -63,7 +63,7 @@ export function WidgetContainer({ card, value, format, dataSource, refreshTime, 
       <button type="button" className="widget-body" onClick={() => onOpen(drillTarget)} title={`Review ${card.label}`}>
         <strong className="widget-value">{displayValue}</strong>
         <span className={`widget-integrity widget-integrity-${String(integrity).toLowerCase().replace(/\s+/g, "-")}`}>{integrity}</span>
-        {comparisonData && <ComparisonRow comparison={comparisonData} />}
+        {comparisonData && <ComparisonRow comparison={comparisonData} format={format} />}
         {card.nextAction && <small className="widget-next-action">{card.nextAction}</small>}
       </button>
 
@@ -94,7 +94,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
         <div className="widget-title-row">
           <Icon name={card.icon} />
           <span className="widget-label">{card.label}</span>
-          <span className="widget-count-badge">{items?.length || 0}</span>
+          <span className="widget-count-badge">{items?.length || Number(value || 0)}</span>
         </div>
         <div className="widget-actions">
           <button type="button" className="widget-action-btn" onClick={() => onResize?.(card.id)} title="Resize">⤡</button>
@@ -108,7 +108,7 @@ export function WorkQueueWidget({ card, value, format, dataSource, refreshTime, 
       <button type="button" className="widget-body" onClick={() => onOpen(drillTarget)} title={`Review ${card.label}`}>
         <strong className="widget-value">{displayValue}</strong>
         <span className={`widget-integrity widget-integrity-${String(integrity).toLowerCase().replace(/\s+/g, "-")}`}>{integrity}</span>
-        {comparisonData && <ComparisonRow comparison={comparisonData} />}
+        {comparisonData && <ComparisonRow comparison={comparisonData} format={format} />}
         {card.nextAction && <small className="widget-next-action">{card.nextAction}</small>}
         {items?.length > 0 && (
           <div className="widget-queue">

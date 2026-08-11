@@ -20,6 +20,7 @@ function passingBlockingSteps() {
 
 check("FSR-2B.2B is a mandatory lock-blocking verification", LOCK_BLOCKING_STEPS.has("verify:fsr2b2b"));
 check("Syntax and build are mandatory lock-blocking verifications", LOCK_BLOCKING_STEPS.has("lint:syntax") && LOCK_BLOCKING_STEPS.has("build"));
+check("Dashboard wiring is a mandatory lock-blocking verification", LOCK_BLOCKING_STEPS.has("verify:dashboard-wiring"));
 
 const cleanPass = evaluateMasterLockGate(passingBlockingSteps(), "");
 check("A clean baseline with every mandatory check passing can be locked", cleanPass.safeToLock);

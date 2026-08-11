@@ -47,10 +47,10 @@ const ACCOUNTS_CARDS = [
   { id: "pending_approvals", label: "Pending Approvals", icon: "shield", target: "approval_queue", dataSource: "Approval Queue", valueKey: "pendingApprovals", format: "number" },
   { id: "gst_position", label: "GST Position", icon: "receipt", target: "gst", drilldownTarget: "gst_drilldown", dataSource: "GST Summary Report", valueKey: "gstPayable", format: "currency" },
   { id: "tds_receivable", label: "TDS Receivable", icon: "receipt", target: "tds_register", dataSource: "TDS Register Report", valueKey: "tdsReceivable", format: "currency" },
-  { id: "trial_balance_status", label: "Trial Balance", icon: "clipboard", target: "trial_balance", drilldownTarget: "trial_balance_drilldown", dataSource: "Trial Balance Report", valueKey: null, staticValue: "Balanced", format: "text" },
+  { id: "trial_balance_status", label: "Trial Balance", icon: "clipboard", target: "trial_balance", drilldownTarget: "trial_balance_drilldown", dataSource: "Trial Balance Report", valueKey: "trialBalanceStatus", format: "text" },
   { id: "day_book", label: "Day Book", icon: "book", target: "day_book", dataSource: "Day Book Report", valueKey: "postedVouchers", format: "number" },
-  { id: "profit_loss", label: "Profit & Loss", icon: "trend", target: "profit_loss", dataSource: "Profit & Loss Report", valueKey: "totalProfit", format: "currency" },
-  { id: "balance_sheet", label: "Balance Sheet", icon: "building", target: "balance_sheet", dataSource: "Balance Sheet Report", valueKey: null, staticValue: "Open", format: "text" }
+  { id: "profit_loss", label: "Profit & Loss", icon: "trend", target: "profit_loss", dataSource: "Profit & Loss Report", valueKey: "profitLoss", format: "currency" },
+  { id: "balance_sheet", label: "Balance Sheet", icon: "building", target: "balance_sheet", dataSource: "Balance Sheet Report", valueKey: "balanceSheetStatus", format: "text" }
 ];
 
 const BUSINESS_DEVELOPMENT_CARDS = [
@@ -84,7 +84,7 @@ const MANAGEMENT_INTELLIGENCE_CARDS = [
   { id: "stock_value", label: "Stock Value", icon: "box", target: "stock_valuation", drilldownTarget: "stock_drilldown", dataSource: "Stock Valuation Report", valueKey: "totalStockValue", format: "currency", nextAction: "Verify valuation by item and warehouse." },
   { id: "cash_bank", label: "Cash / Bank Balance", icon: "card", target: "cash_book", drilldownTarget: "treasury_drilldown", reconcileTarget: "bank_book", dataSource: "Cash Book / Bank Book", valueKey: "cashBankBalance", fallbackKey: "amountReceived", format: "currency", nextAction: "Use Treasury Overview for account-wise balances." },
   { id: "gst_position", label: "GST Position", icon: "receipt", target: "gst", drilldownTarget: "gst_drilldown", dataSource: "GST Summary Report", valueKey: "gstPayable", format: "currency" },
-  { id: "trial_balance", label: "Trial Balance", icon: "clipboard", target: "trial_balance", drilldownTarget: "trial_balance_drilldown", dataSource: "Trial Balance Report", valueKey: null, staticValue: "Balanced", format: "text" },
+  { id: "trial_balance", label: "Trial Balance", icon: "clipboard", target: "trial_balance", drilldownTarget: "trial_balance_drilldown", dataSource: "Trial Balance Report", valueKey: "trialBalanceStatus", format: "text" },
   { id: "active_orders", label: "Active Orders", icon: "clipboard", target: "supply_orders", dataSource: "Supply Orders Register", valueKey: "activeOrders", format: "number" },
   { id: "unposted", label: "Unposted Vouchers", icon: "receipt", target: "posting_control", drilldownTarget: "unposted_drilldown", dataSource: "Posting Control", valueKey: "unpostedVouchers", fallbackKey: "draftVouchers", format: "number" }
 ];

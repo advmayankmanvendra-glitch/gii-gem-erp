@@ -1707,7 +1707,8 @@ const {
 
 const {
   stockBalance, weightedAverageCost, insertStockLedger,
-  inventoryStockSummary, inventoryLowStockReport,
+  inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
+  procurementRequirementReport,
   postStockInward, postStockOutward, postStockAdjustment,
   approveStockAdjustment, postStockReturn, inventoryData,
   reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
@@ -1791,7 +1792,9 @@ const {
 });
 
 const { dashboardCounts } = createDashboardService({
-  activeRowClause, orderProfitability, inventoryStockSummary, inventoryLowStockReport
+  activeRowClause, orderProfitability, inventoryStockSummary, inventoryLowStockReport,
+  inventoryDashboard, procurementRequirementReport,
+  financialControlReport, supplierPayableReport, billWiseReceivableReport
 });
 
 const {
