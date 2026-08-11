@@ -246,6 +246,19 @@ function sessionGuarded(permission, moduleName, handler) {
   };
 }
 
+function sessionRequired(handler) {
+  return (event, ...args) => {
+    const session = desktopSessions.getSession(event.sender.id);
+    if (!session) {
+      throw new Error("Your desktop session is not signed in. Please sign in again.");
+    }
+    return handler(...args, {
+      user_id: session.user_id,
+      user_role: session.role
+    });
+  };
+}
+
 function escapePrintHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -632,6 +645,33 @@ function registerIpc() {
   });
   ipcMain.handle("auth:change-password", (_event, payload) => {
     return changeUserPassword(db, payload);
+  });
+  ipcMain.handle("auth:set-recovery-secret", (event, payload) => {
+    return sessionRequired((resolvedPayload) => (
+      setRecoverySecret(db, resolvedPayload)
+    ))(event, payload);
+  });
+  ipcMain.handle("auth:recovery-reset", (_event, payload) => {
+    return recoveryResetPassword(db, payload);
+  });
+  ipcMain.handle("auth:admin-reset-password", (event, payload) => {
+    return sessionGuarded("settings", "security", (resolvedPayload, actor) => (
+      adminResetPassword(db, resolvedPayload, actor)
+    ))(event, payload);
+  });
+  ipcMain.handle("auth:list-users", (event) => {
+    return sessionGuarded("settings", "security", () => {
+      const rows = db.prepare(`
+        SELECT id, username, display_name, role, status, force_password_change,
+               last_login_at, password_changed_at, created_at
+        FROM users
+        ORDER BY id
+      `).all();
+      return rows.map((row) => ({
+        ...row,
+        has_recovery_secret: Boolean(db.prepare("SELECT recovery_secret_hash FROM users WHERE id = ?").get(row.id)?.recovery_secret_hash)
+      }));
+    })(event);
   });
 
   ipcMain.handle("meta:masters", () => MASTER_TABLES);

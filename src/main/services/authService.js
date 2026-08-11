@@ -168,9 +168,132 @@ export function createAuthService(deps) {
     };
   }
 
+  function setRecoverySecret(db, payload = {}) {
+    const userId = Number(payload.user_id || payload.userId || 0);
+    const username = String(payload.username || "").trim();
+    const currentPassword = String(payload.current_password || payload.currentPassword || "");
+    const recoverySecret = String(payload.recovery_secret || payload.recoverySecret || "");
+    const clear = Boolean(payload.clear);
+    const user = userId
+      ? db.prepare("SELECT * FROM users WHERE id = ? AND status = 'active'").get(userId)
+      : db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
+    if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+      if (user) {
+        auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_secret_set_failed", module: "security", table_name: "users", record_id: user.id });
+      }
+      throw new Error("Current password is incorrect.");
+    }
+    if (clear) {
+      db.prepare("UPDATE users SET recovery_secret_hash = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
+      auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_secret_cleared", module: "security", table_name: "users", record_id: user.id });
+      return { recoverySecretSet: false };
+    }
+    const errors = passwordStrengthErrors(recoverySecret);
+    if (errors.length) {
+      throw new Error(errors.join(" "));
+    }
+    if (verifyPassword(recoverySecret, user.password_hash)) {
+      throw new Error("Recovery secret must be different from your login password.");
+    }
+    db.prepare("UPDATE users SET recovery_secret_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(hashPassword(recoverySecret), user.id);
+    auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_secret_set", module: "security", table_name: "users", record_id: user.id });
+    return { recoverySecretSet: true };
+  }
+
+  function recoveryResetPassword(db, payload = {}) {
+    const username = String(payload.username || "").trim();
+    const recoverySecret = String(payload.recovery_secret || payload.recoverySecret || "");
+    const newPassword = String(payload.new_password || payload.newPassword || "");
+    const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
+    if (!user || !user.recovery_secret_hash) {
+      throw new Error("Recovery reset is not available for this account.");
+    }
+    const now = new Date().toISOString();
+    if (user.recovery_locked_until && user.recovery_locked_until > now) {
+      auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_blocked_locked_user", module: "security", table_name: "users", record_id: user.id });
+      throw new Error("Too many recovery attempts. Try again later.");
+    }
+    if (!verifyPassword(recoverySecret, user.recovery_secret_hash)) {
+      const failed = Number(user.recovery_failed_attempts || 0) + 1;
+      const lockedUntil = failed >= SECURITY.maxFailedLogins ? new Date(Date.now() + SECURITY.sessionTimeoutMinutes * 60 * 1000).toISOString() : null;
+      db.prepare("UPDATE users SET recovery_failed_attempts = ?, recovery_locked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(failed, lockedUntil, user.id);
+      auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_reset_failed", module: "security", table_name: "users", record_id: user.id, new_value: JSON.stringify({ failed, lockedUntil }) });
+      throw new Error("Recovery secret is incorrect.");
+    }
+    const errors = passwordStrengthErrors(newPassword);
+    if (errors.length) {
+      throw new Error(errors.join(" "));
+    }
+    if (verifyPassword(newPassword, user.password_hash)) {
+      throw new Error("New password must be different from the current password.");
+    }
+    db.prepare(`
+      UPDATE users
+      SET password_hash = ?,
+          force_password_change = 0,
+          failed_login_count = 0,
+          locked_until = NULL,
+          recovery_failed_attempts = 0,
+          recovery_locked_until = NULL,
+          password_changed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(hashPassword(newPassword), user.id);
+    auditLog(db, { user_id: user.id, user_role: user.role, action: "password_recovery_reset", module: "security", table_name: "users", record_id: user.id });
+    return { ok: true };
+  }
+
+  function adminResetPassword(db, payload = {}, actor = {}) {
+    const targetId = Number(payload.user_id || 0);
+    const tempPassword = String(payload.new_password || payload.temp_password || "");
+    const actorId = Number(actor.user_id || 0);
+    const actorUser = actorId
+      ? db.prepare("SELECT id, username, display_name, role FROM users WHERE id = ?").get(actorId)
+      : null;
+    if (!actorUser || !["super_admin", "admin"].includes(actorUser.role)) {
+      throw new Error("Permission denied: admin role required.");
+    }
+    const target = db.prepare("SELECT * FROM users WHERE id = ?").get(targetId);
+    if (!target) {
+      throw new Error("User not found.");
+    }
+    if (targetId === actorId) {
+      throw new Error("Use the change password option for your own account.");
+    }
+    const errors = passwordStrengthErrors(tempPassword);
+    if (errors.length) {
+      throw new Error(errors.join(" "));
+    }
+    if (verifyPassword(tempPassword, target.password_hash)) {
+      throw new Error("Temporary password must be different from the current password.");
+    }
+    db.prepare(`
+      UPDATE users
+      SET password_hash = ?,
+          force_password_change = 1,
+          failed_login_count = 0,
+          locked_until = NULL,
+          recovery_failed_attempts = 0,
+          recovery_locked_until = NULL,
+          password_changed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(hashPassword(tempPassword), target.id);
+    auditLog(db, {
+      user_id: actorId,
+      user_role: actorUser.role,
+      action: "admin_password_reset",
+      module: "security",
+      table_name: "users",
+      record_id: target.id,
+      new_value: JSON.stringify({ target_username: target.username, force_change: true })
+    });
+    return { ok: true, username: target.username, forcePasswordChange: true };
+  }
+
   return {
     hashPassword, verifyPassword, normalizeRole, enforcePermission,
     authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
-    userForPermission
+    userForPermission, setRecoverySecret, recoveryResetPassword, adminResetPassword
   };
 }

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { isDesktopRuntime } from "../api/client.js";
-import { SettingsPanel } from "../components/settings/index.jsx";
+import { SettingsPanel, SecuritySection } from "../components/settings/index.jsx";
 
-export function SettingsScreen({ notify, apiClient, confirmAction }) {
+export function SettingsScreen({ notify, apiClient, confirmAction, role, userId }) {
   const [backups, setBackups] = useState([]);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const isAdmin = ["admin", "super_admin"].includes(role);
 
   async function refresh() {
     try {
@@ -126,16 +127,25 @@ export function SettingsScreen({ notify, apiClient, confirmAction }) {
   }
 
   return (
-    <SettingsPanel
-      backups={backups}
-      updateStatus={updateStatus}
-      updateLoading={updateLoading}
-      onCreateBackup={backup}
-      onRestoreBackup={restore}
-      onRefreshUpdates={refreshUpdates}
-      onOpenUpdateFolder={openUpdateFolder}
-      onInstallUpdate={installUpdate}
-    />
+    <>
+      <SettingsPanel
+        backups={backups}
+        updateStatus={updateStatus}
+        updateLoading={updateLoading}
+        onCreateBackup={backup}
+        onRestoreBackup={restore}
+        onRefreshUpdates={refreshUpdates}
+        onOpenUpdateFolder={openUpdateFolder}
+        onInstallUpdate={installUpdate}
+      />
+      <SecuritySection
+        apiClient={apiClient}
+        notify={notify}
+        confirmAction={confirmAction}
+        userId={userId}
+        isAdmin={isAdmin}
+      />
+    </>
   );
 }
 

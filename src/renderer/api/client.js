@@ -2,6 +2,10 @@ export const isDesktopRuntime = Boolean(window.giiGemErp);
 
 const blockedPreviewActions = new Set([
   "changePassword",
+  "setRecoverySecret",
+  "recoveryResetPassword",
+  "adminResetPassword",
+  "listUsers",
   "assignAccountGroup",
   "createLedgerAccount",
   "createBankImport",

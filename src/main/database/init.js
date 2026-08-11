@@ -1739,7 +1739,7 @@ const {
 const {
   hashPassword, verifyPassword, normalizeRole, enforcePermission,
   authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
-  userForPermission
+  userForPermission, setRecoverySecret, recoveryResetPassword, adminResetPassword
 } = createAuthService({
   auditLog
 });
@@ -1894,7 +1894,8 @@ export {
 };
 
 export {
-  authenticate, changeUserPassword, enforcePermission
+  authenticate, changeUserPassword, enforcePermission,
+  setRecoverySecret, recoveryResetPassword, adminResetPassword
 };
 
 export {

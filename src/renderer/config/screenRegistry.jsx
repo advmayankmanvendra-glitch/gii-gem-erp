@@ -61,7 +61,7 @@ export function resolveScreen(effectiveView, {
   if (effectiveView === "stock_drilldown") return <StockDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;
   if (effectiveView === "trial_balance_drilldown") return <TrialBalanceDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;
   if (effectiveView === "unposted_drilldown") return <UnpostedDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;
-  if (effectiveView === "settings") return <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />;
+  if (effectiveView === "settings") return <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} role={session?.role} userId={session?.id} />;
   if (effectiveView === "environment_manager") return <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />;
   if (effectiveView === "health_center") return <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />;
   if (masterViews[effectiveView]) return <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />;

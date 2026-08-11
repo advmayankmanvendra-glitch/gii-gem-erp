@@ -382,6 +382,10 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
   };
   return {
     login: async ({ username, password }) => username === "admin" && password === "admin123" ? { displayName: "System Administrator", username } : null,
+    setRecoverySecret: async () => { throw new Error("Recovery secret management requires the Windows desktop app."); },
+    recoveryResetPassword: async () => { throw new Error("Recovery password reset requires the Windows desktop app."); },
+    adminResetPassword: async () => { throw new Error("Admin password reset requires the Windows desktop app."); },
+    listUsers: async () => { throw new Error("User management requires the Windows desktop app."); },
     getDashboardCounts: async () => {
       const db = read();
       if (reconcileFallbackGuidedSideEffects(db)) write(db);

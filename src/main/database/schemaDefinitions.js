@@ -1383,6 +1383,9 @@ export function createSchemaFunctions({ addColumnIfMissing, seedFinancialYears, 
     addColumnIfMissing(db, "users", "force_password_change", "INTEGER NOT NULL DEFAULT 0");
     addColumnIfMissing(db, "users", "last_login_at", "TEXT");
     addColumnIfMissing(db, "users", "password_changed_at", "TEXT");
+    addColumnIfMissing(db, "users", "recovery_secret_hash", "TEXT");
+    addColumnIfMissing(db, "users", "recovery_failed_attempts", "INTEGER NOT NULL DEFAULT 0");
+    addColumnIfMissing(db, "users", "recovery_locked_until", "TEXT");
 
     addColumnIfMissing(db, "audit_log", "user_role", "TEXT");
     addColumnIfMissing(db, "audit_log", "module", "TEXT");

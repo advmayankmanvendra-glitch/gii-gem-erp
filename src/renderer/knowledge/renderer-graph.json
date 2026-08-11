@@ -1726,7 +1726,7 @@
         "../api/client.js",
         "../components/settings/index.jsx"
       ],
-      "lines": 156,
+      "lines": 165,
       "riskLevel": "low",
       "ownerModule": "Settings",
       "businessCriticality": "High",
@@ -1812,7 +1812,7 @@
       "imports": [
         "react"
       ],
-      "lines": 120,
+      "lines": 208,
       "riskLevel": "low",
       "ownerModule": "Other",
       "businessCriticality": "High",
@@ -3939,7 +3939,8 @@
         "SettingsPanel",
         "SettingsHeader",
         "SettingsOverview",
-        "SettingsCard"
+        "SettingsCard",
+        "SecuritySection"
       ],
       "exports": [
         "SettingsPanel",
@@ -3947,13 +3948,14 @@
         "SettingsOverview",
         "UpdaterSection",
         "BackupRestoreSection",
-        "SettingsCard"
+        "SettingsCard",
+        "SecuritySection"
       ],
       "imports": [
         "react",
         "../common.jsx"
       ],
-      "lines": 120,
+      "lines": 300,
       "riskLevel": "low",
       "ownerModule": "Settings",
       "businessCriticality": "Low",
