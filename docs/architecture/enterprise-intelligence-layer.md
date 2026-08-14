@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Status:** Active (Frozen)
-**Last Updated:** 2026-08-11
+**Last Updated:** 2026-08-14
 
 ---
 
@@ -25,6 +25,8 @@ Future AI tools (Codex, OpenCode, ChatGPT, and internal AI systems) shall use th
 | Renderer Intelligence Graph | RG-1 | **Active** | Renderer dependency graph, routes, screens, components, contexts, dialogs, IPC |
 | Database Intelligence Graph | DG-1 | **Active** | Database schema, tables, columns, relationships, indices, triggers |
 | Workflow Intelligence Graph | WG-1 | **Active** | Workflow graph, lifecycle states, transitions, pre/post conditions |
+| Voucher and Accounting Graph | KG-4 | **Active** | Voucher types, posting functions, debit/credit patterns, GST/inventory impact, reversal rules |
+| Feature Function Correlation Graph | FF-1 | **Active** | Feature-to-function/screen/table/report correlation; query routing for Ask ERP Brain |
 | Audit Intelligence Graph | AG-1 | **Active** | Audit events, mutations, users, approvals, compliance |
 
 ---
@@ -46,20 +48,26 @@ DG-1
   ▼
 WG-1
   │
+  ├────────────────────────────┐
+  ▼                            ▼
+KG-4 (voucher/accounting)   AG-1 (audit intelligence)
+  │
   ▼
-AG-1
+FF-1 (feature correlation, branch of KG-4 and the graph chain)
 ```
 
 Each graph references the ones it depends on. No graph exists in isolation.
 
 | Graph | References | Referenced By |
 |-------|-----------|---------------|
-| BRAIN-1 | — | KG-1, RG-1, DG-1, WG-1, AG-1 |
-| KG-1 | BRAIN-1 | RG-1, DG-1, WG-1, AG-1 |
-| RG-1 | BRAIN-1, KG-1 | DG-1, WG-1, AG-1 |
-| DG-1 | BRAIN-1, KG-1, RG-1 | WG-1, AG-1 |
-| WG-1 | BRAIN-1, KG-1, RG-1, DG-1 | AG-1 |
-| AG-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1 | — |
+| BRAIN-1 | — | KG-1, RG-1, DG-1, WG-1, KG-4, AG-1 |
+| KG-1 | BRAIN-1 | RG-1, DG-1, WG-1, AG-1, FF-1 |
+| RG-1 | BRAIN-1, KG-1 | DG-1, WG-1, AG-1, FF-1 |
+| DG-1 | BRAIN-1, KG-1, RG-1 | WG-1, KG-4, AG-1, FF-1 |
+| WG-1 | BRAIN-1, KG-1, RG-1, DG-1 | KG-4, AG-1, FF-1 |
+| KG-4 | BRAIN-1, KG-1, RG-1, DG-1, WG-1 | AG-1, FF-1 |
+| FF-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
+| AG-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
 
 ---
 
@@ -127,6 +135,8 @@ Active graph regeneration:
 - **KG-1** — Hand-authored — regenerated during architecture audit phases
 - **DG-1** — Hand-authored — regenerated when database schema or service structure changes significantly
 - **WG-1** — Hand-authored — regenerated when lifecycle stages or governance rules change
+- **KG-4** — Hand-authored — regenerated when voucher types, posting functions, or accounting logic change significantly
+- **FF-1** — Hand-authored — regenerated when features, screens, workflows, or database tables change significantly
 - **AG-1** — Hand-authored from the audit action catalog — regenerated when audit actions, audit tables, or audit modules change in `src/main`
 
 ---
@@ -182,20 +192,22 @@ The Enterprise Intelligence Layer is designed to grow. Future additions must:
 | `enterprise-intelligence-layer.json` | Platform-level manifest (like `package.json`) containing layer version, all graphs, schemas, dependencies, and capabilities. Top-level EIL contract alongside `graph-registry.json`. |
 | Consistency Engine | Automated cross-graph verification — ensures BRAIN-1 route keys match RG-1, KG-1 screen types match BRAIN-1 screen types, etc. |
 
-**Long-term (Post DG-1/WG-1/AG-1):**
+**Long-term:**
 
 | Item | Description |
 |------|-------------|
-| Full cross-graph sync | All 6 graphs verified as coherent whole by the Consistency Engine |
+| Full cross-graph sync | All 8 graphs verified as coherent whole by the Consistency Engine |
 | AI Planning Layer | AI tools propose changes, EIL validates impact across all graphs before code is written |
 | Self-documenting architecture | EIL becomes source of truth — code generation, refactoring, and docs derived from graphs |
 
-All six Enterprise Intelligence Layer graphs are now implemented:
+All eight Enterprise Intelligence Layer graphs are now implemented:
 
 | Graph | Phase | Purpose |
 |-------|-------|---------|
 | DG-1 | Complete | Database Intelligence Graph |
 | WG-1 | Complete | Workflow Intelligence Graph |
+| KG-4 | Complete | Voucher and Accounting Graph |
+| FF-1 | Complete | Feature Function Correlation Graph |
 | AG-1 | Complete | Audit Intelligence Graph |
 
 No new graph is currently registered as planned.
@@ -232,6 +244,8 @@ All active graphs are verified by `scripts/verify-audit.js`:
 | RG-1 | rg-1 | `verify:audit --phase=rg-1` |
 | DG-1 | dg-1 | `npm run verify:database-graph` |
 | WG-1 | wg-1 | `npm run verify:workflow-graph` |
+| KG-4 | kg-4 | `npm run verify:voucher-accounting-graph` |
+| FF-1 | ff-1 | `npm run verify:feature-function-graph` |
 | AG-1 | ag-1 | `npm run verify:audit-graph` |
 
 ---

@@ -5320,11 +5320,11 @@
   },
   "futureExtensions": {
     "plannedFeatures": [
-      "FF-2 runtime routing integration",
+      "FF-2 runtime routing absorbed into BRAIN-4.3B / FF-1 (implemented)",
       "Additional feature coverage for AMC/service contracts",
       "Runtime integration with AG-1 Audit Graph for audit-intent query resolution"
     ],
-    "runtimeIntegrationPhase": "FF-2 (future phase)",
+    "runtimeIntegrationPhase": "BRAIN-4.3B (implemented — FF-1 runtime routing)",
     "notes": [
       "FF-1 is the correlation foundation only. Runtime wiring into Ask ERP Brain query resolution requires a separate FF-2 phase."
     ]

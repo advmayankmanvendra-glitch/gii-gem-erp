@@ -1,7 +1,7 @@
 {
   "enterpriseIntelligenceLayer": "1.0.0",
-  "registryVersion": "1.1.0",
-  "generatedAt": "2026-08-11T00:00:00.000Z",
+  "registryVersion": "1.2.0",
+  "generatedAt": "2026-08-14T00:00:00.000Z",
   "description": "Single discovery point for all Enterprise Intelligence Layer repositories. AI tools must load this registry first before loading any graph.",
   "compatibilityMatrix": {
     "BRAIN-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "RG-1": "^1.0" } },
@@ -42,7 +42,7 @@
       "regenerationTrigger": "Architecture audit phase",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "DG-1, WG-1, AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "KG-1",
@@ -62,7 +62,7 @@
       "regenerationTrigger": "Architecture audit phase",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "DG-1, WG-1, AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "RG-1",
@@ -82,7 +82,7 @@
       "regenerationTrigger": "Phase 17L.1 or when renderer source changes significantly",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "DG-1, WG-1, AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "DG-1",
@@ -102,7 +102,7 @@
       "regenerationTrigger": "When database schema or service structure changes significantly",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "WG-1",
@@ -128,7 +128,7 @@
       "regenerationTrigger": "When lifecycle stages or governance rules change",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "KG-4",
@@ -148,7 +148,7 @@
       "regenerationTrigger": "When voucher types, posting functions, or accounting logic change significantly",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
-      "futureGraph": "AG-1"
+      "futureGraph": "N/A"
     },
     {
       "graphId": "FF-1",
@@ -174,8 +174,8 @@
       "validationMethod": "npm run verify:feature-function-graph",
       "regenerationTrigger": "When features, screens, workflows, or database tables change significantly",
       "documentation": "docs/architecture/ff-1-feature-function-correlation-graph-report.md",
-      "schemaVersion": "1.0.0",
-      "futureGraph": "FF-2 (runtime routing)"
+"schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
     },
     {
       "graphId": "AG-1",
@@ -200,5 +200,23 @@
       "schemaVersion": "1.0.0",
       "futureGraph": "N/A"
     }
+  ],
+  "historicalStages": [
+    { "id": "BRAIN-2", "title": "Source-backed ERP Brain search and answer service", "recommendedStatus": "COMPLETED", "successor": "BRAIN-1 service layer", "evidence": ["docs/architecture/brain-2-source-backed-intelligence-upgrade-report.md", "npm run verify:erp-brain"] },
+    { "id": "BRAIN-3", "title": "Contextual Help Assistant integration", "recommendedStatus": "COMPLETED", "successor": "Help Assistant over BRAIN-2", "evidence": ["docs/architecture/brain-3-contextual-help-assistant-integration-report.md", "npm run verify:help-assistant-brain"] },
+    { "id": "BRAIN-4", "title": "Read-only Ask ERP Brain assistant", "recommendedStatus": "COMPLETED", "successor": "Ask ERP Brain runtime assistant", "evidence": ["docs/architecture/brain-4-combined-phase-report.md", "docs/architecture/brain-4-3b-ff1-runtime-routing-report.md"] },
+    { "id": "BRAIN-5", "title": "LLM gateway feasibility", "recommendedStatus": "DEFERRED", "successor": null, "evidence": ["docs/architecture/brain-5-llm-gateway-feasibility-study.md"] },
+    { "id": "KG-2", "title": "Historical workflow graph stage", "recommendedStatus": "MERGED", "successor": "WG-1", "evidence": ["docs/architecture/kg-2-wg-1-workflow-graph-foundation-report.md"] },
+    { "id": "KG-3", "title": "Historical database graph stage", "recommendedStatus": "SUPERSEDED", "successor": "DG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md"] },
+    { "id": "KG-5", "title": "Document and Manual Graph", "recommendedStatus": "PLANNED", "successor": null, "evidence": ["docs/manuals/", "docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md"] },
+    { "id": "KG-6", "title": "Historical renderer dependency graph stage", "recommendedStatus": "MERGED", "successor": "RG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md", "src/renderer/knowledge/renderer-graph.json"] },
+    { "id": "KG-7", "title": "Historical verification and audit graph stage", "recommendedStatus": "SUPERSEDED", "successor": "AG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md", "src/renderer/knowledge/audit-graph.json"] },
+    { "id": "KG-8", "title": "Knowledge Search Index", "recommendedStatus": "MERGED", "successor": "BRAIN-2", "evidence": ["src/renderer/modules/erpBrain/services/sourceBackedSearchIndex.js", "npm run verify:erp-brain"] },
+    { "id": "KG-9", "title": "Contextual Help Mapping", "recommendedStatus": "MERGED", "successor": "BRAIN-3", "evidence": ["src/renderer/modules/helpAssistant/contextualBrainHelp.js", "npm run verify:help-assistant-brain"] },
+    { "id": "KG-10", "title": "Knowledge validation and governance", "recommendedStatus": "MERGED", "successor": "AG-1", "evidence": ["scripts/verify-audit.js", "src/renderer/knowledge/audit-graph.json"] },
+    { "id": "RG-2", "title": "Stray AIR renderer graph reference", "recommendedStatus": "UNVERIFIED", "successor": null, "evidence": ["docs/tally-intelligence/AIR/erp9-air-integration.md"] },
+    { "id": "WG-2", "title": "Workflow Enforcement Readiness Audit", "recommendedStatus": "COMPLETED", "successor": "WG-3A", "evidence": ["docs/architecture/wg-2-workflow-enforcement-readiness-audit.md"] },
+    { "id": "WG-3", "title": "Workflow Enforcement Foundation family", "recommendedStatus": "COMPLETED", "successor": "WG-3A workflow stage engine", "evidence": ["docs/architecture/wg-3a-workflow-enforcement-foundation-report.md", "src/renderer/modules/workflow/workflowStageEngine.js"] },
+    { "id": "FF-2", "title": "Runtime routing phase named as future in FF-1 metadata", "recommendedStatus": "COMPLETED", "successor": "BRAIN-4.3B using FF-1", "evidence": ["docs/architecture/brain-4-3b-ff1-runtime-routing-report.md", "src/renderer/knowledge/feature-function-graph.json"] }
   ]
 }
