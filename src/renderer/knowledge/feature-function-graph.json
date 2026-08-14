@@ -2876,12 +2876,12 @@
       "preferredSourceGraph": "DG-1",
       "fallbackSourceGraph": "BRAIN-1",
       "knownGaps": [
-        "AG-1 Audit Intelligence Graph is planned but not yet implemented"
+        "AG-1 audit event catalog is descriptive; live audit_log rows are not yet mapped to AG-1 event IDs at runtime"
       ],
       "sourceReferences": [
         "DG-1 table: audit_log",
         "KG-4 audit trail mapping",
-        "AG-1 (planned)"
+        "AG-1 audit intelligence graph (active — event catalog)"
       ],
       "featureName": "Audit Log",
       "status": "active",
@@ -5277,12 +5277,12 @@
     },
     {
       "id": "FF1-GAP-005",
-      "description": "AG-1 Audit Intelligence Graph is planned but not yet implemented",
+      "description": "AG-1 audit event catalog is descriptive — live audit_log rows are not yet mapped to AG-1 event IDs at runtime",
       "affectedFeatureIds": [
         "FEA-50"
       ],
       "severity": "low",
-      "mitigation": "Audit log data is available via DG-1 table mapping"
+      "mitigation": "Audit log data is available via DG-1 table mapping; AG-1 catalog covers events and audit stores"
     },
     {
       "id": "FF1-GAP-006",
@@ -5322,7 +5322,7 @@
     "plannedFeatures": [
       "FF-2 runtime routing integration",
       "Additional feature coverage for AMC/service contracts",
-      "Integration with AG-1 Audit Graph"
+      "Runtime integration with AG-1 Audit Graph for audit-intent query resolution"
     ],
     "runtimeIntegrationPhase": "FF-2 (future phase)",
     "notes": [

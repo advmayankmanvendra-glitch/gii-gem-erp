@@ -1,19 +1,19 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "RG-1",
-  "generatedAt": "2026-07-31T16:36:23.692Z",
+  "generatedAt": "2026-08-14T10:26:34.650Z",
   "sourceRoot": "src/renderer/",
   "filesScanned": 252,
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
     "version": "2.0",
-    "generated": "2026-07-31T16:36:23.692Z",
+    "generated": "2026-08-14T10:26:34.666Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
     "fileCount": 252,
-    "totalLines": 43083,
-    "totalImports": 699
+    "totalLines": 43446,
+    "totalImports": 700
   },
   "statistics": {
     "filesByCategory": {
@@ -31,8 +31,8 @@
       "util": 10
     },
     "filesByRisk": {
-      "low": 213,
-      "medium": 36,
+      "low": 211,
+      "medium": 38,
       "high": 3
     },
     "filesByCriticality": {
@@ -76,12 +76,12 @@
       "lines": 963
     },
     "layerCount": 12,
-    "architectureDensity": 2.77,
+    "architectureDensity": 2.78,
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 74,
-        "lines": 1687,
+        "importCount": 75,
+        "lines": 1684,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -179,7 +179,7 @@
       {
         "path": "screens/DashboardScreen.jsx",
         "importCount": 10,
-        "lines": 287,
+        "lines": 333,
         "category": "screen",
         "owner": "Dashboard"
       },
@@ -284,15 +284,15 @@
     "highRiskFiles": [
       {
         "path": "api/browserFallbackApi.js",
-        "lines": 1114,
+        "lines": 1118,
         "imports": 2,
         "owner": "Utilities",
         "criticality": "Low"
       },
       {
         "path": "App.jsx",
-        "lines": 1687,
-        "imports": 74,
+        "lines": 1684,
+        "imports": 75,
         "owner": "Renderer Shell",
         "criticality": "Critical"
       },
@@ -312,14 +312,14 @@
     "totalConfigFiles": 11,
     "circularImports": 0,
     "circularImportDetails": [],
-    "approximateTokenSavings": "~8767 tokens per AI operation"
+    "approximateTokenSavings": "~8831 tokens per AI operation"
   },
   "heatMap": {
     "mostConnected": [
       {
         "path": "App.jsx",
-        "importCount": 74,
-        "lines": 1687,
+        "importCount": 75,
+        "lines": 1684,
         "category": "app",
         "owner": "Renderer Shell"
       },
@@ -432,7 +432,7 @@
     "highestFanOut": [
       {
         "path": "App.jsx",
-        "fanOut": 74,
+        "fanOut": 75,
         "category": "app"
       },
       {
@@ -488,7 +488,7 @@
       },
       {
         "name": "index",
-        "count": 75
+        "count": 76
       },
       {
         "name": "formatters",
@@ -526,13 +526,13 @@
     "mostCritical": [
       {
         "path": "api/client.js",
-        "lines": 100,
+        "lines": 104,
         "imports": 0
       },
       {
         "path": "App.jsx",
-        "lines": 1687,
-        "imports": 74
+        "lines": 1684,
+        "imports": 75
       },
       {
         "path": "components/common.jsx",
@@ -546,7 +546,7 @@
       },
       {
         "path": "config/navigation.js",
-        "lines": 330,
+        "lines": 332,
         "imports": 0
       },
       {
@@ -556,7 +556,7 @@
       },
       {
         "path": "screens/DashboardScreen.jsx",
-        "lines": 287,
+        "lines": 333,
         "imports": 10
       }
     ],
@@ -1482,6 +1482,56 @@
       }
     },
     {
+      "path": "screens/DashboardScreen.jsx",
+      "components": [
+        "DashboardScreen"
+      ],
+      "exports": [
+        "DashboardScreen"
+      ],
+      "imports": [
+        "react",
+        "../features/dashboards/dashboardConfig.js",
+        "../features/dashboards/dashboardService.js",
+        "../features/dashboards/widgetFramework.jsx",
+        "../features/dashboards/dashboardContext.jsx",
+        "../features/dashboards/treasuryOverview.jsx",
+        "../config/storageKeys.js",
+        "../components/dashboard/index.jsx",
+        "../stability/rendererStabilityUtils.js",
+        "../utils/uiHelpers.js"
+      ],
+      "lines": 333,
+      "riskLevel": "medium",
+      "ownerModule": "Dashboard",
+      "businessCriticality": "Critical",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Dashboard Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "DashboardScreen",
+        "relatedScreens": [
+          "DashboardScreen"
+        ],
+        "relatedReports": [
+          "Dashboard Summary"
+        ],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "screens/MasterImportTemplatesScreen.jsx",
       "components": [
         "MasterImportTemplatesScreen",
@@ -1516,56 +1566,6 @@
         "primaryEntryPoint": "MasterImportTemplatesScreen",
         "relatedScreens": [],
         "relatedReports": [],
-        "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
-    },
-    {
-      "path": "screens/DashboardScreen.jsx",
-      "components": [
-        "DashboardScreen"
-      ],
-      "exports": [
-        "DashboardScreen"
-      ],
-      "imports": [
-        "react",
-        "../features/dashboards/dashboardConfig.js",
-        "../features/dashboards/dashboardService.js",
-        "../features/dashboards/widgetFramework.jsx",
-        "../features/dashboards/dashboardContext.jsx",
-        "../features/dashboards/treasuryOverview.jsx",
-        "../config/storageKeys.js",
-        "../components/dashboard/index.jsx",
-        "../stability/rendererStabilityUtils.js",
-        "../utils/uiHelpers.js"
-      ],
-      "lines": 287,
-      "riskLevel": "low",
-      "ownerModule": "Dashboard",
-      "businessCriticality": "Critical",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "Dashboard Workflow",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17 (Stabilization)",
-        "extractionCandidate": "Screen Module"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "DashboardScreen",
-        "relatedScreens": [
-          "DashboardScreen"
-        ],
-        "relatedReports": [
-          "Dashboard Summary"
-        ],
         "relatedDialogs": [],
         "relatedContext": [
           "CompanyContext"
@@ -1671,6 +1671,43 @@
       }
     },
     {
+      "path": "screens/LoginScreen.jsx",
+      "components": [
+        "LoginScreen"
+      ],
+      "exports": [
+        "LoginScreen"
+      ],
+      "imports": [
+        "react"
+      ],
+      "lines": 209,
+      "riskLevel": "low",
+      "ownerModule": "Other",
+      "businessCriticality": "High",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "General",
+      "riskMetadata": {
+        "riskLevel": "low",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Screen Module"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "LoginScreen",
+        "relatedScreens": [],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "screens/MasterScreen.jsx",
       "components": [
         "validateForm",
@@ -1726,7 +1763,7 @@
         "../api/client.js",
         "../components/settings/index.jsx"
       ],
-      "lines": 165,
+      "lines": 166,
       "riskLevel": "low",
       "ownerModule": "Settings",
       "businessCriticality": "High",
@@ -1790,43 +1827,6 @@
           "RecoveryCenterScreen",
           "SafeModeScreen"
         ],
-        "relatedReports": [],
-        "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
-    },
-    {
-      "path": "screens/LoginScreen.jsx",
-      "components": [
-        "LoginScreen"
-      ],
-      "exports": [
-        "LoginScreen"
-      ],
-      "imports": [
-        "react"
-      ],
-      "lines": 208,
-      "riskLevel": "low",
-      "ownerModule": "Other",
-      "businessCriticality": "High",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "General",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17 (Stabilization)",
-        "extractionCandidate": "Screen Module"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "LoginScreen",
-        "relatedScreens": [],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -3411,6 +3411,55 @@
       }
     },
     {
+      "path": "components/settings/index.jsx",
+      "components": [
+        "SettingsPanel",
+        "SettingsHeader",
+        "SettingsOverview",
+        "SettingsCard"
+      ],
+      "exports": [
+        "SettingsPanel",
+        "SettingsHeader",
+        "SettingsOverview",
+        "UpdaterSection",
+        "BackupRestoreSection",
+        "SettingsCard",
+        "SecuritySection"
+      ],
+      "imports": [
+        "react",
+        "../common.jsx"
+      ],
+      "lines": 301,
+      "riskLevel": "medium",
+      "ownerModule": "Settings",
+      "businessCriticality": "Low",
+      "changeFrequency": "Occasionally Modified",
+      "workflowReference": "Settings Workflow",
+      "riskMetadata": {
+        "riskLevel": "medium",
+        "reason": "Small file, low risk",
+        "futurePhase": "17 (Stabilization)",
+        "extractionCandidate": "Component Library"
+      },
+      "aiNavigation": {
+        "primaryEntryPoint": "index",
+        "relatedScreens": [
+          "SettingsScreen"
+        ],
+        "relatedReports": [],
+        "relatedDialogs": [],
+        "relatedContext": [
+          "CompanyContext"
+        ],
+        "relatedPrintTemplates": [],
+        "relatedIPC": [
+          "ipcRenderer.invoke"
+        ]
+      }
+    },
+    {
       "path": "components/dashboard/index.jsx",
       "components": [
         "DashboardCardGrid",
@@ -3427,7 +3476,7 @@
         "react",
         "../common.jsx"
       ],
-      "lines": 293,
+      "lines": 298,
       "riskLevel": "low",
       "ownerModule": "Dashboard",
       "businessCriticality": "Low",
@@ -3922,56 +3971,6 @@
       "aiNavigation": {
         "primaryEntryPoint": "EntityPickerRegistry",
         "relatedScreens": [],
-        "relatedReports": [],
-        "relatedDialogs": [],
-        "relatedContext": [
-          "CompanyContext"
-        ],
-        "relatedPrintTemplates": [],
-        "relatedIPC": [
-          "ipcRenderer.invoke"
-        ]
-      }
-    },
-    {
-      "path": "components/settings/index.jsx",
-      "components": [
-        "SettingsPanel",
-        "SettingsHeader",
-        "SettingsOverview",
-        "SettingsCard",
-        "SecuritySection"
-      ],
-      "exports": [
-        "SettingsPanel",
-        "SettingsHeader",
-        "SettingsOverview",
-        "UpdaterSection",
-        "BackupRestoreSection",
-        "SettingsCard",
-        "SecuritySection"
-      ],
-      "imports": [
-        "react",
-        "../common.jsx"
-      ],
-      "lines": 300,
-      "riskLevel": "low",
-      "ownerModule": "Settings",
-      "businessCriticality": "Low",
-      "changeFrequency": "Occasionally Modified",
-      "workflowReference": "Settings Workflow",
-      "riskMetadata": {
-        "riskLevel": "low",
-        "reason": "Small file, low risk",
-        "futurePhase": "17 (Stabilization)",
-        "extractionCandidate": "Component Library"
-      },
-      "aiNavigation": {
-        "primaryEntryPoint": "index",
-        "relatedScreens": [
-          "SettingsScreen"
-        ],
         "relatedReports": [],
         "relatedDialogs": [],
         "relatedContext": [
@@ -5378,9 +5377,11 @@
         "COMPARISON_OPTIONS",
         "getFinancialYear",
         "getFinancialYearOptions",
+        "getPeriodRange",
         "useFinancialYear",
         "usePeriod",
         "useComparison",
+        "dashboardFilters",
         "useDashboardData",
         "resolveCardValue",
         "buildExportContext"
@@ -5390,7 +5391,7 @@
         "../../utils/uiHelpers.js",
         "./treasuryService.js"
       ],
-      "lines": 374,
+      "lines": 399,
       "ownerModule": "Dashboard",
       "businessCriticality": "High",
       "changeFrequency": "Occasionally Modified",
@@ -6170,7 +6171,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 697,
+    "complexityScore": 700,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6201,8 +6202,8 @@
     "name": "Renderer Dependency Graph",
     "version": "2.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
-    "totalLines": 43083,
-    "totalImports": 699
+    "totalLines": 43446,
+    "totalImports": 700
   },
   "externalDependencies": {
     "apiClient": "src/renderer/api/client.js",
@@ -6222,7 +6223,7 @@
       "App.jsx",
       "features/importExport/TallyMasterMigrationAssistantScreen.jsx"
     ],
-    "complexityScore": 697,
+    "complexityScore": 700,
     "suggestedExtractionOrder": [
       "1. Presentation-only components (components/common.jsx, overslays)",
       "2. Config files (static data — navigation.js, viewDefinitions.js, etc.)",
@@ -6238,7 +6239,7 @@
   "evolution": {
     "current": {
       "description": "Monolithic App.jsx, flat routing, single CSS, direct IPC",
-      "appJsxLines": 1687,
+      "appJsxLines": 1684,
       "cssLines": 7042,
       "style": "Monolithic"
     },
@@ -6252,8 +6253,8 @@
       "style": "Architecture Separated"
     },
     "future": {
-      "description": "DG-1 database graph, WG-1 workflow graph, AG-1 audit graph, full structured intelligence layer",
-      "graphsActive": 6,
+      "description": "Intelligence layer complete — DG-1, WG-1, AG-1 active (8 graphs); runtime consumption by Health Center and Help Assistant",
+      "graphsActive": 8,
       "style": "Intelligence-Driven"
     }
   },
@@ -6389,6 +6390,10 @@
     {
       "from": "App.jsx",
       "to": "./components/layout/index.jsx"
+    },
+    {
+      "from": "App.jsx",
+      "to": "./components/workspace/index.jsx"
     },
     {
       "from": "App.jsx",
@@ -8253,10 +8258,6 @@
     {
       "from": "modules/helpAssistant/helpAssistantUtils.js",
       "to": "./helpAssistantEntities.js"
-    },
-    {
-      "from": "modules/helpAssistant/helpAssistantUtils.js",
-      "to": "./helpAssistantIntentMap.js"
     }
   ]
 }

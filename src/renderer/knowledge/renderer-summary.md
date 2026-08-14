@@ -2,7 +2,7 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0
-**Generated:** 2026-07-31T16:36:23.712Z
+**Generated:** 2026-08-14T10:26:34.805Z
 
 ---
 
@@ -10,12 +10,12 @@
 | Metric | Value |
 |--------|-------|
 | Source Files | 252 |
-| Total Lines | 43,083 |
-| Import Statements | 699 |
-| App.jsx | 1687 lines (~84KB) |
+| Total Lines | 43,446 |
+| Import Statements | 700 |
+| App.jsx | 1684 lines (~84KB) |
 | CSS (single file) | 7,042 lines (125KB) |
-| Complexity Score | 697 |
-| Architecture Density | 2.77 imports/file |
+| Complexity Score | 700 |
+| Architecture Density | 2.78 imports/file |
 
 ## 2. Screens (41 dedicated files, 114 routes)
 - **Master Data:** companies, employees, suppliers, items, banks, warehouses, ledgers, groups
@@ -66,7 +66,7 @@
 
 ## 7. Architectural Pattern
 1. **Flat routing** — effectiveView state, no router library
-2. **Monolithic App.jsx** — 1687 lines with inline CRUD and view switching
+2. **Monolithic App.jsx** — 1684 lines with inline CRUD and view switching
 3. **Flat hierarchy** — App.jsx imports screens and components directly
 4. **Single CSS** — styles/app.css with 7,042 lines
 5. **Direct IPC** — apiClient prop passed from App.jsx
@@ -91,10 +91,10 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 | Risk Level | Count |
 |------------|-------|
 | High | 3 |
-| Medium | 36 |
-| Low | 213 |
-- **High:** `api/browserFallbackApi.js` (1114 lines, 2 imports) — Utilities
-- **High:** `App.jsx` (1687 lines, 74 imports) — Renderer Shell
+| Medium | 38 |
+| Low | 211 |
+- **High:** `api/browserFallbackApi.js` (1118 lines, 2 imports) — Utilities
+- **High:** `App.jsx` (1684 lines, 75 imports) — Renderer Shell
 - **High:** `features/importExport/TallyMasterMigrationAssistantScreen.jsx` (1072 lines, 8 imports) — Dashboard
 
 ## 11. Integration with Intelligence Layer
@@ -103,6 +103,6 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 | BRAIN-1 (ERP Knowledge) | Active (214 entries) |
 | KG-1 (Metadata Registry) | Active (167 entries) |
 | **RG-1 (Renderer Graph)** | **Active (v2.0 Enhanced)** |
-| DG-1 (Database Graph) | Planned |
-| WG-1 (Workflow Graph) | Planned |
-| AG-1 (Audit Graph) | Planned |
+| DG-1 (Database Graph) | Active (82 tables) |
+| WG-1 (Workflow Graph) | Active (15 workflows) |
+| AG-1 (Audit Graph) | Active (97 events) |

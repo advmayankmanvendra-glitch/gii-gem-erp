@@ -2,14 +2,14 @@
 
 **Graph ID:** RG-1
 **Version:** 2.0 (Enhanced)
-**Generated:** 2026-07-31T16:36:23.696Z
+**Generated:** 2026-08-14T10:26:34.669Z
 **Source:** `src/renderer/`
 
 ---
 
 ## 1. Architecture Overview
 
-The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1687 App.jsx lines).
+The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via `effectiveView` (114 routes, 1684 App.jsx lines).
 
 **Stack:** React → Vite → Electron → IPC → SQLite
 
@@ -20,21 +20,21 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 | Metric | Value |
 |--------|-------|
 | Total Files | 252 |
-| Total Lines | 43,083 |
-| Total Imports | 699 |
+| Total Lines | 43,446 |
+| Total Imports | 700 |
 | Routes | 114 |
 | Screens | 41 |
 | Components | 41 |
 | Features | 53 |
 | Layers | 12 |
-| Architecture Density | 2.77 imports/file |
+| Architecture Density | 2.78 imports/file |
 | Avg Imports/Screen | 3 |
 | Avg Component Reuse | 2x |
 | Largest Component | components/helpProductivity/index.jsx (597 lines) |
 | Largest Screen | screens/EnvironmentManager/EnvironmentManagerScreen.jsx (963 lines) |
-| Complexity Score | 697 |
+| Complexity Score | 700 |
 | Circular Imports | 0 |
-| Token Savings | ~8767 tokens per AI operation |
+| Token Savings | ~8831 tokens per AI operation |
 
 ### By Owner
 - **Dashboard:** 53 files
@@ -68,7 +68,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Highest Fan-Out (Most Imports)
 | File | Imports | Category | Owner |
 |------|---------|----------|-------|
-| App.jsx | 74 | app | Renderer Shell |
+| App.jsx | 75 | app | Renderer Shell |
 | config/screenRegistry.jsx | 23 | config | Renderer Shell |
 | features/accounting/AccountingScreen.jsx | 16 | feature | Dashboard |
 | features/transactions/TransactionScreen.jsx | 16 | feature | Dashboard |
@@ -83,7 +83,7 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 | Module/File | Times Imported |
 |-------------|----------------|
 | react | 142 |
-| index | 75 |
+| index | 76 |
 | formatters | 55 |
 | common | 38 |
 | optionSorting | 17 |
@@ -110,13 +110,13 @@ The GII GeM ERP renderer is a React SPA (Vite + Electron) with flat routing via 
 ### Critical Files (Business Criticality: Critical)
 | File | Lines | Imports |
 |------|-------|---------|
-| api/client.js | 100 | 0 |
-| App.jsx | 1687 | 74 |
+| api/client.js | 104 | 0 |
+| App.jsx | 1684 | 75 |
 | components/common.jsx | 135 | 2 |
 | components/forms/index.jsx | 378 | 2 |
-| config/navigation.js | 330 | 0 |
+| config/navigation.js | 332 | 0 |
 | config/viewDefinitions.js | 447 | 0 |
-| screens/DashboardScreen.jsx | 287 | 10 |
+| screens/DashboardScreen.jsx | 333 | 10 |
 
 ---
 
@@ -179,7 +179,8 @@ All routes via `effectiveView`. No React Router.
 | components/forms/index.jsx | 378 | 2 | Renderer Shell | Critical | Occasionally Modified |
 | components/overlays/QuickCreateMasterDialog.jsx | 367 | 8 | Renderer Shell | Low | Occasionally Modified |
 | components/inventoryReports/index.jsx | 326 | 4 | Inventory | Low | Stable |
-| components/dashboard/index.jsx | 293 | 2 | Dashboard | Low | Occasionally Modified |
+| components/settings/index.jsx | 301 | 2 | Settings | Low | Occasionally Modified |
+| components/dashboard/index.jsx | 298 | 2 | Dashboard | Low | Occasionally Modified |
 | components/panels/DrilldownPanel.jsx | 282 | 5 | Other | Low | Occasionally Modified |
 | components/panels/SmallComponents.jsx | 252 | 4 | Other | Low | Occasionally Modified |
 | components/overlays/index.jsx | 243 | 3 | Renderer Shell | High | Occasionally Modified |
@@ -188,7 +189,6 @@ All routes via `effectiveView`. No React Router.
 | components/helpTraining/index.jsx | 197 | 3 | Help | Low | Occasionally Modified |
 | components/inventoryReports/InventoryDashboardPanel.jsx | 165 | 4 | Inventory | Low | Stable |
 | components/entityPicker/SmartEntityPicker.jsx | 161 | 10 | Other | Low | Occasionally Modified |
-| components/common.jsx | 135 | 2 | Renderer Shell | Critical | Occasionally Modified |
 
 ---
 
@@ -233,10 +233,10 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 
 | Stage | Description | Key Metrics |
 |-------|-------------|-------------|
-| **Current** | Monolithic App.jsx, flat routing, single CSS | 1687 App.jsx lines, 7,042 CSS lines |
+| **Current** | Monolithic App.jsx, flat routing, single CSS | 1684 App.jsx lines, 7,042 CSS lines |
 | **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |
 | **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |
-| **Future** | DG-1, WG-1, AG-1 graphs — full intelligence layer | 6 active graphs |
+| **Future** | Runtime consumption of intelligence layer — Health Center, Help Assistant | 8 active graphs |
 
 ---
 

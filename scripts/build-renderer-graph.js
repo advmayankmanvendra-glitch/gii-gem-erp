@@ -757,7 +757,7 @@ const graph = {
     current: { description: "Monolithic App.jsx, flat routing, single CSS, direct IPC", appJsxLines: appLines, cssLines: 7042, style: "Monolithic" },
     phase17: { description: "CSS segmentation, presentation extraction, config isolation, knowledge graph stabilization", expectedReduction: "200-500 App.jsx lines, ~6,700 CSS lines", style: "Stabilized" },
     phase18: { description: "Route registry, dialog manager, nav controller, context providers, API service layer", style: "Architecture Separated" },
-    future: { description: "DG-1 database graph, WG-1 workflow graph, AG-1 audit graph, full structured intelligence layer", graphsActive: 6, style: "Intelligence-Driven" },
+    future: { description: "Intelligence layer complete — DG-1, WG-1, AG-1 active (8 graphs); runtime consumption by Health Center and Help Assistant", graphsActive: 8, style: "Intelligence-Driven" },
   },
   edges: edges.slice(0, 500),
 };
@@ -903,7 +903,7 @@ const md = [
   `| **Current** | Monolithic App.jsx, flat routing, single CSS | ${appLines} App.jsx lines, 7,042 CSS lines |`,
   `| **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |`,
   `| **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |`,
-  `| **Future** | DG-1, WG-1, AG-1 graphs — full intelligence layer | 6 active graphs |`,
+  `| **Future** | Runtime consumption of intelligence layer — Health Center, Help Assistant | 8 active graphs |`,
   ``,
   `---`,
   ``,
@@ -1006,9 +1006,9 @@ const summary = [
   `| BRAIN-1 (ERP Knowledge) | Active (214 entries) |`,
   `| KG-1 (Metadata Registry) | Active (167 entries) |`,
   `| **RG-1 (Renderer Graph)** | **Active (v2.0 Enhanced)** |`,
-  `| DG-1 (Database Graph) | Planned |`,
-  `| WG-1 (Workflow Graph) | Planned |`,
-  `| AG-1 (Audit Graph) | Planned |`,
+  `| DG-1 (Database Graph) | Active (82 tables) |`,
+  `| WG-1 (Workflow Graph) | Active (15 workflows) |`,
+  `| AG-1 (Audit Graph) | Active (97 events) |`,
   ``,
 ].join("\n");
 
