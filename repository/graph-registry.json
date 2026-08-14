@@ -1,6 +1,6 @@
 {
   "enterpriseIntelligenceLayer": "1.0.0",
-  "registryVersion": "1.2.0",
+  "registryVersion": "1.3.0",
   "generatedAt": "2026-08-14T00:00:00.000Z",
   "description": "Single discovery point for all Enterprise Intelligence Layer repositories. AI tools must load this registry first before loading any graph.",
   "compatibilityMatrix": {
@@ -11,7 +11,8 @@
     "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
     "AG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
-    "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } }
+    "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } },
+    "KG-5": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0", "FF-1": "^1.0" } }
   },
   "dependencies": {
     "BRAIN-1": { "dependsOn": [], "dependedBy": ["KG-1", "RG-1", "DG-1", "WG-1", "AG-1", "FF-1"] },
@@ -21,7 +22,8 @@
     "WG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1"], "dependedBy": ["KG-4", "AG-1"] },
     "KG-4": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1"], "dependedBy": ["AG-1", "FF-1"] },
     "FF-1": { "dependsOn": ["KG-1", "WG-1", "DG-1", "KG-4", "RG-1", "BRAIN-1"], "dependedBy": [] },
-    "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"], "dependedBy": [] }
+    "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"], "dependedBy": [] },
+    "KG-5": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"], "dependedBy": [] }
   },
   "graphs": [
     {
@@ -196,6 +198,29 @@
       ],
       "validationMethod": "npm run verify:audit-graph",
       "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "KG-5",
+      "title": "Document and Manual Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/manual-graph.schema.json",
+      "location": "src/renderer/knowledge/manual-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "purpose": "Document and manual inventory with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors",
+      "entryCount": 10,
+      "lastUpdated": "2026-08-14",
+      "generationTool": "scripts/build-manual-graph.js",
+      "generationCommand": "node scripts/build-manual-graph.js",
+      "sourceDirectories": [
+        "docs/manuals/",
+        "src/renderer/modules/erpBrain/data/manualIndex.js"
+      ],
+      "validationMethod": "npm run verify:manual-graph",
+      "regenerationTrigger": "When manuals change, when the manual section index changes, or when referenced graphs change",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
       "futureGraph": "N/A"

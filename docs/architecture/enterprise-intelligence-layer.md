@@ -28,6 +28,7 @@ Future AI tools (Codex, OpenCode, ChatGPT, and internal AI systems) shall use th
 | Voucher and Accounting Graph | KG-4 | **Active** | Voucher types, posting functions, debit/credit patterns, GST/inventory impact, reversal rules |
 | Feature Function Correlation Graph | FF-1 | **Active** | Feature-to-function/screen/table/report correlation; query routing for Ask ERP Brain |
 | Audit Intelligence Graph | AG-1 | **Active** | Audit events, mutations, users, approvals, compliance |
+| Document and Manual Graph | KG-5 | **Active** | Manual inventory with section indexes and cross-references to features, stages, screens, reports, errors |
 
 ---
 
@@ -54,6 +55,9 @@ KG-4 (voucher/accounting)   AG-1 (audit intelligence)
   │
   ▼
 FF-1 (feature correlation, branch of KG-4 and the graph chain)
+  │
+  ▼
+KG-5 (document/manual inventory, branch of FF-1 and WG-1)
 ```
 
 Each graph references the ones it depends on. No graph exists in isolation.
@@ -68,6 +72,7 @@ Each graph references the ones it depends on. No graph exists in isolation.
 | KG-4 | BRAIN-1, KG-1, RG-1, DG-1, WG-1 | AG-1, FF-1 |
 | FF-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
 | AG-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
+| KG-5 | BRAIN-1, KG-1, RG-1, WG-1, FF-1 | — |
 
 ---
 
@@ -138,6 +143,7 @@ Active graph regeneration:
 - **KG-4** — Hand-authored — regenerated when voucher types, posting functions, or accounting logic change significantly
 - **FF-1** — Hand-authored — regenerated when features, screens, workflows, or database tables change significantly
 - **AG-1** — Hand-authored from the audit action catalog — regenerated when audit actions, audit tables, or audit modules change in `src/main`
+- **KG-5** — `scripts/build-manual-graph.js` — regenerated when manuals change, when the manual section index changes, or when referenced graphs change
 
 ---
 
@@ -247,6 +253,7 @@ All active graphs are verified by `scripts/verify-audit.js`:
 | KG-4 | kg-4 | `npm run verify:voucher-accounting-graph` |
 | FF-1 | ff-1 | `npm run verify:feature-function-graph` |
 | AG-1 | ag-1 | `npm run verify:audit-graph` |
+| KG-5 | kg-5 | `npm run verify:manual-graph` |
 
 ---
 

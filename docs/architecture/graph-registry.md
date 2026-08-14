@@ -27,6 +27,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | KG-4 | Voucher and Accounting Graph | KG-4 | Voucher types, posting functions, debit/credit patterns, GST/inventory impact, reversal rules, accounting protection boundaries | `src/main/services/`, `src/main/database/` | `knowledge/voucher-accounting-graph.json` | Read-only | knowledge | verify:audit --phase=kg-4 | **Active** |
 | FF-1 | Feature Function Correlation Graph | FF-1 | Correlates ERP features to functions, screens, workflows, tables, voucher types, reports, manuals, safety boundaries; relationship-based query routing for Ask ERP Brain | `src/renderer/knowledge/`, `src/renderer/modules/erpBrain/`, `docs/manuals/`, `docs/architecture/` | `knowledge/feature-function-graph.json` | Read-only | knowledge | verify:audit --phase=ff-1 | **Active** |
 | AG-1 | Audit Graph | AG-1 | Audit event lineage — events → modules → screens → data mutations → users | `src/main/services/`, `src/main/database/` | `knowledge/audit-graph.json` | Read-only | knowledge | verify:audit --phase=ag-1 | **Active** |
+| KG-5 | Document and Manual Graph | KG-5 | Manual inventory with section indexes and cross-references to features, workflow stages, screens, reports, errors | `docs/manuals/`, `src/renderer/modules/erpBrain/data/manualIndex.js` | `knowledge/manual-graph.json` | Read-only | knowledge | verify:audit --phase=kg-5 | **Active** |
 
 ## Graph Integrity Rules (Common to All Graphs)
 
@@ -51,6 +52,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | KG-4 | `verify:audit --phase=kg-4` | Voucher/posting-function mapping, ledger/receivable/GST/inventory impact, reversal rules, audit trail, protected boundaries |
 | FF-1 | `verify:audit --phase=ff-1` | Feature/function correlation coverage, edge resolution, routing targets; also `npm run verify:feature-function-graph` |
 | AG-1 | `verify:audit --phase=ag-1` | Event→module→screen→mutation→user mapping, critical action classification, missing coverage, tamper-risk; also `npm run verify:audit-graph` |
+| KG-5 | `verify:audit --phase=kg-5` | Manual file resolution, section index integrity, cross-reference resolution (FF-1/WG-1/RG-1/BRAIN-1), no live data, registry sync; also `npm run verify:manual-graph` |
 
 ## Exit Codes
 
@@ -68,6 +70,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | 1.0 | 2026-06-30 | Architecture Governance | Initial registry — BRAIN-1, KG-1 active; RG-1 planned; DG-1, WG-1, AG-1 future |
 | 1.1 | 2026-08-11 | Architecture Governance | AG-1 Audit Graph Active — audit action catalog, schema, validation pack; DG-1/WG-1 reflect Active |
 | 1.2 | 2026-08-14 | Architecture Governance | Registry update (approved reconciliation) — KG-4 and FF-1 rows added to main table and audit packs; `historicalStages` section added (BRAIN-2..5, KG-2/3/5/6/7/8/9/10, RG-2, WG-2/3, FF-2); `futureGraph` fields revised to N/A (FF-2 runtime routing completed via BRAIN-4.3B); live registry JSON synced to 1.2.0 |
+| 1.3 | 2026-08-14 | Architecture Governance | KG-5 Document and Manual Graph Active — manual inventory with section indexes and cross-references; standalone validator `verify:manual-graph`; live registry JSON synced to 1.3.0 |
 
 ## Historical Stages
 

@@ -1014,6 +1014,126 @@ async function auditAg1() {
 }
 
 /* ═══════════════════════════════════════════
+   23c. KG-5 Document and Manual Graph Audit Pack
+   ═══════════════════════════════════════════ */
+async function auditKg5() {
+  if (!shouldRun("kg-5")) return;
+  console.log("\n=== KG-5 Audit Pack ===");
+
+  const graphPath = resolve(ROOT, "src/renderer/knowledge/manual-graph.json");
+  const schemaPath = resolve(ROOT, "repository/schema/manual-graph.schema.json");
+  const validatorPath = resolve(ROOT, "scripts/verify-manual-graph.js");
+
+  // 1. Existence
+  if (existsSync(graphPath)) {
+    pass("KG-5: Manual graph file exists");
+  } else {
+    info("KG-5: Manual graph file not found — planned future phase");
+    return;
+  }
+
+  if (existsSync(schemaPath)) pass("KG-5: Manual graph schema exists");
+  else info("KG-5: Schema not found");
+
+  if (existsSync(validatorPath)) pass("KG-5: Standalone validation script exists");
+  else info("KG-5: Standalone validation script not found");
+
+  // 2. Parse and validate structure
+  try {
+    const raw = readFileSync(graphPath, "utf-8");
+    const kg5 = JSON.parse(raw);
+
+    // 3. Identity
+    if (kg5.graphId === "KG-5") pass(`KG-5: graphId = ${kg5.graphId}`);
+    else fail(`KG-5: graphId expected KG-5, got ${kg5.graphId}`);
+    pass(`KG-5: version = ${kg5.version}, status = ${kg5.status}, schemaVersion = ${kg5.schemaVersion}`);
+
+    // 4. EIL contract fields
+    const requiredFields = [
+      "schemaVersion", "graphId", "generatedAt", "owner", "description",
+      "dependencies", "relationships", "risk", "metadata", "statistics",
+      "compatibility", "futureExtensions"
+    ];
+    const missingFields = requiredFields.filter((f) => kg5[f] === undefined);
+    if (missingFields.length === 0) pass("KG-5: EIL schema contract fields present");
+    else fail(`KG-5: Missing EIL contract fields: ${missingFields.join(", ")}`);
+
+    // 5. Core sections
+    if (Array.isArray(kg5.manuals)) pass(`KG-5: ${kg5.manuals.length} manuals documented`);
+    else fail("KG-5: manuals array missing");
+
+    if (Array.isArray(kg5.knownGaps) && kg5.knownGaps.length > 0) pass(`KG-5: ${kg5.knownGaps.length} known gaps documented`);
+    else fail("KG-5: knownGaps array missing or empty");
+
+    if (Array.isArray(kg5.sourceDocuments)) pass(`KG-5: ${kg5.sourceDocuments.length} source documents declared`);
+    else fail("KG-5: sourceDocuments array missing");
+
+    // 6. Manual completeness spot-checks
+    const manuals = kg5.manuals || [];
+    const completeUserManual = manuals.find((m) => m.manualId === "user-operations-manual");
+    if (completeUserManual && completeUserManual.sections.length > 0) {
+      pass(`KG-5: Complete User Operations Manual indexed (${completeUserManual.sections.length} sections)`);
+    } else {
+      fail("KG-5: Complete User Operations Manual missing or empty");
+    }
+    const sectionIds = manuals.flatMap((m) => m.sections.map((s) => s.sectionId));
+    if (new Set(sectionIds).size === sectionIds.length) pass(`KG-5: ${sectionIds.length} section IDs unique`);
+    else fail("KG-5: Duplicate section IDs detected");
+
+    // 7. Cross-reference spot-checks
+    const ffPath = resolve(ROOT, "src/renderer/knowledge/feature-function-graph.json");
+    if (existsSync(ffPath)) {
+      const ff = JSON.parse(readFileSync(ffPath, "utf-8"));
+      const ffIds = new Set(ff.featureNodes.map((n) => n.id));
+      const badRefs = manuals.flatMap((m) => m.featureRefs || []).filter((r) => !ffIds.has(r));
+      if (badRefs.length === 0) pass("KG-5: Manual feature references resolve in FF-1");
+      else fail(`KG-5: Unresolved feature references: ${[...new Set(badRefs)].join(", ")}`);
+    }
+
+    const wgPath = resolve(ROOT, "src/renderer/knowledge/workflow-graph.json");
+    if (existsSync(wgPath)) {
+      const wg = JSON.parse(readFileSync(wgPath, "utf-8"));
+      const wgIds = new Set(wg.nodes.map((n) => n.id));
+      const badRefs = manuals.flatMap((m) => m.workflowStageRefs || []).filter((r) => !wgIds.has(r));
+      if (badRefs.length === 0) pass("KG-5: Manual workflow stage references resolve in WG-1");
+      else fail(`KG-5: Unresolved workflow stage references: ${[...new Set(badRefs)].join(", ")}`);
+    }
+
+    // 8. No live business data (graph must stay read-only and free of live rows)
+    const livePatterns = [/₹/, /\bINV-\d{4,}/i, /record_id["\]]\s*:\s*\d+/];
+    const liveHits = livePatterns.filter((re) => re.test(raw));
+    if (liveHits.length === 0) pass("KG-5: No live business data embedded in graph");
+    else warn(`KG-5: Possible live data patterns detected (${liveHits.length})`);
+
+    // 9. Source documents resolve
+    const sourceMissing = (kg5.sourceDocuments || []).filter((p) => !existsSync(resolve(ROOT, p)));
+    if (sourceMissing.length === 0) pass(`KG-5: All ${(kg5.sourceDocuments || []).length} source documents resolve`);
+    else warn(`KG-5: Missing source references: ${sourceMissing.join(", ")}`);
+
+    // 10. Registry sync
+    const regPath = resolve(ROOT, "repository/graph-registry.json");
+    if (existsSync(regPath)) {
+      const reg = JSON.parse(readFileSync(regPath, "utf-8"));
+      const kg5Reg = reg.graphs?.find((g) => g.graphId === "KG-5");
+      if (kg5Reg && kg5Reg.status === "Active") {
+        pass("KG-5: Registered in graph registry as Active");
+      } else {
+        warn(`KG-5: Registry entry not Active (${kg5Reg ? `status=${kg5Reg.status}` : "not found"})`);
+      }
+    }
+
+    // 11. Stats integrity
+    const stats = kg5.statistics || {};
+    if (stats.manualCount === kg5.manuals?.length) pass(`KG-5: statistics manualCount matches (${stats.manualCount})`);
+    else fail(`KG-5: statistics manualCount ${stats.manualCount} != manuals ${kg5.manuals?.length}`);
+
+    pass("KG-5: Manual graph audit completed — descriptive, read-only, no runtime behavior modified");
+  } catch (e) {
+    fail(`KG-5: Parse error — ${e.message}`);
+  }
+}
+
+/* ═══════════════════════════════════════════
    22b. FF-1 Feature Function Correlation Graph Audit Pack
    ═══════════════════════════════════════════ */
 async function auditFf1() {
@@ -1190,6 +1310,7 @@ async function main() {
   await auditWg1();
   await auditKg4();
   await auditAg1();
+  await auditKg5();
 
   // Phase report completeness (only when --phase is given or --category)
   if (REQUESTED_PHASE || REQUESTED_CATEGORY) {
