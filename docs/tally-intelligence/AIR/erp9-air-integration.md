@@ -5,11 +5,13 @@
 **Status**: Draft for Review
 **Applies To**: AIR v2 (TallyPrime v1.1.7) → AIR v3 (ERP9 + Prime dual-source)
 
+> **GGR-1 registry clarification (2026-08-21):** This document is a draft Tally implementation-mapping proposal, not the live Enterprise Intelligence Layer registry. Its proposed AG-1/RG-2/TG-1/MG-1 identifiers must not be treated as current graph registrations. Live AG-1 is the Audit Intelligence Graph; RG-2 remains UNVERIFIED. Rule 31 defines AIR as software-independent accounting knowledge, while Tally assets are implementation references.
+
 ---
 
 ## 1. AIR v2 Architecture Overview
 
-The Accounting Intelligence Repository (AIR) is the canonical knowledge graph that maps Tally accounting entities to the GII ERP schema. It lives at `src/renderer/knowledge/tally/tallyKnowledgeRepository.json` (schemaVersion 2.0, graphId `air-v2`).
+`air-v2` is the Tally-specific implementation-mapping asset within the Accounting Intelligence Repository (AIR). It maps Tally accounting entities to the GII ERP schema and lives at `src/renderer/knowledge/tally/tallyKnowledgeRepository.json` (schemaVersion 2.0, graphId `air-v2`). Under Permanent Architecture Rule 31, AIR's accounting concepts derive from authoritative accounting standards and regulations; Tally is an implementation reference, not the accounting authority.
 
 ### 1.1 Seven Core Entity Types
 
@@ -422,7 +424,7 @@ AG-1 (Universal Accounting)
         └── RG-2 (Renderer Intelligence)
 ```
 
-Each graph registers in `repository/graph-registry.json` and declares dependencies. The AIR is the most mature graph (v2); all others are at v0 (proposed/design).
+The chain above is a historical proposal inside this draft and is not the live registry. `repository/graph-registry.json` version 1.4.0 currently contains nine ACTIVE primary graphs. The proposed AIR/TG-1/MG-1 identifiers are unregistered, live AG-1 means Audit Intelligence Graph, and RG-2 remains UNVERIFIED pending separate owner approval.
 
 ---
 
@@ -537,7 +539,7 @@ If a source field maps to multiple GII targets (e.g., Tally `NAME` → GII `ledg
 
 ## Appendix A: AIR v3 Schema Contract
 
-AIR v3 must register in `repository/graph-registry.json` with:
+Any future AIR v3 graph registration would require a separate approved programme, a conflict-free graph identifier and the standard registry/schema/verification gates. The following block is a proposal only and is not a live registry record:
 
 ```json
 {

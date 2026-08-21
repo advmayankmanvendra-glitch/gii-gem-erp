@@ -15,6 +15,37 @@ Do not redefine, duplicate, override, or maintain separate engineering standards
 
 The Graph Registry is the single source of truth for every structured knowledge graph in the GII GeM ERP ecosystem. Each graph is a versioned, auditable, read-only knowledge artifact that enables AI tools (Codex, OpenCode, ChatGPT) and human developers to navigate the project without scanning raw source files.
 
+The machine-readable authority is `repository/graph-registry.json` version 1.4.0. GGR-1 reconciled nine Active primary graphs, 15 historical-only stages and 24 unique identifiers with no cross-section conflict.
+
+## Lifecycle Status Standard
+
+| Canonical Status | Meaning |
+|---|---|
+| ACTIVE | Implemented, registered, schema-valid and verified. Does not imply runtime consumption, no future work or production readiness. |
+| COMPLETED | Historical stage finished with concrete implementation and verification evidence. |
+| MERGED | Scope absorbed into a named successor; successor is mandatory. |
+| SUPERSEDED | Replaced by a named successor; successor is mandatory. |
+| PLANNED | Defined future work without sufficient implementation and verification evidence. |
+| DEFERRED | Deliberately postponed and not authorized as the current next programme. |
+| RETIRED | Intentionally withdrawn while its history remains traceable. |
+| UNVERIFIED | Evidence is insufficient or conflicting; no completion claim is allowed. |
+
+Primary records retain the display value `Active` for compatibility and use `lifecycleStatus: ACTIVE` as the canonical machine classification.
+
+## Reconciled Counts
+
+| Measure | Count |
+|---|---:|
+| Primary registered graphs | 9 |
+| Active primary graphs | 9 |
+| Historical-only stages | 15 |
+| Unique identifiers | 24 |
+| Cross-section conflicts | 0 |
+| Registry Pending Count | **0** |
+| Effective Pending Count | **6** |
+
+The six effective-pending Active graphs are DG-1, WG-1, KG-4, FF-1, AG-1 and KG-5. Their future obligations do not downgrade their implemented graph assets from ACTIVE.
+
 ## Registry
 
 | Graph ID | Name | Phase | Purpose | Source Folders | Output Files | Mutability | Owner Module | Audit Pack | Status |
@@ -71,6 +102,7 @@ The Graph Registry is the single source of truth for every structured knowledge 
 | 1.1 | 2026-08-11 | Architecture Governance | AG-1 Audit Graph Active — audit action catalog, schema, validation pack; DG-1/WG-1 reflect Active |
 | 1.2 | 2026-08-14 | Architecture Governance | Registry update (approved reconciliation) — KG-4 and FF-1 rows added to main table and audit packs; `historicalStages` section added (BRAIN-2..5, KG-2/3/5/6/7/8/9/10, RG-2, WG-2/3, FF-2); `futureGraph` fields revised to N/A (FF-2 runtime routing completed via BRAIN-4.3B); live registry JSON synced to 1.2.0 |
 | 1.3 | 2026-08-14 | Architecture Governance | KG-5 Document and Manual Graph Active — manual inventory with section indexes and cross-references; standalone validator `verify:manual-graph`; live registry JSON synced to 1.3.0 |
+| 1.4 | 2026-08-21 | Architecture Governance | GGR-1 reconciled lifecycle definitions, KG-5 Planned→Active history, graph versions/counts, dependency reciprocity, Registry Pending Count 0 and Effective Pending Count 6; runtime behavior unchanged. |
 
 ## Historical Stages
 
@@ -84,7 +116,6 @@ Stages below are roadmap/history records, not standalone active graph entries. T
 | BRAIN-5 LLM gateway feasibility | DEFERRED | None |
 | KG-2 Historical workflow graph stage | MERGED | WG-1 |
 | KG-3 Historical database graph stage | SUPERSEDED | DG-1 |
-| KG-5 Document and Manual Graph | PLANNED | None (recommended next graph) |
 | KG-6 Historical renderer dependency graph stage | MERGED | RG-1 |
 | KG-7 Historical verification and audit graph stage | SUPERSEDED | AG-1 |
 | KG-8 Knowledge Search Index | MERGED | BRAIN-2 |
@@ -94,3 +125,11 @@ Stages below are roadmap/history records, not standalone active graph entries. T
 | WG-2 Workflow Enforcement Readiness Audit | COMPLETED | WG-3A |
 | WG-3 Workflow Enforcement Foundation family | COMPLETED | WG-3A workflow stage engine |
 | FF-2 Runtime routing (formerly future in FF-1 metadata) | COMPLETED | BRAIN-4.3B using FF-1 |
+
+## Reconciled Status Transitions
+
+| Identifier | Previous Status | Current Status | Effective Date | Evidence |
+|---|---|---|---|---|
+| KG-5 | PLANNED | ACTIVE | 2026-08-14 | Implementation `2244bb8`; certification/lock `8ce3a42`; GGR-1 lifecycle addendum |
+
+KG-5 runtime consumption remains a separate planned BRAIN-3.5 programme. It is not a second KG-5 lifecycle status, and its execution gate remains BLOCKED until the approved corrective programme sequence reaches stabilization, certification and baseline lock.

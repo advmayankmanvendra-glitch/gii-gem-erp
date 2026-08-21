@@ -1,8 +1,10 @@
 # Permanent Architecture Rules for GII GeM ERP
 
-Version: 3.1  
+Version: 3.4  
 Status: Active governance constitution  
-Last updated: 2026-06-25
+Last updated: 2026-08-21
+
+This file is the canonical constitution. `AGENTS.md` is its synchronized developer-facing entry point.
 
 This document records the standing engineering and safety rules for GII GeM ERP. It is intended for developers, accountants, auditors, Codex, OpenCode, and future maintainers.
 
@@ -688,6 +690,66 @@ The registry must remain future-proof for Payroll, AMC / Service Contract, Proje
 
 This rule is defined in `docs/architecture/workflow-governance-registry.md`.
 
+## 31. Accounting Intelligence Repository (AIR) Governance
+
+The Accounting Intelligence Repository (AIR) is the canonical accounting knowledge layer of GII GeM ERP.
+
+AIR defines accounting concepts independently of any ERP software.
+
+AIR shall derive accounting principles from authoritative accounting standards and regulations.
+
+ERP systems such as:
+
+- TallyPrime
+- Tally ERP9
+- SAP
+- Oracle
+- QuickBooks
+- Zoho Books
+- BUSY
+- Marg
+
+shall be treated as implementation references only, not as accounting authorities.
+
+AIR shall contain:
+
+- Universal accounting concepts
+- Accounting relationships
+- Accounting validation rules
+- Financial reporting concepts
+- Inventory accounting concepts
+- GST and taxation concepts
+- Internal control concepts
+- Audit concepts
+- ERP implementation mappings
+- Migration intelligence
+- AI reasoning metadata
+
+Every AIR concept shall define:
+
+- Definition
+- Purpose
+- Business meaning
+- Accounting rules
+- Validation rules
+- Relationships
+- Workflow impact
+- Database mapping
+- Report impact
+- AI explanation
+- Migration notes
+- References
+
+AIR shall integrate with:
+
+- Enterprise Intelligence Layer
+- ERP Brain
+- Knowledge Graph
+- Help Assistant
+- Future Data Assistant
+
+Future AI shall explain accounting concepts using AIR before consulting ERP-specific implementations.
+
 ## 32. Navigation & Location Queries Are Always Safe
 
 The ERP Help Assistant must answer questions about where to find ERP features, screens, menus, reports, documents, workflows and record-entry areas.
@@ -720,6 +782,7 @@ The navigation answer must come first. Any limitation about live records must ap
 
 | Version | Date | Description |
 | --- | --- | --- |
+| v3.4 | 2026-08-21 | GGR-1 reconciled the active version metadata, restored Accounting Intelligence Repository Governance as Rule 31 in the canonical constitution, preserved Navigation and Location Queries as Rule 32, and declared the canonical/synchronized document relationship. No rule identifier or runtime behavior changed. |
 | v3.3 | 2026-07-10 | Added Rule 32: Navigation & Location Queries Are Always Safe for Help Assistant user-facing guidance. |
 | v3.2 | 2026-07-09 | Added Enterprise Intelligence Layer Governance, Major Program Baseline Rule, Programme Stabilization and Certification Law, Operational Chain of Command, Work Order Parent Entity and Workflow Governance Registry rules. |
 | v3.1 | 2026-06-25 | Added Feature Classification, Dependency Assessment and Production Readiness Gate governance rules. |

@@ -1,5 +1,7 @@
 # KG-5 Executive Architecture Gate
 
+> **GGR-1 current-authority notice (2026-08-21):** This file preserves the 2026-08-14 historical decision. Its Stabilization row relied only on a first-run verifier and did not evidence the separate Rule 27 stabilization step. The `SAFE TO PROCEED` authorization for BRAIN-3.5 is therefore superseded by `kg-5-document-and-manual-graph-lifecycle-reconciliation-addendum.md`. KG-5 remains ACTIVE as a graph asset; runtime consumption remains BLOCKED.
+
 **Date:** 2026-08-14
 **Decision:** SAFE TO PROCEED
 **Scope:** KG-5 Document and Manual Graph programme (idea → audit → implementation → stabilization → certification → lock)

@@ -1,7 +1,7 @@
-# GII GeM ERP — Renderer Summary (RG-1 v2.0 Enhanced)
+# GII GeM ERP — Renderer Summary (RG-1 v2.0.0 Enhanced)
 
 **Graph ID:** RG-1
-**Version:** 2.0
+**Version:** 2.0.0
 **Generated:** 2026-08-14T10:26:34.805Z
 
 ---
@@ -100,9 +100,12 @@ Renderer → API Client → IPC → Main Process → Database / Preload
 ## 11. Integration with Intelligence Layer
 | Graph | Status |
 |-------|--------|
-| BRAIN-1 (ERP Knowledge) | Active (214 entries) |
+| BRAIN-1 (ERP Knowledge) | Active (224 entries) |
 | KG-1 (Metadata Registry) | Active (167 entries) |
-| **RG-1 (Renderer Graph)** | **Active (v2.0 Enhanced)** |
-| DG-1 (Database Graph) | Active (82 tables) |
-| WG-1 (Workflow Graph) | Active (15 workflows) |
+| **RG-1 (Renderer Graph)** | **Active (v2.0.0 Enhanced)** |
+| DG-1 (Database Graph) | Active (73 tables) |
+| WG-1 (Workflow Graph) | Active (18 stages) |
+| KG-4 (Voucher and Accounting Graph) | Active (14 voucher types) |
+| FF-1 (Feature Function Graph) | Active (50 features) |
 | AG-1 (Audit Graph) | Active (97 events) |
+| KG-5 (Document and Manual Graph) | Active (10 manuals) |

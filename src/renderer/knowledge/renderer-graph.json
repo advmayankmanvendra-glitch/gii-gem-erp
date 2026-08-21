@@ -7,7 +7,7 @@
   "meta": {
     "graphId": "RG-1",
     "name": "Renderer Dependency Graph",
-    "version": "2.0",
+    "version": "2.0.0",
     "generated": "2026-08-14T10:26:34.666Z",
     "source": "src/renderer/",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
@@ -6200,7 +6200,7 @@
   },
   "metadata": {
     "name": "Renderer Dependency Graph",
-    "version": "2.0",
+    "version": "2.0.0",
     "description": "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
     "totalLines": 43446,
     "totalImports": 700
@@ -6253,8 +6253,8 @@
       "style": "Architecture Separated"
     },
     "future": {
-      "description": "Intelligence layer complete — DG-1, WG-1, AG-1 active (8 graphs); runtime consumption by Health Center and Help Assistant",
-      "graphsActive": 8,
+      "description": "Intelligence layer complete — all 9 registered graphs active; runtime consumption remains separately governed",
+      "graphsActive": 9,
       "style": "Intelligence-Driven"
     }
   },

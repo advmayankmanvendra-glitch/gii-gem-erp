@@ -1,6 +1,9 @@
 # PERMANENT ARCHITECTURE AND FUNCTIONAL SAFETY RULES FOR GII GeM ERP
 
-Version: 3.1
+Version: 3.4
+Last updated: 2026-08-21
+
+Canonical constitution: `docs/architecture/permanent-architecture-rules.md`. This file is the synchronized developer-facing entry point.
 
 ## GI-EGS Compliance Reference
 
@@ -488,7 +491,7 @@ The Enterprise Intelligence Layer is a controlled architectural asset defined in
 
 ### 25.1 Definition
 
-The Enterprise Intelligence Layer consists of all structured knowledge graphs (BRAIN-1, KG-1, RG-1, DG-1, WG-1, AG-1) and is documented in `repository/graph-registry.json`.
+The Enterprise Intelligence Layer consists of all nine active structured knowledge graphs (BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4, FF-1, AG-1 and KG-5) and is documented in `repository/graph-registry.json`.
 
 ### 25.2 AI Consumption Rules
 

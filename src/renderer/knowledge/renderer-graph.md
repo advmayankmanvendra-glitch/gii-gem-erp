@@ -1,7 +1,7 @@
-# GII GeM ERP — Renderer Dependency Graph (RG-1 v2.0)
+# GII GeM ERP — Renderer Dependency Graph (RG-1 v2.0.0)
 
 **Graph ID:** RG-1
-**Version:** 2.0 (Enhanced)
+**Version:** 2.0.0 (Enhanced)
 **Generated:** 2026-08-14T10:26:34.669Z
 **Source:** `src/renderer/`
 
@@ -215,9 +215,15 @@ All routes via `effectiveView`. No React Router.
 ---
 
 ## 9. Knowledge Layer
-- BRAIN-1: ERP Knowledge Repository (214 entries)
+- BRAIN-1: ERP Knowledge Repository (224 entries)
 - KG-1: Metadata Registry (167 entries)
-- RG-1: Renderer Dependency Graph **(Active, v2.0)**
+- RG-1: Renderer Dependency Graph **(Active, v2.0.0)**
+- DG-1: Database Intelligence Graph (73 tables)
+- WG-1: Workflow Intelligence Graph (18 stages)
+- KG-4: Voucher and Accounting Graph (14 voucher types)
+- FF-1: Feature Function Correlation Graph (50 features)
+- AG-1: Audit Intelligence Graph (97 events)
+- KG-5: Document and Manual Graph (10 manuals)
 
 ---
 
@@ -236,7 +242,7 @@ Renderer → API Client (api/client.js) → IPC → Main Process → Database (i
 | **Current** | Monolithic App.jsx, flat routing, single CSS | 1684 App.jsx lines, 7,042 CSS lines |
 | **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |
 | **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |
-| **Future** | Runtime consumption of intelligence layer — Health Center, Help Assistant | 8 active graphs |
+| **Future** | Runtime consumption remains separately governed | 9 active graphs |
 
 ---
 

@@ -1,5 +1,7 @@
 # KG-5 Document and Manual Graph — Lock Report
 
+> **GGR-1 current-authority notice (2026-08-21):** This is the preserved 2026-08-14 historical lock record. It does not prove a separately evidenced Rule 27 stabilization step. See `kg-5-document-and-manual-graph-lifecycle-reconciliation-addendum.md`; KG-5 remains ACTIVE, while BRAIN-3.5 runtime consumption remains BLOCKED pending the later stabilization, re-certification and baseline-lock gate.
+
 **Programme:** KG-5 Document and Manual Graph
 **Lock Date:** 2026-08-14
 **Status:** LOCKED — Active v1.0.0

@@ -1,5 +1,5 @@
 /**
- * RG-1 Renderer Dependency Graph Builder v2.0 (Enhanced)
+ * RG-1 Renderer Dependency Graph Builder v2.0.0 (Enhanced)
  *
  * Scans src/renderer/ and builds:
  *   - renderer-graph.json   (machine-readable, with ownership, criticality, workflow, AI metadata)
@@ -602,7 +602,7 @@ const graph = {
   meta: {
     graphId: "RG-1",
     name: "Renderer Dependency Graph",
-    version: "2.0",
+    version: "2.0.0",
     generated: new Date().toISOString(),
     source: "src/renderer/",
     description: "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
@@ -719,7 +719,7 @@ const graph = {
   },
   metadata: {
     name: "Renderer Dependency Graph",
-    version: "2.0",
+    version: "2.0.0",
     description: "Enhanced renderer architecture dependency graph with ownership, criticality, workflow linkage, and AI navigation metadata",
     totalLines,
     totalImports,
@@ -757,7 +757,7 @@ const graph = {
     current: { description: "Monolithic App.jsx, flat routing, single CSS, direct IPC", appJsxLines: appLines, cssLines: 7042, style: "Monolithic" },
     phase17: { description: "CSS segmentation, presentation extraction, config isolation, knowledge graph stabilization", expectedReduction: "200-500 App.jsx lines, ~6,700 CSS lines", style: "Stabilized" },
     phase18: { description: "Route registry, dialog manager, nav controller, context providers, API service layer", style: "Architecture Separated" },
-    future: { description: "Intelligence layer complete — DG-1, WG-1, AG-1 active (8 graphs); runtime consumption by Health Center and Help Assistant", graphsActive: 8, style: "Intelligence-Driven" },
+    future: { description: "Intelligence layer complete — all 9 registered graphs active; runtime consumption remains separately governed", graphsActive: 9, style: "Intelligence-Driven" },
   },
   edges: edges.slice(0, 500),
 };
@@ -770,10 +770,10 @@ console.log(`Wrote ${OUT_JSON}`);
    ═══════════════════════════════════════════ */
 
 const md = [
-  `# GII GeM ERP — Renderer Dependency Graph (RG-1 v2.0)`,
+  `# GII GeM ERP — Renderer Dependency Graph (RG-1 v2.0.0)`,
   ``,
   `**Graph ID:** RG-1`,
-  `**Version:** 2.0 (Enhanced)`,
+  `**Version:** 2.0.0 (Enhanced)`,
   `**Generated:** ${new Date().toISOString()}`,
   `**Source:** \`src/renderer/\``,
   ``,
@@ -882,9 +882,15 @@ const md = [
   `---`,
   ``,
   `## 9. Knowledge Layer`,
-  `- BRAIN-1: ERP Knowledge Repository (214 entries)`,
+  `- BRAIN-1: ERP Knowledge Repository (224 entries)`,
   `- KG-1: Metadata Registry (167 entries)`,
-  `- RG-1: Renderer Dependency Graph **(Active, v2.0)**`,
+  `- RG-1: Renderer Dependency Graph **(Active, v2.0.0)**`,
+  `- DG-1: Database Intelligence Graph (73 tables)`,
+  `- WG-1: Workflow Intelligence Graph (18 stages)`,
+  `- KG-4: Voucher and Accounting Graph (14 voucher types)`,
+  `- FF-1: Feature Function Correlation Graph (50 features)`,
+  `- AG-1: Audit Intelligence Graph (97 events)`,
+  `- KG-5: Document and Manual Graph (10 manuals)`,
   ``,
   `---`,
   ``,
@@ -903,7 +909,7 @@ const md = [
   `| **Current** | Monolithic App.jsx, flat routing, single CSS | ${appLines} App.jsx lines, 7,042 CSS lines |`,
   `| **Phase 17** | CSS segmentation, presentation extraction, config isolation | -200-500 App.jsx, -6,700 CSS |`,
   `| **Phase 18** | Route registry, dialog manager, nav controller, API service | Architecture separated |`,
-  `| **Future** | Runtime consumption of intelligence layer — Health Center, Help Assistant | 8 active graphs |`,
+  `| **Future** | Runtime consumption remains separately governed | 9 active graphs |`,
   ``,
   `---`,
   ``,
@@ -932,10 +938,10 @@ console.log(`Wrote ${OUT_MD}`);
    ═══════════════════════════════════════════ */
 
 const summary = [
-  `# GII GeM ERP — Renderer Summary (RG-1 v2.0 Enhanced)`,
+  `# GII GeM ERP — Renderer Summary (RG-1 v2.0.0 Enhanced)`,
   ``,
   `**Graph ID:** RG-1`,
-  `**Version:** 2.0`,
+  `**Version:** 2.0.0`,
   `**Generated:** ${new Date().toISOString()}`,
   ``,
   `---`,
@@ -1003,12 +1009,15 @@ const summary = [
   `## 11. Integration with Intelligence Layer`,
   `| Graph | Status |`,
   `|-------|--------|`,
-  `| BRAIN-1 (ERP Knowledge) | Active (214 entries) |`,
+  `| BRAIN-1 (ERP Knowledge) | Active (224 entries) |`,
   `| KG-1 (Metadata Registry) | Active (167 entries) |`,
-  `| **RG-1 (Renderer Graph)** | **Active (v2.0 Enhanced)** |`,
-  `| DG-1 (Database Graph) | Active (82 tables) |`,
-  `| WG-1 (Workflow Graph) | Active (15 workflows) |`,
+  `| **RG-1 (Renderer Graph)** | **Active (v2.0.0 Enhanced)** |`,
+  `| DG-1 (Database Graph) | Active (73 tables) |`,
+  `| WG-1 (Workflow Graph) | Active (18 stages) |`,
+  `| KG-4 (Voucher and Accounting Graph) | Active (14 voucher types) |`,
+  `| FF-1 (Feature Function Graph) | Active (50 features) |`,
   `| AG-1 (Audit Graph) | Active (97 events) |`,
+  `| KG-5 (Document and Manual Graph) | Active (10 manuals) |`,
   ``,
 ].join("\n");
 

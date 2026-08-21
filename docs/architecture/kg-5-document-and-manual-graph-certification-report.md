@@ -1,5 +1,7 @@
 # KG-5 Document and Manual Graph — Certification Report
 
+> **GGR-1 sequence notice (2026-08-21):** This report preserves the 2026-08-14 certification evidence, but certification occurred without a separately evidenced prior Stabilization Programme. It must not authorize BRAIN-3.5 by itself. Current authority is `kg-5-document-and-manual-graph-lifecycle-reconciliation-addendum.md`.
+
 **Phase:** KG-5 Document and Manual Graph (programme certification, Rule 27.4)
 **Date:** 2026-08-14
 **Branch:** `phase-16-enterprise-crm-integration`

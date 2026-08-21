@@ -4,8 +4,8 @@
     "version": "1.0.0",
     "phase": "BRAIN-1",
     "description": "Permanent structured knowledge layer for GII GeM ERP",
-    "lastUpdated": "2026-06-30",
-    "totalEntries": 214,
+    "lastUpdated": "2026-08-21",
+    "totalEntries": 224,
     "repositories": {
       "modules": {
         "path": "repository/modules/index.json",
@@ -34,7 +34,7 @@
       },
       "glossary": {
         "path": "repository/glossary/index.json",
-        "entryCount": 40,
+        "entryCount": 50,
         "description": "ERP terminology with definitions, modules and examples"
       },
       "navigation": {

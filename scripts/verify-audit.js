@@ -24,6 +24,7 @@ import { readFileSync, existsSync, readdirSync } from "fs";
 import { resolve, dirname, relative, basename } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execSync } from "child_process";
+import { collectGovernanceGraphRegistryFindings } from "./verify-governance-graph-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -49,6 +50,7 @@ const PHASE_CATEGORY_MAP = {
   "wg-1": "workflow",
   "ag-1": "audit",
   "ff-1": "governance",
+  "ggr-1": "governance",
 };
 
 /* ─── Valid categories ─── */
@@ -1263,6 +1265,15 @@ async function checkEnterpriseIntelligenceLayerRegistry() {
   }
 }
 
+async function checkGovernanceGraphRegistryReconciliation() {
+  console.log("\n=== GGR-1 Governance and Graph Registry Check ===");
+  for (const finding of collectGovernanceGraphRegistryFindings(ROOT)) {
+    if (finding.level === "PASS") pass(`GGR-1: ${finding.message}`);
+    else if (finding.level === "INFO") info(`GGR-1: ${finding.message}`);
+    else fail(`GGR-1: ${finding.message}`);
+  }
+}
+
 /* ═══════════════════════════════════════════
    23. Unified Graph Registry Check
    ═══════════════════════════════════════════ */
@@ -1297,6 +1308,7 @@ async function main() {
 
   await checkRegistry();
   await checkEnterpriseIntelligenceLayerRegistry();
+  await checkGovernanceGraphRegistryReconciliation();
 
   // Run graph audit packs
   await auditBrain1();

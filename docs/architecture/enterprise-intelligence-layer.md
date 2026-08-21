@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0
 **Status:** Active (Frozen)
-**Last Updated:** 2026-08-14
+**Last Updated:** 2026-08-21
 
 ---
 
@@ -29,6 +29,16 @@ Future AI tools (Codex, OpenCode, ChatGPT, and internal AI systems) shall use th
 | Feature Function Correlation Graph | FF-1 | **Active** | Feature-to-function/screen/table/report correlation; query routing for Ask ERP Brain |
 | Audit Intelligence Graph | AG-1 | **Active** | Audit events, mutations, users, approvals, compliance |
 | Document and Manual Graph | KG-5 | **Active** | Manual inventory with section indexes and cross-references to features, stages, screens, reports, errors |
+
+---
+
+## Graph Lifecycle Statuses
+
+The canonical machine statuses are `ACTIVE`, `COMPLETED`, `MERGED`, `SUPERSEDED`, `PLANNED`, `DEFERRED`, `RETIRED` and `UNVERIFIED`. Their authoritative definitions and legacy-value mapping are in `repository/graph-registry.json` under `lifecyclePolicy`.
+
+`ACTIVE` means a graph asset exists, is registered, is schema-valid and passes its verification. It does not mean the graph is consumed at runtime, has no future obligations, or makes the wider ERP production-ready.
+
+The legacy display value `Active` remains in current primary records for backward compatibility. The canonical `lifecycleStatus` field is authoritative for reconciliation and counts.
 
 ---
 
@@ -64,13 +74,13 @@ Each graph references the ones it depends on. No graph exists in isolation.
 
 | Graph | References | Referenced By |
 |-------|-----------|---------------|
-| BRAIN-1 | — | KG-1, RG-1, DG-1, WG-1, KG-4, AG-1 |
-| KG-1 | BRAIN-1 | RG-1, DG-1, WG-1, AG-1, FF-1 |
-| RG-1 | BRAIN-1, KG-1 | DG-1, WG-1, AG-1, FF-1 |
+| BRAIN-1 | — | KG-1, RG-1, DG-1, WG-1, KG-4, FF-1, AG-1, KG-5 |
+| KG-1 | BRAIN-1 | RG-1, DG-1, WG-1, KG-4, FF-1, AG-1, KG-5 |
+| RG-1 | BRAIN-1, KG-1 | DG-1, WG-1, KG-4, FF-1, AG-1, KG-5 |
 | DG-1 | BRAIN-1, KG-1, RG-1 | WG-1, KG-4, AG-1, FF-1 |
-| WG-1 | BRAIN-1, KG-1, RG-1, DG-1 | KG-4, AG-1, FF-1 |
+| WG-1 | BRAIN-1, KG-1, RG-1, DG-1 | KG-4, FF-1, AG-1, KG-5 |
 | KG-4 | BRAIN-1, KG-1, RG-1, DG-1, WG-1 | AG-1, FF-1 |
-| FF-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
+| FF-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | KG-5 |
 | AG-1 | BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4 | — |
 | KG-5 | BRAIN-1, KG-1, RG-1, WG-1, FF-1 | — |
 
@@ -202,21 +212,27 @@ The Enterprise Intelligence Layer is designed to grow. Future additions must:
 
 | Item | Description |
 |------|-------------|
-| Full cross-graph sync | All 8 graphs verified as coherent whole by the Consistency Engine |
+| Full cross-graph sync | All 9 graphs verified as a coherent whole by the Consistency Engine |
 | AI Planning Layer | AI tools propose changes, EIL validates impact across all graphs before code is written |
 | Self-documenting architecture | EIL becomes source of truth — code generation, refactoring, and docs derived from graphs |
 
-All eight Enterprise Intelligence Layer graphs are now implemented:
+All nine Enterprise Intelligence Layer graphs are now implemented and registered as `ACTIVE`:
 
 | Graph | Phase | Purpose |
 |-------|-------|---------|
+| BRAIN-1 | Active | ERP Knowledge Repository |
+| KG-1 | Active | Metadata Registry |
+| RG-1 | Active | Renderer Intelligence Graph |
 | DG-1 | Complete | Database Intelligence Graph |
 | WG-1 | Complete | Workflow Intelligence Graph |
 | KG-4 | Complete | Voucher and Accounting Graph |
 | FF-1 | Complete | Feature Function Correlation Graph |
 | AG-1 | Complete | Audit Intelligence Graph |
+| KG-5 | Complete | Document and Manual Graph |
 
-No new graph is currently registered as planned.
+No primary graph is currently registered as `PLANNED`; therefore the Registry Pending Count is 0. Six Active graphs retain material future obligations, so the Effective Pending Count is 6: DG-1, WG-1, KG-4, FF-1, AG-1 and KG-5.
+
+BRAIN-3.5 / KG-5 runtime consumption is a separate planned programme, not a new KG-5 graph lifecycle state. Its execution gate remains BLOCKED until the approved corrective programme sequence reaches stabilization, certification and baseline lock.
 
 ---
 
