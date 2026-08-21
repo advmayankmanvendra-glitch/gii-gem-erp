@@ -1,0 +1,430 @@
+{
+  "auditId": "GII-GEM-ERP-CURRENT-STATE-2026-08-21",
+  "auditTitle": "Repository-wide ERP Knowledge Refresh and Current-State Documentation Audit",
+  "auditMode": "read-only except eight requested deliverables",
+  "capturedAt": "2026-08-21T16:57:59.3055629+05:30",
+  "timezone": "Asia/Calcutta",
+  "overallResult": "PASS WITH WARNINGS",
+  "productionReadiness": "BLOCKED",
+  "constraints": {
+    "productionCodeModified": false,
+    "productionDatabaseModified": false,
+    "configurationModified": false,
+    "verificationScriptsModified": false,
+    "existingReportsModified": false,
+    "graphSourcesModified": false,
+    "liveGraphRegistryModified": false,
+    "governanceSourcesModified": false,
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "gitBaseline": {
+    "branch": "phase-16-enterprise-crm-integration",
+    "head": "8ce3a42849c68398207a3b9cd8737d57f015215e",
+    "upstream": "origin/phase-16-enterprise-crm-integration",
+    "upstreamHead": "8ce3a42849c68398207a3b9cd8737d57f015215e",
+    "ahead": 0,
+    "behind": 0,
+    "workingTreeBeforeAudit": "clean",
+    "liveRemoteHeadMatched": true,
+    "tagCount": 92,
+    "annotatedTagCount": 33,
+    "lightweightTagCount": 59,
+    "latestTagByCreatorDate": "fsr-2b-baseline-2026-07-29",
+    "latestTagTarget": "350eb13",
+    "commitsAfterLatestTag": 13,
+    "headTagged": false
+  },
+  "ag1Precondition": {
+    "result": "PASS WITH WARNINGS",
+    "implementationCommit": "92aa0a8",
+    "stabilizationCommit": "e45fcb6",
+    "registryReconciliationCommit": "5c3c5f5",
+    "certificationLockGateCommit": "caced4d",
+    "dedicatedVerification": {
+      "passed": 27,
+      "warnings": 0,
+      "failed": 0
+    },
+    "phaseAudit": {
+      "passed": 42,
+      "info": 0,
+      "warnings": 0,
+      "failed": 0,
+      "critical": 0
+    },
+    "warning": "reports/phase-ag-1-audit-intelligence-graph-report.md exists locally but is ignored and untracked"
+  },
+  "repositoryInventory": {
+    "countsExcludeTheseEightAuditDeliverables": true,
+    "trackedFiles": 640,
+    "sourceFileBreakdown": {
+      "javascript": 150,
+      "jsx": 147,
+      "json": 29,
+      "css": 12,
+      "markdown": 5,
+      "commonJs": 1
+    },
+    "navigation": {
+      "groups": 13,
+      "entries": 172,
+      "uniqueKeys": 165,
+      "duplicatedKeys": 7,
+      "runtimeResolvableKeys": 164,
+      "unreachableKeys": [
+        "profit_simulator"
+      ],
+      "viewTitleRecords": 175
+    },
+    "features": {
+      "ff1FeatureNodes": 50,
+      "active": 47,
+      "partial": 3,
+      "ff1FunctionNodes": 15
+    },
+    "workflow": {
+      "stages": 18,
+      "edges": 17,
+      "operationalRoot": "WORK_ORDER",
+      "hardRuntimeEnforcement": false,
+      "enforcementMode": "warn",
+      "runtimeEngineImportedByApplication": false
+    },
+    "database": {
+      "coreRuntimeTables": 70,
+      "accountMappingExtensionTables": 3,
+      "totalRuntimeTables": 73,
+      "dg1Relationships": 57,
+      "dg1PostingFunctions": 22,
+      "dg1ReportSources": 26,
+      "dg1AccountingProtectedTables": 21
+    },
+    "runtime": {
+      "mainServiceModules": 33,
+      "mainIpcHandlers": 155,
+      "preloadInvokeChannels": 154,
+      "mainOnlyChannels": [
+        "imports:rollback-preview"
+      ],
+      "preloadOnlyChannels": []
+    },
+    "rendererGraph": {
+      "files": 252,
+      "imports": 700,
+      "routes": 114,
+      "screens": 41,
+      "components": 41,
+      "featureFiles": 53,
+      "moduleFiles": 54,
+      "configFiles": 11,
+      "circularImports": 0
+    },
+    "governanceEvidence": {
+      "docsFiles": 189,
+      "reportFiles": 324,
+      "combinedFiles": 513,
+      "markdownFiles": 508,
+      "trackedCombinedFiles": 197,
+      "trackedReportFiles": 8,
+      "ignoredLocalReportFiles": 316,
+      "filenameSelectedGovernanceEvidenceFiles": 481,
+      "trackedSelectedFiles": 165,
+      "ignoredSelectedFiles": 316
+    }
+  },
+  "technologyStack": {
+    "applicationVersion": "0.1.0-internal-test",
+    "packagePrivate": true,
+    "electron": "37.0.0",
+    "react": "19.2.7",
+    "reactDom": "19.2.7",
+    "vite": "7.3.5",
+    "viteReactPlugin": "5.2.0",
+    "betterSqlite3": "12.10.0",
+    "playwright": "1.61.1",
+    "electronBuilder": "26.15.3",
+    "ajv": "8.17.1",
+    "concurrently": "9.2.1",
+    "crossEnv": "7.0.3",
+    "waitOn": "8.0.5",
+    "declaredLlmProvider": false,
+    "declaredGemApiClient": false,
+    "declaredServerFramework": false,
+    "declaredReactRouter": false,
+    "declaredRedux": false,
+    "declaredUnitTestFramework": false,
+    "declaredFullLinter": false,
+    "automaticCiCdConfiguration": false,
+    "installedExtraneousPackages": [
+      "electron-updater@6.8.9",
+      "lodash.escaperegexp@4.1.2",
+      "lodash.isequal@4.5.0",
+      "tiny-typed-emitter@2.1.0"
+    ]
+  },
+  "graphInventory": {
+    "registryVersion": "1.3.0",
+    "primaryRecords": 9,
+    "activePrimaryRecords": 9,
+    "registryPendingCount": 0,
+    "effectivePendingCount": 6,
+    "effectivePendingGraphs": [
+      "DG-1",
+      "WG-1",
+      "KG-4",
+      "FF-1",
+      "AG-1",
+      "KG-5"
+    ],
+    "runtimeConnected": [
+      "BRAIN-1",
+      "RG-1",
+      "DG-1",
+      "WG-1",
+      "KG-4",
+      "FF-1"
+    ],
+    "registeredNotApplicationRuntimeConnected": [
+      "KG-1",
+      "AG-1",
+      "KG-5"
+    ],
+    "historicalStageRecords": 16,
+    "uniqueIdentifiers": 24,
+    "historicalOnlyIdentifiers": 15,
+    "primaryDuplicateIds": 0,
+    "crossSectionConflicts": [
+      "KG-5"
+    ],
+    "unverifiedIdentifiers": [
+      "RG-2"
+    ],
+    "rawPendingDeliverableStatements": 34,
+    "namedPendingOrDeferredPhaseIds": 16,
+    "statusCounts": {
+      "ACTIVE": 9,
+      "COMPLETED": 6,
+      "MERGED": 5,
+      "SUPERSEDED": 2,
+      "DEFERRED": 1,
+      "UNVERIFIED": 1,
+      "PLANNED": 0,
+      "RETIRED": 0
+    },
+    "nextGraphAfterReconciliation": "BRAIN-3.5 / KG-5 runtime consumption"
+  },
+  "operationalChain": [
+    "LEAD_TENDER",
+    "QUERY_REQUIREMENT",
+    "QUOTATION",
+    "NEGOTIATION",
+    "PURCHASE_ORDER_GEM_ORDER",
+    "WORK_ORDER",
+    "PROCUREMENT_PLANNING",
+    "SUPPLIER_PURCHASE_ORDER",
+    "GOODS_RECEIPT_GRN",
+    "INVENTORY_RESERVATION",
+    "DELIVERY_CHALLAN",
+    "INSTALLATION",
+    "CRAC",
+    "SALES_INVOICE_GST_INVOICE",
+    "DEPARTMENT_RECEIVABLE",
+    "RECEIPT",
+    "ORDER_CLOSURE",
+    "PROFITABILITY_ANALYSIS"
+  ],
+  "operationalChainAssessment": {
+    "workOrderOperationalRootPreserved": true,
+    "workOrderCreatesAccountingImpact": false,
+    "workOrderCreatesInventoryImpact": false,
+    "workOrderCreatesGstImpact": false,
+    "supplierPurchaseOrderSemanticMatch": false,
+    "hardStageEnforcement": false,
+    "closureSettlementCertified": false
+  },
+  "findingCounts": {
+    "critical": 0,
+    "high": 7,
+    "medium": 9,
+    "low": 2
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "HIGH",
+      "title": "High-impact environment, go-live, certificate and reset IPC handlers lack explicit session-bound permission guards"
+    },
+    {
+      "id": "F-002",
+      "severity": "HIGH",
+      "title": "Financial report classification has two governed verification failures pending FSR-2B.3"
+    },
+    {
+      "id": "F-003",
+      "severity": "HIGH",
+      "title": "Mandatory phase and certification evidence is predominantly ignored and not reproducible from Git"
+    },
+    {
+      "id": "F-004",
+      "severity": "HIGH",
+      "title": "Permanent architecture rule version and Rule 31 content conflict"
+    },
+    {
+      "id": "F-005",
+      "severity": "HIGH",
+      "title": "KG-5 is Active and Planned in the same authoritative registry"
+    },
+    {
+      "id": "F-006",
+      "severity": "HIGH",
+      "title": "KG-5 has no separately evidenced stabilization programme despite the mandatory lifecycle rule"
+    },
+    {
+      "id": "F-007",
+      "severity": "HIGH",
+      "title": "Supply Order entity search and billing company-context boundaries are not consistently enforced"
+    },
+    {
+      "id": "F-008",
+      "severity": "MEDIUM",
+      "title": "Workflow controls are warning-only and not imported by the live application"
+    },
+    {
+      "id": "F-009",
+      "severity": "MEDIUM",
+      "title": "Supplier Purchase Order graph stage does not match the current supplier invoice/procurement data model"
+    },
+    {
+      "id": "F-010",
+      "severity": "MEDIUM",
+      "title": "Profit Simulator is registered and implemented as a component but unreachable from live App routing"
+    },
+    {
+      "id": "F-011",
+      "severity": "MEDIUM",
+      "title": "Graph registry dependency reverse edges omit 12 consumers"
+    },
+    {
+      "id": "F-012",
+      "severity": "MEDIUM",
+      "title": "BRAIN-1 count, RG-1 version and eight-versus-nine graph metadata are stale or contradictory"
+    },
+    {
+      "id": "F-013",
+      "severity": "MEDIUM",
+      "title": "KG-1, AG-1 and KG-5 are registered but not application-runtime-connected"
+    },
+    {
+      "id": "F-014",
+      "severity": "MEDIUM",
+      "title": "Governance verification is manually invoked and has no tracked commit or pull-request gate"
+    },
+    {
+      "id": "F-015",
+      "severity": "MEDIUM",
+      "title": "Large renderer files and legacy payload-context permission wrappers concentrate change and identity risk"
+    },
+    {
+      "id": "F-016",
+      "severity": "MEDIUM",
+      "title": "Assistant relevance gate passes at 96.99 percent but 8 of 266 governed queries mismatch expected classification or wording"
+    },
+    {
+      "id": "F-017",
+      "severity": "LOW",
+      "title": "README and older roadmap wording are stale relative to current source"
+    },
+    {
+      "id": "F-018",
+      "severity": "LOW",
+      "title": "Current locked state is 13 commits after the latest tag and is untagged"
+    }
+  ],
+  "verification": {
+    "dataIsolation": {
+      "usedTemporaryDataRoot": true,
+      "temporaryDataRoot": "C:\\Users\\TM Savera\\AppData\\Local\\Temp\\gii-gem-erp-current-state-audit-6617e648bd41465eac1fcc559edcf697",
+      "temporaryDataRootRemovedAfterVerification": true,
+      "userDatabaseOpened": false,
+      "userDatabaseModified": false
+    },
+    "commandCount": 39,
+    "zeroExitCount": 38,
+    "nonZeroExitCount": 1,
+    "commands": [
+      { "name": "lint:syntax", "exitCode": 0, "summary": "PASS" },
+      { "name": "build", "exitCode": 0, "summary": "PASS; Vite built in 5.01 seconds" },
+      { "name": "verify:master-policy", "exitCode": 0, "summary": "9 passed, 0 failed" },
+      { "name": "verify:knowledge", "exitCode": 0, "summary": "167 entries, 0 errors, 0 warnings" },
+      { "name": "verify:database-graph", "exitCode": 0, "summary": "32 passed, 0 warnings, 0 failed" },
+      { "name": "verify:voucher-accounting-graph", "exitCode": 0, "summary": "PASS; 6 known gaps documented" },
+      { "name": "verify:workflow-graph", "exitCode": 0, "summary": "21 passed, 0 warnings, 0 failed" },
+      { "name": "verify:workflow-enforcement", "exitCode": 0, "summary": "62 passed, 0 warnings, 0 failed; warning-only mode certified" },
+      { "name": "verify:feature-function-graph", "exitCode": 0, "summary": "31 passed, 0 failed" },
+      { "name": "verify:audit-graph", "exitCode": 0, "summary": "27 passed, 0 warnings, 0 failed" },
+      { "name": "verify:manual-graph", "exitCode": 0, "summary": "30 passed, 0 failed" },
+      { "name": "verify:erp-brain", "exitCode": 0, "summary": "51 passed, 0 warnings, 0 failed" },
+      { "name": "verify:help-assistant-brain", "exitCode": 0, "summary": "27 passed, 0 warnings, 0 failed" },
+      { "name": "verify:assistant-relevance", "exitCode": 0, "summary": "258 of 266 passed; final quality gate PASS" },
+      { "name": "verify:screen-actions", "exitCode": 0, "summary": "14 passed, 0 failed" },
+      { "name": "verify:entity-picker", "exitCode": 0, "summary": "103 passed, 0 failed" },
+      { "name": "verify:dashboard-wiring", "exitCode": 0, "summary": "20 passed, 0 failed" },
+      { "name": "verify:accounting", "exitCode": 0, "summary": "PASS on isolated data" },
+      { "name": "verify:financials", "exitCode": 0, "summary": "PASS on isolated data" },
+      { "name": "verify:controls", "exitCode": 0, "summary": "PASS on isolated data" },
+      { "name": "verify:voucher-inventory", "exitCode": 0, "summary": "PASS" },
+      { "name": "verify:flow", "exitCode": 0, "summary": "PASS" },
+      { "name": "verify:phase10", "exitCode": 0, "summary": "PASS" },
+      { "name": "verify:operational-stages", "exitCode": 0, "summary": "PASS; 28 checks" },
+      { "name": "verify:safe-delete", "exitCode": 0, "summary": "26 passed, 0 failed" },
+      { "name": "verify:fk-constraints", "exitCode": 0, "summary": "5 passed, 0 failed" },
+      { "name": "verify:production-readiness-sql", "exitCode": 0, "summary": "PASS" },
+      { "name": "verify:fsr2a1", "exitCode": 0, "summary": "22 passed, 0 failed" },
+      { "name": "verify:fsr2a2", "exitCode": 0, "summary": "25 passed, 0 failed" },
+      { "name": "verify:fsr2a3", "exitCode": 0, "summary": "37 passed, 0 failed" },
+      { "name": "verify:fsr2a4", "exitCode": 0, "summary": "55 passed, 0 failed" },
+      { "name": "verify:fsr2a5a", "exitCode": 0, "summary": "81 passed, 0 failed" },
+      { "name": "verify:fsr2a5b", "exitCode": 0, "summary": "89 passed, 0 failed" },
+      { "name": "verify:fsr2a5c", "exitCode": 0, "summary": "PASS across 14 certification domains" },
+      { "name": "verify:fsr2b1", "exitCode": 0, "summary": "41 passed, 0 failed" },
+      { "name": "verify:fsr2b2a", "exitCode": 0, "summary": "37 passed, 0 failed" },
+      { "name": "verify:fsr2b2b", "exitCode": 0, "summary": "29 passed, 0 failed" },
+      { "name": "verify:financial-reports", "exitCode": 1, "summary": "23 passed, 2 failed; FSR-2B.3 classification authority pending" },
+      { "name": "verify:audit", "exitCode": 0, "summary": "244 PASS, 3 INFO, 0 WARNING, 0 FAIL, 0 CRITICAL" }
+    ],
+    "masterWrapperRun": false,
+    "masterWrapperReason": "verify:erp writes reports/verify-erp-report.md; equivalent safe component checks were run individually to avoid modifying an existing report",
+    "manualElectronClickThrough": "NOT STARTED",
+    "deploymentVerification": "NOT STARTED"
+  },
+  "sha256": {
+    "AGENTS.md": "9620cad0501d7c2839c896b6a541582efc6978ab5bc8862e9e4c6d680505a66f",
+    "README.md": "b388a0bc73431e320f43b6205aa231211610ddced4f7e7d5743f31df9ce3c3c2",
+    "package.json": "47f7cb1e29b3a40a863397c4928fddebf7fd4fcefd0ae7eb4ea11f425b0be7ed",
+    "package-lock.json": "00edec5cc8291f7b66a18aeb62f4b30676b22767d9827dbc1b3095109bde907e",
+    "repository/graph-registry.json": "9ad790b655d4152f702911af35aa7d0459caedf4bcce05e9aa0303f39eafb1be",
+    "src/renderer/knowledge/renderer-graph.json": "2b7404dae4f684fbf84ba7efc3eca1785d5d40d66b88e2d6a1a516f02c96c3d7",
+    "src/renderer/knowledge/database-graph.json": "5ab1c671a43881a1995ef49e2aac1b0838fd455bee9791df68e19aebec862f6b",
+    "src/renderer/knowledge/workflow-graph.json": "6315b8b5227ad1e2eb2db83140a430dbe3e6746f8ab9f00955249acb4ee40c84",
+    "src/renderer/knowledge/voucher-accounting-graph.json": "3d7c833009da1baadeb416d2246ea0710f96bdba64271a35393b836be26849d4",
+    "src/renderer/knowledge/feature-function-graph.json": "d25cc1e0687e211301d56b2de0d4cd2a7b14f20209e2ec5010b888c51cc24ed2",
+    "src/renderer/knowledge/audit-graph.json": "09653d619e77bf369d128842a92b7ea1e451111bb71e85de957ea688ce8048a1",
+    "src/renderer/knowledge/manual-graph.json": "b2c70f21af5a129cc3afc595bac276cafbdd1610807b957ad936c35c334b582a"
+  },
+  "recommendedNextAction": "Human approval of the governance and graph reconciliation findings",
+  "recommendedNextImplementationPhase": "Session-bound authorization and destructive-operation guarding",
+  "recommendedNextAccountingPhase": "FSR-2B.3 governed financial classification cutover",
+  "recommendedNextGraphPhase": "BRAIN-3.5 / KG-5 runtime consumption after corrective stabilization and certification",
+  "deliverables": [
+    "ERP-CURRENT-STATE-MASTER-REPORT.md",
+    "ERP-FUNCTION-FEATURE-INVENTORY.md",
+    "ERP-GOVERNANCE-DOCUMENT-REGISTER.md",
+    "ERP-ARCHITECTURE-AND-TECH-STACK-REPORT.md",
+    "ERP-GRAPH-REGISTRY-AND-PENDING-COUNT-AUDIT.md",
+    "ERP-CROSS-LAYER-RECONCILIATION-MATRIX.md",
+    "ERP-PENDING-WORK-AND-IMPLEMENTATION-SEQUENCE.md",
+    "ERP-AUDIT-EVIDENCE.json"
+  ]
+}
