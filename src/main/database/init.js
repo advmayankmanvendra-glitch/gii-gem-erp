@@ -6713,9 +6713,10 @@ function postExpenseAccrualsForOrder(db, orderId) {
       /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
       expense.expense_head_name.includes("Transport") ? "Transport Expense" :
       expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
+    const accrualDate = expenseAccrualDate(db, expense);
     const voucher = createBalancedVoucher(db, {
       company_id: expense.company_id,
-      voucher_date: new Date().toISOString().slice(0, 10),
+      voucher_date: accrualDate,
       voucher_type: "Journal",
       narration: `Expense accrual ${expense.expense_head_name}`,
       source_module: "expense",
@@ -6726,8 +6727,17 @@ function postExpenseAccrualsForOrder(db, orderId) {
       ]
     });
     db.prepare("UPDATE expense_entries SET expense_amount = ?, balance_amount = ? WHERE id = ?").run(amount, amount, expense.id);
-    markPosted(db, "expense_entries", expense.id, voucher.id, new Date().toISOString().slice(0, 10));
+    markPosted(db, "expense_entries", expense.id, voucher.id, accrualDate);
   });
+}
+
+// Expense accruals belong to the order's period, not the day posting happens to run.
+// expense_entries has no date column, so use the order date, then the entry's creation date.
+function expenseAccrualDate(db, expense) {
+  const order = db.prepare("SELECT order_date FROM supply_orders WHERE id = ?").get(expense.order_id);
+  const candidates = [order?.order_date, expense.created_at];
+  const valid = candidates.map((value) => String(value || "").slice(0, 10)).find((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
+  return valid || new Date().toISOString().slice(0, 10);
 }
 
 function upsertReceivable(db, invoice, invoiceAmount) {
