@@ -43,6 +43,7 @@ import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryRe
 import { MasterDataToolsScreen } from "./screens/MasterDataTools/index.js";
 import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
 import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
+import { UserManagementScreen } from "./features/settings/UserManagementScreen.jsx";
 import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "./screens/ReadOnlyReportFamilyScreen.jsx";
 import { CRACManagementScreen, CRACEntryScreen, CRACTrackerScreen, PaymentReadinessScreen, OrderClosureScreen } from "./screens/CRAC/index.js";
 import { AccountingReportsIndex, CashFlowSummary, EmployeePerformanceSummary, GstSummary } from "./screens/ReadOnlySummaryReports.jsx";
@@ -1216,6 +1217,7 @@ function App() {
             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
+            {effectiveView === "user_management" && <UserManagementScreen notify={notify} apiClient={api} session={session} confirmAction={confirmAction} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
@@ -1294,7 +1296,7 @@ function App() {
             navigate("help_assistant");
           }}
           onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
-          onLogout={() => setSession(null)}
+          onLogout={() => { api.logout?.(); setSession(null); }}
           companies={safeCompanies}
           companyContext={companyContext}
           currentCompanyId={currentCompanyId}

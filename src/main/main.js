@@ -89,7 +89,8 @@ import {
   setRuntimeRoot,
   sourceProjectRoot,
   voucherProposalData,
-  previewImportRollback
+  previewImportRollback,
+  setPermissionActorResolver
 } from "./database/init.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
@@ -113,6 +114,8 @@ import {
 } from "./services/cracService.js";
 import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
+import { activeSessionUserId, completePasswordChange, endSession, requireActiveSession, startSession } from "./services/sessionService.js";
+import { createUser, listAssignableRoles, listUsers, resetUserPassword, updateUser } from "./services/userAdminService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -196,9 +199,20 @@ function configureRuntimeStorage() {
   return { root: runtimeDataRoot, copiedDatabase };
 }
 
+// Channels that work before login. Every other channel registered through handle() requires an
+// active main-process session; the renderer cannot supply its own user identity.
+const PUBLIC_CHANNELS = new Set(["auth:login", "auth:change-password", "auth:logout", "meta:masters", "meta:transactions", "master-data:definitions"]);
+
+function handle(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!PUBLIC_CHANNELS.has(channel)) requireActiveSession();
+    return handler(event, ...args);
+  });
+}
+
 function guarded(permission, moduleName, handler) {
   return (_event, ...args) => {
-    enforcePermission(db, permission, userContext(args, { module: moduleName, table_name: moduleName }));
+    enforcePermission(db, permission, { ...userContext(args, { module: moduleName, table_name: moduleName }), user_id: activeSessionUserId() });
     return handler(...args);
   };
 }
@@ -552,74 +566,88 @@ function installApplicationMenu() {
 }
 
 function registerIpc() {
-  ipcMain.handle("auth:login", (_event, credentials) => {
-    return authenticate(db, credentials.username, credentials.password);
+  handle("auth:login", (_event, credentials) => {
+    endSession();
+    const user = authenticate(db, credentials?.username, credentials?.password);
+    if (user) startSession(user);
+    return user;
   });
-  ipcMain.handle("auth:change-password", (_event, payload) => {
-    return changeUserPassword(db, payload);
+  handle("auth:change-password", (_event, payload) => {
+    const user = changeUserPassword(db, payload);
+    completePasswordChange(user?.id);
+    return user;
+  });
+  handle("auth:logout", () => {
+    endSession();
+    return { success: true };
   });
 
-  ipcMain.handle("meta:masters", () => MASTER_TABLES);
-  ipcMain.handle("meta:transactions", () => TRANSACTION_TABLES);
-  ipcMain.handle("master-data:definitions", () => getMasterDataToolDefinitions());
-  ipcMain.handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
-  ipcMain.handle("references:list", (_event, filters) => referenceData(db, filters));
-  ipcMain.handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
-  ipcMain.handle("accounting:data", (_event, filters) => accountingData(db, filters));
-  ipcMain.handle("bank:data", (_event, filters) => bankStatementData(db, filters));
-  ipcMain.handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
-  ipcMain.handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
-  ipcMain.handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, userId, remarks) => updateBankImportStatus(db, importId, status, userId, remarks)));
-  ipcMain.handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
-  ipcMain.handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId, userId) => postApprovedBankImport(db, importId, userId)));
-  ipcMain.handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
-  ipcMain.handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId, userId) => generateVoucherProposalsForImport(db, importId, userId)));
-  ipcMain.handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
-  ipcMain.handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, userId, remarks) => approveVoucherProposal(db, proposalId, userId, remarks)));
-  ipcMain.handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, userId, reason) => rejectVoucherProposal(db, proposalId, userId, reason)));
-  ipcMain.handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId, userId) => createDraftVoucherFromProposal(db, proposalId, userId)));
-  ipcMain.handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId, userId) => postDraftVoucherFromProposal(db, proposalId, userId)));
-  ipcMain.handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
-  ipcMain.handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
-  ipcMain.handle("inventory:data", (_event, filters) => inventoryData(db, filters));
-  ipcMain.handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
-  ipcMain.handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
-  ipcMain.handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
-  ipcMain.handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
-  ipcMain.handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, userId, remarks) => approveStockAdjustment(db, id, userId, remarks)));
-  ipcMain.handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
-  ipcMain.handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
-  ipcMain.handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id, userId) => confirmDeliveryChallan(db, id, userId)));
-  ipcMain.handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
-  ipcMain.handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
-  ipcMain.handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
-  ipcMain.handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
-  ipcMain.handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
-  ipcMain.handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
-  ipcMain.handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
-  ipcMain.handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
-  ipcMain.handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
-  ipcMain.handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
-  ipcMain.handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
-  ipcMain.handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
-  ipcMain.handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason, userId) => reverseAdvanceAdjustment(db, adjustmentId, reason, userId)));
-  ipcMain.handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
-  ipcMain.handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
-  ipcMain.handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
-  ipcMain.handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
-  ipcMain.handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, userId, remarks) => updateGuidedVoucherStatus(db, id, action, userId, remarks)));
-  ipcMain.handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id, userId) => postGuidedVoucher(db, id, userId)));
-  ipcMain.handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason)));
-  ipcMain.handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
-  ipcMain.handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, userId, remarks) => approveTransaction(db, moduleName, recordId, userId, remarks)));
-  ipcMain.handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
-  ipcMain.handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status, userId) => updateFinancialYearStatus(db, id, status, userId)));
-  ipcMain.handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
-  ipcMain.handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
-  ipcMain.handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
-  ipcMain.handle("imports:parse-file", (_event, filePath) => parseImportFile(filePath));
-  ipcMain.handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
-  ipcMain.handle("imports:select-file", async () => {
+  handle("users:list", guarded("manage_users", "user_management", () => ({ users: listUsers(db), roles: listAssignableRoles() })));
+  handle("users:create", guarded("manage_users", "user_management", (payload) => createUser(db, payload, activeSessionUserId())));
+  handle("users:update", guarded("manage_users", "user_management", (id, payload) => updateUser(db, id, payload, activeSessionUserId())));
+  handle("users:reset-password", guarded("manage_users", "user_management", (id, newPassword) => resetUserPassword(db, id, newPassword, activeSessionUserId())));
+
+  handle("meta:masters", () => MASTER_TABLES);
+  handle("meta:transactions", () => TRANSACTION_TABLES);
+  handle("master-data:definitions", () => getMasterDataToolDefinitions());
+  handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
+  handle("references:list", (_event, filters) => referenceData(db, filters));
+  handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
+  handle("accounting:data", (_event, filters) => accountingData(db, filters));
+  handle("bank:data", (_event, filters) => bankStatementData(db, filters));
+  handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
+  handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
+  handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, userId, remarks) => updateBankImportStatus(db, importId, status, userId, remarks)));
+  handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
+  handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId, userId) => postApprovedBankImport(db, importId, userId)));
+  handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
+  handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId, userId) => generateVoucherProposalsForImport(db, importId, userId)));
+  handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
+  handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, userId, remarks) => approveVoucherProposal(db, proposalId, userId, remarks)));
+  handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, userId, reason) => rejectVoucherProposal(db, proposalId, userId, reason)));
+  handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId, userId) => createDraftVoucherFromProposal(db, proposalId, userId)));
+  handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId, userId) => postDraftVoucherFromProposal(db, proposalId, userId)));
+  handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
+  handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
+  handle("inventory:data", (_event, filters) => inventoryData(db, filters));
+  handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
+  handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
+  handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
+  handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
+  handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, userId, remarks) => approveStockAdjustment(db, id, userId, remarks)));
+  handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
+  handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
+  handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id, userId) => confirmDeliveryChallan(db, id, userId)));
+  handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
+  handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
+  handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
+  handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
+  handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
+  handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
+  handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
+  handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
+  handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
+  handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
+  handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
+  handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
+  handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason, userId) => reverseAdvanceAdjustment(db, adjustmentId, reason, userId)));
+  handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
+  handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
+  handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
+  handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
+  handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, userId, remarks) => updateGuidedVoucherStatus(db, id, action, userId, remarks)));
+  handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id, userId) => postGuidedVoucher(db, id, userId)));
+  handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason)));
+  handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
+  handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, userId, remarks) => approveTransaction(db, moduleName, recordId, userId, remarks)));
+  handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
+  handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status, userId) => updateFinancialYearStatus(db, id, status, userId)));
+  handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
+  handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
+  handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
+  handle("imports:parse-file", (_event, filePath) => parseImportFile(filePath));
+  handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
+  handle("imports:select-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select import file",
       properties: ["openFile"],
@@ -628,7 +656,7 @@ function registerIpc() {
     if (result.canceled || !result.filePaths?.[0]) return null;
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
   });
-  ipcMain.handle("tally:select-xml-file", async () => {
+  handle("tally:select-xml-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select Tally Prime XML export",
       properties: ["openFile"],
@@ -637,7 +665,7 @@ function registerIpc() {
     if (result.canceled || !result.filePaths?.[0]) return null;
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
   });
-  ipcMain.handle("tally:select-migration-file", async (_event, type) => {
+  handle("tally:select-migration-file", async (_event, type) => {
     const result = await dialog.showOpenDialog({
       title: "Select Tally migration or reference file",
       properties: ["openFile"],
@@ -646,42 +674,42 @@ function registerIpc() {
     if (result.canceled || !result.filePaths?.[0]) return null;
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]), type: type || "" };
   });
-  ipcMain.handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(typeof payload === "string" ? payload : payload?.filePath)));
-  ipcMain.handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, payload?.files || [], userContext([payload], { module: "tally_migration_assistant" }))));
-  ipcMain.handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
-  ipcMain.handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
-  ipcMain.handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
-  ipcMain.handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
-  ipcMain.handle("imports:item-batches", () => listItemImportBatches(db));
-  ipcMain.handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
-  ipcMain.handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
-  ipcMain.handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
+  handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(typeof payload === "string" ? payload : payload?.filePath)));
+  handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, payload?.files || [], userContext([payload], { module: "tally_migration_assistant" }))));
+  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
+  handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
+  handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
+  handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
+  handle("imports:item-batches", () => listItemImportBatches(db));
+  handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
+  handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
+  handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
     return exportMasterData(db, payload, context, (entry) => auditLog(db, entry));
   }));
-  ipcMain.handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
+  handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
     return previewMasterDataUpdate(db, payload, userContext([payload], { module: "master_data_tools" }));
   }));
-  ipcMain.handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
+  handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
     return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
   }));
-  ipcMain.handle("master-data:completeness", (_event, context) => {
+  handle("master-data:completeness", (_event, context) => {
     return getMasterDataCompleteness(db, userContext([context], { module: "master_data_tools" }));
   });
-  ipcMain.handle("master-data:health", (_event, context) => {
+  handle("master-data:health", (_event, context) => {
     return getMasterDataToolsHealth(db, userContext([context], { module: "master_data_tools" }));
   });
-  ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
-  ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
-  ipcMain.handle("documents:view", async (_event, id) => {
+  handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
+  handle("documents:list", (_event, filters) => listDocuments(db, filters));
+  handle("documents:view", async (_event, id) => {
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
     if (!doc) throw new Error("Document not found");
     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document view", table_name: "documents", record_id: id });
+    auditLog(db, { company_id: doc.company_id, user_id: activeSessionUserId(), action: "document view", table_name: "documents", record_id: id });
     return shell.openPath(doc.file_path);
   });
-  ipcMain.handle("documents:download", async (event, id) => {
+  handle("documents:download", async (event, id) => {
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
     if (!doc) throw new Error("Document not found");
     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
@@ -692,14 +720,14 @@ function registerIpc() {
     });
     if (canceled || !savePath) return { canceled: true };
     fs.copyFileSync(doc.file_path, savePath);
-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document download", table_name: "documents", record_id: id });
+    auditLog(db, { company_id: doc.company_id, user_id: activeSessionUserId(), action: "document download", table_name: "documents", record_id: id });
     return { canceled: false, savedPath: savePath };
   });
-  ipcMain.handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
-  ipcMain.handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
-  ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
+  handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
+  handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
+  handle("audit:context", (_event, payload) => auditLog(db, { ...(payload || {}), user_id: activeSessionUserId() }));
 
-  ipcMain.handle("print:html", async (event, preview) => {
+  handle("print:html", async (event, preview) => {
     return withPrintWindow(event, preview, async (printWindow) => {
       return new Promise((resolve) => {
         printWindow.webContents.print(
@@ -710,7 +738,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle("print:pdf", async (event, preview) => {
+  handle("print:pdf", async (event, preview) => {
     const result = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
       title: "Save PDF",
       defaultPath: `${safePrintFileName(preview?.title)}.pdf`,
@@ -728,15 +756,15 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
-  ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
-  ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
-  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
-  ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
+  handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
+  handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
+  handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
+  handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+  handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
 
-  ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
-  ipcMain.handle("backup:list", () => listBackups(runtimeDataRoot));
-  ipcMain.handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
+  handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
+  handle("backup:list", () => listBackups(runtimeDataRoot));
+  handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
     db?.close();
     db = null;
     try {
@@ -755,31 +783,31 @@ function registerIpc() {
     }
   }));
 
-  ipcMain.handle("health:diagnostics", (_event, context) => {
+  handle("health:diagnostics", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     return {
       ...getHealthDiagnostics(db, runtimeDataRoot, healthContext),
       masterDataTools: getMasterDataToolsHealth(db, userContext([healthContext], { module: "master_data_tools" }))
     };
   });
-  ipcMain.handle("health:checks", (_event, context) => {
+  handle("health:checks", (_event, context) => {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
   });
-  ipcMain.handle("health:support-bundle", (_event, context) => {
+  handle("health:support-bundle", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
   });
-  ipcMain.handle("health:verification-console", () => {
+  handle("health:verification-console", () => {
     return getVerificationConsoleState(runtimeDataRoot);
   });
-  ipcMain.handle("health:verification-snapshot", (_event, context) => {
+  handle("health:verification-snapshot", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
   });
-  ipcMain.handle("health:open-folder", async (_event, kind) => {
+  handle("health:open-folder", async (_event, kind) => {
     const folders = {
       runtime: runtimeDataRoot,
       database: path.join(runtimeDataRoot, "database"),
@@ -795,14 +823,14 @@ function registerIpc() {
     return { success: true, folder, message: "Folder opened" };
   });
 
-  ipcMain.handle("updates:status", () => getUpdateStatus());
-  ipcMain.handle("updates:open-folder", async () => {
+  handle("updates:status", () => getUpdateStatus());
+  handle("updates:open-folder", async () => {
     const updateFolder = ensureUpdateFolder();
     const failureReason = await shell.openPath(updateFolder);
     if (failureReason) throw new Error(failureReason);
     return { success: true, updateFolder };
   });
-  ipcMain.handle("updates:install", async (_event, installerPath) => {
+  handle("updates:install", async (_event, installerPath) => {
     const status = getUpdateStatus();
     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
     const failureReason = await shell.openPath(selectedInstaller);
@@ -810,24 +838,25 @@ function registerIpc() {
     return { success: true, installerPath: selectedInstaller };
   });
 
-  ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));
-  ipcMain.handle("crac:get", (_event, id) => getCracRecord(db, id));
-  ipcMain.handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
-  ipcMain.handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
-  ipcMain.handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
-  ipcMain.handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
-  ipcMain.handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
-  ipcMain.handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
-  ipcMain.handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
+  handle("crac:list", (_event, filters) => listCracRecords(db, filters));
+  handle("crac:get", (_event, id) => getCracRecord(db, id));
+  handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
+  handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
+  handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
+  handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
+  handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
+  handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
+  handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
+  handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
+  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
+  handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 }
 
 app.whenReady().then(() => {
   configureRuntimeStorage();
   applyPendingRestore(runtimeDataRoot);
   db = initializeDatabase(runtimeDataRoot);
+  setPermissionActorResolver(activeSessionUserId);
   registerIpc();
   installApplicationMenu();
   createWindow();

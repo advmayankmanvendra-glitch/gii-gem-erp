@@ -1,6 +1,7 @@
 const viewTitles = {
   dashboard: ["Dashboard", "Government Supply, Procurement & Profitability Management System"],
   settings: ["Settings", "Backup and local structure management."],
+  user_management: ["User Management", "Create users, assign roles, deactivate leavers and reset passwords."],
   companies: ["Companies", "Manage company registrations, tax identity and bank details."],
   employees: ["Employees", "Manage users responsible for orders and incentive calculation."],
   government_departments: ["Departments", "Manage government departments, institutions and contact points."],
@@ -257,7 +258,7 @@ const navGroups = [
     items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
   },
   { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_keyboard", "Keyboard Shortcuts"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
-  { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }
+  { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"], ["user_management", "User Management", "Users Roles Passwords Access Login"]] }
 ];
 
 const routeAliases = {

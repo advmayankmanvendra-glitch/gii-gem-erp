@@ -191,7 +191,7 @@ const SECURITY = {
 export const ROLE_HIERARCHY = ["super_admin", "admin", "accountant", "manager", "data_entry_operator", "viewer"];
 const ROLE_PERMISSIONS = {
   super_admin: new Set(["*"]),
-  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings"]),
+  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "manage_users"]),
   accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup"]),
   manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup"]),
   data_entry_operator: new Set(["create", "edit", "import", "export", "backup"]),
@@ -228,7 +228,7 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(expected, "hex"), actual);
 }
 
-function passwordStrengthErrors(password = "") {
+export function passwordStrengthErrors(password = "") {
   const value = String(password || "");
   const errors = [];
   if (value.length < 8) errors.push("Password must be at least 8 characters.");
@@ -257,7 +257,20 @@ function roleCan(role, permission) {
   return allowed.has("*") || allowed.has(permission);
 }
 
+// The desktop app registers a resolver that returns the logged-in user from the main-process
+// session. When set, permission checks ignore any user id supplied by the caller and never fall
+// back to an administrator. Scripts that call the database layer directly do not set it.
+let permissionActorResolver = null;
+
+export function setPermissionActorResolver(resolver) {
+  permissionActorResolver = typeof resolver === "function" ? resolver : null;
+}
+
 function userForPermission(db, userId) {
+  if (permissionActorResolver) {
+    const actorId = Number(permissionActorResolver() || 0);
+    return actorId ? db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(actorId) : null;
+  }
   if (userId) return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(userId);
   return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE status = 'active' ORDER BY CASE WHEN role IN ('super_admin','admin') THEN 0 ELSE 1 END, id LIMIT 1").get();
 }
@@ -276,7 +289,10 @@ export function enforcePermission(db, permission, context = {}) {
       record_id: context.record_id || null,
       new_value: JSON.stringify({ permission, role, reason: "backend permission enforcement" })
     });
-    throw new Error(`Permission denied: ${permission}`);
+    const where = context.module || context.table_name || "this screen";
+    throw new Error(user
+      ? `Permission denied: your role (${role}) cannot ${permission.replaceAll("_", " ")} in ${where}. Ask an Admin to do it or to change your role in Settings > User Management.`
+      : `Permission denied: ${permission.replaceAll("_", " ")} in ${where} needs a logged-in, active user. Log in again and retry.`);
   }
   return user;
 }
