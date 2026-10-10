@@ -1,0 +1,1340 @@
+From 3e9af8c79d4aeecca1446fa656fb931e4a123e35 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 11:38:50 +0000
+Subject: [PATCH 1/2] Post expense accruals on the order date instead of the
+ system date
+
+Expense accrual vouchers were dated with the day posting ran, so a June
+order's expenses posted in October landed in October and could fall into
+a different financial year. They now use the supply order date, falling
+back to the expense entry's creation date. Already-posted vouchers are
+untouched. Approved by the user on 2026-10-07 per AGENTS.md rule 4.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01KADv3CQwxtAEgegiWVSynB
+---
+ src/main/database/init.js | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/main/database/init.js b/src/main/database/init.js
+index fe38bb5..55fe0cc 100644
+--- a/src/main/database/init.js
++++ b/src/main/database/init.js
+@@ -6713,9 +6713,10 @@ function postExpenseAccrualsForOrder(db, orderId) {
+       /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
+       expense.expense_head_name.includes("Transport") ? "Transport Expense" :
+       expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
++    const accrualDate = expenseAccrualDate(db, expense);
+     const voucher = createBalancedVoucher(db, {
+       company_id: expense.company_id,
+-      voucher_date: new Date().toISOString().slice(0, 10),
++      voucher_date: accrualDate,
+       voucher_type: "Journal",
+       narration: `Expense accrual ${expense.expense_head_name}`,
+       source_module: "expense",
+@@ -6726,10 +6727,19 @@ function postExpenseAccrualsForOrder(db, orderId) {
+       ]
+     });
+     db.prepare("UPDATE expense_entries SET expense_amount = ?, balance_amount = ? WHERE id = ?").run(amount, amount, expense.id);
+-    markPosted(db, "expense_entries", expense.id, voucher.id, new Date().toISOString().slice(0, 10));
++    markPosted(db, "expense_entries", expense.id, voucher.id, accrualDate);
+   });
+ }
+ 
++// Expense accruals belong to the order's period, not the day posting happens to run.
++// expense_entries has no date column, so use the order date, then the entry's creation date.
++function expenseAccrualDate(db, expense) {
++  const order = db.prepare("SELECT order_date FROM supply_orders WHERE id = ?").get(expense.order_id);
++  const candidates = [order?.order_date, expense.created_at];
++  const valid = candidates.map((value) => String(value || "").slice(0, 10)).find((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
++  return valid || new Date().toISOString().slice(0, 10);
++}
++
+ function upsertReceivable(db, invoice, invoiceAmount) {
+   const order = db.prepare("SELECT department_id FROM supply_orders WHERE id = ?").get(invoice.order_id);
+   const dueDate = creditDueDate(db, invoice.company_id, "department", order?.department_id, invoice.invoice_date, invoice.due_date);
+-- 
+2.43.0
+
+
+From d58bb122d3e055c17dac2128aa265d836c9eb0f4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 11:47:43 +0000
+Subject: [PATCH 2/2] Hold the login session in the backend and add user
+ management
+
+Permission checks trusted whatever user id the screen sent and fell back
+to the first admin when none was sent, and 51 IPC channels worked before
+login. The main process now keeps the logged-in user: every channel except
+login, password change, logout and static metadata requires an active
+session, and permission checks use only the session user. Adds a Settings >
+User Management screen (create users, change role/status, reset passwords,
+all audited), a verify:security script, and guided permission-denied
+messages. No IPC or preload names changed; new channels only. No schema,
+accounting or posting changes.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01KADv3CQwxtAEgegiWVSynB
+---
+ ...ecurity-session-and-accrual-date-report.md | 137 +++++++++
+ package.json                                  |   3 +-
+ scripts/verify-security-session.js            |  97 ++++++
+ src/main/database/init.js                     |  22 +-
+ src/main/main.js                              | 275 ++++++++++--------
+ src/main/services/sessionService.js           |  45 +++
+ src/main/services/userAdminService.js         | 145 +++++++++
+ src/preload/preload.cjs                       |   5 +
+ src/renderer/App.jsx                          |   4 +-
+ src/renderer/api/client.js                    |   4 +
+ src/renderer/config/navigation.js             |   3 +-
+ .../settings/UserManagementScreen.jsx         | 205 +++++++++++++
+ 12 files changed, 816 insertions(+), 129 deletions(-)
+ create mode 100644 docs/reports/phase-16-security-session-and-accrual-date-report.md
+ create mode 100644 scripts/verify-security-session.js
+ create mode 100644 src/main/services/sessionService.js
+ create mode 100644 src/main/services/userAdminService.js
+ create mode 100644 src/renderer/features/settings/UserManagementScreen.jsx
+
+diff --git a/docs/reports/phase-16-security-session-and-accrual-date-report.md b/docs/reports/phase-16-security-session-and-accrual-date-report.md
+new file mode 100644
+index 0000000..91cb925
+--- /dev/null
++++ b/docs/reports/phase-16-security-session-and-accrual-date-report.md
+@@ -0,0 +1,137 @@
++# Phase 16A and 16B Report: Backend Login Session, User Management and Expense Accrual Date
++
++Date: 2026-10-07
++Branch: `claude/project-thread-grlynv`
++Source audit: repository audit of 2026-10-07 (gaps 5.1 and 5.2)
++
++This report is stored in `docs/reports/` because `reports/*` is gitignored and the phase evidence should travel with the code.
++
++---
++
++## Phase 16B: Expense Accrual Posting Date (commit `3e9af8c`)
++
++**Feature classification:** Primary Accounting. No secondary category.
++**Approval:** Rule 4 forbids changing posting behaviour without explicit instruction. The user approved this change ("Fix it") on 2026-10-07.
++
++**Problem.** `postExpenseAccrualsForOrder` dated each expense accrual voucher with the system date. A June order's expenses posted in October landed in October, and could fall into a different financial year. This was also why `scripts/desktop-functional-stabilization.js` failed: "Voucher JOURNAL-00001 missing from register".
++
++**Change.** The accrual voucher and its posting date now use the supply order's `order_date`. If that is missing, they use the expense entry's `created_at` date, and only then today's date (`expenseAccrualDate`, `src/main/database/init.js`).
++
++**Not changed:**
++- Amounts, accounts and debit/credit lines.
++- Vouchers that are already posted. Only entries with no `voucher_id` are ever posted.
++- Schema.
++
++**Behaviour note.** If the order date falls in a closed or locked financial year, posting is now refused by the existing financial-year controls instead of silently landing in the current year.
++
++---
++
++## Phase 16A: Backend Login Session and User Management
++
++### Feature classification
++- **Primary category:** Security.
++- **Secondary categories:** UX (new screen), Governance (new verification script).
++- **Accounting, posting, GST and inventory logic:** not touched.
++
++### Dependency assessment
++Dependencies Satisfied: **Yes**. The phase builds on the existing pieces:
++- `users` table
++- `authenticate` and `changeUserPassword`
++- `ROLE_PERMISSIONS` and `enforcePermission`
++- the audit log
++- the Electron preload bridge
++
++### Problem
++Before this phase:
++- Permission checks used whatever user id the screen sent, and fell back to the first active admin when none was sent. In practice every action ran as admin.
++- 51 IPC handlers had no check at all and worked before login.
++- There was no way to create users from the app.
++
++### Changes
++
++| Area | Change |
++|---|---|
++| `src/main/services/sessionService.js` (new) | Holds the logged-in user in the main process. A pending forced password change blocks data access. |
++| `src/main/main.js` | Every IPC channel goes through `handle()`, which requires an active session except `auth:login`, `auth:change-password`, `auth:logout`, `meta:masters`, `meta:transactions` and `master-data:definitions`. `guarded()` now checks the session user's role. `audit:context` and document view/download log the session user. |
++| `src/main/database/init.js` | `setPermissionActorResolver()`: when set by the desktop app, permission checks use only the session user and never fall back to admin. Scripts that call the database layer directly keep the old behaviour. Added `manage_users` to the Admin role. `passwordStrengthErrors` is now exported. Permission-denied messages now name the role, the action and what to do next. |
++| `src/main/services/userAdminService.js` (new) | List, create and update users (name, role, status), and reset passwords. Rules: only a Super Admin can grant or alter Super Admin; you cannot deactivate yourself or remove your own admin role; the last active admin is protected; new and reset passwords force a change at next login and clear lockouts. Every action is audited (`module = user_management`). |
++| `src/preload/preload.cjs` | Added `logout`, `listUsers`, `createUser`, `updateUser`, `resetUserPassword`. No existing names changed. |
++| `src/renderer/api/client.js` | Browser preview blocks the new user actions. |
++| `src/renderer/features/settings/UserManagementScreen.jsx` (new) | User table, edit, reset password and add user. Non-admins see an explanation instead of an error. |
++| `src/renderer/config/navigation.js`, `src/renderer/App.jsx` | New route `user_management` under Settings. Render line added. Logout now ends the backend session. `App.jsx` gained 3 lines and no business logic. |
++| `scripts/verify-security-session.js` (new), `package.json` | New `verify:security` check (16 checks). `lint:syntax` covers the new files. |
++
++### Interface impact
++- **IPC/preload:** new channels `auth:logout`, `users:list`, `users:create`, `users:update`, `users:reset-password`. No existing channel or preload name was changed or removed.
++- **Routes:** new key `user_management`. No existing key changed.
++- **Database:** no schema change.
++- **Business logic preserved:** Yes. No accounting, GST, inventory, profitability or posting code was touched in 16A.
++
++### Behaviour change users will notice
++Roles are now enforced. Today only the seeded `admin` exists, so nothing changes until other users are created. A Viewer or Data Entry Operator can no longer post, approve or reverse, even though the screens still show those buttons. The backend refuses with a message that names their role.
++
++### Verification results
++Run in a Linux container under Node, one script at a time, on a fresh database.
++
++| Command | Result |
++|---|---|
++| `lint:syntax` | Pass |
++| `build` | Pass (existing warning: 1.2 MB chunk) |
++| `verify:accounting` | Pass |
++| `verify:financials` | Pass |
++| `verify:controls` | Pass |
++| `verify:voucher-inventory` | Pass |
++| `verify:flow` | Pass |
++| `verify:phase10` | Pass |
++| `verify-company-context-isolation.js` | Pass |
++| `verify-phase8b-voucher-proposals.js` | Pass |
++| `verify:security` (new) | Pass, 16/16 |
++| `desktop-functional-stabilization.js` | Pass (failed before 16B) |
++| `stability-edit-backup-smoke.js` | Pass |
++| `backup-restore-validation.js` | Pass |
++
++### Desktop smoke test
++Electron 37 on Linux under Xvfb, driven over the DevTools protocol.
++- Login and the forced default-password change worked.
++- No console errors before or after login.
++- All 156 sidebar screens opened with no crash panel, no blank screen and no console errors.
++- **User Management as admin:**
++  - The page opened with the correct breadcrumb, active sidebar item and Recents entry.
++  - Created a Viewer.
++  - Trying to deactivate yourself was refused with guidance.
++- Logout returned to the login screen.
++- **Logged in as the new Viewer:**
++  - Was forced to change the password.
++  - User Management showed the "limited to administrators" panel.
++  - Trial Balance still opened.
++
++Not covered:
++- The smoke test was not run on Windows.
++- Print and export were not touched by this phase and were not re-tested.
++
++### UX compliance checklist
++- **Navigation:** Settings > User Management, with breadcrumb, Recents and Favorites working.
++- **Error guidance:** messages say what failed, where (User Management > field) and what to do.
++- **Destructive action:** password reset asks for confirmation.
++- **Empty and denied states:** explained.
++- **Known gap 1:** write buttons stay visible to roles that cannot use them. The backend refuses with guidance, but the buttons are not yet hidden.
++- **Known gap 2:** no context-help entry yet for the new screen.
++
++### Production readiness
++- **Classification:** Beta.
++- **Gates passed:** implementation, verification, accounting and financial verification, and smoke test (Linux).
++- **Gates pending:** Windows desktop smoke test, UAT with real users and roles, git tag (not a major milestone).
++
++### Known limitations
++- The session has no idle timeout.
++- Reloading the window (View > Reload) shows the login screen while the backend session stays open until the next login or logout.
++- Audit attribution for some actions still records the user id the screen passes, because handler arguments were not rewritten. Permission decisions no longer depend on it.
++- After a backup restore, the session user must exist in the restored database or actions are refused until the user logs in again.
++
++### Safe to lock
++Yes, after a Windows desktop click-through of login, logout and User Management.
++
++### Lock note
++- **Stable:** session enforcement, user administration and accrual dating.
++- **Out of scope:** hiding buttons by role, idle timeout, audit attribution rewrite.
++- **Changes to role permissions:** need a separate phase.
+diff --git a/package.json b/package.json
+index deaf048..3523e56 100644
+--- a/package.json
++++ b/package.json
+@@ -15,12 +15,13 @@
+     "rebuild:node": "npm rebuild better-sqlite3",
+     "pack:win": "npm run build && electron-builder --win --dir",
+     "dist:win": "npm run build && electron-builder --win nsis portable",
+-    "lint:syntax": "node --check src/main/main.js && node --check src/main/database/init.js && node --check src/preload/preload.cjs && node --check scripts/verify-financials.js && node --check scripts/verify-controls.js",
++    "lint:syntax": "node --check src/main/main.js && node --check src/main/database/init.js && node --check src/preload/preload.cjs && node --check scripts/verify-financials.js && node --check scripts/verify-controls.js && node --check src/main/services/sessionService.js && node --check src/main/services/userAdminService.js && node --check scripts/verify-security-session.js",
+     "verify:accounting": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-accounting.js",
+     "verify:financials": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-financials.js",
+     "verify:controls": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-controls.js",
+     "verify:voucher-inventory": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-voucher-workflows-inventory.js",
+     "verify:phase10": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-phase10-inventory-automation.js",
++    "verify:security": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-security-session.js",
+     "verify:flow": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-operational-flow.js",
+     "test-data:pack-v1": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/create-erp-test-data-pack-v1.js"
+   },
+diff --git a/scripts/verify-security-session.js b/scripts/verify-security-session.js
+new file mode 100644
+index 0000000..586bbf7
+--- /dev/null
++++ b/scripts/verify-security-session.js
+@@ -0,0 +1,97 @@
++import fs from "node:fs";
++import os from "node:os";
++import path from "node:path";
++import {
++  authenticate,
++  enforcePermission,
++  hashPassword,
++  initializeDatabase,
++  setPermissionActorResolver
++} from "../src/main/database/init.js";
++import { activeSessionUserId, completePasswordChange, endSession, requireActiveSession, startSession } from "../src/main/services/sessionService.js";
++import { createUser, resetUserPassword, updateUser } from "../src/main/services/userAdminService.js";
++
++function assert(condition, message) {
++  if (!condition) throw new Error(message);
++}
++
++function expectBlocked(name, fn, pattern) {
++  try {
++    fn();
++  } catch (error) {
++    assert(pattern.test(error.message), `${name} failed with unexpected message: ${error.message}`);
++    return { name, status: "pass", detail: error.message };
++  }
++  throw new Error(`${name} was not blocked`);
++}
++
++const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-security-"));
++let db = initializeDatabase(root);
++const results = [];
++
++try {
++  const admin = db.prepare("SELECT * FROM users WHERE username = 'admin'").get();
++  db.prepare("UPDATE users SET password_hash = ?, force_password_change = 0 WHERE id = ?").run(hashPassword("Admin@Verify1"), admin.id);
++  setPermissionActorResolver(activeSessionUserId);
++
++  endSession();
++  results.push(expectBlocked("No session blocks IPC work", () => requireActiveSession(), /not logged in/));
++  results.push(expectBlocked("No session cannot borrow admin permission", () => enforcePermission(db, "post", { user_id: admin.id, module: "vouchers" }), /Permission denied/));
++
++  const adminLogin = authenticate(db, "admin", "Admin@Verify1");
++  startSession(adminLogin);
++  assert(requireActiveSession().id === admin.id, "Admin session was not started");
++  enforcePermission(db, "post", { module: "vouchers" });
++  enforcePermission(db, "manage_users", { module: "user_management" });
++  results.push({ name: "Admin session can post and manage users", status: "pass", detail: `user ${admin.id}` });
++
++  const viewer = createUser(db, { username: "verify.viewer", display_name: "Verify Viewer", role: "viewer", password: "Viewer@Temp1" }, admin.id);
++  assert(viewer.role === "viewer" && viewer.force_password_change, "Created user should be a viewer with a forced password change");
++  results.push(expectBlocked("Duplicate username rejected", () => createUser(db, { username: "verify.viewer", display_name: "Dup", role: "viewer", password: "Viewer@Temp1" }, admin.id), /already exists/));
++  results.push(expectBlocked("Weak temporary password rejected", () => createUser(db, { username: "verify.weak", display_name: "Weak", role: "viewer", password: "weak" }, admin.id), /Temporary Password/));
++  results.push(expectBlocked("Admin cannot assign Super Admin", () => createUser(db, { username: "verify.super", display_name: "Super", role: "super_admin", password: "Super@Temp1" }, admin.id), /Super Admin/));
++  results.push(expectBlocked("Admin cannot deactivate self", () => updateUser(db, admin.id, { status: "inactive" }, admin.id), /cannot deactivate yourself/));
++
++  const viewerLogin = authenticate(db, "verify.viewer", "Viewer@Temp1");
++  startSession(viewerLogin);
++  results.push(expectBlocked("Forced password change blocks data access", () => requireActiveSession(), /Password change pending/));
++  completePasswordChange(viewer.id);
++  requireActiveSession();
++  results.push(expectBlocked("Viewer cannot post even when claiming admin id", () => enforcePermission(db, "post", { user_id: admin.id, module: "vouchers" }), /your role \(viewer\)/));
++  results.push(expectBlocked("Viewer cannot manage users", () => enforcePermission(db, "manage_users", { user_id: admin.id, module: "user_management" }), /Permission denied/));
++
++  startSession(adminLogin);
++  const second = createUser(db, { username: "verify.admin2", display_name: "Second Admin", role: "admin", password: "Admin2@Temp1" }, admin.id);
++  updateUser(db, second.id, { role: "accountant" }, admin.id);
++  assert(db.prepare("SELECT role FROM users WHERE id = ?").get(second.id).role === "accountant", "Admin should be able to change another user's role");
++  results.push({ name: "Admin can change another user's role", status: "pass", detail: "verify.admin2 -> accountant" });
++  results.push(expectBlocked("Admin cannot remove own admin role", () => updateUser(db, admin.id, { role: "viewer" }, admin.id), /remove your own administrator role/));
++
++  db.prepare("UPDATE users SET locked_until = '2999-01-01T00:00:00.000Z', failed_login_count = 5 WHERE id = ?").run(viewer.id);
++  resetUserPassword(db, viewer.id, "Viewer@Reset2", admin.id);
++  const resetRow = db.prepare("SELECT force_password_change, locked_until, failed_login_count FROM users WHERE id = ?").get(viewer.id);
++  assert(resetRow.force_password_change === 1 && !resetRow.locked_until && resetRow.failed_login_count === 0, "Password reset should unlock and force a change");
++  assert(authenticate(db, "verify.viewer", "Viewer@Reset2")?.forcePasswordChange === true, "Reset password should log in with forced change");
++  results.push({ name: "Password reset unlocks and forces change", status: "pass", detail: "verify.viewer" });
++
++  updateUser(db, viewer.id, { status: "inactive" }, admin.id);
++  assert(authenticate(db, "verify.viewer", "Viewer@Reset2") === null, "Inactive user must not log in");
++  results.push({ name: "Inactive user cannot log in", status: "pass", detail: "verify.viewer" });
++
++  const auditCount = db.prepare("SELECT COUNT(*) count FROM audit_log WHERE module = 'user_management'").get().count;
++  assert(auditCount >= 5, "User management actions were not audited");
++  results.push({ name: "User management audit trail", status: "pass", detail: `${auditCount} audit rows` });
++
++  endSession();
++  results.push(expectBlocked("Logout ends access", () => requireActiveSession(), /not logged in/));
++
++  console.log(JSON.stringify({ root, passed: results.length, failed: 0, results }, null, 2));
++} catch (error) {
++  console.log(JSON.stringify({ root, passed: results.length, failed: 1, results, error: error.message }, null, 2));
++  process.exitCode = 1;
++} finally {
++  setPermissionActorResolver(null);
++  db?.close();
++  fs.rmSync(root, { recursive: true, force: true });
++  process.exit(process.exitCode || 0);
++}
+diff --git a/src/main/database/init.js b/src/main/database/init.js
+index 55fe0cc..13e1b7a 100644
+--- a/src/main/database/init.js
++++ b/src/main/database/init.js
+@@ -191,7 +191,7 @@ const SECURITY = {
+ export const ROLE_HIERARCHY = ["super_admin", "admin", "accountant", "manager", "data_entry_operator", "viewer"];
+ const ROLE_PERMISSIONS = {
+   super_admin: new Set(["*"]),
+-  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings"]),
++  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "manage_users"]),
+   accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup"]),
+   manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup"]),
+   data_entry_operator: new Set(["create", "edit", "import", "export", "backup"]),
+@@ -228,7 +228,7 @@ export function verifyPassword(password, stored) {
+   return crypto.timingSafeEqual(Buffer.from(expected, "hex"), actual);
+ }
+ 
+-function passwordStrengthErrors(password = "") {
++export function passwordStrengthErrors(password = "") {
+   const value = String(password || "");
+   const errors = [];
+   if (value.length < 8) errors.push("Password must be at least 8 characters.");
+@@ -257,7 +257,20 @@ function roleCan(role, permission) {
+   return allowed.has("*") || allowed.has(permission);
+ }
+ 
++// The desktop app registers a resolver that returns the logged-in user from the main-process
++// session. When set, permission checks ignore any user id supplied by the caller and never fall
++// back to an administrator. Scripts that call the database layer directly do not set it.
++let permissionActorResolver = null;
++
++export function setPermissionActorResolver(resolver) {
++  permissionActorResolver = typeof resolver === "function" ? resolver : null;
++}
++
+ function userForPermission(db, userId) {
++  if (permissionActorResolver) {
++    const actorId = Number(permissionActorResolver() || 0);
++    return actorId ? db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(actorId) : null;
++  }
+   if (userId) return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(userId);
+   return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE status = 'active' ORDER BY CASE WHEN role IN ('super_admin','admin') THEN 0 ELSE 1 END, id LIMIT 1").get();
+ }
+@@ -276,7 +289,10 @@ export function enforcePermission(db, permission, context = {}) {
+       record_id: context.record_id || null,
+       new_value: JSON.stringify({ permission, role, reason: "backend permission enforcement" })
+     });
+-    throw new Error(`Permission denied: ${permission}`);
++    const where = context.module || context.table_name || "this screen";
++    throw new Error(user
++      ? `Permission denied: your role (${role}) cannot ${permission.replaceAll("_", " ")} in ${where}. Ask an Admin to do it or to change your role in Settings > User Management.`
++      : `Permission denied: ${permission.replaceAll("_", " ")} in ${where} needs a logged-in, active user. Log in again and retry.`);
+   }
+   return user;
+ }
+diff --git a/src/main/main.js b/src/main/main.js
+index 5a19635..636bdd8 100644
+--- a/src/main/main.js
++++ b/src/main/main.js
+@@ -89,7 +89,8 @@ import {
+   setRuntimeRoot,
+   sourceProjectRoot,
+   voucherProposalData,
+-  previewImportRollback
++  previewImportRollback,
++  setPermissionActorResolver
+ } from "./database/init.js";
+ import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
+ import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
+@@ -113,6 +114,8 @@ import {
+ } from "./services/cracService.js";
+ import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
+ import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
++import { activeSessionUserId, completePasswordChange, endSession, requireActiveSession, startSession } from "./services/sessionService.js";
++import { createUser, listAssignableRoles, listUsers, resetUserPassword, updateUser } from "./services/userAdminService.js";
+ 
+ const __filename = fileURLToPath(import.meta.url);
+ const __dirname = path.dirname(__filename);
+@@ -196,9 +199,20 @@ function configureRuntimeStorage() {
+   return { root: runtimeDataRoot, copiedDatabase };
+ }
+ 
++// Channels that work before login. Every other channel registered through handle() requires an
++// active main-process session; the renderer cannot supply its own user identity.
++const PUBLIC_CHANNELS = new Set(["auth:login", "auth:change-password", "auth:logout", "meta:masters", "meta:transactions", "master-data:definitions"]);
++
++function handle(channel, handler) {
++  ipcMain.handle(channel, (event, ...args) => {
++    if (!PUBLIC_CHANNELS.has(channel)) requireActiveSession();
++    return handler(event, ...args);
++  });
++}
++
+ function guarded(permission, moduleName, handler) {
+   return (_event, ...args) => {
+-    enforcePermission(db, permission, userContext(args, { module: moduleName, table_name: moduleName }));
++    enforcePermission(db, permission, { ...userContext(args, { module: moduleName, table_name: moduleName }), user_id: activeSessionUserId() });
+     return handler(...args);
+   };
+ }
+@@ -552,74 +566,88 @@ function installApplicationMenu() {
+ }
+ 
+ function registerIpc() {
+-  ipcMain.handle("auth:login", (_event, credentials) => {
+-    return authenticate(db, credentials.username, credentials.password);
++  handle("auth:login", (_event, credentials) => {
++    endSession();
++    const user = authenticate(db, credentials?.username, credentials?.password);
++    if (user) startSession(user);
++    return user;
++  });
++  handle("auth:change-password", (_event, payload) => {
++    const user = changeUserPassword(db, payload);
++    completePasswordChange(user?.id);
++    return user;
+   });
+-  ipcMain.handle("auth:change-password", (_event, payload) => {
+-    return changeUserPassword(db, payload);
++  handle("auth:logout", () => {
++    endSession();
++    return { success: true };
+   });
+ 
+-  ipcMain.handle("meta:masters", () => MASTER_TABLES);
+-  ipcMain.handle("meta:transactions", () => TRANSACTION_TABLES);
+-  ipcMain.handle("master-data:definitions", () => getMasterDataToolDefinitions());
+-  ipcMain.handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
+-  ipcMain.handle("references:list", (_event, filters) => referenceData(db, filters));
+-  ipcMain.handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
+-  ipcMain.handle("accounting:data", (_event, filters) => accountingData(db, filters));
+-  ipcMain.handle("bank:data", (_event, filters) => bankStatementData(db, filters));
+-  ipcMain.handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
+-  ipcMain.handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
+-  ipcMain.handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, userId, remarks) => updateBankImportStatus(db, importId, status, userId, remarks)));
+-  ipcMain.handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
+-  ipcMain.handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId, userId) => postApprovedBankImport(db, importId, userId)));
+-  ipcMain.handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
+-  ipcMain.handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId, userId) => generateVoucherProposalsForImport(db, importId, userId)));
+-  ipcMain.handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
+-  ipcMain.handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, userId, remarks) => approveVoucherProposal(db, proposalId, userId, remarks)));
+-  ipcMain.handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, userId, reason) => rejectVoucherProposal(db, proposalId, userId, reason)));
+-  ipcMain.handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId, userId) => createDraftVoucherFromProposal(db, proposalId, userId)));
+-  ipcMain.handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId, userId) => postDraftVoucherFromProposal(db, proposalId, userId)));
+-  ipcMain.handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
+-  ipcMain.handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
+-  ipcMain.handle("inventory:data", (_event, filters) => inventoryData(db, filters));
+-  ipcMain.handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
+-  ipcMain.handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
+-  ipcMain.handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
+-  ipcMain.handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
+-  ipcMain.handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, userId, remarks) => approveStockAdjustment(db, id, userId, remarks)));
+-  ipcMain.handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
+-  ipcMain.handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
+-  ipcMain.handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id, userId) => confirmDeliveryChallan(db, id, userId)));
+-  ipcMain.handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
+-  ipcMain.handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
+-  ipcMain.handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
+-  ipcMain.handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
+-  ipcMain.handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
+-  ipcMain.handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
+-  ipcMain.handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
+-  ipcMain.handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
+-  ipcMain.handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
+-  ipcMain.handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
+-  ipcMain.handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
+-  ipcMain.handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
+-  ipcMain.handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason, userId) => reverseAdvanceAdjustment(db, adjustmentId, reason, userId)));
+-  ipcMain.handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
+-  ipcMain.handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
+-  ipcMain.handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
+-  ipcMain.handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
+-  ipcMain.handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, userId, remarks) => updateGuidedVoucherStatus(db, id, action, userId, remarks)));
+-  ipcMain.handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id, userId) => postGuidedVoucher(db, id, userId)));
+-  ipcMain.handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason)));
+-  ipcMain.handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
+-  ipcMain.handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, userId, remarks) => approveTransaction(db, moduleName, recordId, userId, remarks)));
+-  ipcMain.handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
+-  ipcMain.handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status, userId) => updateFinancialYearStatus(db, id, status, userId)));
+-  ipcMain.handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
+-  ipcMain.handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
+-  ipcMain.handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
+-  ipcMain.handle("imports:parse-file", (_event, filePath) => parseImportFile(filePath));
+-  ipcMain.handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
+-  ipcMain.handle("imports:select-file", async () => {
++  handle("users:list", guarded("manage_users", "user_management", () => ({ users: listUsers(db), roles: listAssignableRoles() })));
++  handle("users:create", guarded("manage_users", "user_management", (payload) => createUser(db, payload, activeSessionUserId())));
++  handle("users:update", guarded("manage_users", "user_management", (id, payload) => updateUser(db, id, payload, activeSessionUserId())));
++  handle("users:reset-password", guarded("manage_users", "user_management", (id, newPassword) => resetUserPassword(db, id, newPassword, activeSessionUserId())));
++
++  handle("meta:masters", () => MASTER_TABLES);
++  handle("meta:transactions", () => TRANSACTION_TABLES);
++  handle("master-data:definitions", () => getMasterDataToolDefinitions());
++  handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
++  handle("references:list", (_event, filters) => referenceData(db, filters));
++  handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
++  handle("accounting:data", (_event, filters) => accountingData(db, filters));
++  handle("bank:data", (_event, filters) => bankStatementData(db, filters));
++  handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
++  handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
++  handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, userId, remarks) => updateBankImportStatus(db, importId, status, userId, remarks)));
++  handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
++  handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId, userId) => postApprovedBankImport(db, importId, userId)));
++  handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
++  handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId, userId) => generateVoucherProposalsForImport(db, importId, userId)));
++  handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
++  handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, userId, remarks) => approveVoucherProposal(db, proposalId, userId, remarks)));
++  handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, userId, reason) => rejectVoucherProposal(db, proposalId, userId, reason)));
++  handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId, userId) => createDraftVoucherFromProposal(db, proposalId, userId)));
++  handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId, userId) => postDraftVoucherFromProposal(db, proposalId, userId)));
++  handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
++  handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
++  handle("inventory:data", (_event, filters) => inventoryData(db, filters));
++  handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
++  handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
++  handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
++  handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
++  handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, userId, remarks) => approveStockAdjustment(db, id, userId, remarks)));
++  handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
++  handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
++  handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id, userId) => confirmDeliveryChallan(db, id, userId)));
++  handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
++  handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
++  handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
++  handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
++  handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
++  handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
++  handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
++  handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
++  handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
++  handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
++  handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
++  handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
++  handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason, userId) => reverseAdvanceAdjustment(db, adjustmentId, reason, userId)));
++  handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
++  handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
++  handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
++  handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
++  handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, userId, remarks) => updateGuidedVoucherStatus(db, id, action, userId, remarks)));
++  handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id, userId) => postGuidedVoucher(db, id, userId)));
++  handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason)));
++  handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
++  handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, userId, remarks) => approveTransaction(db, moduleName, recordId, userId, remarks)));
++  handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
++  handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status, userId) => updateFinancialYearStatus(db, id, status, userId)));
++  handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
++  handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
++  handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
++  handle("imports:parse-file", (_event, filePath) => parseImportFile(filePath));
++  handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
++  handle("imports:select-file", async () => {
+     const result = await dialog.showOpenDialog({
+       title: "Select import file",
+       properties: ["openFile"],
+@@ -628,7 +656,7 @@ function registerIpc() {
+     if (result.canceled || !result.filePaths?.[0]) return null;
+     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
+   });
+-  ipcMain.handle("tally:select-xml-file", async () => {
++  handle("tally:select-xml-file", async () => {
+     const result = await dialog.showOpenDialog({
+       title: "Select Tally Prime XML export",
+       properties: ["openFile"],
+@@ -637,7 +665,7 @@ function registerIpc() {
+     if (result.canceled || !result.filePaths?.[0]) return null;
+     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
+   });
+-  ipcMain.handle("tally:select-migration-file", async (_event, type) => {
++  handle("tally:select-migration-file", async (_event, type) => {
+     const result = await dialog.showOpenDialog({
+       title: "Select Tally migration or reference file",
+       properties: ["openFile"],
+@@ -646,42 +674,42 @@ function registerIpc() {
+     if (result.canceled || !result.filePaths?.[0]) return null;
+     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]), type: type || "" };
+   });
+-  ipcMain.handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(typeof payload === "string" ? payload : payload?.filePath)));
+-  ipcMain.handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, payload?.files || [], userContext([payload], { module: "tally_migration_assistant" }))));
+-  ipcMain.handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
+-  ipcMain.handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
+-  ipcMain.handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
+-  ipcMain.handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
+-  ipcMain.handle("imports:item-batches", () => listItemImportBatches(db));
+-  ipcMain.handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
+-  ipcMain.handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
+-  ipcMain.handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
++  handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(typeof payload === "string" ? payload : payload?.filePath)));
++  handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, payload?.files || [], userContext([payload], { module: "tally_migration_assistant" }))));
++  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
++  handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
++  handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
++  handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
++  handle("imports:item-batches", () => listItemImportBatches(db));
++  handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
++  handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
++  handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
+     const context = userContext([payload], { module: "master_data_tools" });
+     return exportMasterData(db, payload, context, (entry) => auditLog(db, entry));
+   }));
+-  ipcMain.handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
++  handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
+     return previewMasterDataUpdate(db, payload, userContext([payload], { module: "master_data_tools" }));
+   }));
+-  ipcMain.handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
++  handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
+     const context = userContext([payload], { module: "master_data_tools" });
+     return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
+   }));
+-  ipcMain.handle("master-data:completeness", (_event, context) => {
++  handle("master-data:completeness", (_event, context) => {
+     return getMasterDataCompleteness(db, userContext([context], { module: "master_data_tools" }));
+   });
+-  ipcMain.handle("master-data:health", (_event, context) => {
++  handle("master-data:health", (_event, context) => {
+     return getMasterDataToolsHealth(db, userContext([context], { module: "master_data_tools" }));
+   });
+-  ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
+-  ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
+-  ipcMain.handle("documents:view", async (_event, id) => {
++  handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
++  handle("documents:list", (_event, filters) => listDocuments(db, filters));
++  handle("documents:view", async (_event, id) => {
+     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
+     if (!doc) throw new Error("Document not found");
+     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
+-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document view", table_name: "documents", record_id: id });
++    auditLog(db, { company_id: doc.company_id, user_id: activeSessionUserId(), action: "document view", table_name: "documents", record_id: id });
+     return shell.openPath(doc.file_path);
+   });
+-  ipcMain.handle("documents:download", async (event, id) => {
++  handle("documents:download", async (event, id) => {
+     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
+     if (!doc) throw new Error("Document not found");
+     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
+@@ -692,14 +720,14 @@ function registerIpc() {
+     });
+     if (canceled || !savePath) return { canceled: true };
+     fs.copyFileSync(doc.file_path, savePath);
+-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document download", table_name: "documents", record_id: id });
++    auditLog(db, { company_id: doc.company_id, user_id: activeSessionUserId(), action: "document download", table_name: "documents", record_id: id });
+     return { canceled: false, savedPath: savePath };
+   });
+-  ipcMain.handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
+-  ipcMain.handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
+-  ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
++  handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
++  handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
++  handle("audit:context", (_event, payload) => auditLog(db, { ...(payload || {}), user_id: activeSessionUserId() }));
+ 
+-  ipcMain.handle("print:html", async (event, preview) => {
++  handle("print:html", async (event, preview) => {
+     return withPrintWindow(event, preview, async (printWindow) => {
+       return new Promise((resolve) => {
+         printWindow.webContents.print(
+@@ -710,7 +738,7 @@ function registerIpc() {
+     });
+   });
+ 
+-  ipcMain.handle("print:pdf", async (event, preview) => {
++  handle("print:pdf", async (event, preview) => {
+     const result = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+       title: "Save PDF",
+       defaultPath: `${safePrintFileName(preview?.title)}.pdf`,
+@@ -728,15 +756,15 @@ function registerIpc() {
+     });
+   });
+ 
+-  ipcMain.handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
+-  ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
+-  ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
+-  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+-  ipcMain.handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
++  handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
++  handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
++  handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
++  handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
++  handle("accounts:create-quick", guarded("create", "accounts", (payload) => createLedgerAccount(db, payload)));
+ 
+-  ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
+-  ipcMain.handle("backup:list", () => listBackups(runtimeDataRoot));
+-  ipcMain.handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
++  handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
++  handle("backup:list", () => listBackups(runtimeDataRoot));
++  handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
+     db?.close();
+     db = null;
+     try {
+@@ -755,31 +783,31 @@ function registerIpc() {
+     }
+   }));
+ 
+-  ipcMain.handle("health:diagnostics", (_event, context) => {
++  handle("health:diagnostics", (_event, context) => {
+     const healthContext = { ...context, dbName: DB_NAME };
+     return {
+       ...getHealthDiagnostics(db, runtimeDataRoot, healthContext),
+       masterDataTools: getMasterDataToolsHealth(db, userContext([healthContext], { module: "master_data_tools" }))
+     };
+   });
+-  ipcMain.handle("health:checks", (_event, context) => {
++  handle("health:checks", (_event, context) => {
+     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
+   });
+-  ipcMain.handle("health:support-bundle", (_event, context) => {
++  handle("health:support-bundle", (_event, context) => {
+     const healthContext = { ...context, dbName: DB_NAME };
+     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
+     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
+     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
+   });
+-  ipcMain.handle("health:verification-console", () => {
++  handle("health:verification-console", () => {
+     return getVerificationConsoleState(runtimeDataRoot);
+   });
+-  ipcMain.handle("health:verification-snapshot", (_event, context) => {
++  handle("health:verification-snapshot", (_event, context) => {
+     const healthContext = { ...context, dbName: DB_NAME };
+     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
+     return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
+   });
+-  ipcMain.handle("health:open-folder", async (_event, kind) => {
++  handle("health:open-folder", async (_event, kind) => {
+     const folders = {
+       runtime: runtimeDataRoot,
+       database: path.join(runtimeDataRoot, "database"),
+@@ -795,14 +823,14 @@ function registerIpc() {
+     return { success: true, folder, message: "Folder opened" };
+   });
+ 
+-  ipcMain.handle("updates:status", () => getUpdateStatus());
+-  ipcMain.handle("updates:open-folder", async () => {
++  handle("updates:status", () => getUpdateStatus());
++  handle("updates:open-folder", async () => {
+     const updateFolder = ensureUpdateFolder();
+     const failureReason = await shell.openPath(updateFolder);
+     if (failureReason) throw new Error(failureReason);
+     return { success: true, updateFolder };
+   });
+-  ipcMain.handle("updates:install", async (_event, installerPath) => {
++  handle("updates:install", async (_event, installerPath) => {
+     const status = getUpdateStatus();
+     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
+     const failureReason = await shell.openPath(selectedInstaller);
+@@ -810,24 +838,25 @@ function registerIpc() {
+     return { success: true, installerPath: selectedInstaller };
+   });
+ 
+-  ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));
+-  ipcMain.handle("crac:get", (_event, id) => getCracRecord(db, id));
+-  ipcMain.handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
+-  ipcMain.handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
+-  ipcMain.handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
+-  ipcMain.handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
+-  ipcMain.handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
+-  ipcMain.handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
+-  ipcMain.handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
+-  ipcMain.handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
+-  ipcMain.handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
+-  ipcMain.handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
++  handle("crac:list", (_event, filters) => listCracRecords(db, filters));
++  handle("crac:get", (_event, id) => getCracRecord(db, id));
++  handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
++  handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
++  handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
++  handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
++  handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
++  handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
++  handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
++  handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
++  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
++  handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
+ }
+ 
+ app.whenReady().then(() => {
+   configureRuntimeStorage();
+   applyPendingRestore(runtimeDataRoot);
+   db = initializeDatabase(runtimeDataRoot);
++  setPermissionActorResolver(activeSessionUserId);
+   registerIpc();
+   installApplicationMenu();
+   createWindow();
+diff --git a/src/main/services/sessionService.js b/src/main/services/sessionService.js
+new file mode 100644
+index 0000000..f764edb
+--- /dev/null
++++ b/src/main/services/sessionService.js
+@@ -0,0 +1,45 @@
++// Main-process login session. The renderer can no longer choose which user an action runs as:
++// IPC handlers read the actor from here, set only by a successful auth:login.
++let currentUser = null;
++
++export function startSession(user) {
++  if (!user?.id) {
++    currentUser = null;
++    return null;
++  }
++  currentUser = {
++    id: Number(user.id),
++    username: user.username || "",
++    role: user.role || "",
++    mustChangePassword: Boolean(user.forcePasswordChange)
++  };
++  return currentUser;
++}
++
++export function endSession() {
++  currentUser = null;
++}
++
++export function sessionUser() {
++  return currentUser;
++}
++
++export function completePasswordChange(userId) {
++  if (currentUser && Number(currentUser.id) === Number(userId)) {
++    currentUser = { ...currentUser, mustChangePassword: false };
++  }
++}
++
++export function activeSessionUserId() {
++  return currentUser && !currentUser.mustChangePassword ? currentUser.id : null;
++}
++
++export function requireActiveSession() {
++  if (!currentUser) {
++    throw new Error("You are not logged in. Log in again from the login screen to continue; your last action was not saved.");
++  }
++  if (currentUser.mustChangePassword) {
++    throw new Error("Password change pending. Change your password on the login screen before opening ERP data.");
++  }
++  return currentUser;
++}
+diff --git a/src/main/services/userAdminService.js b/src/main/services/userAdminService.js
+new file mode 100644
+index 0000000..3e3c2f6
+--- /dev/null
++++ b/src/main/services/userAdminService.js
+@@ -0,0 +1,145 @@
++/**
++ * User administration - create users, change role/status and reset passwords.
++ * Callers must already have passed the "manage_users" permission check.
++ */
++import { auditLog, hashPassword, normalizeRole, passwordStrengthErrors, ROLE_HIERARCHY } from "../database/init.js";
++
++const ADMIN_ROLES = new Set(["super_admin", "admin"]);
++const USER_STATUSES = new Set(["active", "inactive"]);
++const USER_COLUMNS = "id, username, display_name, role, status, force_password_change, failed_login_count, locked_until, last_login_at, password_changed_at, created_at, updated_at";
++
++function userError(field, message) {
++  return new Error(`User Management > ${field}: ${message}`);
++}
++
++function getActor(db, actorId) {
++  const actor = db.prepare("SELECT id, username, role FROM users WHERE id = ?").get(actorId);
++  if (!actor) throw userError("Session", "the logged-in user was not found. Log out and log in again.");
++  return { ...actor, role: normalizeRole(actor.role) };
++}
++
++function assertAssignableRole(actor, role) {
++  if (!ROLE_HIERARCHY.includes(role)) {
++    throw userError("Role", `choose one of: ${ROLE_HIERARCHY.join(", ")}.`);
++  }
++  if (role === "super_admin" && actor.role !== "super_admin") {
++    throw userError("Role", "only a Super Admin can create or assign the Super Admin role. Choose Admin or a lower role.");
++  }
++}
++
++function activeAdminCount(db, excludeId) {
++  return db.prepare(`
++    SELECT COUNT(*) AS count FROM users
++    WHERE status = 'active' AND role IN ('super_admin', 'admin') AND id <> ?
++  `).get(Number(excludeId || 0)).count;
++}
++
++function publicUser(db, id) {
++  const row = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(id);
++  if (!row) return null;
++  return { ...row, role: normalizeRole(row.role), force_password_change: Boolean(row.force_password_change) };
++}
++
++export function listUsers(db) {
++  return db.prepare(`SELECT ${USER_COLUMNS} FROM users ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, username`).all()
++    .map((row) => ({ ...row, role: normalizeRole(row.role), force_password_change: Boolean(row.force_password_change) }));
++}
++
++export function listAssignableRoles() {
++  return [...ROLE_HIERARCHY];
++}
++
++export function createUser(db, payload = {}, actorId) {
++  const actor = getActor(db, actorId);
++  const username = String(payload.username || "").trim().toLowerCase();
++  const displayName = String(payload.display_name || payload.displayName || "").trim();
++  const role = normalizeRole(payload.role || "viewer");
++  const password = String(payload.password || "");
++  if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
++    throw userError("Username", "use 3 to 32 characters: letters, numbers, dot, dash or underscore.");
++  }
++  if (!displayName) throw userError("Display Name", "enter the person's name as it should appear in audit logs.");
++  assertAssignableRole(actor, role);
++  const passwordErrors = passwordStrengthErrors(password);
++  if (passwordErrors.length) throw userError("Temporary Password", passwordErrors.join(" "));
++  if (db.prepare("SELECT id FROM users WHERE username = ?").get(username)) {
++    throw userError("Username", `"${username}" already exists. Choose a different username or edit the existing user.`);
++  }
++  const result = db.prepare(`
++    INSERT INTO users (username, password_hash, display_name, role, status, force_password_change)
++    VALUES (?, ?, ?, ?, 'active', 1)
++  `).run(username, hashPassword(password), displayName, role);
++  auditLog(db, {
++    user_id: actor.id,
++    user_role: actor.role,
++    action: "user_created",
++    module: "user_management",
++    table_name: "users",
++    record_id: result.lastInsertRowid,
++    new_value: JSON.stringify({ username, display_name: displayName, role })
++  });
++  return publicUser(db, result.lastInsertRowid);
++}
++
++export function updateUser(db, id, payload = {}, actorId) {
++  const actor = getActor(db, actorId);
++  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(id));
++  if (!user) throw userError("User", "the selected user no longer exists. Refresh the list and try again.");
++  const currentRole = normalizeRole(user.role);
++  const role = payload.role === undefined ? currentRole : normalizeRole(payload.role);
++  const status = payload.status === undefined ? user.status : String(payload.status).toLowerCase();
++  const displayName = payload.display_name === undefined ? user.display_name : String(payload.display_name).trim();
++  if (!displayName) throw userError("Display Name", "the name cannot be blank.");
++  if (!USER_STATUSES.has(status)) throw userError("Status", "choose Active or Inactive.");
++  if (role !== currentRole) assertAssignableRole(actor, role);
++  if (currentRole === "super_admin" && actor.role !== "super_admin" && (role !== currentRole || status !== user.status)) {
++    throw userError("Role", "only a Super Admin can change another Super Admin's role or status.");
++  }
++  if (Number(user.id) === Number(actor.id) && (status !== "active" || !ADMIN_ROLES.has(role))) {
++    throw userError("Role / Status", "you cannot deactivate yourself or remove your own administrator role. Ask another administrator to do it.");
++  }
++  const remainsAdmin = status === "active" && ADMIN_ROLES.has(role);
++  if (ADMIN_ROLES.has(currentRole) && user.status === "active" && !remainsAdmin && activeAdminCount(db, user.id) === 0) {
++    throw userError("Role / Status", "this is the last active administrator. Create or activate another administrator first.");
++  }
++  db.prepare(`
++    UPDATE users SET display_name = ?, role = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
++  `).run(displayName, role, status, user.id);
++  auditLog(db, {
++    user_id: actor.id,
++    user_role: actor.role,
++    action: "user_updated",
++    module: "user_management",
++    table_name: "users",
++    record_id: user.id,
++    old_value: JSON.stringify({ display_name: user.display_name, role: currentRole, status: user.status }),
++    new_value: JSON.stringify({ display_name: displayName, role, status })
++  });
++  return publicUser(db, user.id);
++}
++
++export function resetUserPassword(db, id, newPassword, actorId) {
++  const actor = getActor(db, actorId);
++  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(id));
++  if (!user) throw userError("User", "the selected user no longer exists. Refresh the list and try again.");
++  if (normalizeRole(user.role) === "super_admin" && actor.role !== "super_admin") {
++    throw userError("Reset Password", "only a Super Admin can reset a Super Admin's password.");
++  }
++  const errors = passwordStrengthErrors(newPassword);
++  if (errors.length) throw userError("Temporary Password", errors.join(" "));
++  db.prepare(`
++    UPDATE users
++    SET password_hash = ?, force_password_change = 1, failed_login_count = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
++    WHERE id = ?
++  `).run(hashPassword(String(newPassword)), user.id);
++  auditLog(db, {
++    user_id: actor.id,
++    user_role: actor.role,
++    action: "user_password_reset",
++    module: "user_management",
++    table_name: "users",
++    record_id: user.id,
++    new_value: JSON.stringify({ force_password_change: true, unlocked: true })
++  });
++  return publicUser(db, user.id);
++}
+diff --git a/src/preload/preload.cjs b/src/preload/preload.cjs
+index f896a53..13d9c50 100644
+--- a/src/preload/preload.cjs
++++ b/src/preload/preload.cjs
+@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require("electron");
+ const api = {
+   login: (credentials) => ipcRenderer.invoke("auth:login", credentials),
+   changePassword: (payload) => ipcRenderer.invoke("auth:change-password", payload),
++  logout: () => ipcRenderer.invoke("auth:logout"),
++  listUsers: () => ipcRenderer.invoke("users:list"),
++  createUser: (payload) => ipcRenderer.invoke("users:create", payload),
++  updateUser: (id, payload) => ipcRenderer.invoke("users:update", id, payload),
++  resetUserPassword: (id, newPassword) => ipcRenderer.invoke("users:reset-password", id, newPassword),
+   getMasterMeta: () => ipcRenderer.invoke("meta:masters"),
+   getTransactionMeta: () => ipcRenderer.invoke("meta:transactions"),
+   getMasterDataDefinitions: () => ipcRenderer.invoke("master-data:definitions"),
+diff --git a/src/renderer/App.jsx b/src/renderer/App.jsx
+index 1563dec..8d77161 100644
+--- a/src/renderer/App.jsx
++++ b/src/renderer/App.jsx
+@@ -43,6 +43,7 @@ import { InteractiveStockSummaryReport } from "./screens/InventoryStockSummaryRe
+ import { MasterDataToolsScreen } from "./screens/MasterDataTools/index.js";
+ import { OperationsDrilldownPanel } from "./screens/OperationsDrilldownPanel.jsx";
+ import { ProfitabilityScreen } from "./screens/ProfitabilityScreen.jsx";
++import { UserManagementScreen } from "./features/settings/UserManagementScreen.jsx";
+ import { buildReadOnlyReportFamilyConfig, isReadOnlyReportFamilyView, ReadOnlyReportFamilyTable } from "./screens/ReadOnlyReportFamilyScreen.jsx";
+ import { CRACManagementScreen, CRACEntryScreen, CRACTrackerScreen, PaymentReadinessScreen, OrderClosureScreen } from "./screens/CRAC/index.js";
+ import { AccountingReportsIndex, CashFlowSummary, EmployeePerformanceSummary, GstSummary } from "./screens/ReadOnlySummaryReports.jsx";
+@@ -1216,6 +1217,7 @@ function App() {
+             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
+             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
+             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} />}
++            {effectiveView === "user_management" && <UserManagementScreen notify={notify} apiClient={api} session={session} confirmAction={confirmAction} />}
+             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
+             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />}
+             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} />}
+@@ -1294,7 +1296,7 @@ function App() {
+             navigate("help_assistant");
+           }}
+           onTraining={() => { setTrainingMode((current) => !current); navigate("help_training"); }}
+-          onLogout={() => setSession(null)}
++          onLogout={() => { api.logout?.(); setSession(null); }}
+           companies={safeCompanies}
+           companyContext={companyContext}
+           currentCompanyId={currentCompanyId}
+diff --git a/src/renderer/api/client.js b/src/renderer/api/client.js
+index 39d3960..18f22a5 100644
+--- a/src/renderer/api/client.js
++++ b/src/renderer/api/client.js
+@@ -2,6 +2,10 @@ export const isDesktopRuntime = Boolean(window.giiGemErp);
+ 
+ const blockedPreviewActions = new Set([
+   "changePassword",
++  "listUsers",
++  "createUser",
++  "updateUser",
++  "resetUserPassword",
+   "createBankImport",
+   "updateBankImportStatus",
+   "manualBankEntryMatch",
+diff --git a/src/renderer/config/navigation.js b/src/renderer/config/navigation.js
+index 2c2fe62..503c50e 100644
+--- a/src/renderer/config/navigation.js
++++ b/src/renderer/config/navigation.js
+@@ -1,6 +1,7 @@
+ const viewTitles = {
+   dashboard: ["Dashboard", "Government Supply, Procurement & Profitability Management System"],
+   settings: ["Settings", "Backup and local structure management."],
++  user_management: ["User Management", "Create users, assign roles, deactivate leavers and reset passwords."],
+   companies: ["Companies", "Manage company registrations, tax identity and bank details."],
+   employees: ["Employees", "Manage users responsible for orders and incentive calculation."],
+   government_departments: ["Departments", "Manage government departments, institutions and contact points."],
+@@ -257,7 +258,7 @@ const navGroups = [
+     items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
+   },
+   { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_keyboard", "Keyboard Shortcuts"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
+-  { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }
++  { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"], ["user_management", "User Management", "Users Roles Passwords Access Login"]] }
+ ];
+ 
+ const routeAliases = {
+diff --git a/src/renderer/features/settings/UserManagementScreen.jsx b/src/renderer/features/settings/UserManagementScreen.jsx
+new file mode 100644
+index 0000000..9c4ca0e
+--- /dev/null
++++ b/src/renderer/features/settings/UserManagementScreen.jsx
+@@ -0,0 +1,205 @@
++import React, { useEffect, useState } from "react";
++import { EmptyState } from "../../components/common.jsx";
++import { Field, FormActions, FormRow, FormSection, SelectField, StatusBadge } from "../../components/forms/index.jsx";
++
++const ROLE_LABELS = {
++  super_admin: "Super Admin",
++  admin: "Admin",
++  accountant: "Accountant",
++  manager: "Manager",
++  data_entry_operator: "Data Entry Operator",
++  viewer: "Viewer"
++};
++
++const ROLE_NOTES = {
++  super_admin: "Everything, including managing other Super Admins.",
++  admin: "All posting, approval, year-end, backup/restore and user management.",
++  accountant: "Create, edit, post and reverse entries; imports, exports and reports.",
++  manager: "Create, edit and approve; exports and reports. Cannot post.",
++  data_entry_operator: "Create and edit records and run imports. Cannot post or approve.",
++  viewer: "Read reports and export. Cannot change data."
++};
++
++const EMPTY_NEW_USER = { username: "", display_name: "", role: "data_entry_operator", password: "" };
++
++function roleLabel(role) {
++  return ROLE_LABELS[role] || role || "-";
++}
++
++export function UserManagementScreen({ notify, apiClient, session, confirmAction }) {
++  const [users, setUsers] = useState([]);
++  const [roles, setRoles] = useState(Object.keys(ROLE_LABELS));
++  const [loading, setLoading] = useState(false);
++  const [newUser, setNewUser] = useState(EMPTY_NEW_USER);
++  const [editing, setEditing] = useState(null);
++  const [resetTarget, setResetTarget] = useState(null);
++  const [resetPassword, setResetPassword] = useState("");
++  const [accessDenied, setAccessDenied] = useState("");
++
++  async function refresh() {
++    setLoading(true);
++    try {
++      const result = await apiClient.listUsers();
++      setUsers(Array.isArray(result?.users) ? result.users : []);
++      if (Array.isArray(result?.roles) && result.roles.length) setRoles(result.roles);
++      setAccessDenied("");
++    } catch (error) {
++      if (/Permission denied/i.test(error.message || "")) {
++        setAccessDenied(error.message);
++        return;
++      }
++      notify(error.message, "error");
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  useEffect(() => {
++    refresh();
++  }, []);
++
++  const roleOptions = roles.map((role) => [role, roleLabel(role)]);
++
++  if (accessDenied) {
++    return (
++      <section className="panel settings-panel user-management-panel">
++        <EmptyState title="User Management is limited to administrators" note="Your role cannot view or change ERP users. Ask an Admin to create users, change roles or reset passwords for you." />
++      </section>
++    );
++  }
++
++  async function submitNewUser(event) {
++    event.preventDefault();
++    try {
++      const created = await apiClient.createUser(newUser);
++      notify(`User ${created.username} created. They must change the temporary password at first login.`);
++      setNewUser(EMPTY_NEW_USER);
++      refresh();
++    } catch (error) {
++      notify(error.message, "error");
++    }
++  }
++
++  async function saveEdit(event) {
++    event.preventDefault();
++    try {
++      await apiClient.updateUser(editing.id, { display_name: editing.display_name, role: editing.role, status: editing.status });
++      notify(`User ${editing.username} updated.`);
++      setEditing(null);
++      refresh();
++    } catch (error) {
++      notify(error.message, "error");
++    }
++  }
++
++  async function submitReset(event) {
++    event.preventDefault();
++    const decision = confirmAction
++      ? await confirmAction({ mode: "warning", title: "Reset Password", message: `${resetTarget.username} will have to change this temporary password at next login. Any lockout is cleared.`, confirmLabel: "Yes, Reset", cancelLabel: "No, Cancel", moduleName: "user_management", recordId: resetTarget.id })
++      : { confirmed: true };
++    if (!decision?.confirmed) return;
++    try {
++      await apiClient.resetUserPassword(resetTarget.id, resetPassword);
++      notify(`Password reset for ${resetTarget.username}. Share the temporary password with them privately.`);
++      setResetTarget(null);
++      setResetPassword("");
++      refresh();
++    } catch (error) {
++      notify(error.message, "error");
++    }
++  }
++
++  return (
++    <section className="panel settings-panel user-management-panel">
++      <div className="panel-head">
++        <div>
++          <h2>User Management</h2>
++          <p>Create ERP users, assign roles, deactivate leavers and reset forgotten passwords. Every change is written to the audit log.</p>
++        </div>
++        <button type="button" className="secondary-btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
++      </div>
++
++      <div className="table-wrap">
++        {users.length ? (
++          <table>
++            <thead>
++              <tr>
++                <th>Username</th>
++                <th>Name</th>
++                <th>Role</th>
++                <th>Status</th>
++                <th>Last Login</th>
++                <th>Password</th>
++                <th>Actions</th>
++              </tr>
++            </thead>
++            <tbody>
++              {users.map((user) => (
++                <tr key={user.id}>
++                  <td>{user.username}{Number(user.id) === Number(session?.id) ? " (you)" : ""}</td>
++                  <td>{user.display_name}</td>
++                  <td>{roleLabel(user.role)}</td>
++                  <td><StatusBadge status={user.status === "active" ? "Active" : "Inactive"} /></td>
++                  <td>{user.last_login_at || "Never"}</td>
++                  <td>{user.locked_until ? "Locked" : user.force_password_change ? "Change pending" : "Set"}</td>
++                  <td>
++                    <div className="button-row">
++                      <button type="button" className="secondary-btn" onClick={() => { setResetTarget(null); setEditing({ ...user }); }}>Edit</button>
++                      <button type="button" className="secondary-btn" onClick={() => { setEditing(null); setResetTarget(user); setResetPassword(""); }}>Reset Password</button>
++                    </div>
++                  </td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        ) : (
++          <EmptyState title={loading ? "Loading users" : "No users found"} note="Use Refresh to reload the user list." />
++        )}
++      </div>
++
++      {editing && (
++        <form onSubmit={saveEdit}>
++          <FormSection title={`Edit ${editing.username}`} note={ROLE_NOTES[editing.role] || ""}>
++            <FormRow className="form-grid">
++              <Field label="Display Name" type="text" value={editing.display_name} onChange={(value) => setEditing({ ...editing, display_name: value })} />
++              <SelectField label="Role" value={editing.role} options={roleOptions} onChange={(value) => setEditing({ ...editing, role: value })} />
++              <Field label="Status" type="status" value={editing.status} onChange={(value) => setEditing({ ...editing, status: value })} />
++            </FormRow>
++            <FormActions>
++              <button type="submit" className="primary-btn">Save Changes</button>
++              <button type="button" className="secondary-btn" onClick={() => setEditing(null)}>Cancel</button>
++            </FormActions>
++          </FormSection>
++        </form>
++      )}
++
++      {resetTarget && (
++        <form onSubmit={submitReset}>
++          <FormSection title={`Reset password for ${resetTarget.username}`} note="Use at least 8 characters with uppercase, lowercase and a number. The user must change it at next login.">
++            <FormRow className="form-grid">
++              <Field label="Temporary Password" type="password" value={resetPassword} onChange={setResetPassword} />
++            </FormRow>
++            <FormActions>
++              <button type="submit" className="primary-btn" disabled={!resetPassword}>Reset Password</button>
++              <button type="button" className="secondary-btn" onClick={() => setResetTarget(null)}>Cancel</button>
++            </FormActions>
++          </FormSection>
++        </form>
++      )}
++
++      <form onSubmit={submitNewUser}>
++        <FormSection title="Add User" note={ROLE_NOTES[newUser.role] || ""}>
++          <FormRow className="form-grid">
++            <Field label="Username" type="text" value={newUser.username} onChange={(value) => setNewUser({ ...newUser, username: value })} />
++            <Field label="Display Name" type="text" value={newUser.display_name} onChange={(value) => setNewUser({ ...newUser, display_name: value })} />
++            <SelectField label="Role" value={newUser.role} options={roleOptions} onChange={(value) => setNewUser({ ...newUser, role: value })} />
++            <Field label="Temporary Password" type="password" value={newUser.password} onChange={(value) => setNewUser({ ...newUser, password: value })} />
++          </FormRow>
++          <FormActions>
++            <button type="submit" className="primary-btn" disabled={!newUser.username || !newUser.display_name || !newUser.password}>Create User</button>
++          </FormActions>
++        </FormSection>
++      </form>
++    </section>
++  );
++}
+-- 
+2.43.0
+
