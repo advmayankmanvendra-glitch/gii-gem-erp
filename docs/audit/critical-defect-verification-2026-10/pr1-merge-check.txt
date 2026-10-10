@@ -1,0 +1,28 @@
+# PR #1 test merge, generated 2026-10-07T15:29:20Z
+# base  origin/phase-16-enterprise-crm-integration = acf6d02625ec9f57cd97eefb52a597ffc4cc0fa6
+# PR #1 origin/claude/project-thread-grlynv      = d58bb122d3e055c17dac2128aa265d836c9eb0f4
+# merge-base                                       = aec83ebfd108a33a449219ba8d9aab0a89e83b1b
+# command: git merge-tree --write-tree --name-only <base> <pr1>
+
+38a02040f0ea6f083682781cfa096071e74aee65
+package.json
+src/main/database/init.js
+src/main/main.js
+src/preload/preload.cjs
+src/renderer/App.jsx
+src/renderer/api/client.js
+
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Auto-merging src/main/database/init.js
+CONFLICT (content): Merge conflict in src/main/database/init.js
+Auto-merging src/main/main.js
+CONFLICT (content): Merge conflict in src/main/main.js
+Auto-merging src/preload/preload.cjs
+CONFLICT (content): Merge conflict in src/preload/preload.cjs
+Auto-merging src/renderer/App.jsx
+CONFLICT (content): Merge conflict in src/renderer/App.jsx
+Auto-merging src/renderer/api/client.js
+CONFLICT (content): Merge conflict in src/renderer/api/client.js
+Auto-merging src/renderer/config/navigation.js
+exit=1
