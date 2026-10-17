@@ -27,7 +27,7 @@ function HelpAssistantRecentErrors({ companyContext, onNavigate }) {
       {stuck ? <p>{stuck} document{stuck === 1 ? "" : "s"} failed to post and {stuck === 1 ? "is" : "are"} not in the books yet.</p> : null}
       {errors.map((row) => (
         <article className="help-assistant-result-card" key={row.id}>
-          <div>
+          <div style={{ display: "grid", gap: 4 }}>
             <span>{row.area}</span>
             <strong>{row.message}</strong>
             <small>Where to fix: {row.screen}</small>

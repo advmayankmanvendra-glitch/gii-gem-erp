@@ -5,6 +5,8 @@ const EMPTY = {
   email: { enabled: false, host: "", port: 587, secure: false, user: "", from: "", to: [], password: "" },
   whatsapp: { enabled: false, phoneNumberId: "", recipients: [], templateName: "", templateLanguage: "en", token: "" }
 };
+const CHECK_ROW = { display: "flex", alignItems: "center", gap: 8 };
+const CHECK_BOX = { width: "auto", margin: 0 };
 const joinList = (value) => (Array.isArray(value) ? value.join(", ") : value || "");
 
 // Settings > Alerts: daily pending-dues and stock summary by email and/or WhatsApp.
@@ -100,12 +102,12 @@ export function AlertsSection({ apiClient, notify, confirmAction, isAdmin, compa
         </div>
       </div>
       <form className="security-form" onSubmit={save}>
-        <label><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /> Send the summary every day</label>
+        <label style={CHECK_ROW}><input type="checkbox" style={CHECK_BOX} checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /> Send the summary every day</label>
         <label>Send at (24-hour time)<input type="time" value={form.sendTime} onChange={(event) => setForm({ ...form, sendTime: event.target.value })} /></label>
         <label>Count an invoice as overdue after (days past due)<input type="number" min="0" value={form.overdueDays} onChange={(event) => setForm({ ...form, overdueDays: event.target.value })} /></label>
 
         <div className="section-title">Email</div>
-        <label><input type="checkbox" checked={form.email.enabled} onChange={(event) => setEmail({ enabled: event.target.checked })} /> Send by email</label>
+        <label style={CHECK_ROW}><input type="checkbox" style={CHECK_BOX} checked={form.email.enabled} onChange={(event) => setEmail({ enabled: event.target.checked })} /> Send by email</label>
         <label>Mail server (SMTP host)<input value={form.email.host} placeholder="smtp.gmail.com" onChange={(event) => setEmail({ host: event.target.value })} /></label>
         <label>Port<input type="number" value={form.email.port} onChange={(event) => setEmail({ port: event.target.value, secure: Number(event.target.value) === 465 })} /></label>
         <label>Sign-in user<input value={form.email.user} onChange={(event) => setEmail({ user: event.target.value })} /></label>
@@ -114,7 +116,7 @@ export function AlertsSection({ apiClient, notify, confirmAction, isAdmin, compa
         <label>Send to (comma separated)<input value={joinList(form.email.to)} onChange={(event) => setEmail({ to: event.target.value })} /></label>
 
         <div className="section-title">WhatsApp (Meta WhatsApp Business Cloud API)</div>
-        <label><input type="checkbox" checked={form.whatsapp.enabled} onChange={(event) => setWhatsApp({ enabled: event.target.checked })} /> Send by WhatsApp</label>
+        <label style={CHECK_ROW}><input type="checkbox" style={CHECK_BOX} checked={form.whatsapp.enabled} onChange={(event) => setWhatsApp({ enabled: event.target.checked })} /> Send by WhatsApp</label>
         <label>Phone Number ID<input value={form.whatsapp.phoneNumberId} onChange={(event) => setWhatsApp({ phoneNumberId: event.target.value })} /></label>
         <label>Access token{stored?.whatsapp?.hasToken ? " (saved; leave blank to keep)" : ""}<input type="password" value={form.whatsapp.token} onChange={(event) => setWhatsApp({ token: event.target.value })} /></label>
         <label>Recipient numbers with country code (comma separated)<input value={joinList(form.whatsapp.recipients)} placeholder="919800000000" onChange={(event) => setWhatsApp({ recipients: event.target.value })} /></label>
