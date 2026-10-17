@@ -803,9 +803,22 @@ function accountId(db, companyId, accountName) {
   return account.id;
 }
 
+// Next number in a series: one above the highest number ever issued (deleted rows
+// included), so a deleted or out-of-order number is never handed out twice.
+function nextSeriesNumber(db, table, column, companyId, prefix) {
+  const rows = db.prepare(`SELECT ${column} value FROM ${table} WHERE company_id = ? AND ${column} LIKE ?`).all(companyId, `${prefix}-%`);
+  const taken = new Set(rows.map((row) => row.value));
+  const highest = rows.reduce((max, row) => {
+    const suffix = String(row.value).slice(prefix.length + 1);
+    return /^\d+$/.test(suffix) ? Math.max(max, Number(suffix)) : max;
+  }, 0);
+  let next = highest + 1;
+  while (taken.has(`${prefix}-${String(next).padStart(5, "0")}`)) next += 1;
+  return `${prefix}-${String(next).padStart(5, "0")}`;
+}
+
 function nextVoucherNumber(db, companyId, prefix) {
-  const count = db.prepare("SELECT COUNT(*) AS count FROM vouchers WHERE company_id = ? AND voucher_number LIKE ?").get(companyId, `${prefix}-%`).count;
-  return `${prefix}-${String(count + 1).padStart(5, "0")}`;
+  return nextSeriesNumber(db, "vouchers", "voucher_number", companyId, prefix);
 }
 
 function companyInvoiceCode(company = {}) {
@@ -830,14 +843,8 @@ function invoicePrefix(db, companyId, financialYearId) {
 }
 
 function nextInvoiceNumber(db, companyId, financialYearId) {
-  const prefix = invoicePrefix(db, companyId, financialYearId);
-  const count = db.prepare(`
-    SELECT COUNT(*) count
-    FROM invoices
-    WHERE company_id = ? AND COALESCE(financial_year_id, 0) = COALESCE(?, 0)
-      AND invoice_number LIKE ? AND COALESCE(is_deleted, 0) = 0
-  `).get(companyId, financialYearId, `${prefix}-%`).count;
-  return `${prefix}-${String(count + 1).padStart(5, "0")}`;
+  // The prefix already carries the financial year, so the series restarts each year.
+  return nextSeriesNumber(db, "invoices", "invoice_number", companyId, invoicePrefix(db, companyId, financialYearId));
 }
 
 function suggestedInvoiceSequences(db, companies = [], financialYears = []) {
@@ -948,8 +955,7 @@ function createAutomaticStockIssueFromSalesVoucher(db, guidedVoucher, payload, v
 }
 
 function nextDocumentNumber(db, companyId, table, column, prefix) {
-  const count = db.prepare(`SELECT COUNT(*) count FROM ${table} WHERE company_id = ? AND ${column} LIKE ?`).get(companyId, `${prefix}-%`).count;
-  return `${prefix}-${String(count + 1).padStart(5, "0")}`;
+  return nextSeriesNumber(db, table, column, companyId, prefix);
 }
 
 function businessVoucherPayload(db, companyId, voucherKind, payload) {
@@ -1926,7 +1932,8 @@ export {
 export {
   postStockInward, postStockOutward, postStockAdjustment,
   approveStockAdjustment, postStockReturn, inventoryData,
-  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
+  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn,
+  stockBalance, nextVoucherNumber
 };
 
 export {

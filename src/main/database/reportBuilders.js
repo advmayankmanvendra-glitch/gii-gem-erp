@@ -78,7 +78,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
         ${minorAgg("vl", "credit")} credit_minor_total
       FROM vouchers v
       LEFT JOIN voucher_lines vl ON vl.voucher_id = v.id
-      WHERE v.company_id = ? AND v.is_deleted = 0 AND v.voucher_date BETWEEN ? AND ?
+      WHERE v.company_id = ? AND v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed') AND v.voucher_date BETWEEN ? AND ?
       GROUP BY v.id
       ORDER BY v.voucher_date DESC, v.id DESC
     `).all(companyId, dateFrom, dateTo).map((row) => ({
@@ -199,7 +199,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
       LEFT JOIN supplier_payments sp ON sp.id = v.source_id AND v.source_module = 'supplier_payment'
       LEFT JOIN supply_orders so ON so.id = i.order_id
       LEFT JOIN supply_orders soi ON soi.id = pr.order_id
-      WHERE v.company_id = ? AND v.is_deleted = 0 AND vl.linked_party_type IN ('department', 'supplier')
+      WHERE v.company_id = ? AND v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed') AND vl.linked_party_type IN ('department', 'supplier')
         AND v.voucher_date BETWEEN ? AND ?
       ORDER BY party_type, party_name, v.voucher_date, vl.id
     `).all(companyId, dateFrom, dateTo);
