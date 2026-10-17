@@ -1,4 +1,4 @@
-import { parseMoneyToMinor } from "../domain/money.js";
+import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
 
 export function createAccountingService(deps) {
   const {
@@ -31,8 +31,44 @@ export function createAccountingService(deps) {
     approvalQueueReport,
     gstRegisters, tdsRegisters, accountingRegisters,
     billOutstandingReport, yearEndClosingReport, carryForwardReport,
-    createAutomaticGrnFromPurchaseVoucher, createAutomaticStockIssueFromSalesVoucher
+    createAutomaticGrnFromPurchaseVoucher, createAutomaticStockIssueFromSalesVoucher,
+    mirrorStockForSource
   } = deps;
+
+  const SOURCE_DOCUMENTS = {
+    billing: { table: "invoices", label: "invoice" },
+    procurement: { table: "procurements", label: "purchase bill" },
+    payment: { table: "payments", label: "receipt" },
+    supplier_payment: { table: "supplier_payments", label: "supplier payment" },
+    expense: { table: "expense_entries", label: "expense" },
+    stock_inwards: { table: "stock_inwards", label: "stock inward" },
+    stock_outwards: { table: "stock_outwards", label: "stock issue" },
+    stock_adjustments: { table: "stock_adjustments", label: "stock adjustment" },
+    stock_returns: { table: "stock_returns", label: "stock return" }
+  };
+
+  // Refuses a second posting of the same source document, before anything is written.
+  function assertNotAlreadyPosted(db, sourceModule, sourceId, record, label) {
+    if (["Posted", "Reversed"].includes(record?.posting_status)) {
+      throw new Error(`This ${label} is already ${String(record.posting_status).toLowerCase()} and cannot be posted again. Open it from the register to view its voucher.`);
+    }
+    const existing = db.prepare("SELECT voucher_number FROM vouchers WHERE source_module = ? AND source_id = ? AND status IN ('Posted','Reversed') AND is_deleted = 0").get(sourceModule, sourceId);
+    if (existing) throw new Error(`This ${label} is already posted as voucher ${existing.voucher_number} and cannot be posted again.`);
+    if (["Pending Approval", "Rejected"].includes(record?.approval_status)) {
+      throw new Error(`This ${label} is ${record.approval_status === "Rejected" ? "rejected" : "waiting for approval"}. Approve it in the Approval Queue before posting.`);
+    }
+  }
+
+  // Runs a posting as one all-or-nothing transaction. If anything fails, nothing is
+  // left behind and only the error is recorded on the source document.
+  function atomicPosting(db, table, id, work) {
+    try {
+      return db.transaction(work)();
+    } catch (error) {
+      markPostingError(db, table, id, error);
+      throw error;
+    }
+  }
 
   function nextQuickLedgerAccountCode(db, companyId, accountType) {
     const prefix = { Asset: "18", Liability: "28", Equity: "38", Income: "48", Expense: "58" }[accountType] || "58";
@@ -347,22 +383,85 @@ export function createAccountingService(deps) {
     return tx();
   }
 
-  function reverseVoucher(db, voucherId, reason = "") {
+  function releaseReceiptAdvances(db, paymentId, reason) {
+    const advances = db.prepare("SELECT * FROM advance_receipts WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0").all(paymentId);
+    advances.forEach((advance) => {
+      db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'receipt' AND advance_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(advance.id)
+        .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, reason));
+      db.prepare("UPDATE advance_receipts SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, status = 'Reversed', balance_advance = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(advance.id);
+    });
+  }
+
+  function releaseSupplierAdvances(db, supplierPaymentId, reason) {
+    const advances = db.prepare("SELECT * FROM supplier_advances WHERE supplier_payment_id = ? AND COALESCE(is_deleted, 0) = 0").all(supplierPaymentId);
+    advances.forEach((advance) => {
+      db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'supplier' AND advance_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(advance.id)
+        .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, reason));
+      db.prepare("UPDATE supplier_advances SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, status = 'Reversed', balance_advance = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(advance.id);
+    });
+  }
+
+  // Undoes the stock that a guided purchase or sales voucher moved automatically.
+  function reverseGuidedVoucherStock(db, guidedVoucherId, guidedVoucher, reason) {
+    const inwards = db.prepare(`
+      SELECT si.* FROM goods_receipts grn
+      JOIN goods_receipt_items gri ON gri.grn_id = grn.id
+      JOIN stock_inwards si ON si.id = gri.stock_inward_id
+      WHERE grn.guided_voucher_id = ? AND si.posting_status = 'Posted'
+    `).all(guidedVoucherId);
+    inwards.forEach((inward) => reverseSourceDocumentStock(db, "stock_inwards", inward, reason));
+    db.prepare("UPDATE goods_receipts SET status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE guided_voucher_id = ?").run(guidedVoucherId);
+    const issued = db.prepare(`
+      SELECT record_id FROM audit_log
+      WHERE action = 'automatic_sales_stock_issue' AND table_name = 'stock_outwards'
+        AND json_extract(new_value, '$.voucher_number') = ?
+    `).all(guidedVoucher.voucher_number);
+    issued.forEach(({ record_id: outwardId }) => {
+      const outward = db.prepare("SELECT * FROM stock_outwards WHERE id = ? AND posting_status = 'Posted'").get(outwardId);
+      if (outward) reverseSourceDocumentStock(db, "stock_outwards", outward, reason);
+    });
+  }
+
+  // Reverses a stock document: its GL voucher (when it has one) and its stock movement.
+  function reverseSourceDocumentStock(db, table, row, reason) {
+    if (row.voucher_id) {
+      const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(row.voucher_id);
+      if (voucher?.status === "Posted") {
+        reverseVoucher(db, row.voucher_id, reason);
+        return;
+      }
+    }
+    mirrorStockForSource(db, table, row.id, null, reason);
+    db.prepare(`UPDATE ${table} SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(row.id);
+  }
+
+  function reverseVoucher(db, voucherId, reason = "", userId = null) {
     const original = db.prepare("SELECT * FROM vouchers WHERE id = ? AND is_deleted = 0").get(Number(voucherId || 0));
     if (!original) throw new Error("Voucher not found");
-    if (original.status === "Reversed") throw new Error("Voucher is already reversed");
+    if (original.status === "Reversed") throw new Error(`Voucher ${original.voucher_number} is already reversed`);
+    if (original.status !== "Posted") {
+      throw new Error(`Only posted vouchers can be reversed. ${original.voucher_number} is ${original.status || "not posted"}; edit or delete the draft instead.`);
+    }
+    if (original.source_module === "voucher_reversal") {
+      throw new Error(`${original.voucher_number} is itself a reversal and cannot be reversed. Post a fresh voucher for the correct entry instead.`);
+    }
     const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = 'voucher_reversal' AND source_id = ? AND is_deleted = 0").get(original.id);
     if (existingReversal) throw new Error("Voucher reversal already exists");
 
-    const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id").all(original.id);
+    const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
+    const reasonText = String(reason || "").trim() || "Reversed by user";
+    const today = new Date().toISOString().slice(0, 10);
+    // The reversal is dated today (in the open year) unless the original is later
+    // than today; the original stays in its own period, so closed years never change.
+    const reversalDate = original.voucher_date > today ? original.voucher_date : today;
 
     const reversal = db.transaction(() => {
       const reversalVoucher = createBalancedVoucher(db, {
         company_id: original.company_id,
-        voucher_date: new Date().toISOString().slice(0, 10),
+        voucher_date: reversalDate,
         voucher_type: "Journal",
-        narration: `Reversal of ${original.voucher_number}${reason ? ` - ${reason}` : ""}`,
+        narration: `Reversal of ${original.voucher_number} - ${reasonText}`,
         source_module: "voucher_reversal",
         source_id: original.id,
         lines: lines.map((line) => ({
@@ -375,16 +474,11 @@ export function createAccountingService(deps) {
         }))
       });
 
-      db.prepare("UPDATE vouchers SET status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.id);
+      db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, reversed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(reasonText, reversalDate, userId && db.prepare("SELECT 1 FROM users WHERE id = ?").get(userId) ? userId : null, original.id);
+      const source = SOURCE_DOCUMENTS[original.source_module];
       if (original.source_module === "billing") db.prepare("UPDATE invoices SET posting_status = 'Reversed', invoice_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "procurement") db.prepare("UPDATE procurements SET posting_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "payment") db.prepare("UPDATE payments SET posting_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "supplier_payment") db.prepare("UPDATE supplier_payments SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "expense") db.prepare("UPDATE expense_entries SET posting_status = 'Reversed', locked_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "stock_inwards") db.prepare("UPDATE stock_inwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "stock_outwards") db.prepare("UPDATE stock_outwards SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "stock_adjustments") db.prepare("UPDATE stock_adjustments SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
-      if (original.source_module === "stock_returns") db.prepare("UPDATE stock_returns SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+      else if (source && !original.source_module.startsWith("stock_")) db.prepare(`UPDATE ${source.table} SET posting_status = 'Reversed' WHERE id = ?`).run(original.source_id);
 
       if (original.source_module === "billing") {
         db.prepare(`
@@ -394,32 +488,46 @@ export function createAccountingService(deps) {
         `).run(original.source_id);
         db.prepare(`
           UPDATE payment_allocations
-          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', updated_at = CURRENT_TIMESTAMP
-          WHERE billing_id = ?
-        `).run(original.source_id);
+          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', change_reason = ?
+          WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0
+        `).run(`Invoice reversed: ${reasonText}`, original.source_id);
+        db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'receipt' AND billing_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
+          .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Invoice reversed: ${reasonText}`));
       }
       if (original.source_module === "payment") {
         const affected = db.prepare("SELECT DISTINCT billing_id FROM payment_allocations WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0").all(original.source_id);
         db.prepare(`
           UPDATE payment_allocations
-          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', updated_at = CURRENT_TIMESTAMP
-          WHERE payment_id = ?
-        `).run(original.source_id);
+          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', change_reason = ?
+          WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0
+        `).run(`Receipt reversed: ${reasonText}`, original.source_id);
+        releaseReceiptAdvances(db, original.source_id, `Receipt reversed: ${reasonText}`);
         affected.forEach((row) => refreshReceivable(db, row.billing_id));
       }
       if (original.source_module === "supplier_payment") {
         db.prepare(`
           UPDATE supplier_payment_allocations
-          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', updated_at = CURRENT_TIMESTAMP
-          WHERE supplier_payment_id = ?
-        `).run(original.source_id);
+          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', change_reason = ?
+          WHERE supplier_payment_id = ? AND COALESCE(is_deleted, 0) = 0
+        `).run(`Supplier payment reversed: ${reasonText}`, original.source_id);
+        releaseSupplierAdvances(db, original.source_id, `Supplier payment reversed: ${reasonText}`);
       }
       if (original.source_module === "procurement") {
         db.prepare(`
           UPDATE supplier_payment_allocations
-          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', updated_at = CURRENT_TIMESTAMP
-          WHERE procurement_id = ?
-        `).run(original.source_id);
+          SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', change_reason = ?
+          WHERE procurement_id = ? AND COALESCE(is_deleted, 0) = 0
+        `).run(`Purchase reversed: ${reasonText}`, original.source_id);
+        db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'supplier' AND procurement_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
+          .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Purchase reversed: ${reasonText}`));
+      }
+      if (original.source_module.startsWith("stock_") && source) {
+        mirrorStockForSource(db, source.table, original.source_id, reversalVoucher.id, reasonText);
+        db.prepare(`UPDATE ${source.table} SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(original.source_id);
+      }
+      if (original.source_module === "guided_vouchers") {
+        db.prepare("UPDATE guided_vouchers SET status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(original.source_id);
+        reverseGuidedVoucherStock(db, original.source_id, original, `Guided voucher reversed: ${reasonText}`);
       }
 
       const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
@@ -443,11 +551,12 @@ export function createAccountingService(deps) {
 
       auditLog(db, {
         company_id: original.company_id,
+        user_id: userId,
         action: "voucher reversal",
         table_name: "vouchers",
         record_id: original.id,
         old_value: JSON.stringify({ voucher_number: original.voucher_number, status: original.status }),
-        new_value: JSON.stringify({ reversal_voucher_id: reversalVoucher.id, reason })
+        new_value: JSON.stringify({ reversal_voucher_id: reversalVoucher.id, reason: reasonText })
       });
       auditVoucherDependencySync(db, reversalVoucher, ["general_ledger_reversal", "trial_balance", "subledger_reversal", "cash_bank_reversal", "reports_resync"]);
       return reversalVoucher;
@@ -456,53 +565,77 @@ export function createAccountingService(deps) {
     return reversal();
   }
 
+  // Line values are rounded to paise one by one and then added, so the voucher
+  // always balances exactly in paise.
+  function documentTotals(lines, fallbackTaxable, fallbackTax) {
+    if (lines.length) {
+      const taxable = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.taxable_value), 0));
+      const tax = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.gst_amount), 0));
+      return { taxable, tax, gross: roundMoney(taxable + tax) };
+    }
+    const taxable = roundMoney(fallbackTaxable);
+    const tax = roundMoney(fallbackTax);
+    return { taxable, tax, gross: roundMoney(taxable + tax) };
+  }
+
   function postSalesVoucher(db, billingId) {
-    try {
-      const invoice = db.prepare("SELECT i.*, so.department_id FROM invoices i JOIN supply_orders so ON so.id = i.order_id WHERE i.id = ?").get(billingId);
-      if (!invoice) throw new Error("Invoice not found");
-      if (invoice.posting_status === "Posted") throw new Error("Invoice is already posted");
-      if (!invoice.order_id) throw new Error("Cannot post invoice without order");
-      if (!invoice.department_id) throw new Error("Cannot post invoice without department");
+    const invoice = db.prepare("SELECT i.*, so.department_id FROM invoices i LEFT JOIN supply_orders so ON so.id = i.order_id WHERE i.id = ? AND COALESCE(i.is_deleted, 0) = 0").get(billingId);
+    if (!invoice) throw new Error("Invoice not found");
+    assertNotAlreadyPosted(db, "billing", invoice.id, invoice, "invoice");
+    return atomicPosting(db, "invoices", invoice.id, () => {
+      if (!invoice.order_id) throw new Error("Cannot post invoice without order. Link the invoice to a supply order, then post.");
+      if (!invoice.department_id) throw new Error("Cannot post invoice without department. Set the buyer department on the supply order, then post.");
       const companyId = invoice.company_id;
       const lines = db.prepare("SELECT * FROM invoice_items WHERE billing_id = ? AND is_deleted = 0").all(billingId);
-      const taxable = lines.length ? lines.reduce((sum, row) => sum + Number(row.taxable_value || 0), 0) : Number(invoice.billing_value || 0);
-      const outputGst = lines.length ? lines.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) : Number(invoice.billing_value || 0) * Number(invoice.gst_rate || 0) / 100;
-      const gross = taxable + outputGst;
-      assertPositive(gross, "Invoice amount");
+      const totals = documentTotals(lines, invoice.billing_value, Number(invoice.billing_value || 0) * Number(invoice.gst_rate || 0) / 100);
+      assertPositive(totals.gross, "Invoice amount");
+      const isCreditNote = invoice.invoice_type === "Credit Note";
+      const party = { linked_party_type: "department", linked_party_id: invoice.department_id };
+      // A credit note is the mirror of a sale: it reduces sales, output GST and the buyer's balance.
+      const voucherLines = isCreditNote ? [
+        { account_id: accountId(db, companyId, "Sales"), debit: totals.taxable, credit: 0 },
+        { account_id: accountId(db, companyId, "Output GST"), debit: totals.tax, credit: 0 },
+        { account_id: accountId(db, companyId, "Trade Receivables"), debit: 0, credit: totals.gross, ...party }
+      ] : [
+        { account_id: accountId(db, companyId, "Trade Receivables"), debit: totals.gross, credit: 0, ...party },
+        { account_id: accountId(db, companyId, "Sales"), debit: 0, credit: totals.taxable },
+        { account_id: accountId(db, companyId, "Output GST"), debit: 0, credit: totals.tax }
+      ];
       const voucher = createBalancedVoucher(db, {
         company_id: companyId,
         voucher_date: invoice.invoice_date,
-        voucher_type: invoice.invoice_type === "Credit Note" ? "Credit Note" : "Sales",
-        narration: `Sales invoice ${invoice.invoice_number}`,
+        voucher_type: isCreditNote ? "Credit Note" : "Sales",
+        narration: `${isCreditNote ? "Credit note" : "Sales invoice"} ${invoice.invoice_number}`,
         source_module: "billing",
         source_id: invoice.id,
-        lines: [
-          { account_id: accountId(db, companyId, "Trade Receivables"), debit: gross, credit: 0, linked_party_type: "department", linked_party_id: invoice.department_id },
-          { account_id: accountId(db, companyId, "Sales"), debit: 0, credit: taxable },
-          { account_id: accountId(db, companyId, "Output GST"), debit: 0, credit: outputGst }
-        ]
+        lines: voucherLines.filter((line) => Number(line.debit || 0) || Number(line.credit || 0))
       });
-      upsertReceivable(db, invoice, gross);
+      if (!isCreditNote) upsertReceivable(db, invoice, totals.gross);
       markPosted(db, "invoices", invoice.id, voucher.id, invoice.invoice_date);
       auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "receivables", "output_gst", "sales_register", "profitability"]);
       return voucher;
-    } catch (error) {
-      markPostingError(db, "invoices", billingId, error);
-      throw error;
-    }
+    });
   }
 
   function postPurchaseVoucher(db, procurementId) {
-    try {
-      const procurement = db.prepare("SELECT * FROM procurements WHERE id = ?").get(procurementId);
-      if (!procurement) throw new Error("Procurement not found");
-      if (procurement.posting_status === "Posted") throw new Error("Procurement is already posted");
+    const procurement = db.prepare("SELECT * FROM procurements WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(procurementId);
+    if (!procurement) throw new Error("Procurement not found");
+    assertNotAlreadyPosted(db, "procurement", procurement.id, procurement, "purchase bill");
+    return atomicPosting(db, "procurements", procurement.id, () => {
       const companyId = procurement.company_id;
       const lines = db.prepare("SELECT * FROM procurement_items WHERE procurement_id = ? AND is_deleted = 0").all(procurementId);
-      const taxable = lines.length ? lines.reduce((sum, row) => sum + Number(row.taxable_value || 0), 0) : Number(procurement.purchase_value || 0);
-      const inputGst = lines.length ? lines.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) : Number(procurement.purchase_gst || 0);
-      const gross = taxable + inputGst;
-      assertPositive(gross, "Purchase amount");
+      const totals = documentTotals(lines, procurement.purchase_value, procurement.purchase_gst);
+      assertPositive(totals.gross, "Purchase amount");
+      // Goods already received into stock through a GRN were debited to Inventory
+      // against GRNI; the bill clears GRNI for that value instead of expensing the
+      // goods a second time. Any remainder (services, goods not received) is a purchase.
+      const receivedValue = roundMoney(Number(db.prepare(`
+        SELECT COALESCE(SUM(sl.value), 0) value FROM stock_inwards si
+        JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Inward'
+        WHERE si.procurement_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
+      `).get(procurement.id)?.value || 0));
+      const grniPortion = Math.min(receivedValue, totals.taxable);
+      const purchasePortion = roundMoney(totals.taxable - grniPortion);
       const voucher = createBalancedVoucher(db, {
         company_id: companyId,
         voucher_date: procurement.purchase_date,
@@ -511,31 +644,52 @@ export function createAccountingService(deps) {
         source_module: "procurement",
         source_id: procurement.id,
         lines: [
-          { account_id: accountId(db, companyId, "Purchase"), debit: taxable, credit: 0 },
-          { account_id: accountId(db, companyId, "Input GST"), debit: inputGst, credit: 0 },
-          { account_id: accountId(db, companyId, "Trade Payables"), debit: 0, credit: gross, linked_party_type: "supplier", linked_party_id: procurement.supplier_id }
-        ]
+          { account_id: accountId(db, companyId, "Goods Received Not Invoiced"), debit: grniPortion, credit: 0 },
+          { account_id: accountId(db, companyId, "Purchase"), debit: purchasePortion, credit: 0 },
+          { account_id: accountId(db, companyId, "Input GST"), debit: totals.tax, credit: 0 },
+          { account_id: accountId(db, companyId, "Trade Payables"), debit: 0, credit: totals.gross, linked_party_type: "supplier", linked_party_id: procurement.supplier_id }
+        ].filter((line) => Number(line.debit || 0) || Number(line.credit || 0))
       });
       markPosted(db, "procurements", procurement.id, voucher.id, procurement.purchase_date);
       auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "payables", "input_gst", "purchase_register", "profitability"]);
       return voucher;
-    } catch (error) {
-      markPostingError(db, "procurements", procurementId, error);
-      throw error;
-    }
+    });
   }
 
-  function postReceiptVoucher(db, paymentId, billingId, deductions = {}) {
-    try {
-      const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId);
-      const invoice = db.prepare("SELECT i.*, so.department_id FROM invoices i JOIN supply_orders so ON so.id = i.order_id WHERE i.id = ?").get(billingId);
-      if (!payment || !invoice) throw new Error("Payment or invoice not found");
-      if (payment.posting_status === "Posted") throw new Error("Payment is already posted");
-      const amount = Number(payment.payment_amount || 0);
-      const tds = Number(deductions.tds_deducted || 0);
-      const gstTds = Number(deductions.gst_tds_deducted || 0);
-      const other = Number(deductions.other_deductions || 0);
-      assertPositive(amount + tds + gstTds + other, "Receipt allocation");
+  // Open posted invoices of an order, oldest first, for automatic receipt allocation.
+  function openInvoicesForOrder(db, companyId, orderId) {
+    return db.prepare(`
+      SELECT i.id, r.balance_outstanding
+      FROM invoices i
+      JOIN receivables r ON r.billing_id = i.id AND COALESCE(r.is_deleted, 0) = 0
+      WHERE i.company_id = ? AND i.order_id = ? AND COALESCE(i.is_deleted, 0) = 0
+        AND i.posting_status = 'Posted' AND COALESCE(r.status, '') NOT IN ('Reversed', 'Closed')
+        AND r.balance_outstanding > 0.004
+      ORDER BY i.invoice_date, i.id
+    `).all(companyId, orderId);
+  }
+
+  // Posts a receipt (Dr Bank + TDS/GST-TDS/other deductions, Cr Trade Receivables)
+  // and allocates it: to the named invoice, else oldest-first across the order's
+  // open invoices. Any amount left over stays on account as unallocated.
+  function postReceiptVoucher(db, paymentId, billingId = null, deductions = null) {
+    const payment = db.prepare("SELECT * FROM payments WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(paymentId);
+    if (!payment) throw new Error("Payment not found");
+    assertNotAlreadyPosted(db, "payment", payment.id, payment, "receipt");
+    return atomicPosting(db, "payments", payment.id, () => {
+      const source = deductions || payment;
+      const amount = roundMoney(payment.payment_amount);
+      const tds = roundMoney(source.tds_deducted);
+      const gstTds = roundMoney(source.gst_tds_deducted);
+      const other = roundMoney(source.other_deductions);
+      const settlement = roundMoney(amount + tds + gstTds + other);
+      assertPositive(settlement, "Receipt amount");
+      const targetId = Number(billingId || payment.billing_id || 0);
+      const named = targetId ? db.prepare("SELECT i.*, so.department_id FROM invoices i LEFT JOIN supply_orders so ON so.id = i.order_id WHERE i.id = ?").get(targetId) : null;
+      if (targetId && !named) throw new Error("The invoice selected on this receipt was not found. Pick the invoice again, then post.");
+      if (named && Number(named.company_id) !== Number(payment.company_id)) throw new Error("Receipt refused: the selected invoice belongs to another company.");
+      const order = db.prepare("SELECT department_id FROM supply_orders WHERE id = ?").get(named?.order_id || payment.order_id);
+      const departmentId = named?.department_id || order?.department_id || null;
       const voucher = createBalancedVoucher(db, {
         company_id: payment.company_id,
         voucher_date: payment.payment_date,
@@ -547,51 +701,70 @@ export function createAccountingService(deps) {
           { account_id: accountId(db, payment.company_id, payment.payment_mode === "Cash" ? "Cash" : "Bank"), debit: amount, credit: 0 },
           { account_id: accountId(db, payment.company_id, "TDS Receivable"), debit: tds, credit: 0 },
           { account_id: accountId(db, payment.company_id, "GST TDS Receivable"), debit: gstTds, credit: 0 },
-          { account_id: accountId(db, payment.company_id, "Trade Receivables"), debit: 0, credit: amount + tds + gstTds + other, linked_party_type: "department", linked_party_id: invoice.department_id }
+          { account_id: accountId(db, payment.company_id, "Other Deduction Ledger"), debit: other, credit: 0 },
+          { account_id: accountId(db, payment.company_id, "Trade Receivables"), debit: 0, credit: settlement, linked_party_type: "department", linked_party_id: departmentId }
         ].filter((line) => Number(line.debit || 0) || Number(line.credit || 0))
       });
-      db.prepare(`
-        INSERT INTO payment_allocations (company_id, payment_id, billing_id, order_id, allocated_amount, tds_deducted, gst_tds_deducted, other_deductions, remarks)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(payment.company_id, payment.id, invoice.id, invoice.order_id, amount, tds, gstTds, other, "Auto allocation");
-      refreshReceivable(db, invoice.id);
+      const targets = named ? [{ id: named.id, balance_outstanding: receivableOutstandingBeforeAdjustment(db, named.id) }] : openInvoicesForOrder(db, payment.company_id, payment.order_id);
+      let cashLeft = amount;
+      let deductionLeft = { tds, gstTds, other };
+      targets.forEach((target) => {
+        let room = roundMoney(Number(target.balance_outstanding || 0));
+        if (room <= 0) return;
+        const take = (value) => { const used = roundMoney(Math.min(value, room)); room = roundMoney(room - used); return used; };
+        const tdsUsed = take(deductionLeft.tds);
+        const gstTdsUsed = take(deductionLeft.gstTds);
+        const otherUsed = take(deductionLeft.other);
+        const cashUsed = take(cashLeft);
+        if (!(tdsUsed || gstTdsUsed || otherUsed || cashUsed)) return;
+        deductionLeft = { tds: roundMoney(deductionLeft.tds - tdsUsed), gstTds: roundMoney(deductionLeft.gstTds - gstTdsUsed), other: roundMoney(deductionLeft.other - otherUsed) };
+        cashLeft = roundMoney(cashLeft - cashUsed);
+        const invoiceRow = db.prepare("SELECT order_id FROM invoices WHERE id = ?").get(target.id);
+        db.prepare(`
+          INSERT INTO payment_allocations (company_id, payment_id, billing_id, order_id, allocated_amount, tds_deducted, gst_tds_deducted, other_deductions, remarks, allocation_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Auto allocation on posting', ?)
+        `).run(payment.company_id, payment.id, target.id, invoiceRow?.order_id || payment.order_id, cashUsed, tdsUsed, gstTdsUsed, otherUsed, room <= 0 ? "Fully Allocated" : "Partially Allocated");
+        refreshReceivable(db, target.id);
+      });
+      db.prepare("UPDATE payments SET allocation_status = ? WHERE id = ?").run(cashLeft > 0.004 ? (cashLeft < amount ? "Partially Allocated" : "Unallocated") : "Fully Allocated", payment.id);
       updateCashBankLedger(db, { company_id: payment.company_id, bank_account_id: payment.bank_id, transaction_date: payment.payment_date, transaction_type: "Receipt", source_module: "payment", source_id: payment.id, voucher_id: voucher.id, debit: amount, payment_mode: payment.payment_mode, utr_number: payment.utr_number, remarks: payment.remarks });
       markPosted(db, "payments", payment.id, voucher.id, payment.payment_date);
-      auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "cash_bank", "receivables", "outstanding", "ageing", "cash_flow"]);
+      auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "cash_bank", "receivables", "outstanding", "ageing", "cash_flow", "tds"]);
       return voucher;
-    } catch (error) {
-      markPostingError(db, "payments", paymentId, error);
-      throw error;
-    }
+    });
   }
 
   function postSupplierPaymentVoucher(db, supplierPaymentId) {
-    const payment = db.prepare("SELECT * FROM supplier_payments WHERE id = ?").get(supplierPaymentId);
+    const payment = db.prepare("SELECT * FROM supplier_payments WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(supplierPaymentId);
     if (!payment) throw new Error("Supplier payment not found");
-    const amount = Number(payment.amount_paid || 0);
+    assertNotAlreadyPosted(db, "supplier_payment", payment.id, payment, "supplier payment");
+    const amount = roundMoney(payment.amount_paid);
     assertPositive(amount, "Supplier payment");
-    const voucher = createBalancedVoucher(db, {
-      company_id: payment.company_id,
-      voucher_date: payment.payment_date,
-      voucher_type: "Payment",
-      narration: `Supplier payment ${payment.utr_number || payment.id}`,
-      source_module: "supplier_payment",
-      source_id: payment.id,
-      lines: [
-        { account_id: accountId(db, payment.company_id, "Trade Payables"), debit: amount, credit: 0, linked_party_type: "supplier", linked_party_id: payment.supplier_id },
-        { account_id: accountId(db, payment.company_id, payment.payment_mode === "Cash" ? "Cash" : "Bank"), debit: 0, credit: amount }
-      ]
-    });
-    updateCashBankLedger(db, { company_id: payment.company_id, bank_account_id: payment.bank_account_id, transaction_date: payment.payment_date, transaction_type: "Supplier Payment", source_module: "supplier_payment", source_id: payment.id, voucher_id: voucher.id, credit: amount, payment_mode: payment.payment_mode, utr_number: payment.utr_number, remarks: payment.remarks });
-    db.prepare("UPDATE supplier_payments SET posting_status = 'Posted', voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id, payment.id);
-    auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "cash_bank", "payables", "outstanding", "ageing", "cash_flow"]);
-    return voucher;
+    return db.transaction(() => {
+      const voucher = createBalancedVoucher(db, {
+        company_id: payment.company_id,
+        voucher_date: payment.payment_date,
+        voucher_type: "Payment",
+        narration: `Supplier payment ${payment.utr_number || payment.id}`,
+        source_module: "supplier_payment",
+        source_id: payment.id,
+        lines: [
+          { account_id: accountId(db, payment.company_id, "Trade Payables"), debit: amount, credit: 0, linked_party_type: "supplier", linked_party_id: payment.supplier_id },
+          { account_id: accountId(db, payment.company_id, payment.payment_mode === "Cash" ? "Cash" : "Bank"), debit: 0, credit: amount }
+        ]
+      });
+      updateCashBankLedger(db, { company_id: payment.company_id, bank_account_id: payment.bank_account_id, transaction_date: payment.payment_date, transaction_type: "Supplier Payment", source_module: "supplier_payment", source_id: payment.id, voucher_id: voucher.id, credit: amount, payment_mode: payment.payment_mode, utr_number: payment.utr_number, remarks: payment.remarks });
+      db.prepare("UPDATE supplier_payments SET posting_status = 'Posted', voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id, payment.id);
+      auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "cash_bank", "payables", "outstanding", "ageing", "cash_flow"]);
+      return voucher;
+    })();
   }
 
   function createReceiptAllocation(db, payload) {
     const payment = getRecord(db, "payments", payload.payment_id);
     const invoice = getRecord(db, "invoices", payload.billing_id);
     if (!payment || !invoice) throw new Error("Receipt and invoice are required");
+    if (Number(payment.company_id) !== Number(invoice.company_id)) throw new Error("Allocation refused: the receipt and the invoice belong to different companies.");
     if (Number(payment.order_id) !== Number(invoice.order_id) && !payload.allow_excess) throw new Error("Receipt and invoice must belong to the same order unless marked excess");
     const allocated = Number(payload.allocated_amount || 0);
     const tds = Number(payload.tds_deducted || 0);
@@ -637,6 +810,7 @@ export function createAccountingService(deps) {
     const payment = db.prepare("SELECT * FROM supplier_payments WHERE id = ?").get(payload.supplier_payment_id);
     const procurement = getRecord(db, "procurements", payload.procurement_id);
     if (!payment || !procurement) throw new Error("Supplier payment and purchase bill are required");
+    if (Number(payment.company_id) !== Number(procurement.company_id)) throw new Error("Allocation refused: the supplier payment and the purchase bill belong to different companies.");
     if (Number(payment.supplier_id) !== Number(procurement.supplier_id) && !payload.allow_excess) throw new Error("Supplier payment and purchase bill must belong to the same supplier unless marked advance/excess");
     const amount = Number(payload.allocated_amount || 0);
     assertPositive(amount, "Supplier allocation");
@@ -675,8 +849,11 @@ export function createAccountingService(deps) {
   function createAdvanceReceipt(db, payload) {
     const payment = getRecord(db, "payments", payload.payment_id);
     if (!payment) throw new Error("Payment receipt is required");
-    const amount = Number(payload.advance_received || receiptUnallocatedAmount(db, payment.id));
+    if (payment.posting_status !== "Posted") throw new Error("Advance refused: post the receipt first. Only a posted receipt can be held as an advance.");
+    const available = roundMoney(receiptUnallocatedAmount(db, payment.id));
+    const amount = Number(payload.advance_received || available);
     assertPositive(amount, "Advance receipt");
+    if (amount > available + 0.004) throw new Error(`Advance refused: it cannot exceed the receipt's unallocated amount of ${available.toFixed(2)}. Reduce the advance or release an allocation first.`);
     const result = db.prepare(`
       INSERT INTO advance_receipts (company_id, department_id, payment_id, order_id, advance_received, balance_advance, remarks)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -688,8 +865,10 @@ export function createAccountingService(deps) {
   function createSupplierAdvance(db, payload) {
     const payment = db.prepare("SELECT * FROM supplier_payments WHERE id = ?").get(payload.supplier_payment_id);
     if (!payment) throw new Error("Supplier payment is required");
-    const amount = Number(payload.advance_paid || supplierPaymentUnallocatedAmount(db, payment.id));
+    const available = roundMoney(supplierPaymentUnallocatedAmount(db, payment.id));
+    const amount = Number(payload.advance_paid || available);
     assertPositive(amount, "Supplier advance");
+    if (amount > available + 0.004) throw new Error(`Supplier advance refused: it cannot exceed the payment's unallocated amount of ${available.toFixed(2)}.`);
     const result = db.prepare(`
       INSERT INTO supplier_advances (company_id, supplier_id, supplier_payment_id, advance_paid, balance_advance, remarks)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -705,6 +884,10 @@ export function createAccountingService(deps) {
     if (!invoice) throw new Error("Open invoice is required");
     const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(invoice.id);
     if (!receivable) throw new Error("Receivable is not available for this invoice");
+    if (Number(invoice.company_id) !== Number(advance.company_id)) throw new Error("Adjustment refused: the advance and the invoice belong to different companies.");
+    if (advance.department_id && receivable.department_id && Number(advance.department_id) !== Number(receivable.department_id)) {
+      throw new Error("Adjustment refused: this advance was received from a different buyer department than the invoice. Pick an invoice of the same department.");
+    }
     const amount = Number(payload.adjusted_amount || 0);
     assertPositive(amount, "Adjustment amount");
     if (amount > Number(advance.balance_advance || 0)) throw new Error("Adjustment exceeds available advance");
@@ -729,6 +912,9 @@ export function createAccountingService(deps) {
     if (!advance) throw new Error("Supplier advance is required");
     const procurement = db.prepare("SELECT * FROM procurements WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(payload.procurement_id);
     if (!procurement) throw new Error("Purchase bill is required");
+    if (Number(procurement.company_id) !== Number(advance.company_id) || Number(procurement.supplier_id) !== Number(advance.supplier_id)) {
+      throw new Error("Adjustment refused: this advance was paid to a different supplier (or company) than the purchase bill. Pick a bill of the same supplier.");
+    }
     const amount = Number(payload.adjusted_amount || 0);
     assertPositive(amount, "Adjustment amount");
     if (amount > Number(advance.balance_advance || 0)) throw new Error("Adjustment exceeds available supplier advance");

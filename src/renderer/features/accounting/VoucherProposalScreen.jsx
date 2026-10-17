@@ -261,6 +261,7 @@ export function VoucherProposalScreen({ view, notify, role, companyContext, api,
 
 function proposalControlMeta(row) {
   const status = row?.status || "Suggested";
+  if (status === "Already Booked") return { status_reason: "This bank line matches a receipt or payment already posted in the books", blocking_reason: "Approving it would book the same money twice", recommended_action: "No action needed; the line is reconciled against the existing voucher" };
   if (status === "Posted") return { status_reason: "Posted voucher is linked and has ledger impact", blocking_reason: "Posted proposals cannot be edited directly", recommended_action: "Review posted voucher, ledger and audit trail" };
   if (status === "Draft Voucher Created") return { status_reason: "Draft voucher exists but is not posted", blocking_reason: "Posting is pending final review", recommended_action: "Review draft voucher and post only if safe" };
   if (status === "Approved") return { status_reason: "Proposal approved by checker", blocking_reason: "Draft voucher creation is pending", recommended_action: "Create draft voucher, then review before posting" };

@@ -3,7 +3,7 @@ export function createOperationsService(deps) {
     auditLog, stockBalance, nextDocumentNumber, createRecord,
     postStockOutward, weightedAverageCost, insertStockLedger,
     getRecord, postSalesVoucher, postPurchaseVoucher,
-    postReceiptVoucher, postExpenseAccrualsForOrder
+    postReceiptVoucher, postExpenseAccrualsForOrder, postExpenseEntry
   } = deps;
 
   function moduleTable(moduleName) {
@@ -141,9 +141,14 @@ export function createOperationsService(deps) {
     const transfer = db.prepare("SELECT * FROM warehouse_transfers WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(transferId);
     if (!transfer) throw new Error("Warehouse transfer not found");
     if (transfer.status === "Posted") throw new Error("Warehouse transfer already posted");
+    if (Number(transfer.from_warehouse_id) === Number(transfer.to_warehouse_id)) throw new Error("Transfer refused: the source and destination warehouse are the same. Pick a different destination warehouse.");
+    const warehouseCompany = db.prepare("SELECT COUNT(*) c FROM warehouses WHERE id IN (?, ?) AND (company_id = ? OR company_id IS NULL OR company_id = 0)").get(transfer.from_warehouse_id, transfer.to_warehouse_id, transfer.company_id).c;
+    if (warehouseCompany < 2) throw new Error("Transfer refused: both warehouses must belong to the current company. Check the From/To warehouse fields.");
     const available = stockBalance(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id).quantity;
-    if (Number(transfer.quantity || 0) > available) throw new Error("Transfer quantity exceeds available stock");
-    const rate = Number(transfer.rate || 0) || weightedAverageCost(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id);
+    if (Number(transfer.quantity || 0) > available) throw new Error(`Transfer quantity exceeds available stock (available ${available}). Reduce the quantity or receive stock into the source warehouse first.`);
+    // Stock moves at its book value (weighted average of the source warehouse),
+    // so the transfer never creates or destroys inventory value.
+    const rate = weightedAverageCost(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id);
     const value = Number(transfer.quantity || 0) * rate;
     const tx = db.transaction(() => {
       insertStockLedger(db, {
@@ -225,15 +230,10 @@ export function createOperationsService(deps) {
     const table = moduleTable(moduleName);
     if (table === "invoices") return postSalesVoucher(db, recordId);
     if (table === "procurements") return postPurchaseVoucher(db, recordId);
-    if (table === "payments") {
-      const payment = getRecord(db, "payments", recordId);
-      const invoice = db.prepare("SELECT id FROM invoices WHERE order_id = ? AND is_deleted = 0 ORDER BY invoice_date, id LIMIT 1").get(payment?.order_id);
-      if (!invoice) throw new Error("No invoice available for payment allocation");
-      return postReceiptVoucher(db, recordId, invoice.id);
-    }
+    // The receipt allocates itself: to the invoice named on it, else oldest open invoice first.
+    if (table === "payments") return postReceiptVoucher(db, recordId);
     if (table === "expense_entries") {
-      const expense = getRecord(db, "expense_entries", recordId);
-      postExpenseAccrualsForOrder(db, expense.order_id);
+      postExpenseEntry(db, recordId);
       return db.prepare("SELECT * FROM vouchers WHERE id = (SELECT voucher_id FROM expense_entries WHERE id = ?)").get(recordId);
     }
     throw new Error("Posting is not available for this module yet");

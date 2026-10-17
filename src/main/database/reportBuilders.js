@@ -770,8 +770,10 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     `).all(companyId);
   }
 
+  // A reversed voucher stays in the books next to its reversal (Tally-style), so both
+  // count; leaving the original out would double the effect of the reversal.
   function postedVoucherFilter() {
-    return " AND EXISTS (SELECT 1 FROM vouchers v WHERE v.id = le.voucher_id AND v.status = 'Posted' AND v.is_deleted = 0 AND v.company_id = a.company_id)";
+    return " AND EXISTS (SELECT 1 FROM vouchers v WHERE v.id = le.voucher_id AND v.status IN ('Posted', 'Reversed') AND v.is_deleted = 0 AND v.company_id = a.company_id)";
   }
 
   function trialBalance(db, companyId, dateFrom, dateTo) {
@@ -840,8 +842,11 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     const voucherFilter = postedVoucherFilter();
     const fy = financialYearForDate(db, companyId, dateTo);
-    const fyId = fy ? fy.id : null;
-    const ledgerStart = fy ? fy.start_date : "1900-01-01";
+    // Until the previous year is closed into this one there are no carry-forward
+    // balances, so the sheet reads the whole ledger and shows earlier, unclosed profit.
+    const carried = fy ? Boolean(db.prepare("SELECT 1 FROM carry_forward_entries WHERE company_id = ? AND to_financial_year_id = ? LIMIT 1").get(companyId, fy.id)) : false;
+    const fyId = fy && carried ? fy.id : null;
+    const ledgerStart = fy && carried ? fy.start_date : "1900-01-01";
     const rows = db.prepare(`
       SELECT a.id, a.account_code, a.account_name, a.account_type, a.normal_balance,
         ${minorAgg("le", "debit")} debit_minor_total,
@@ -883,7 +888,16 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => sum + row.amount, 0);
     const currentProfitDateFrom = fy ? fy.start_date : dateFrom;
     const pl = profitLossReport(db, companyId, currentProfitDateFrom, dateTo).netProfit;
-    return { rows, assets, liabilities, equity, currentProfit: pl, liabilitiesAndEquity: liabilities + equity + pl };
+    let unclosedPriorProfit = 0;
+    if (fy && !carried) {
+      const dayBefore = new Date(`${fy.start_date}T00:00:00Z`);
+      dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+      unclosedPriorProfit = profitLossReport(db, companyId, "1900-01-01", dayBefore.toISOString().slice(0, 10)).netProfit;
+    }
+    return {
+      rows, assets, liabilities, equity, currentProfit: pl, unclosedPriorProfit,
+      liabilitiesAndEquity: liabilities + equity + pl + unclosedPriorProfit
+    };
   }
 
   function financialStatementSummary(db, companyId, dateFrom, dateTo) {

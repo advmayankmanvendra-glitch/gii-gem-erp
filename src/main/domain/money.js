@@ -5,11 +5,28 @@ export const RATE_PRECISION = 4;
 export const QUANTITY_PRECISION = 3;
 export const PERCENTAGE_PRECISION = 4;
 
+// Rounds a plain decimal string to paise, half away from zero, using the digits
+// themselves rather than binary floating point (so "1.005" -> 101 and
+// "2.675" -> 268 consistently).
+function decimalStringToMinor(text) {
+  if (/e/i.test(text)) return Math.round(Number(text) * MINOR_UNITS);
+  const negative = text.startsWith("-");
+  const [whole = "0", fraction = ""] = text.replace(/^[-+]/, "").split(".");
+  const padded = `${fraction}000`;
+  let minor = Number(whole) * MINOR_UNITS + Number(padded.slice(0, 2));
+  if (Number(padded[2]) >= 5) minor += 1;
+  return negative && minor !== 0 ? -minor : minor;
+}
+
+export function roundMoney(value) {
+  return parseMoneyToMinor(Number(value || 0)) / MINOR_UNITS;
+}
+
 export function parseMoneyToMinor(value) {
   if (value === null || value === undefined || value === "") return 0;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error("Money value must be finite");
-    const minor = Math.round(value * MINOR_UNITS);
+    const minor = decimalStringToMinor(String(Number(value.toPrecision(15))));
     if (!Number.isSafeInteger(minor)) throw new Error(`Money value exceeds safe range: ${value}`);
     return minor;
   }
@@ -18,7 +35,7 @@ export function parseMoneyToMinor(value) {
     if (!/^-?\d+(\.\d+)?$/.test(cleaned)) throw new Error(`Malformed money input: "${value}"`);
     const num = parseFloat(cleaned);
     if (!Number.isFinite(num)) throw new Error(`Money value must be finite: "${value}"`);
-    const minor = Math.round(num * MINOR_UNITS);
+    const minor = decimalStringToMinor(cleaned);
     if (!Number.isSafeInteger(minor)) throw new Error(`Money value exceeds safe range: ${value}`);
     return minor;
   }

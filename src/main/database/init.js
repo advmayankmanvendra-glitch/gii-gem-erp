@@ -1230,8 +1230,9 @@ function markPosted(db, table, id, voucherId, postingDate) {
   auditLog(db, { action: "posting status update", table_name: table, record_id: id, new_value: JSON.stringify({ posting_status: "Posted", voucher_id: voucherId, postingDate }) });
 }
 
+// A failed second attempt must never downgrade a document that is already posted or reversed.
 function markPostingError(db, table, id, error) {
-  db.prepare(`UPDATE ${table} SET posting_status = 'Error', posting_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(String(error?.message || error), id);
+  db.prepare(`UPDATE ${table} SET posting_status = 'Error', posting_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(posting_status, '') NOT IN ('Posted', 'Reversed')`).run(String(error?.message || error), id);
 }
 
 export function drilldownData(db, payload = {}) {
@@ -1347,7 +1348,7 @@ function receiptUnallocatedAmount(db, paymentId) {
     WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0
   `).get(paymentId).value;
   const advances = db.prepare(`
-    SELECT COALESCE(SUM(balance_advance), 0) value
+    SELECT COALESCE(SUM(advance_received), 0) value
     FROM advance_receipts
     WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0
   `).get(paymentId).value;
@@ -1363,7 +1364,7 @@ function supplierPaymentUnallocatedAmount(db, supplierPaymentId) {
     WHERE supplier_payment_id = ? AND COALESCE(is_deleted, 0) = 0
   `).get(supplierPaymentId).value;
   const advances = db.prepare(`
-    SELECT COALESCE(SUM(balance_advance), 0) value
+    SELECT COALESCE(SUM(advance_paid), 0) value
     FROM supplier_advances
     WHERE supplier_payment_id = ? AND COALESCE(is_deleted, 0) = 0
   `).get(supplierPaymentId).value;
@@ -1435,26 +1436,33 @@ function creditDueDate(db, companyId, partyType, partyId, baseDate, explicitDueD
   return date.toISOString().slice(0, 10);
 }
 
-function postExpenseAccrualsForOrder(db, orderId) {
-  const expenses = db.prepare(`
+// Posts one expense entry as an accrual, once. The amount is the entered amount,
+// or the fixed/percentage amount the profitability engine calculates for it.
+function postExpenseEntry(db, expenseId) {
+  const expense = db.prepare(`
     SELECT ee.*, eh.expense_head_name
     FROM expense_entries ee
     JOIN expense_heads eh ON eh.id = ee.expense_head_id
-    WHERE ee.order_id = ? AND COALESCE(ee.voucher_id, 0) = 0 AND ee.is_deleted = 0
-  `).all(orderId);
-  expenses.forEach((expense) => {
-    const orderProfit = calculateProfitability(db, db.prepare("SELECT so.*, e.incentive_percentage FROM supply_orders so LEFT JOIN employees e ON e.id = so.employee_id WHERE so.id = ?").get(orderId));
-    const calculated = orderProfit.dynamicExpenses.find((row) => row.id === expense.id);
-    const amount = Number(expense.expense_amount || 0) || Number(calculated?.amount || 0);
-    if (amount <= 0) return;
-    const accountName = expense.expense_head_name.includes("Authorization") ? "Authorization Expense" :
-      expense.expense_head_name.includes("L1") ? "L1 Expense" :
-      /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
-      expense.expense_head_name.includes("Transport") ? "Transport Expense" :
-      expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
+    WHERE ee.id = ? AND ee.is_deleted = 0
+  `).get(expenseId);
+  if (!expense) throw new Error(`Expense entry ${expenseId} was not found or has no expense head. Open Operations > Expenses, check the entry, then post again.`);
+  if (Number(expense.voucher_id || 0) || ["Posted", "Reversed"].includes(expense.posting_status)) {
+    throw new Error(`Expense entry ${expenseId} is already posted. Open its voucher from the expense list instead of posting again.`);
+  }
+  const order = db.prepare("SELECT so.*, e.incentive_percentage FROM supply_orders so LEFT JOIN employees e ON e.id = so.employee_id WHERE so.id = ?").get(expense.order_id);
+  const calculated = order ? calculateProfitability(db, order).dynamicExpenses.find((row) => row.id === expense.id) : null;
+  const amount = Number(expense.expense_amount || 0) || Number(calculated?.amount || 0);
+  if (amount <= 0) return null;
+  const accountName = expense.expense_head_name.includes("Authorization") ? "Authorization Expense" :
+    expense.expense_head_name.includes("L1") ? "L1 Expense" :
+    /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
+    expense.expense_head_name.includes("Transport") ? "Transport Expense" :
+    expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
+  const today = new Date().toISOString().slice(0, 10);
+  return db.transaction(() => {
     const voucher = createBalancedVoucher(db, {
       company_id: expense.company_id,
-      voucher_date: new Date().toISOString().slice(0, 10),
+      voucher_date: today,
       voucher_type: "Journal",
       narration: `Expense accrual ${expense.expense_head_name}`,
       source_module: "expense",
@@ -1465,8 +1473,14 @@ function postExpenseAccrualsForOrder(db, orderId) {
       ]
     });
     db.prepare("UPDATE expense_entries SET expense_amount = ?, balance_amount = ? WHERE id = ?").run(amount, amount, expense.id);
-    markPosted(db, "expense_entries", expense.id, voucher.id, new Date().toISOString().slice(0, 10));
-  });
+    markPosted(db, "expense_entries", expense.id, voucher.id, today);
+    return voucher;
+  })();
+}
+
+function postExpenseAccrualsForOrder(db, orderId) {
+  db.prepare("SELECT id FROM expense_entries WHERE order_id = ? AND COALESCE(voucher_id, 0) = 0 AND is_deleted = 0 ORDER BY id").all(orderId)
+    .forEach((row) => postExpenseEntry(db, row.id));
 }
 
 function upsertReceivable(db, invoice, invoiceAmount) {
@@ -1718,7 +1732,8 @@ const {
   gstRegisters, tdsRegisters, accountingRegisters,
   billOutstandingReport, yearEndClosingReport, carryForwardReport,
   createAutomaticGrnFromPurchaseVoucher,
-  createAutomaticStockIssueFromSalesVoucher
+  createAutomaticStockIssueFromSalesVoucher,
+  mirrorStockForSource: (...args) => mirrorStockForSource(...args)
 });
 
 const {
@@ -1740,7 +1755,8 @@ const {
   procurementRequirementReport,
   postStockInward, postStockOutward, postStockAdjustment,
   approveStockAdjustment, postStockReturn, inventoryData,
-  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn
+  reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn,
+  mirrorStockForSource
 } = createInventoryService({
     auditLog, activeRowClause, accountId, createBalancedVoucher,
     autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData,
@@ -1834,7 +1850,7 @@ const {
   auditLog, stockBalance, nextDocumentNumber, createRecord,
   postStockOutward, weightedAverageCost, insertStockLedger,
   getRecord, postSalesVoucher, postPurchaseVoucher,
-  postReceiptVoucher, postExpenseAccrualsForOrder
+  postReceiptVoucher, postExpenseAccrualsForOrder, postExpenseEntry
 });
 
 const { seed } = createSeedData({

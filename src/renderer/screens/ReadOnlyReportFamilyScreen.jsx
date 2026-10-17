@@ -346,7 +346,11 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
     const summary = data.balanceSheet || {};
     return {
       title: `Balance Sheet - Assets ${formatCurrency(summary.assets || 0)} / Liabilities+Equity ${formatCurrency(summary.liabilitiesAndEquity || 0)}`,
-      rows: enrichAccountingRows(summary.rows || []),
+      rows: [
+        ...enrichAccountingRows(summary.rows || []),
+        { account_code: "P&L", account_name: "Profit for the current year", account_type: "Equity", amount: summary.currentProfit || 0 },
+        ...(Number(summary.unclosedPriorProfit || 0) ? [{ account_code: "P&L", account_name: "Profit of earlier years (year not yet closed)", account_type: "Equity", amount: summary.unclosedPriorProfit }] : [])
+      ],
       columns: [
         { key: "account_code", label: "Code" },
         { key: "account_name", label: "Account" },

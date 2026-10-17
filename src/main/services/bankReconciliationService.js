@@ -181,6 +181,25 @@ export function createBankReconciliationService(deps) {
     return row || null;
   }
 
+  // A bank line that matches a receipt, supplier payment or voucher already posted
+  // in the books is reconciliation evidence, not a new transaction.
+  function alreadyBookedMatch(db, entry) {
+    const recordId = Number(entry.matched_record_id || 0);
+    if (!recordId) return null;
+    if (entry.matched_module === "payments" || entry.matched_module === "supplier_payments") {
+      const row = db.prepare(`SELECT id, posting_status FROM ${entry.matched_module} WHERE id = ?`).get(recordId);
+      if (["Posted", "Reversed"].includes(row?.posting_status)) {
+        const voucher = db.prepare("SELECT id, voucher_number FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0 ORDER BY id LIMIT 1").get(entry.matched_module === "payments" ? "payment" : "supplier_payment", recordId);
+        return { voucher_id: voucher?.id || null, reference: voucher?.voucher_number || `${entry.matched_module} #${recordId}` };
+      }
+    }
+    if (entry.matched_module === "vouchers") {
+      const voucher = db.prepare("SELECT id, voucher_number, status FROM vouchers WHERE id = ? AND is_deleted = 0").get(recordId);
+      if (["Posted", "Reversed"].includes(voucher?.status)) return { voucher_id: voucher.id, reference: voucher.voucher_number };
+    }
+    return null;
+  }
+
   function buildVoucherProposal(db, companyId, entry) {
     const amount = Number(entry.amount || Math.max(Number(entry.debit || 0), Number(entry.credit || 0)));
     const isReceipt = entry.entry_type === "Receipt" || Number(entry.credit || 0) > 0;
@@ -190,6 +209,7 @@ export function createBankReconciliationService(deps) {
     const ledger = db.prepare("SELECT id, account_name FROM accounts WHERE company_id = ? AND account_name = ? AND is_deleted = 0").get(companyId, ledgerName)
       || db.prepare("SELECT id, account_name FROM accounts WHERE company_id = ? AND account_name = ? AND is_deleted = 0").get(companyId, isReceipt ? "Sales" : "Expense Payable");
     const score = proposalConfidence(entry, linked, suggestedVoucherType);
+    const booked = alreadyBookedMatch(db, entry);
     return {
       company_id: companyId,
       bank_entry_id: entry.id,
@@ -211,10 +231,10 @@ export function createBankReconciliationService(deps) {
       linked_invoice_id: linked.invoice_id || null,
       linked_procurement_id: linked.procurement_id || null,
       linked_order_id: linked.order_id || null,
-      linked_voucher_id: entry.matched_module === "vouchers" ? entry.matched_record_id : null,
+      linked_voucher_id: booked?.voucher_id || (entry.matched_module === "vouchers" ? entry.matched_record_id : null),
       confidence_score: score,
-      status: score >= 70 ? "Suggested" : "Needs Review",
-      remarks: linked.reference || entry.matched_reference || null
+      status: booked ? "Already Booked" : score >= 70 ? "Suggested" : "Needs Review",
+      remarks: booked ? `Already booked as ${booked.reference}; reconciled, no new voucher needed` : linked.reference || entry.matched_reference || null
     };
   }
 
@@ -516,7 +536,8 @@ export function createBankReconciliationService(deps) {
           )
         `).run(proposal);
         proposalAudit(db, { company_id: statement.company_id, proposal_id: info.lastInsertRowid, bank_entry_id: entry.id, action: "Proposal Generated", created_by: userId, new_value: JSON.stringify({ status: proposal.status, confidence_score: proposal.confidence_score }) });
-        db.prepare("UPDATE bank_statement_entries SET review_status = 'Ready for Voucher Proposal', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(entry.id);
+        db.prepare("UPDATE bank_statement_entries SET review_status = ?, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .run(proposal.status === "Already Booked" ? "Reconciled" : "Ready for Voucher Proposal", proposal.status === "Already Booked" ? proposal.linked_voucher_id : null, entry.id);
       });
       auditLog(db, { company_id: statement.company_id, user_id: userId, action: "voucher_proposals_generated", table_name: "bank_statement_imports", record_id: importId, new_value: JSON.stringify({ proposals: entries.length }) });
     });
@@ -608,6 +629,7 @@ export function createBankReconciliationService(deps) {
 
   function approveVoucherProposal(db, proposalId, userId = null, remarks = "") {
     const proposal = getVoucherProposal(db, proposalId);
+    if (proposal.status === "Already Booked") throw new Error(`Bank line is already booked in the books (${proposal.remarks || "matched voucher"}). It is reconciled; approving it would book the money twice.`);
     if (!["Suggested", "Needs Review", "Approved"].includes(proposal.status)) throw new Error("Only suggested or reviewed proposals can be approved");
     db.prepare("UPDATE voucher_proposals SET status = 'Approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP, remarks = COALESCE(NULLIF(?, ''), remarks), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, remarks, proposal.id);
     proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Approved", created_by: userId, remarks });
@@ -626,6 +648,9 @@ export function createBankReconciliationService(deps) {
     const proposal = getVoucherProposal(db, proposalId);
     if (proposal.status !== "Approved") throw new Error("Proposal must be approved before draft voucher creation");
     if (proposal.draft_voucher_id) throw new Error("Draft voucher already exists for this proposal");
+    const entry = db.prepare("SELECT * FROM bank_statement_entries WHERE id = ?").get(proposal.bank_entry_id);
+    const booked = entry ? alreadyBookedMatch(db, entry) : null;
+    if (booked) throw new Error(`Bank line is already booked as ${booked.reference}. Open Bank Reconciliation and mark it reconciled instead of creating a second voucher.`);
     const lines = voucherLinesFromProposal(db, proposal);
     const financialYear = assertOpenFinancialYear(db, proposal.company_id, proposal.transaction_date);
     const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
