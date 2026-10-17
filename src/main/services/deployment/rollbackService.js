@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createBackup, restoreBackup, listBackups } from "../backup.js";
+import { createBackup, restoreBackup, listBackups, validateBackupFile } from "../backup.js";
 
-export function createGoLiveBackup(runtimeRoot) {
-  const backup = createBackup(runtimeRoot);
+export function createGoLiveBackup(runtimeRoot, db = null) {
+  const backup = createBackup(runtimeRoot, db, "pre_golive");
   const backupDir = path.join(runtimeRoot, "backups");
   const markerPath = path.join(backupDir, `${path.basename(backup.fileName, ".db")}.golive`);
   fs.writeFileSync(markerPath, JSON.stringify({
@@ -24,6 +24,11 @@ export function validateBackup(backupInfo) {
   if (!fs.existsSync(filePath)) return { valid: false, reason: `Backup file not found: ${filePath}` };
   const stats = fs.statSync(filePath);
   if (stats.size === 0) return { valid: false, reason: "Backup file is empty" };
+  try {
+    validateBackupFile(filePath);
+  } catch (error) {
+    return { valid: false, reason: error.message };
+  }
   return {
     valid: true,
     size: stats.size,

@@ -1,5 +1,5 @@
 export function isAdminUser(session) {
-  return ["admin", "administrator", "system administrator"].includes(String(session?.role || session?.displayName || "").toLowerCase());
+  return ["admin", "super_admin", "superadmin", "administrator", "system administrator"].includes(String(session?.role || session?.displayName || "").toLowerCase());
 }
 
 export function requestPrintPreview() {

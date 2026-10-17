@@ -209,7 +209,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
     setResetLoading(true);
     setResetError(null);
     try {
-      const result = await apiClient.executeReset(userId);
+      const result = await apiClient.executeReset({ company_id: companyContext?.company_id, confirm_text: resetConfirm });
       setResetResult(result);
       setResetPreview(null);
       setResetConfirm("");
@@ -279,7 +279,8 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
     setResetLoading(true);
     setResetError(null);
     try {
-      const result = await apiClient.executeEnhancedReset?.(userId) || await apiClient.executeReset(userId);
+      const resetPayload = { company_id: companyContext?.company_id, confirm_text: resetConfirm };
+      const result = await apiClient.executeEnhancedReset?.(resetPayload) || await apiClient.executeReset(resetPayload);
       setResetResult(result);
       setResetZeroState(result.zeroState);
       setResetConfirm("");
@@ -763,7 +764,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
 
             <div className="reset-confirm-section" style={{ marginTop: 12 }}>
               <p className="reset-warning">
-                This will permanently remove all operational data. Type <strong>RESET</strong> to confirm.
+                This removes every transaction of <strong>{companyContext?.company_name || "the selected company"}</strong> only (masters, users and chart of accounts are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
               </p>
               <input
                 type="text"

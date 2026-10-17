@@ -73,7 +73,7 @@ export default function LoginScreen({ api, onLogin, notify, toast }) {
               <input type="password" value={credentials.password} onChange={(event) => setCredentials({ ...credentials, password: event.target.value })} required />
             </label>
             <button className="primary-btn" disabled={loading}>{loading ? "Checking..." : "Login"}</button>
-            <p className="hint">First internal login: admin / admin123. The password must be changed before using the ERP.</p>
+            <p className="hint">First login on a new installation uses the default admin account given in the installation guide. You must set your own password before the ERP opens.</p>
           </>
         ) : (
           <>

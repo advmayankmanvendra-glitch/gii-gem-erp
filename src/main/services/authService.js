@@ -4,7 +4,7 @@ const ROLE_HIERARCHY = ["super_admin", "admin", "accountant", "manager", "data_e
 
 const ROLE_PERMISSIONS = {
   super_admin: new Set(["*"]),
-  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "account_mapping"]),
+  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "account_mapping", "system_reset"]),
   accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup", "account_mapping"]),
   manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup"]),
   data_entry_operator: new Set(["create", "edit", "import", "export", "backup"]),
@@ -61,9 +61,10 @@ export function createAuthService(deps) {
     return allowed.has("*") || allowed.has(permission);
   }
 
+  // There is deliberately no fallback user: an action with no signed-in user is refused.
   function userForPermission(db, userId) {
-    if (userId) return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(userId);
-    return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE status = 'active' ORDER BY CASE WHEN role IN ('super_admin','admin') THEN 0 ELSE 1 END, id LIMIT 1").get();
+    if (!userId) return null;
+    return db.prepare("SELECT id, username, display_name, role, status FROM users WHERE id = ?").get(userId);
   }
 
   function enforcePermission(db, permission, context = {}) {
@@ -80,7 +81,9 @@ export function createAuthService(deps) {
         record_id: context.record_id || null,
         new_value: JSON.stringify({ permission, role, reason: "backend permission enforcement" })
       });
-      throw new Error(`Permission denied: ${permission}`);
+      throw new Error(user
+        ? `Permission denied: ${permission}. Your role (${role}) cannot do this. Ask an admin to change your role in Settings > Users, or ask them to do this step.`
+        : `Permission denied: ${permission}. No signed-in user was found for this action. Sign in again, then retry.`);
     }
     return user;
   }
@@ -126,9 +129,16 @@ export function createAuthService(deps) {
     const user = userId
       ? db.prepare("SELECT * FROM users WHERE id = ? AND status = 'active'").get(userId)
       : db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
+    if (user?.locked_until && user.locked_until > new Date().toISOString()) {
+      auditLog(db, { user_id: user.id, user_role: user.role, action: "password_change_blocked_locked_user", module: "security", table_name: "users", record_id: user.id });
+      throw new Error("This account is locked after too many wrong passwords. Wait for the lock to expire or ask an admin to reset the password.");
+    }
     if (!user || !verifyPassword(currentPassword, user.password_hash)) {
       if (user) {
-        auditLog(db, { user_id: user.id, user_role: user.role, action: "password_change_failed", module: "security", table_name: "users", record_id: user.id });
+        const failedCount = Number(user.failed_login_count || 0) + 1;
+        const lockedUntil = failedCount >= SECURITY.maxFailedLogins ? new Date(Date.now() + SECURITY.sessionTimeoutMinutes * 60 * 1000).toISOString() : null;
+        db.prepare("UPDATE users SET failed_login_count = ?, locked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(failedCount, lockedUntil, user.id);
+        auditLog(db, { user_id: user.id, user_role: user.role, action: "password_change_failed", module: "security", table_name: "users", record_id: user.id, new_value: JSON.stringify({ failedCount, lockedUntil }) });
       }
       throw new Error("Current password is incorrect.");
     }
@@ -144,7 +154,6 @@ export function createAuthService(deps) {
       SET password_hash = ?,
           force_password_change = 0,
           failed_login_count = 0,
-          locked_until = NULL,
           password_changed_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -206,7 +215,7 @@ export function createAuthService(deps) {
     const newPassword = String(payload.new_password || payload.newPassword || "");
     const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username);
     if (!user || !user.recovery_secret_hash) {
-      throw new Error("Recovery reset is not available for this account.");
+      throw new Error("Recovery secret is incorrect, or recovery is not set up for this account. Ask an admin to reset your password.");
     }
     const now = new Date().toISOString();
     if (user.recovery_locked_until && user.recovery_locked_until > now) {
@@ -218,7 +227,7 @@ export function createAuthService(deps) {
       const lockedUntil = failed >= SECURITY.maxFailedLogins ? new Date(Date.now() + SECURITY.sessionTimeoutMinutes * 60 * 1000).toISOString() : null;
       db.prepare("UPDATE users SET recovery_failed_attempts = ?, recovery_locked_until = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(failed, lockedUntil, user.id);
       auditLog(db, { user_id: user.id, user_role: user.role, action: "recovery_reset_failed", module: "security", table_name: "users", record_id: user.id, new_value: JSON.stringify({ failed, lockedUntil }) });
-      throw new Error("Recovery secret is incorrect.");
+      throw new Error("Recovery secret is incorrect, or recovery is not set up for this account. Ask an admin to reset your password.");
     }
     const errors = passwordStrengthErrors(newPassword);
     if (errors.length) {
@@ -256,6 +265,9 @@ export function createAuthService(deps) {
     const target = db.prepare("SELECT * FROM users WHERE id = ?").get(targetId);
     if (!target) {
       throw new Error("User not found.");
+    }
+    if (target.role === "super_admin" && actorUser.role !== "super_admin") {
+      throw new Error("Permission denied: only a super admin can reset another super admin's password.");
     }
     if (targetId === actorId) {
       throw new Error("Use the change password option for your own account.");

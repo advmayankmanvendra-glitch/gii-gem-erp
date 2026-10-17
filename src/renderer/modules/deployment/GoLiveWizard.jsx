@@ -40,7 +40,7 @@ function StepIndicator({ currentStep, failedStep }) {
   );
 }
 
-function GoLiveWizard({ apiClient }) {
+function GoLiveWizard({ apiClient, companyContext }) {
   const [step, setStep] = useState(0);
   const [failedStep, setFailedStep] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -102,7 +102,7 @@ function GoLiveWizard({ apiClient }) {
     try {
       const preview = await apiClient.previewGoLive();
       setPreviewData(preview);
-      const result = await apiClient.executeGoLive("system");
+      const result = await apiClient.executeGoLive({ company_id: companyContext?.company_id, confirm_text: "RESET" });
       setBackupInfo(result.backup);
       setBackupValidation(result.backupValidation);
       setResetResult(result.resetResult);

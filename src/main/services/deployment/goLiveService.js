@@ -10,7 +10,7 @@ import { createGoLiveBackup, validateBackup, executeAutoRollback } from "./rollb
 export function checkGoLivePreconditions(db, runtimeRoot, currentEnv) {
   const issues = [];
 
-  if (currentEnv !== "production") {
+  if (String(currentEnv || "").toLowerCase() !== "production") {
     issues.push({ key: "environment", label: "Environment must be Production", passed: false, detail: `Current: ${currentEnv}` });
   } else {
     issues.push({ key: "environment", label: "Environment set to Production", passed: true });
@@ -20,8 +20,9 @@ export function checkGoLivePreconditions(db, runtimeRoot, currentEnv) {
     const envConfigPath = path.join(runtimeRoot, "environment-config.json");
     if (fs.existsSync(envConfigPath)) {
       const config = JSON.parse(fs.readFileSync(envConfigPath, "utf8"));
-      if (config.profile !== "Production") {
-        issues.push({ key: "profile", label: "Verification profile must be Production", passed: false, detail: `Current: ${config.profile}` });
+      const profile = config.verificationProfile || config.profile || "";
+      if (String(profile).toLowerCase() !== "production") {
+        issues.push({ key: "profile", label: "Verification profile must be Production", passed: false, detail: `Current: ${profile || "not set"}` });
       } else {
         issues.push({ key: "profile", label: "Verification profile set to Production", passed: true });
       }
@@ -53,8 +54,14 @@ export function previewGoLiveReset(db, runtimeRoot) {
   return { preview, dependencies: deps };
 }
 
-export function executeGoLiveReset(db, runtimeRoot, userId) {
-  const backup = createGoLiveBackup(runtimeRoot);
+export function executeGoLiveReset(db, runtimeRoot, options = {}) {
+  const resetOptions = typeof options === "object" && options ? options : { userId: options };
+  const userId = resetOptions.userId || null;
+  const dependencies = analyzeDependencies(db);
+  if (dependencies?.total?.blocked > 0) {
+    throw new Error(`Go-live reset refused: dependency analysis found ${dependencies.total.blocked} blocked table(s). Open Environment Manager > Dependencies, fix the listed orphan rows, then retry. Nothing was changed.`);
+  }
+  const backup = createGoLiveBackup(runtimeRoot, db);
   const backupValidation = validateBackup(backup);
 
   const goLiveEntry = recordGoLiveEntry(runtimeRoot, {
@@ -70,7 +77,7 @@ export function executeGoLiveReset(db, runtimeRoot, userId) {
     currentEnv: "production"
   });
 
-  const resetResult = executeEnhancedReset(db, runtimeRoot, userId);
+  const resetResult = executeEnhancedReset(db, runtimeRoot, resetOptions);
 
   const zeroState = rebuildZeroState(db);
   const zeroStatePassed = zeroState.warnings.length === 0;

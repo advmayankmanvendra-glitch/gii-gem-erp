@@ -1322,7 +1322,7 @@ function App() {
               <>
             {effectiveView === "safe_mode" && <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />}
             {effectiveView === "production_readiness" && <ProductionReadinessScreen apiClient={api} />}
-            {effectiveView === "go_live_wizard" && <GoLiveWizard apiClient={api} />}
+            {effectiveView === "go_live_wizard" && <GoLiveWizard apiClient={api} companyContext={companyContext} />}
             {effectiveView === "dashboard" && <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "billing_drilldown" && <BillingDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "collections_drilldown" && <CollectionsDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}

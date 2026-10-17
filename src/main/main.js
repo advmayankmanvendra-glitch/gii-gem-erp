@@ -10,6 +10,7 @@ import {
   adjustAdvanceReceipt,
   adjustSupplierAdvance,
   auditLog,
+  runAsActor,
   autoReserveOrderStock,
   bankStatementData,
   billingVoucherData,
@@ -91,6 +92,9 @@ import {
   APP_FOLDERS,
   DB_NAME,
   changeUserPassword,
+  setRecoverySecret,
+  recoveryResetPassword,
+  adminResetPassword,
   ensureAppFolders,
   setRuntimeRoot,
   sourceProjectRoot,
@@ -219,10 +223,65 @@ function configureRuntimeStorage() {
   return { root: runtimeDataRoot, copiedDatabase };
 }
 
+// The signed-in user for the IPC call being handled right now. Handlers run
+// synchronously against better-sqlite3, so this is set for the duration of one
+// call only and never leaks between windows.
+let currentActor = null;
+// Files the user picked in a native file dialog during this run. Only these can
+// be read by path, so a screen cannot read arbitrary files from the disk.
+const selectedFiles = new Set();
+
+function actorId() {
+  return currentActor?.id || null;
+}
+
+const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "imported_by", "approved_by", "deleted_by", "posted_by"];
+
+// Overwrite every "who did this" field the screen sent with the signed-in user,
+// so the audit trail can never name somebody else.
+function withActor(value, user) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const next = { ...value };
+  ACTOR_FIELDS.forEach((field) => {
+    if (field in next || field === "user_id") next[field] = user.id;
+  });
+  next.user_role = user.role;
+  return next;
+}
+
+function assertSelectedFile(filePath) {
+  if (!selectedFiles.has(path.resolve(String(filePath || "")))) {
+    throw new Error("File refused: choose the file with the Browse button first. Only files picked in the file dialog can be read.");
+  }
+  return filePath;
+}
+
+function sessionUser(event) {
+  const session = desktopSessions.getSession(event?.sender?.id);
+  if (!session) {
+    throw new Error("You are not signed in. Sign in again from the login screen, then retry this action.");
+  }
+  return session;
+}
+
 function guarded(permission, moduleName, handler) {
-  return (_event, ...args) => {
-    enforcePermission(db, permission, userContext(args, { module: moduleName, table_name: moduleName }));
-    return handler(...args);
+  return (event, ...args) => {
+    const session = sessionUser(event);
+    const payload = firstPayload(args);
+    const user = enforcePermission(db, permission, {
+      ...payload,
+      module: moduleName,
+      table_name: moduleName,
+      user_id: session.user_id
+    });
+    const safeArgs = args.map((arg) => withActor(arg, user));
+    const previous = currentActor;
+    currentActor = user;
+    try {
+      return runAsActor(user, () => handler(...safeArgs));
+    } finally {
+      currentActor = previous;
+    }
   };
 }
 
@@ -257,6 +316,18 @@ function sessionRequired(handler) {
       user_role: session.role
     });
   };
+}
+
+// Runs a step that replaces the database file. The shared connection is closed
+// first and always reopened afterwards, so no stale handle can corrupt the file.
+function withDatabaseClosed(step) {
+  db?.close();
+  db = null;
+  try {
+    return step();
+  } finally {
+    db = initializeDatabase(runtimeDataRoot);
+  }
 }
 
 function escapePrintHtml(value) {
@@ -632,34 +703,66 @@ function installApplicationMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// Channels that may be called before anyone signs in. Everything else needs a
+// signed-in desktop session, and a session whose password must still be changed
+// can only change it.
+const PUBLIC_CHANNELS = new Set([
+  "auth:login",
+  "auth:logout",
+  "auth:recovery-reset",
+  "meta:masters",
+  "meta:transactions",
+  "master-data:definitions",
+  "updates:status",
+  "environment:get-profiles"
+]);
+const PASSWORD_CHANGE_CHANNELS = new Set(["auth:change-password", "auth:logout"]);
+
+function handle(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!PUBLIC_CHANNELS.has(channel)) {
+      const session = sessionUser(event);
+      if (session.force_password_change && !PASSWORD_CHANGE_CHANNELS.has(channel)) {
+        throw new Error("Change your password first. The ERP opens fully once the first-login password change on the login screen is saved.");
+      }
+      return runAsActor({ id: session.user_id, role: session.role }, () => handler(event, ...args));
+    }
+    return handler(event, ...args);
+  });
+}
+
 function registerIpc() {
-  ipcMain.handle("auth:login", (event, credentials) => {
+  handle("auth:login", (event, credentials) => {
     const user = authenticate(db, credentials.username, credentials.password);
     if (user) desktopSessions.bindSession(event.sender.id, user);
     else desktopSessions.clearSession(event.sender.id);
     return user;
   });
-  ipcMain.handle("auth:logout", (event) => {
+  handle("auth:logout", (event) => {
     desktopSessions.clearSession(event.sender.id);
     return { success: true };
   });
-  ipcMain.handle("auth:change-password", (_event, payload) => {
-    return changeUserPassword(db, payload);
+  handle("auth:change-password", (event, payload) => {
+    const session = sessionUser(event);
+    const user = changeUserPassword(db, { ...payload, user_id: session.user_id, username: "" });
+    desktopSessions.markPasswordChanged(event.sender.id);
+    return user;
   });
-  ipcMain.handle("auth:set-recovery-secret", (event, payload) => {
-    return sessionRequired((resolvedPayload) => (
-      setRecoverySecret(db, resolvedPayload)
-    ))(event, payload);
+  handle("auth:set-recovery-secret", (event, payload) => {
+    const session = sessionUser(event);
+    return setRecoverySecret(db, { ...payload, user_id: session.user_id, username: "" });
   });
-  ipcMain.handle("auth:recovery-reset", (_event, payload) => {
+  handle("auth:recovery-reset", (_event, payload) => {
     return recoveryResetPassword(db, payload);
   });
-  ipcMain.handle("auth:admin-reset-password", (event, payload) => {
-    return sessionGuarded("settings", "security", (resolvedPayload, actor) => (
-      adminResetPassword(db, resolvedPayload, actor)
-    ))(event, payload);
+  handle("auth:admin-reset-password", (event, payload) => {
+    return sessionGuarded("settings", "security", (resolvedPayload, actor) => {
+      const result = adminResetPassword(db, resolvedPayload, actor);
+      desktopSessions.clearUserSessions(resolvedPayload?.user_id);
+      return result;
+    })(event, payload);
   });
-  ipcMain.handle("auth:list-users", (event) => {
+  handle("auth:list-users", (event) => {
     return sessionGuarded("settings", "security", () => {
       const rows = db.prepare(`
         SELECT id, username, display_name, role, status, force_password_change,
@@ -674,150 +777,158 @@ function registerIpc() {
     })(event);
   });
 
-  ipcMain.handle("meta:masters", () => MASTER_TABLES);
-  ipcMain.handle("meta:transactions", () => TRANSACTION_TABLES);
-  ipcMain.handle("master-data:definitions", () => getMasterDataToolDefinitions());
-  ipcMain.handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
-  ipcMain.handle("references:list", (_event, filters) => referenceData(db, filters));
-  ipcMain.handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
-  ipcMain.handle("accounting:data", (_event, filters) => accountingData(db, filters));
-  ipcMain.handle(
+  handle("meta:masters", () => MASTER_TABLES);
+  handle("meta:transactions", () => TRANSACTION_TABLES);
+  handle("master-data:definitions", () => getMasterDataToolDefinitions());
+  handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
+  handle("references:list", (_event, filters) => referenceData(db, filters));
+  handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
+  handle("accounting:data", (_event, filters) => accountingData(db, filters));
+  handle(
     "account-mapping:registry",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingRegistry(db, filters)
     ))
   );
-  ipcMain.handle(
+  handle(
     "account-mapping:classifications",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountClassifications(db, filters)
     ))
   );
-  ipcMain.handle(
+  handle(
     "account-mapping:coverage",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingCoverage(db, filters)
     ))
   );
-  ipcMain.handle(
+  handle(
     "account-mapping:review-queue",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingReviewQueue(db, filters)
     ))
   );
-  ipcMain.handle(
+  handle(
     "account-mapping:assign",
     sessionGuarded("account_mapping", "account_mapping", (payload, actor) => (
       assignAccountGroup(db, payload, actor)
     ))
   );
-  ipcMain.handle("bank:data", (_event, filters) => bankStatementData(db, filters));
-  ipcMain.handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
-  ipcMain.handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
-  ipcMain.handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, userId, remarks) => updateBankImportStatus(db, importId, status, userId, remarks)));
-  ipcMain.handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
-  ipcMain.handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId, userId) => postApprovedBankImport(db, importId, userId)));
-  ipcMain.handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
-  ipcMain.handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId, userId) => generateVoucherProposalsForImport(db, importId, userId)));
-  ipcMain.handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
-  ipcMain.handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, userId, remarks) => approveVoucherProposal(db, proposalId, userId, remarks)));
-  ipcMain.handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, userId, reason) => rejectVoucherProposal(db, proposalId, userId, reason)));
-  ipcMain.handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId, userId) => createDraftVoucherFromProposal(db, proposalId, userId)));
-  ipcMain.handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId, userId) => postDraftVoucherFromProposal(db, proposalId, userId)));
-  ipcMain.handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
-  ipcMain.handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
-  ipcMain.handle("inventory:data", (_event, filters) => inventoryData(db, filters));
-  ipcMain.handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
-  ipcMain.handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
-  ipcMain.handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
-  ipcMain.handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
-  ipcMain.handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, userId, remarks) => approveStockAdjustment(db, id, userId, remarks)));
-  ipcMain.handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
-  ipcMain.handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
-  ipcMain.handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id, userId) => confirmDeliveryChallan(db, id, userId)));
-  ipcMain.handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
-  ipcMain.handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id, userId) => postWarehouseTransfer(db, id, userId)));
-  ipcMain.handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
-  ipcMain.handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
-  ipcMain.handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
-  ipcMain.handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
-  ipcMain.handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
-  ipcMain.handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
-  ipcMain.handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
-  ipcMain.handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
-  ipcMain.handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
-  ipcMain.handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
-  ipcMain.handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason, userId) => reverseAdvanceAdjustment(db, adjustmentId, reason, userId)));
-  ipcMain.handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
-  ipcMain.handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
-  ipcMain.handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
-  ipcMain.handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
-  ipcMain.handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, userId, remarks) => updateGuidedVoucherStatus(db, id, action, userId, remarks)));
-  ipcMain.handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id, userId) => postGuidedVoucher(db, id, userId)));
-  ipcMain.handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason)));
-  ipcMain.handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
-  ipcMain.handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, userId, remarks) => approveTransaction(db, moduleName, recordId, userId, remarks)));
-  ipcMain.handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
-  ipcMain.handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status, userId) => updateFinancialYearStatus(db, id, status, userId)));
-  ipcMain.handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
-  ipcMain.handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
-  ipcMain.handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
-  ipcMain.handle("imports:parse-file", (_event, filePath) => parseImportFile(filePath));
-  ipcMain.handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
-  ipcMain.handle("imports:select-file", async () => {
+  handle("bank:data", (_event, filters) => bankStatementData(db, filters));
+  handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
+  handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
+  handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, _userId, remarks) => updateBankImportStatus(db, importId, status, actorId(), remarks)));
+  handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
+  handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId) => postApprovedBankImport(db, importId, actorId())));
+  handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
+  handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId) => generateVoucherProposalsForImport(db, importId, actorId())));
+  handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
+  handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, _userId, remarks) => approveVoucherProposal(db, proposalId, actorId(), remarks)));
+  handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, _userId, reason) => rejectVoucherProposal(db, proposalId, actorId(), reason)));
+  handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId) => createDraftVoucherFromProposal(db, proposalId, actorId())));
+  handle("voucher-proposals:post-draft", guarded("post", "voucher_proposals", (proposalId) => postDraftVoucherFromProposal(db, proposalId, actorId())));
+  handle("billing:data", (_event, filters) => billingVoucherData(db, filters));
+  handle("billing:save", guarded("create", "billing", (payload) => saveBillingVoucher(db, payload)));
+  handle("inventory:data", (_event, filters) => inventoryData(db, filters));
+  handle("inventory:post-inward", guarded("post", "stock_inwards", (id) => postStockInward(db, id)));
+  handle("inventory:post-outward", guarded("post", "stock_outwards", (id) => postStockOutward(db, id)));
+  handle("inventory:post-adjustment", guarded("post", "stock_adjustments", (id) => postStockAdjustment(db, id)));
+  handle("inventory:post-return", guarded("post", "stock_returns", (id) => postStockReturn(db, id)));
+  handle("inventory:approve-adjustment", guarded("approve", "stock_adjustments", (id, _userId, remarks) => approveStockAdjustment(db, id, actorId(), remarks)));
+  handle("inventory:auto-reserve-order", guarded("edit", "stock_reservations", (orderId) => autoReserveOrderStock(db, orderId)));
+  handle("inventory:create-delivery-challan", guarded("create", "delivery_challans", (payload) => createDeliveryChallan(db, payload)));
+  handle("inventory:confirm-delivery-challan", guarded("post", "delivery_challans", (id) => confirmDeliveryChallan(db, id, actorId())));
+  handle("inventory:create-transfer", guarded("create", "warehouse_transfers", (payload) => createWarehouseTransfer(db, payload)));
+  handle("inventory:post-transfer", guarded("post", "warehouse_transfers", (id) => postWarehouseTransfer(db, id, actorId())));
+  handle("allocations:receipt-create", guarded("edit", "payment_allocations", (payload) => createReceiptAllocation(db, payload)));
+  handle("allocations:receipt-unallocate", guarded("reverse", "payment_allocations", (allocationId, reason) => unallocateReceiptAllocation(db, allocationId, reason)));
+  handle("allocations:receipt-reallocate", guarded("edit", "payment_allocations", (allocationId, payload) => reallocateReceiptAllocation(db, allocationId, payload)));
+  handle("allocations:supplier-create", guarded("edit", "supplier_payment_allocations", (payload) => createSupplierPaymentAllocation(db, payload)));
+  handle("allocations:supplier-unallocate", guarded("reverse", "supplier_payment_allocations", (allocationId, reason) => unallocateSupplierPaymentAllocation(db, allocationId, reason)));
+  handle("allocations:supplier-reallocate", guarded("edit", "supplier_payment_allocations", (allocationId, payload) => reallocateSupplierPaymentAllocation(db, allocationId, payload)));
+  handle("advances:receipt-create", guarded("create", "advance_receipts", (payload) => createAdvanceReceipt(db, payload)));
+  handle("advances:supplier-create", guarded("create", "supplier_advances", (payload) => createSupplierAdvance(db, payload)));
+  handle("advances:receipt-adjust", guarded("edit", "advance_receipts", (payload) => adjustAdvanceReceipt(db, payload)));
+  handle("advances:supplier-adjust", guarded("edit", "supplier_advances", (payload) => adjustSupplierAdvance(db, payload)));
+  handle("advances:adjustment-reverse", guarded("reverse", "advance_adjustments", (adjustmentId, reason) => reverseAdvanceAdjustment(db, adjustmentId, reason, actorId())));
+  handle("credit-terms:save", guarded("settings", "credit_terms", (payload) => saveCreditTerm(db, payload)));
+  handle("party-opening:create", guarded("opening_balance", "party_opening_balances", (payload) => createPartyOpeningBalance(db, payload)));
+  handle("vouchers:create", guarded("post", "vouchers", (payload) => createManualVoucher(db, payload)));
+  handle("vouchers:create-business", guarded("create", "guided_vouchers", (payload) => createBusinessVoucher(db, payload)));
+  handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, _userId, remarks) => updateGuidedVoucherStatus(db, id, action, actorId(), remarks)));
+  handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id) => postGuidedVoucher(db, id, actorId())));
+  handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason, actorId())));
+  handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
+  handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, _userId, remarks) => approveTransaction(db, moduleName, recordId, actorId(), remarks)));
+  handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
+  handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status) => updateFinancialYearStatus(db, id, status, actorId())));
+  handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
+  handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
+  handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
+  handle("imports:parse-file", (_event, filePath) => {
+    if (!selectedFiles.has(path.resolve(String(filePath || "")))) {
+      throw new Error("Import refused: choose the file with the Browse button first. Only files picked in the file dialog can be read.");
+    }
+    return parseImportFile(filePath);
+  });
+  handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
+  handle("imports:select-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select import file",
       properties: ["openFile"],
       filters: [{ name: "Excel or CSV", extensions: ["xlsx", "xls", "csv"] }]
     });
     if (result.canceled || !result.filePaths?.[0]) return null;
+    selectedFiles.add(path.resolve(result.filePaths[0]));
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
   });
-  ipcMain.handle("tally:select-xml-file", async () => {
+  handle("tally:select-xml-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select Tally Prime XML export",
       properties: ["openFile"],
       filters: [{ name: "Tally XML", extensions: ["xml"] }]
     });
     if (result.canceled || !result.filePaths?.[0]) return null;
+    selectedFiles.add(path.resolve(result.filePaths[0]));
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
   });
-  ipcMain.handle("tally:select-migration-file", async (_event, type) => {
+  handle("tally:select-migration-file", async (_event, type) => {
     const result = await dialog.showOpenDialog({
       title: "Select Tally migration or reference file",
       properties: ["openFile"],
       filters: [{ name: "Tally XML, Excel or CSV", extensions: ["xml", "xlsx", "xls", "csv"] }]
     });
     if (result.canceled || !result.filePaths?.[0]) return null;
+    selectedFiles.add(path.resolve(result.filePaths[0]));
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]), type: type || "" };
   });
-  ipcMain.handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(typeof payload === "string" ? payload : payload?.filePath)));
-  ipcMain.handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, payload?.files || [], userContext([payload], { module: "tally_migration_assistant" }))));
-  ipcMain.handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
-  ipcMain.handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
-  ipcMain.handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
-  ipcMain.handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
-  ipcMain.handle("imports:item-batches", () => listItemImportBatches(db));
-  ipcMain.handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
-  ipcMain.handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
-  ipcMain.handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
+  handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(assertSelectedFile(typeof payload === "string" ? payload : payload?.filePath))));
+  handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, (payload?.files || []).map((file) => ({ ...file, filePath: assertSelectedFile(file?.filePath) })), userContext([payload], { module: "tally_migration_assistant" }))));
+  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
+  handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
+  handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
+  handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
+  handle("imports:item-batches", () => listItemImportBatches(db));
+  handle("imports:item-batch-delete", guarded("delete", "items", (batchId) => deleteItemImportBatch(db, batchId)));
+  handle("items:delete-unused-imported", guarded("delete", "items", () => deleteUnusedImportedItems(db)));
+  handle("master-data:export", guarded("export", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
     return exportMasterData(db, payload, context, (entry) => auditLog(db, entry));
   }));
-  ipcMain.handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
+  handle("master-data:preview-update", guarded("import", "master_data_tools", (payload) => {
     return previewMasterDataUpdate(db, payload, userContext([payload], { module: "master_data_tools" }));
   }));
-  ipcMain.handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
+  handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
     return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
   }));
-  ipcMain.handle("master-data:completeness", (_event, context) => {
+  handle("master-data:completeness", (_event, context) => {
     return getMasterDataCompleteness(db, userContext([context], { module: "master_data_tools" }));
   });
-  ipcMain.handle("master-data:health", (_event, context) => {
+  handle("master-data:health", (_event, context) => {
     return getMasterDataToolsHealth(db, userContext([context], { module: "master_data_tools" }));
   });
-  ipcMain.handle("documents:select-file", async (event) => {
+  handle("documents:select-file", async (event) => {
     const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
       title: "Select Supporting Document",
       properties: ["openFile"],
@@ -829,20 +940,23 @@ function registerIpc() {
       ]
     });
     if (result.canceled || !result.filePaths?.[0]) return null;
+    selectedFiles.add(path.resolve(result.filePaths[0]));
     return { path: result.filePaths[0], name: path.basename(result.filePaths[0]) };
   });
-  ipcMain.handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, payload, runtimeDataRoot)));
-  ipcMain.handle("documents:list", (_event, filters) => listDocuments(db, filters));
-  ipcMain.handle("documents:view", async (_event, id) => {
+  handle("documents:upload", guarded("create", "documents", (payload) => uploadDocument(db, { ...payload, source_path: assertSelectedFile(payload?.source_path) }, runtimeDataRoot)));
+  handle("documents:list", (_event, filters) => listDocuments(db, filters));
+  handle("documents:view", async (event, id) => {
+    const viewer = sessionUser(event);
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
     if (!doc) throw new Error("Document not found");
     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
     const openResult = await shell.openPath(doc.file_path);
     if (openResult) throw new Error(`Document could not be opened: ${openResult}`);
-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document view", table_name: "documents", record_id: id });
+    auditLog(db, { company_id: doc.company_id, user_id: viewer.user_id, action: "document view", table_name: "documents", record_id: id });
     return { opened: true };
   });
-  ipcMain.handle("documents:download", async (event, id) => {
+  handle("documents:download", async (event, id) => {
+    const viewer = sessionUser(event);
     const doc = db.prepare("SELECT * FROM documents WHERE id = ? AND status = 'active' AND deleted_at IS NULL").get(id);
     if (!doc) throw new Error("Document not found");
     if (!fs.existsSync(doc.file_path)) throw new Error("Document file not found on disk");
@@ -853,14 +967,23 @@ function registerIpc() {
     });
     if (canceled || !savePath) return { canceled: true };
     fs.copyFileSync(doc.file_path, savePath);
-    auditLog(db, { company_id: doc.company_id, user_id: null, action: "document download", table_name: "documents", record_id: id });
+    auditLog(db, { company_id: doc.company_id, user_id: viewer.user_id, action: "document download", table_name: "documents", record_id: id });
     return { canceled: false, savedPath: savePath };
   });
-  ipcMain.handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
-  ipcMain.handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, payload, runtimeDataRoot, userContext([payload], { module: "documents" }))));
-  ipcMain.handle("audit:context", (_event, payload) => auditLog(db, payload));
+  handle("documents:delete", guarded("delete", "documents", (payload) => deleteDocument(db, payload.id, userContext([payload], { module: "documents" }))));
+  handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, { ...payload, source_path: assertSelectedFile(payload?.source_path) }, runtimeDataRoot, userContext([payload], { module: "documents" }))));
+  handle("audit:context", (event, payload = {}) => {
+    const session = sessionUser(event);
+    // Screens may record navigation/context events only; they cannot pick the actor
+    // or write security, posting or approval actions into the audit trail.
+    const action = String(payload.action || "screen_context").slice(0, 80);
+    if (/permission|login|password|approv|post|revers|delete|restore|reset/i.test(action)) {
+      throw new Error("This audit action can only be written by the ERP itself, not by a screen.");
+    }
+    return auditLog(db, { ...payload, action: `ui:${action}`, user_id: session.user_id, user_role: session.role });
+  });
 
-  ipcMain.handle("print:html", async (event, preview) => {
+  handle("print:html", async (event, preview) => {
     return withPrintWindow(event, preview, async (printWindow) => {
       return new Promise((resolve) => {
         printWindow.webContents.print(
@@ -871,7 +994,7 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle("print:pdf", async (event, preview) => {
+  handle("print:pdf", async (event, preview) => {
     const result = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
       title: "Save PDF",
       defaultPath: `${safePrintFileName(preview?.title)}.pdf`,
@@ -889,30 +1012,32 @@ function registerIpc() {
     });
   });
 
-  ipcMain.handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
-  ipcMain.handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
-  ipcMain.handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
-  ipcMain.handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
-  ipcMain.handle("purchase-orders:convert-to-work-order", guarded("create", "records", (id, payload) => convertPurchaseOrderToWorkOrder(db, id, payload)));
-  ipcMain.handle("records:search", (_event, entityType, searchTerm, options) => {
+  handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
+  handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
+  handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
+  handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+  handle("purchase-orders:convert-to-work-order", guarded("create", "records", (id, payload) => convertPurchaseOrderToWorkOrder(db, id, payload)));
+  handle("records:search", (_event, entityType, searchTerm, options) => {
     if (!SUPPORTED_ENTITY_TYPES.includes(entityType)) throw new Error(`Unsupported entity type: ${entityType}`);
     return searchEntities(db, entityType, searchTerm, options);
   });
-  ipcMain.handle(
+  handle(
     "accounts:create-quick",
     sessionGuarded("account_mapping", "account_mapping", (payload, actor) => (
       createMappedLedgerAccount(db, payload, actor)
     ))
   );
 
-  ipcMain.handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
-  ipcMain.handle("backup:list", () => listBackups(runtimeDataRoot));
-  ipcMain.handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
+  handle("backup:create", guarded("backup", "backup", () => createLiveBackup(db, runtimeDataRoot)));
+  handle("backup:list", () => listBackups(runtimeDataRoot));
+  handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
+    const userId = actorId();
     db?.close();
     db = null;
     try {
       const restored = restoreBackup(fileName, runtimeDataRoot);
       db = initializeDatabase(runtimeDataRoot);
+      auditLog(db, { action: "backup_restored", module: "backup", table_name: "system", user_id: userId, new_value: JSON.stringify(restored) });
       return restored;
     } catch (error) {
       if (["EBUSY", "EPERM"].includes(error.code)) {
@@ -926,31 +1051,31 @@ function registerIpc() {
     }
   }));
 
-  ipcMain.handle("health:diagnostics", (_event, context) => {
+  handle("health:diagnostics", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     return {
       ...getHealthDiagnostics(db, runtimeDataRoot, healthContext),
       masterDataTools: getMasterDataToolsHealth(db, userContext([healthContext], { module: "master_data_tools" }))
     };
   });
-  ipcMain.handle("health:checks", (_event, context) => {
+  handle("health:checks", (_event, context) => {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
   });
-  ipcMain.handle("health:support-bundle", (_event, context) => {
+  handle("health:support-bundle", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
   });
-  ipcMain.handle("health:verification-console", () => {
+  handle("health:verification-console", () => {
     return getVerificationConsoleState(runtimeDataRoot);
   });
-  ipcMain.handle("health:verification-snapshot", (_event, context) => {
+  handle("health:verification-snapshot", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
   });
-  ipcMain.handle("health:open-folder", async (_event, kind) => {
+  handle("health:open-folder", async (_event, kind) => {
     const folders = {
       runtime: runtimeDataRoot,
       database: path.join(runtimeDataRoot, "database"),
@@ -966,14 +1091,14 @@ function registerIpc() {
     return { success: true, folder, message: "Folder opened" };
   });
 
-  ipcMain.handle("updates:status", () => getUpdateStatus());
-  ipcMain.handle("updates:open-folder", async () => {
+  handle("updates:status", () => getUpdateStatus());
+  handle("updates:open-folder", async () => {
     const updateFolder = ensureUpdateFolder();
     const failureReason = await shell.openPath(updateFolder);
     if (failureReason) throw new Error(failureReason);
     return { success: true, updateFolder };
   });
-  ipcMain.handle("updates:install", async (_event, installerPath) => {
+  handle("updates:install", async (_event, installerPath) => {
     const status = getUpdateStatus();
     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
     const failureReason = await shell.openPath(selectedInstaller);
@@ -981,7 +1106,7 @@ function registerIpc() {
     return { success: true, installerPath: selectedInstaller };
   });
 
-  ipcMain.handle("environment:info", (_event, context) => {
+  handle("environment:info", (_event, context) => {
     const companyId = Number(context?.company_id || 0);
     const healthContext = { ...context, dbName: DB_NAME };
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
@@ -1022,7 +1147,7 @@ function registerIpc() {
     };
   });
 
-  ipcMain.handle("environment:get-profiles", () => {
+  handle("environment:get-profiles", () => {
     return Object.entries(PROFILES).map(([key, profile]) => ({
       key,
       name: profile.name,
@@ -1030,21 +1155,23 @@ function registerIpc() {
     }));
   });
 
-  ipcMain.handle("environment:set-profile", (_event, { profile }) => {
+  handle("environment:set-profile", guarded("system_reset", "environment", ({ profile } = {}) => {
     const config = readEnvironmentConfig();
     config.verificationProfile = profile;
     writeEnvironmentConfig(config);
+    auditLog(db, { action: "environment_profile_changed", module: "environment", table_name: "system", user_id: actorId(), new_value: JSON.stringify({ profile }) });
     return { success: true, verificationProfile: profile };
-  });
+  }));
 
-  ipcMain.handle("environment:switch-type", (_event, { environment }) => {
+  handle("environment:switch-type", guarded("system_reset", "environment", ({ environment } = {}) => {
     const config = readEnvironmentConfig();
     config.environment = environment;
     writeEnvironmentConfig(config);
+    auditLog(db, { action: "environment_type_changed", module: "environment", table_name: "system", user_id: actorId(), new_value: JSON.stringify({ environment }) });
     return { success: true, environment };
-  });
+  }));
 
-  ipcMain.handle("backup:open-folder", () => {
+  handle("backup:open-folder", () => {
     const backupDir = path.join(runtimeDataRoot, "backups");
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
@@ -1053,93 +1180,99 @@ function registerIpc() {
     return { success: true, path: backupDir };
   });
 
-  ipcMain.handle("deployment:readiness", () => {
+  handle("deployment:readiness", () => {
     return calculateReadinessScore(db, runtimeDataRoot);
   });
 
-  ipcMain.handle("deployment:certify", (_event, { userId }) => {
-    return generateGoLiveCertificate(db, runtimeDataRoot, userId);
-  });
+  handle("deployment:certify", guarded("system_reset", "deployment", () => {
+    return generateGoLiveCertificate(db, runtimeDataRoot, actorId());
+  }));
 
-  ipcMain.handle("deployment:certificate-history", () => {
+  handle("deployment:certificate-history", () => {
     return getCertificateHistory(runtimeDataRoot);
   });
 
-  ipcMain.handle("go-live:preconditions", () => {
+  handle("go-live:preconditions", () => {
     const envConfig = readEnvironmentConfig();
     return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development");
   });
 
-  ipcMain.handle("go-live:preview", () => {
+  handle("go-live:preview", () => {
     return previewGoLive(db, runtimeDataRoot);
   });
 
-  ipcMain.handle("go-live:execute", (_event, { userId }) => {
-    return executeGoLiveReset(db, runtimeDataRoot, userId);
-  });
+  handle("go-live:execute", guarded("system_reset", "go_live", (payload = {}) => {
+    return executeGoLiveReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
+  }));
 
-  ipcMain.handle("go-live:verify", (_event, { goLiveId }) => {
-    return verifyGoLiveProduction(db, runtimeDataRoot, "system", goLiveId);
-  });
+  handle("go-live:verify", guarded("system_reset", "go_live", ({ goLiveId } = {}) => {
+    return verifyGoLiveProduction(db, runtimeDataRoot, actorId(), goLiveId);
+  }));
 
-  ipcMain.handle("go-live:complete", (_event, { goLiveId, verification }) => {
-    return completeGoLive(db, runtimeDataRoot, "system", goLiveId, verification);
-  });
+  handle("go-live:complete", guarded("system_reset", "go_live", ({ goLiveId, verification } = {}) => {
+    return completeGoLive(db, runtimeDataRoot, actorId(), goLiveId, verification);
+  }));
 
-  ipcMain.handle("go-live:rollback", (_event, { goLiveId, reason }) => {
-    return failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, db, "system");
-  });
+  handle("go-live:rollback", guarded("restore_backup", "go_live", ({ goLiveId, reason } = {}) => {
+    const userId = actorId();
+    const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
+    auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason, success: result?.rollbackResult?.success }) });
+    return result;
+  }));
 
-  ipcMain.handle("go-live:history", () => {
+  handle("go-live:history", () => {
     return getGoLiveHistory(runtimeDataRoot);
   });
 
-  ipcMain.handle("certificate:generate", () => {
+  handle("certificate:generate", () => {
     return generateCertificate(db, runtimeDataRoot);
   });
 
-  ipcMain.handle("reset:preview", () => {
+  handle("reset:preview", () => {
     return previewReset(db);
   });
 
-  ipcMain.handle("reset:execute", (_event, { userId }) => {
-    const result = executeReset(db, runtimeDataRoot, userId);
+  handle("reset:execute", guarded("system_reset", "operational_reset", (payload = {}) => {
+    const result = executeReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
     return result;
-  });
+  }));
 
-  ipcMain.handle("reset:analyze-dependencies", () => {
+  handle("reset:analyze-dependencies", () => {
     return analyzeDependencies(db);
   });
 
-  ipcMain.handle("reset:execute-enhanced", (_event, { userId }) => {
-    const result = executeEnhancedReset(db, runtimeDataRoot, userId);
+  handle("reset:execute-enhanced", guarded("system_reset", "operational_reset", (payload = {}) => {
+    const result = executeEnhancedReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
     return result;
-  });
+  }));
 
-  ipcMain.handle("reset:rollback", (_event, { backup }) => {
-    return rollbackReset(runtimeDataRoot, backup);
-  });
+  handle("reset:rollback", guarded("restore_backup", "operational_reset", ({ backup } = {}) => {
+    const userId = actorId();
+    const result = withDatabaseClosed(() => rollbackReset(runtimeDataRoot, backup));
+    auditLog(db, { action: "reset_rollback", module: "operational_reset", table_name: "system", user_id: userId, new_value: JSON.stringify(result) });
+    return result;
+  }));
 
-  ipcMain.handle("crac:list", (_event, filters) => listCracRecords(db, filters));
-  ipcMain.handle("crac:get", (_event, id) => getCracRecord(db, id));
-  ipcMain.handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
-  ipcMain.handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
-  ipcMain.handle("crac:delete", guarded("delete", "crac_records", (id, deletedBy) => deleteCracRecord(db, id, deletedBy)));
-  ipcMain.handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
-  ipcMain.handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
-  ipcMain.handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
-  ipcMain.handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
-  ipcMain.handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
+  handle("crac:list", (_event, filters) => listCracRecords(db, filters));
+  handle("crac:get", (_event, id) => getCracRecord(db, id));
+  handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, payload)));
+  handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload)));
+  handle("crac:delete", guarded("delete", "crac_records", (id) => deleteCracRecord(db, id, actorId())));
+  handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
+  handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
+  handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
+  handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
+  handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
+  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
+  handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 
-  ipcMain.handle("feedback:submit", (_event, payload) => submitFeedback(db, payload));
-  ipcMain.handle("feedback:list", (_event, filters) => listFeedback(db, filters));
-  ipcMain.handle("feedback:export", (_event, format) => exportFeedback(db, format));
+  handle("feedback:submit", (_event, payload) => submitFeedback(db, payload));
+  handle("feedback:list", (_event, filters) => listFeedback(db, filters));
+  handle("feedback:export", (_event, format) => exportFeedback(db, format));
 }
 
 if (!hasSingleInstanceLock) {

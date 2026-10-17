@@ -308,9 +308,12 @@ export function createCrudHelpers({
       throw new Error("Company context is required. Select Current Company before saving this record.");
     }
     if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
-      data.posting_status = data.posting_status || "Draft";
-      data.approval_status = data.approval_status || "Draft";
-      data.posting_error = data.posting_error || null;
+      // A new record is never born Posted or Approved: those states are reached only
+      // through the posting and approval services, which create the vouchers.
+      data.posting_status = "Draft";
+      data.approval_status = data.approval_status === "Pending Approval" ? "Pending Approval" : "Draft";
+      data.posting_error = null;
+      if (table === "invoices" && ["Posted", "Reversed", "Cancelled"].includes(data.invoice_status)) data.invoice_status = "Draft";
       assertTransactionYearOpen(db, table, data);
       if (["procurements", "expense_entries", "invoices", "payments"].includes(table)) {
         data.financial_year_id = data.financial_year_id || financialYearForDate(db, data.company_id, transactionDateFor(table, data))?.id || null;

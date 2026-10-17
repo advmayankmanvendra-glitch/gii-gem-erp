@@ -49,7 +49,7 @@ export function resolveScreen(effectiveView, {
 
   if (effectiveView === "safe_mode") return <SafeModeRecoveryScreen notify={notify} apiClient={api} onNavigate={navigate} startupSelfTest={startupSelfTest} />;
   if (effectiveView === "production_readiness") return <ProductionReadinessScreen apiClient={api} />;
-  if (effectiveView === "go_live_wizard") return <GoLiveWizard apiClient={api} />;
+  if (effectiveView === "go_live_wizard") return <GoLiveWizard apiClient={api} companyContext={companyContext} />;
   if (effectiveView === "dashboard") return <DashboardScreen notify={notify} setView={navigate} companyContext={companyContext} apiClient={api} />;
   if (effectiveView === "billing_drilldown") return <BillingDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;
   if (effectiveView === "collections_drilldown") return <CollectionsDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;

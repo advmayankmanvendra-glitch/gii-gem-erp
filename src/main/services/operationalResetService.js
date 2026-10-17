@@ -223,105 +223,121 @@ export function rebuildZeroState(db) {
   return results;
 }
 
-export function executeReset(db, runtimeRoot, userId) {
-  const backup = createBackup(runtimeRoot);
-  const before = previewReset(db);
-  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+// Tables that belong to a company only through their parent row.
+const CHILD_TABLE_PARENTS = {
+  voucher_lines: { column: "voucher_id", parent: "vouchers" },
+  import_batch_records: { column: "batch_id", parent: "import_batches" }
+};
 
-  runWithForeignKeysDisabled(db, () => {
-    const deleteTransaction = db.transaction(() => {
-      for (const { table } of RESET_TABLES) {
-        if (!tables.has(table)) continue;
-        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
-        if (cols.includes("is_deleted")) {
-          db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
-        } else {
-          const beforeCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
-          if (beforeCount > 0) {
-            db.prepare(`DELETE FROM "${table}"`).run();
-            const afterCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
-            if (afterCount > 0) {
-              throw new Error(`Reset failed: table "${table}" still has ${afterCount} rows after DELETE`);
-            }
-          }
-        }
-      }
-      assertNoForeignKeyIssues(db);
-    });
-    deleteTransaction();
-  });
-
-  const zeroState = rebuildZeroState(db);
-  const after = previewReset(db);
-
-  return { backup, before, after, zeroState, auditId: null };
+function resolveResetCompany(db, companyId) {
+  const id = Number(companyId || 0);
+  if (!id) {
+    throw new OperationalResetError("Reset refused: no company is selected. Select the company to reset in the company switcher (top bar), then run the reset again. The reset only clears one company at a time.");
+  }
+  const company = db.prepare("SELECT id, company_name, company_code FROM companies WHERE id = ?").get(id);
+  if (!company) throw new OperationalResetError(`Reset refused: company #${id} does not exist. Select a valid company and retry.`);
+  return company;
 }
 
-export function executeEnhancedReset(db, runtimeRoot, userId) {
-  const backup = createBackup(runtimeRoot);
-  const before = previewReset(db);
-  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+function assertResetConfirmation(company, confirmText) {
+  const typed = String(confirmText || "").trim();
+  if (typed !== "RESET") {
+    throw new OperationalResetError(`Reset refused: type RESET in the confirmation box to clear the transactions of ${company.company_name}. Nothing was changed.`);
+  }
+}
 
-  runWithForeignKeysDisabled(db, () => {
-    const deleteTransaction = db.transaction(() => {
-      for (const { table } of RESET_TABLES) {
-        if (!tables.has(table)) continue;
-        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
-        if (cols.includes("is_deleted")) {
-          db.prepare(`UPDATE "${table}" SET is_deleted = 1 WHERE COALESCE(is_deleted, 0) = 0`).run();
-        } else {
-          const beforeCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
-          if (beforeCount > 0) {
-            db.prepare(`DELETE FROM "${table}"`).run();
-            const afterCount = db.prepare(`SELECT COUNT(*) AS c FROM "${table}"`).get().c;
-            if (afterCount > 0) {
-              throw new Error(`Reset failed: table "${table}" still has ${afterCount} rows after DELETE`);
-            }
-          }
-        }
-      }
-      assertNoForeignKeyIssues(db);
-    });
-    deleteTransaction();
+function companyRowCount(db, table, companyId) {
+  const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map((r) => r.name);
+  if (cols.includes("company_id")) return db.prepare(`SELECT COUNT(*) c FROM "${table}" WHERE company_id = ?`).get(companyId).c;
+  const child = CHILD_TABLE_PARENTS[table];
+  const parentCols = child ? db.prepare(`PRAGMA table_info("${child.parent}")`).all().map((r) => r.name) : [];
+  if (child && parentCols.includes("company_id")) return db.prepare(`SELECT COUNT(*) c FROM "${table}" WHERE "${child.column}" IN (SELECT id FROM "${child.parent}" WHERE company_id = ?)`).get(companyId).c;
+  return 0;
+}
+
+// Clears every transaction of ONE company (masters, users, chart of accounts and
+// financial years are kept). Always takes a consistent backup first and always
+// writes an audit row, so the reset can be rolled back and is traceable.
+function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, module = "operational_reset" } = {}) {
+  const company = resolveResetCompany(db, companyId);
+  assertResetConfirmation(company, confirmText);
+  const backup = createBackup(runtimeRoot, db, "pre_reset");
+  const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name));
+  const before = [];
+  RESET_TABLES.forEach(({ table, module: area }) => {
+    if (tables.has(table)) before.push({ table, module: area, count: companyRowCount(db, table, company.id) });
   });
 
-  const zeroState = rebuildZeroState(db);
-  const after = previewReset(db);
+  runWithForeignKeysDisabled(db, () => {
+    db.transaction(() => {
+      // Children first, while their parents still exist to identify the company.
+      Object.entries(CHILD_TABLE_PARENTS).forEach(([table, rule]) => {
+        if (!tables.has(table) || !tables.has(rule.parent)) return;
+        const parentCols = db.prepare(`PRAGMA table_info("${rule.parent}")`).all().map((r) => r.name);
+        if (!parentCols.includes("company_id")) return;
+        db.prepare(`DELETE FROM "${table}" WHERE "${rule.column}" IN (SELECT id FROM "${rule.parent}" WHERE company_id = ?)`).run(company.id);
+      });
+      for (const { table } of RESET_TABLES) {
+        if (!tables.has(table) || CHILD_TABLE_PARENTS[table]) continue;
+        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map((r) => r.name);
+        if (!cols.includes("company_id")) continue;
+        db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
+      }
+      if (tables.has("carry_forward_entries")) db.prepare("DELETE FROM carry_forward_entries WHERE company_id = ?").run(company.id);
+      if (tables.has("year_end_closings")) db.prepare("DELETE FROM year_end_closings WHERE company_id = ?").run(company.id);
+      assertNoForeignKeyIssues(db);
+    })();
+  });
+
+  const after = before.map((row) => ({ ...row, count: tables.has(row.table) ? companyRowCount(db, row.table, company.id) : 0 }));
+  const zeroState = {
+    rebuilt: after.filter((row) => row.count === 0).map((row) => `${row.table}: 0 (clean)`),
+    warnings: after.filter((row) => row.count > 0).map((row) => `${row.table}: ${row.count} rows remain (expected 0)`)
+  };
   init.auditLog(db, {
+    company_id: company.id,
     action: "operational_reset",
-    module: "go_live_preparation",
+    module,
     table_name: "system",
-    user_id: userId,
+    user_id: userId || null,
     new_value: JSON.stringify({
-      backupPath: backup.path,
+      company: company.company_name,
       backupFileName: backup.fileName,
-      beforeCounts: before,
-      afterCounts: after,
-      zeroState,
-      userId,
+      removedRows: before.reduce((sum, row) => sum + row.count, 0),
+      before,
+      after,
       resetAt: nowIso()
     })
   });
   const auditId = db.prepare("SELECT last_insert_rowid() as id").get()?.id || null;
-
   return {
+    company: { id: company.id, name: company.company_name },
     backup: { fileName: backup.fileName, path: backup.path, size: backup.size, createdAt: backup.createdAt },
-    before,
-    after,
+    before: { operational: before, totalOperational: before.reduce((sum, row) => sum + row.count, 0) },
+    after: { operational: after, totalOperational: after.reduce((sum, row) => sum + row.count, 0) },
     zeroState,
     auditId
   };
 }
 
+export function executeReset(db, runtimeRoot, options = {}) {
+  return performCompanyReset(db, runtimeRoot, typeof options === "object" && options ? options : { userId: options });
+}
+
+export function executeEnhancedReset(db, runtimeRoot, options = {}) {
+  return performCompanyReset(db, runtimeRoot, { ...(typeof options === "object" && options ? options : { userId: options }), module: "go_live_preparation" });
+}
+
+// Restores the database from a backup. The caller MUST close its connection to
+// the live database before calling this and reopen it afterwards.
 export function rollbackReset(runtimeRoot, backupIdentifier) {
   try {
     const backups = listBackups(runtimeRoot);
     let targetBackup = backupIdentifier;
     if (!targetBackup) {
-      targetBackup = backups[0];
-    } else {
-      const match = backups.find(b => b.includes(backupIdentifier) || backupIdentifier.includes(b));
-      targetBackup = match || backupIdentifier;
+      targetBackup = backups.find((name) => name.startsWith("pre_reset_")) || backups[0];
+    } else if (!backups.includes(backupIdentifier)) {
+      return { success: false, reason: `Rollback refused: backup "${backupIdentifier}" is not in the backups folder. Choose one from the backup list.` };
     }
     if (!targetBackup) {
       return { success: false, reason: "No backup found to restore from. Reset rollback requires a valid backup." };
@@ -330,8 +346,8 @@ export function rollbackReset(runtimeRoot, backupIdentifier) {
     if (fs.existsSync(pendingFile)) {
       return { success: false, reason: "A pending database restore is already queued. Complete or cancel it before rolling back." };
     }
-    restoreBackup(targetBackup, runtimeRoot);
-    return { success: true, restoredFrom: targetBackup };
+    const restored = restoreBackup(targetBackup, runtimeRoot);
+    return { success: true, restoredFrom: targetBackup, safetyBackup: restored.safetyBackup || null };
   } catch (error) {
     return { success: false, reason: error.message };
   }

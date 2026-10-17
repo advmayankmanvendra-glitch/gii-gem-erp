@@ -14,9 +14,13 @@ function requiredUserId(value) {
   return userId;
 }
 
+// A signed-in window is signed out after this many idle minutes.
+const IDLE_TIMEOUT_MINUTES = 60;
+
 export function createDesktopSessionService(deps = {}) {
   const { auditLog, enforcePermission } = deps;
   const sessions = new Map();
+  const idleTimeoutMs = Number(deps.idleTimeoutMinutes || IDLE_TIMEOUT_MINUTES) * 60 * 1000;
 
   function bindSession(senderIdValue, user = {}) {
     const senderId = requiredSenderId(senderIdValue);
@@ -25,7 +29,9 @@ export function createDesktopSessionService(deps = {}) {
       user_id: userId,
       username: String(user.username || ""),
       role: String(user.role || ""),
-      authenticated_at: new Date().toISOString()
+      force_password_change: Boolean(user.forcePasswordChange || user.force_password_change),
+      authenticated_at: new Date().toISOString(),
+      last_seen_at: Date.now()
     };
     sessions.set(senderId, session);
     return { ...session };
@@ -40,12 +46,30 @@ export function createDesktopSessionService(deps = {}) {
   function getSession(senderIdValue) {
     const senderId = Number(senderIdValue || 0);
     const session = sessions.get(senderId);
-    return session ? { ...session } : null;
+    if (!session) return null;
+    if (Date.now() - Number(session.last_seen_at || 0) > idleTimeoutMs) {
+      sessions.delete(senderId);
+      return null;
+    }
+    session.last_seen_at = Date.now();
+    return { ...session };
+  }
+
+  function markPasswordChanged(senderIdValue) {
+    const session = sessions.get(Number(senderIdValue || 0));
+    if (session) session.force_password_change = false;
+  }
+
+  // Signs a user out of every window, for example after an admin resets their password.
+  function clearUserSessions(userId) {
+    for (const [senderId, session] of sessions.entries()) {
+      if (Number(session.user_id) === Number(userId)) sessions.delete(senderId);
+    }
   }
 
   function requirePermission(db, senderIdValue, permission, context = {}) {
     const senderId = requiredSenderId(senderIdValue);
-    const session = sessions.get(senderId);
+    const session = getSession(senderId);
     if (!session) {
       if (typeof auditLog === "function") {
         auditLog(db, {
@@ -73,7 +97,9 @@ export function createDesktopSessionService(deps = {}) {
   return {
     bindSession,
     clearSession,
+    clearUserSessions,
     getSession,
+    markPasswordChanged,
     requirePermission
   };
 }

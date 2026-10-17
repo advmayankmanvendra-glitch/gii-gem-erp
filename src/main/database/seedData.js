@@ -479,9 +479,19 @@ export function createSeedData({
 
     repairSeedCompanyContext(db, defaultCompanyId);
     seedAccounts(db);
-    seedPhaseTwo(db, defaultCompanyId);
-    seedPhaseThreeAccountingFlow(db);
-    seedPhase7Inventory(db);
+    // Demo transactions are added once, to a brand-new database only. A database
+    // that was reset, or one created with GII_GEM_ERP_NO_DEMO=1, never gets them
+    // back, so real books are never mixed with sample entries.
+    const demoMarker = "demo_transactions_seeded_v1";
+    const demoDone = db.prepare("SELECT 1 FROM schema_migrations WHERE migration_name = ?").get(demoMarker);
+    if (!demoDone) {
+      if (process.env.GII_GEM_ERP_NO_DEMO !== "1") {
+        seedPhaseTwo(db, defaultCompanyId);
+        seedPhaseThreeAccountingFlow(db);
+        seedPhase7Inventory(db);
+      }
+      db.prepare("INSERT OR IGNORE INTO schema_migrations (migration_name) VALUES (?)").run(demoMarker);
+    }
   }
 
   return { seed };

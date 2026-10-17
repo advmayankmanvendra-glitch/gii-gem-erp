@@ -1527,10 +1527,39 @@ function daysBetween(start, end) {
   return Math.max(0, Math.floor((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000));
 }
 
+// The signed-in user whose request is being handled. main.js sets it for the
+// duration of each IPC call, so service code that writes audit rows without an
+// explicit user still records who acted.
+let ambientActor = null;
+
+export function runAsActor(user, fn) {
+  const previous = ambientActor;
+  ambientActor = user ? { id: Number(user.id || user.user_id || 0) || null, role: user.role || user.user_role || null } : null;
+  try {
+    return fn();
+  } finally {
+    ambientActor = previous;
+  }
+}
+
+export function currentActor() {
+  return ambientActor ? { ...ambientActor } : null;
+}
+
 export function auditLog(db, payload) {
+  if (!payload.user_id && ambientActor?.id) payload = { ...payload, user_id: ambientActor.id, user_role: payload.user_role || ambientActor.role };
   const moduleName = payload.module || payload.table_name || "system";
   const tableName = payload.table_name || payload.module || "system";
+  // A user or company id that is not in this database (for example right after a
+  // restore) must never make the audit write fail.
+  const userId = payload.user_id && db.prepare("SELECT 1 FROM users WHERE id = ?").get(payload.user_id) ? payload.user_id : null;
+  const companyId = payload.company_id && db.prepare("SELECT 1 FROM companies WHERE id = ?").get(payload.company_id) ? payload.company_id : null;
+  payload = { ...payload, user_id: userId, company_id: companyId };
+  // Each row's hash covers the previous row's hash, so editing or deleting an
+  // older audit row breaks the chain and shows up in the health checks.
+  const previousHash = db.prepare("SELECT event_hash FROM audit_log ORDER BY id DESC LIMIT 1").get()?.event_hash || "";
   const eventBody = JSON.stringify({
+    previous_hash: previousHash,
     company_id: payload.company_id || null,
     user_id: payload.user_id || null,
     user_role: payload.user_role || null,
