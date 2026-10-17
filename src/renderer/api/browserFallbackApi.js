@@ -1084,6 +1084,9 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
         { id: "preload_contract_preview", label: "Health API Contract", status: "pass", severity: "normal", details: "Health fallback API methods are available.", recommendation: "No action required." }
       ]
     }),
+    getErrorConsole: async () => ({ generatedAt: new Date().toISOString(), errors: [], stuckPostings: [], integrity: [], summary: { errors: 0, failedChecks: 0 }, preview: true }),
+    recordScreenError: async () => null,
+    clearErrorConsole: async () => ({ cleared: 0 }),
     exportSupportBundle: async (context = {}) => {
       const payload = { createdAt: new Date().toISOString(), context, mode: "browser-preview" };
       const content = JSON.stringify(payload, null, 2);

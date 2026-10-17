@@ -20,7 +20,9 @@ export class RendererErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    recordRendererCrash(error, info, this.props.crashContext);
+    const entry = recordRendererCrash(error, info, this.props.crashContext);
+    // Screen crashes also go to the ERP Error Console journal on the desktop.
+    window.giiGemErp?.recordScreenError?.({ screen: entry.currentView, message: entry.message, company_id: entry.companyId || null })?.catch?.(() => {});
     console.error("Renderer section failed", error, info);
     this.props.onError?.(error, info);
   }

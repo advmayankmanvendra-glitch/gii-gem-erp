@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { HealthCheckCard } from "../../components/health/index.jsx";
+import { ErrorConsolePanel } from "./ErrorConsolePanel.jsx";
 import { ErrorGuidancePanel } from "./ErrorGuidancePanel.jsx";
+import { isAdminUser } from "../../utils/uiHelpers.js";
 import { PhaseLockRegistry } from "./PhaseLockRegistry.jsx";
 import { RecoveryCenterScreen } from "./RecoveryCenterScreen.jsx";
 import { RuntimeDiagnosticsPanel } from "./RuntimeDiagnosticsPanel.jsx";
@@ -10,6 +12,7 @@ import { VerificationConsole } from "./VerificationConsole.jsx";
 
 const TABS = [
   ["overview", "Overview"],
+  ["errors", "Error Console"],
   ["checks", "Health Checks"],
   ["recovery", "Recovery"],
   ["support", "Support Bundle"],
@@ -115,6 +118,10 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
           </section>
           <VerificationConsole apiClient={apiClient} context={context} notify={notify} />
         </>
+      ) : null}
+
+      {activeTab === "errors" ? (
+        <ErrorConsolePanel apiClient={apiClient} context={context} notify={notify} onNavigate={onNavigate} isAdmin={isAdminUser(session?.user || session)} />
       ) : null}
 
       {activeTab === "checks" ? (

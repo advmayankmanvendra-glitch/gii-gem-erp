@@ -4,6 +4,7 @@ import { buildHelpAssistantAnswer, navigationLocationTopics, normalizeSubmittedQ
 import { HelpAssistantAnswer } from "./HelpAssistantAnswer.jsx";
 import { HelpAssistantCoach } from "./HelpAssistantCoach.jsx";
 import { HelpAssistantDataMode } from "./HelpAssistantDataMode.jsx";
+import { HelpAssistantRecentErrors } from "./HelpAssistantRecentErrors.jsx";
 import { HelpAssistantOnboarding } from "./HelpAssistantOnboarding.jsx";
 import { HelpAssistantSearch } from "./HelpAssistantSearch.jsx";
 import { HelpAssistantSuggestions } from "./HelpAssistantSuggestions.jsx";
@@ -104,6 +105,7 @@ function HelpAssistant({ companies = [], companyContext = {}, currentHelp, curre
           )}
         </div>
         <aside className="help-assistant-side">
+          <HelpAssistantRecentErrors companyContext={companyContext} onNavigate={onNavigate} />
           <HelpAssistantSuggestions suggestions={HELP_ASSISTANT_SUGGESTIONS} onAsk={(question) => {
             setMode("help");
             ask(question, "help");

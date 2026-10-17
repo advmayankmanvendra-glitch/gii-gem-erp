@@ -31,4 +31,5 @@ export class BrowserWindow {
 export const dialog = { showOpenDialog: async () => ({ canceled: true, filePaths: [] }), showSaveDialog: async () => ({ canceled: true }) };
 export const Menu = { setApplicationMenu: noop, buildFromTemplate: () => ({}) };
 export const shell = { openPath: async () => "" };
-export default { ipcMain, app, BrowserWindow, dialog, Menu, shell };
+export const safeStorage = { isEncryptionAvailable: () => true, encryptString: (value) => Buffer.from(`enc:${value}`), decryptString: (buffer) => buffer.toString().slice(4) };
+export default { ipcMain, app, BrowserWindow, dialog, Menu, shell, safeStorage };

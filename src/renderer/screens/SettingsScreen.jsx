@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { isDesktopRuntime } from "../api/client.js";
 import { SettingsPanel, SecuritySection } from "../components/settings/index.jsx";
+import { AlertsSection } from "../features/settings/AlertsSection.jsx";
 
-export function SettingsScreen({ notify, apiClient, confirmAction, role, userId }) {
+export function SettingsScreen({ notify, apiClient, confirmAction, role, userId, companyContext }) {
   const [backups, setBackups] = useState([]);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -144,6 +145,13 @@ export function SettingsScreen({ notify, apiClient, confirmAction, role, userId 
         confirmAction={confirmAction}
         userId={userId}
         isAdmin={isAdmin}
+      />
+      <AlertsSection
+        apiClient={apiClient}
+        notify={notify}
+        confirmAction={confirmAction}
+        isAdmin={isAdmin}
+        companyContext={companyContext}
       />
     </>
   );

@@ -1,6 +1,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { bookIntegrityChecks } from "./errorConsoleService.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -300,6 +301,12 @@ export function runHealthChecks(db, runtimeDataRoot, context = {}) {
     checks.push(accountingBalanceCheck(db));
     checks.push(auditLogCheck(db));
     checks.push(cracHealthCheck(db));
+    try {
+      bookIntegrityChecks(db, Number(context.company_id || 0) || null, { verifyAuditChain: context.verifyAuditChain })
+        .forEach((item) => checks.push(check(`books_${item.id}`, item.label, item.status, item.status === "pass" ? "normal" : "critical", item.detail, item.action)));
+    } catch (error) {
+      checks.push(check("books_integrity", "Book Integrity", "warn", "warning", `Integrity checks could not run: ${error.message}`, "Run Health Checks again; if it repeats, export a support bundle."));
+    }
     const company = resolveCompanyStatus(db, context);
     checks.push(check(
       "company_context",

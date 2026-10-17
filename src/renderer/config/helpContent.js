@@ -28,6 +28,7 @@ const detailedWorkflowGuide = [
 
 const faqItems = [
   ["Why is a voucher not posting?", "Check Posting Queue for missing financial year, missing party, locked year, unbalanced lines, missing GST values or source record validation errors."],
+  ["Where do I see what went wrong?", "Open ERP Health Center > Error Console. Each failed action shows what failed, where it failed, the screen to fix it on and the next step."],
   ["Why is a record locked?", "Posted and reversed records are locked to protect ledgers, GST, receivables, payables, inventory and audit history. Use reversal or correction workflow."],
   ["Why is trial balance not matching?", "Review recent manual journals, reversals, failed postings and opening balances. Trial balance should use posted ledger entries only."],
   ["What is GST impact?", "GST impact is the tax effect visible from purchase, sales and profitability flows. It should be reviewed against posted purchases, invoices and GST ledgers."],
@@ -51,7 +52,20 @@ const troubleshootingItems = [
   ["Financial Year Issues", "Confirm voucher date falls in an open year. Closed years should block posting and direct editing."],
   ["Invoice Not Visible in Receivables", "Confirm invoice is saved, linked to order and department, and posted where receivable reporting requires posted records."],
   ["Payment Not Reducing Outstanding", "Check receipt allocation, TDS, GST TDS and other deductions. Unallocated payments do not fully explain bill-wise outstanding."],
-  ["Stock Not Available for Issue", "Check warehouse, item, reserved quantity, accepted GRN quantity and stock ledger balance."]
+  ["Stock Not Available for Issue", "Check warehouse, item, reserved quantity, accepted GRN quantity and stock ledger balance."],
+  ["Error Console", "Open ERP Health Center > Error Console. It lists book integrity checks (trial balance, unbalanced vouchers, negative stock, over-collected invoices, audit trail), documents that failed to post, and every recent failed action with where to fix it and the next step."],
+  ["Document Already Posted", "A posted or reversed document cannot be posted again. Open its voucher; to correct it, reverse the voucher and post a fresh entry. A second Post click never changes a posted document."],
+  ["Reversing a Voucher", "Only posted vouchers can be reversed, and a reversal cannot itself be reversed. The reversal is dated today, releases receipt and payment allocations and advances, and moves any stock back exactly once. The original stays in its own period."],
+  ["Stock Reversal Refused", "A stock inward cannot be reversed if its goods were already issued, because the warehouse would go below zero. Reverse the later issue first, then reverse the inward."],
+  ["Bank Line Already Booked", "A bank statement line that matches a receipt or supplier payment already posted shows as Already Booked. It is reconciled and cannot be approved, so the money is never booked twice."],
+  ["Receipt Allocation", "A posted receipt settles the invoice named on it, otherwise the oldest open invoices of the order first. Any amount left stays unallocated. TDS, GST TDS and other deductions on the receipt are posted to their own ledgers."],
+  ["Advance Limits", "An advance cannot be larger than the unallocated part of its receipt, and the receipt must be posted first. Release an earlier allocation if you need the amount back."],
+  ["Balance Sheet Before Year Close", "Until the previous financial year is closed, the balance sheet reads the whole ledger and shows the earlier year's profit as 'Profit of earlier years (year not yet closed)'. Close the year to carry balances forward."],
+  ["Restore Refused", "Restore checks the file is a real, undamaged ERP database before touching anything. A refused file leaves the live database unchanged. A safety copy of the live database is kept before every restore."],
+  ["Company Reset", "Reset clears one company's transactions only. Select the company, type RESET exactly and use an admin account. A pre_reset backup is taken first and the reset is written to the audit log; Rollback restores that backup."],
+  ["Session Timed Out", "After 60 minutes without activity the ERP asks you to sign in again. Five wrong passwords lock the account for a while; an admin can reset it."],
+  ["Voucher Numbers", "Voucher and invoice numbers continue from the highest number ever issued in the series, so a deleted number is never handed out again."],
+  ["Dues and Stock Alerts", "Settings > Alerts shows the pending dues and stock-in-hand summary. Email or WhatsApp sending is off until an admin enters the connection details and turns it on; nothing is ever sent automatically without that."]
 ];
 
 const knowledgeBaseItems = [

@@ -25,6 +25,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { createAccountingService } from "../services/accountingService.js";
+import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
 import { createInventoryService } from "../services/inventoryService.js";
 import { createTallyImportService } from "../services/tallyImportService.js";
@@ -271,6 +272,7 @@ export const WRITE_POLICY = {
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
   migrate(db);
+  ensureAuditChain(db);
   seed(db);
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
@@ -1575,26 +1577,12 @@ export function auditLog(db, payload) {
   const userId = payload.user_id && db.prepare("SELECT 1 FROM users WHERE id = ?").get(payload.user_id) ? payload.user_id : null;
   const companyId = payload.company_id && db.prepare("SELECT 1 FROM companies WHERE id = ?").get(payload.company_id) ? payload.company_id : null;
   payload = { ...payload, user_id: userId, company_id: companyId };
-  // Each row's hash covers the previous row's hash, so editing or deleting an
-  // older audit row breaks the chain and shows up in the health checks.
+  // Each row's hash covers its own stored values and the previous row's hash, so
+  // editing or deleting an older audit row breaks the chain (see verifyAuditChain).
   const previousHash = db.prepare("SELECT event_hash FROM audit_log ORDER BY id DESC LIMIT 1").get()?.event_hash || "";
-  const eventBody = JSON.stringify({
-    previous_hash: previousHash,
-    company_id: payload.company_id || null,
-    user_id: payload.user_id || null,
-    user_role: payload.user_role || null,
-    action: payload.action,
-    module: moduleName,
-    table_name: tableName,
-    record_id: payload.record_id || null,
-    old_value: payload.old_value || null,
-    new_value: payload.new_value || null,
-    created_at: new Date().toISOString()
-  });
-  const eventHash = crypto.createHash("sha256").update(eventBody).digest("hex");
-  db.prepare(`
-    INSERT INTO audit_log (company_id, user_id, user_role, action, module, table_name, record_id, old_value, new_value, ip_address, event_hash)
-    VALUES (@company_id, @user_id, @user_role, @action, @module, @table_name, @record_id, @old_value, @new_value, @ip_address, @event_hash)
+  const info = db.prepare(`
+    INSERT INTO audit_log (company_id, user_id, user_role, action, module, table_name, record_id, old_value, new_value, ip_address, created_at)
+    VALUES (@company_id, @user_id, @user_role, @action, @module, @table_name, @record_id, @old_value, @new_value, @ip_address, @created_at)
   `).run({
     company_id: payload.company_id || null,
     user_id: payload.user_id || null,
@@ -1606,8 +1594,68 @@ export function auditLog(db, payload) {
     old_value: payload.old_value || null,
     new_value: payload.new_value || null,
     ip_address: payload.ip_address || "local",
-    event_hash: eventHash
+    created_at: new Date().toISOString()
   });
+  const stored = db.prepare("SELECT * FROM audit_log WHERE id = ?").get(info.lastInsertRowid);
+  db.prepare("UPDATE audit_log SET event_hash = ? WHERE id = ?").run(auditEventHash(stored, previousHash), stored.id);
+}
+
+const AUDIT_CHAIN_MARKER = "audit_chain_started";
+
+function auditEventHash(row, previousHash) {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    previous_hash: previousHash || "",
+    id: row.id,
+    company_id: row.company_id ?? null,
+    user_id: row.user_id ?? null,
+    user_role: row.user_role ?? null,
+    action: row.action,
+    module: row.module ?? null,
+    table_name: row.table_name,
+    record_id: row.record_id ?? null,
+    old_value: row.old_value ?? null,
+    new_value: row.new_value ?? null,
+    created_at: row.created_at
+  })).digest("hex");
+}
+
+// The verifiable chain starts at an 'audit_chain_started' row written once per
+// database; rows before it were written under older schemes and are only counted.
+// The start row id is also kept in schema_migrations, so deleting the start row is detected.
+function auditChainStartId(db) {
+  const name = db.prepare("SELECT migration_name FROM schema_migrations WHERE migration_name LIKE ? ORDER BY id LIMIT 1").get(`${AUDIT_CHAIN_MARKER}:%`)?.migration_name;
+  return name ? Number(name.split(":")[1] || 0) : 0;
+}
+
+function ensureAuditChain(db) {
+  if (auditChainStartId(db)) return;
+  auditLog(db, { action: AUDIT_CHAIN_MARKER, table_name: "audit_log", new_value: "Tamper-evident audit chain started" });
+  const id = db.prepare("SELECT MAX(id) id FROM audit_log").get().id;
+  db.prepare("INSERT INTO schema_migrations (migration_name) VALUES (?)").run(`${AUDIT_CHAIN_MARKER}:${id}`);
+}
+
+export function verifyAuditChain(db) {
+  const startId = auditChainStartId(db);
+  if (!startId) return { chained: false, verified: 0, broken: [], legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log").get().c };
+  const rows = db.prepare("SELECT * FROM audit_log WHERE id >= ? ORDER BY id").all(startId);
+  let previous = db.prepare("SELECT event_hash FROM audit_log WHERE id < ? ORDER BY id DESC LIMIT 1").get(startId)?.event_hash || "";
+  const broken = [];
+  let expectedId = startId;
+  for (const row of rows) {
+    // A gap in ids after the chain started means a row was deleted.
+    if (row.id !== expectedId) broken.push(expectedId);
+    if (auditEventHash(row, previous) !== row.event_hash) broken.push(row.id);
+    previous = row.event_hash;
+    expectedId = row.id + 1;
+    if (broken.length >= 20) break;
+  }
+  return {
+    chained: true,
+    startedAt: rows[0]?.created_at || null,
+    verified: rows.length - new Set(broken).size,
+    broken: [...new Set(broken)],
+    legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log WHERE id < ?").get(startId).c
+  };
 }
 
 const {
@@ -1782,6 +1830,11 @@ const {
 });
 
 export { convertPurchaseOrderToWorkOrder };
+
+// Dues and stock alerts; main.js supplies OS secure storage for passwords and tokens.
+export function alertServiceWith({ encryptSecret, decryptSecret }) {
+  return createAlertService({ auditLog, inventoryStockSummary, inventoryLowStockReport, supplierPayableReport, encryptSecret, decryptSecret });
+}
 
 const {
   parseImportFile, parseImportBuffer,

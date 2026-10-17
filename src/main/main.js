@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,8 @@ import {
   adjustSupplierAdvance,
   auditLog,
   runAsActor,
+  verifyAuditChain,
+  alertServiceWith,
   autoReserveOrderStock,
   bankStatementData,
   billingVoucherData,
@@ -103,6 +105,7 @@ import {
 } from "./database/init.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
+import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
 import { dbPath } from "./database/connection.js";
 import { previewReset, executeReset, analyzeDependencies, executeEnhancedReset, rollbackReset } from "./services/operationalResetService.js";
 import { generateCertificate } from "./services/productionReadinessService.js";
@@ -234,6 +237,16 @@ const selectedFiles = new Set();
 function actorId() {
   return currentActor?.id || null;
 }
+
+// Alert passwords and tokens are kept only in the operating system's secure storage.
+const alerts = alertServiceWith({
+  encryptSecret: (value) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error("Secure storage is not available on this computer, so the alert password or token cannot be saved. Sign in to Windows with your own account and try again.");
+    return safeStorage.encryptString(String(value)).toString("base64");
+  },
+  decryptSecret: (value) => safeStorage.decryptString(Buffer.from(String(value), "base64"))
+});
+let alertTimer = null;
 
 const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "imported_by", "approved_by", "deleted_by", "posted_by"];
 
@@ -720,14 +733,31 @@ const PASSWORD_CHANGE_CHANNELS = new Set(["auth:change-password", "auth:logout"]
 
 function handle(channel, handler) {
   ipcMain.handle(channel, (event, ...args) => {
-    if (!PUBLIC_CHANNELS.has(channel)) {
-      const session = sessionUser(event);
-      if (session.force_password_change && !PASSWORD_CHANGE_CHANNELS.has(channel)) {
-        throw new Error("Change your password first. The ERP opens fully once the first-login password change on the login screen is saved.");
+    // Every failure is journaled for the Error Console, then re-thrown unchanged.
+    const journal = (error) => {
+      recordError(runtimeDataRoot, {
+        channel,
+        message: error?.message || String(error),
+        user_id: desktopSessions.getSession?.(event.sender.id)?.user_id || null,
+        company_id: firstPayload(args).company_id || null
+      });
+      throw error;
+    };
+    try {
+      let result;
+      if (!PUBLIC_CHANNELS.has(channel)) {
+        const session = sessionUser(event);
+        if (session.force_password_change && !PASSWORD_CHANGE_CHANNELS.has(channel)) {
+          throw new Error("Change your password first. The ERP opens fully once the first-login password change on the login screen is saved.");
+        }
+        result = runAsActor({ id: session.user_id, role: session.role }, () => handler(event, ...args));
+      } else {
+        result = handler(event, ...args);
       }
-      return runAsActor({ id: session.user_id, role: session.role }, () => handler(event, ...args));
+      return result && typeof result.then === "function" ? result.catch(journal) : result;
+    } catch (error) {
+      return journal(error);
     }
-    return handler(event, ...args);
   });
 }
 
@@ -1059,7 +1089,7 @@ function registerIpc() {
     };
   });
   handle("health:checks", (_event, context) => {
-    return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME });
+    return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME, verifyAuditChain });
   });
   handle("health:support-bundle", (_event, context) => {
     const healthContext = { ...context, dbName: DB_NAME };
@@ -1067,6 +1097,22 @@ function registerIpc() {
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
   });
+  handle("health:error-console", (_event, context = {}) => {
+    return errorConsoleState(db, runtimeDataRoot, { companyId: Number(context.company_id || 0) || null, verifyAuditChain });
+  });
+  handle("health:error-console-record", (_event, entry = {}) => {
+    // Renderer-side failures (screen crashes, failed loads) join the same journal.
+    return recordError(runtimeDataRoot, { source: "screen", channel: String(entry.screen || "renderer").slice(0, 80), message: entry.message, company_id: entry.company_id, user_id: actorId() });
+  });
+  handle("health:error-console-clear", guarded("system_reset", "health", () => {
+    const result = clearErrorJournal(runtimeDataRoot);
+    auditLog(db, { action: "error_console_cleared", table_name: "system", new_value: JSON.stringify(result) });
+    return result;
+  }));
+  handle("alerts:get-settings", guarded("settings", "alerts", () => alerts.publicSettings(runtimeDataRoot)));
+  handle("alerts:save-settings", guarded("settings", "alerts", (payload = {}) => alerts.saveSettings(db, runtimeDataRoot, payload)));
+  handle("alerts:preview", guarded("settings", "alerts", (payload = {}) => alerts.buildDigest(db, Number(payload.company_id || 0))));
+  handle("alerts:send-now", guarded("settings", "alerts", (payload = {}) => alerts.deliver(db, runtimeDataRoot, { companyId: Number(payload.company_id || 0) || null, test: Boolean(payload.test), reason: payload.test ? "test" : "manual", userId: actorId() })));
   handle("health:verification-console", () => {
     return getVerificationConsoleState(runtimeDataRoot);
   });
@@ -1291,6 +1337,12 @@ if (!hasSingleInstanceLock) {
     applyPendingRestore(runtimeDataRoot);
     db = initializeDatabase(runtimeDataRoot);
     registerIpc();
+    // Daily dues/stock alert: checked every 10 minutes, sends at most once a day.
+    alertTimer = setInterval(() => {
+      if (!db) return;
+      alerts.runScheduled(db, runtimeDataRoot).catch((error) => recordError(runtimeDataRoot, { channel: "alerts:scheduled", message: error.message }));
+    }, 10 * 60 * 1000);
+    alertTimer.unref?.();
     installApplicationMenu();
     createWindow();
 
@@ -1304,6 +1356,7 @@ if (!hasSingleInstanceLock) {
   });
 
   app.on("before-quit", () => {
+    if (alertTimer) clearInterval(alertTimer);
     db?.close();
   });
 }

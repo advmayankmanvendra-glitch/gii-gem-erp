@@ -15,6 +15,7 @@ const HELP_ASSISTANT_SUGGESTIONS = [
   "Do I have low stock items?",
   "Where do I enter a supply order?",
   "Why is a voucher not posting?",
+  "Where do I see what went wrong?",
   "How do I allocate a receipt?",
   "Where can I check stock value?",
   "How do I review GST reports?",
