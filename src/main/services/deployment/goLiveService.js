@@ -79,7 +79,7 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
 
   const resetResult = executeEnhancedReset(db, runtimeRoot, resetOptions);
 
-  const zeroState = rebuildZeroState(db);
+  const zeroState = rebuildZeroState(db, resetResult.company?.id || null);
   const zeroStatePassed = zeroState.warnings.length === 0;
 
   updateGoLiveEntry(runtimeRoot, goLiveEntry.id, {

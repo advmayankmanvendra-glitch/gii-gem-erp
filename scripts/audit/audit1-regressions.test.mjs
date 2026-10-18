@@ -139,3 +139,51 @@ test("upgrading an older database restores missing columns and paise amounts, wi
   assert.equal(mismatched, 0);
   assert.ok(fs.readdirSync(path.join(root, "backups")).some((f) => f.startsWith("pre-upgrade-")));
 });
+
+test("reversing a guided voucher leaves another company's stock issue with the same number alone", () => {
+  const db = fresh();
+  const gv = db.prepare("INSERT INTO guided_vouchers (company_id, voucher_kind, voucher_date, payload_json, status) VALUES (1, 'Sales', '2026-07-01', '{}', 'Posted')").run().lastInsertRowid;
+  const account = (name) => db.prepare("SELECT id FROM accounts WHERE company_id = 1 AND account_name = ?").get(name).id;
+  const v = m.createBalancedVoucher(db, { company_id: 1, voucher_date: "2026-07-01", voucher_type: "Sales", narration: "a1", source_module: "guided_vouchers", source_id: gv,
+    lines: [{ account_id: account("Trade Receivables"), debit: 100, credit: 0 }, { account_id: account("Sales"), debit: 0, credit: 100 }] });
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Other Co')").run().lastInsertRowid;
+  const item = db.prepare("SELECT id FROM items LIMIT 1").get().id;
+  const wh = db.prepare("SELECT id FROM warehouses LIMIT 1").get().id;
+  const outward = db.prepare("INSERT INTO stock_outwards (company_id, order_id, item_id, warehouse_id, issue_date, quantity_issued, posting_status) VALUES (?, 1, ?, ?, '2026-07-01', 1, 'Posted')").run(other, item, wh).lastInsertRowid;
+  m.auditLog(db, { company_id: other, action: "automatic_sales_stock_issue", table_name: "stock_outwards", record_id: outward, new_value: JSON.stringify({ voucher_number: v.voucher_number, quantity: 1 }) });
+  m.reverseVoucher(db, v.id, "a1 test");
+  assert.equal(db.prepare("SELECT posting_status FROM stock_outwards WHERE id = ?").get(outward).posting_status, "Posted");
+});
+
+test("item opening stock is counted in one company only", () => {
+  const db = fresh();
+  const item = m.createRecord(db, "items", { item_name: "A1 Shared", unit: "Nos", status: "active", gst_rate: 18, opening_stock: 10, opening_rate: 100, opening_value: 1000 }).id;
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Other')").run().lastInsertRowid;
+  const otherWh = db.prepare("INSERT INTO warehouses (company_id, warehouse_name, status) VALUES (?, 'A1 C2 WH', 'active')").run(other).lastInsertRowid;
+  const firstWh = db.prepare("SELECT id FROM warehouses WHERE company_id = 1 AND status = 'active' ORDER BY id LIMIT 1").get().id;
+  assert.equal(m.stockBalance(db, 1, item, firstWh).quantity, 10);
+  assert.equal(m.stockBalance(db, other, item, otherWh).quantity, 0);
+});
+
+test("reversing an invoice with an advance adjusted keeps its receivable closed", () => {
+  const db = fresh();
+  const dept = db.prepare("SELECT id FROM government_departments LIMIT 1").get().id;
+  const emp = db.prepare("SELECT id FROM employees LIMIT 1").get().id;
+  const so = m.createRecord(db, "supply_orders", { company_id: 1, order_number: "A1-ADV", order_date: "2026-06-01", order_status: "Received", institution_name: "X", department_id: dept, employee_id: emp, location: "M", supply_due_date: "2026-06-30" }).id;
+  const pay = db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-02', 500, 'NEFT', 'Draft')").run(so).lastInsertRowid;
+  m.postReceiptVoucher(db, pay);
+  const adv = m.createAdvanceReceipt(db, { payment_id: pay, advance_received: 500, department_id: dept, order_id: so });
+  const inv = m.saveBillingVoucher(db, { header: { order_id: so, company_id: 1, invoice_date: "2026-07-03" }, items: [{ quantity: 1, billing_rate: 1000, gst_rate: 0 }] });
+  const v = m.postSalesVoucher(db, inv.id);
+  m.adjustAdvanceReceipt(db, { advance_id: adv.id, billing_id: inv.id, adjusted_amount: 500 });
+  m.reverseVoucher(db, v.id, "wrong invoice");
+  assert.deepEqual(db.prepare("SELECT status, balance_outstanding FROM receivables WHERE billing_id = ?").get(inv.id), { status: "Reversed", balance_outstanding: 0 });
+});
+
+test("go-live zero-state check looks only at the company that was reset", async () => {
+  const { rebuildZeroState } = await import(pathToFileURL(path.join(REPO, "src/main/services/operationalResetService.js")).href);
+  const db = fresh();
+  const empty = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Empty Co')").run().lastInsertRowid;
+  assert.ok(rebuildZeroState(db).warnings.length > 0, "the seeded company still has transactions");
+  assert.deepEqual(rebuildZeroState(db, empty).warnings, []);
+});

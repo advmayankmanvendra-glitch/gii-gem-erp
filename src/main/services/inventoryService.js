@@ -7,13 +7,13 @@ export function createInventoryService(deps) {
     autoReserveOrderStock, listRecords, referenceData, reverseVoucher
   } = deps;
 
-  // Item opening stock sits in ONE warehouse: the item's default warehouse, or
-  // the company's first active warehouse when none is set. It is never counted
-  // in any other warehouse or company.
+  // Items are shared by all companies, so item opening stock sits in ONE warehouse:
+  // the item's default warehouse, or the first active warehouse of the database when
+  // none is set. Only the company that owns that warehouse counts it.
   function openingWarehouseId(db, companyId, item) {
     const preferred = Number(item.default_warehouse_id || 0);
     if (preferred) return preferred;
-    return db.prepare("SELECT id FROM warehouses WHERE status = 'active' AND (company_id = ? OR company_id IS NULL OR company_id = 0) ORDER BY id LIMIT 1").get(companyId)?.id || null;
+    return db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
   }
 
   function stockBalance(db, companyId, itemId, warehouseId) {
@@ -658,7 +658,6 @@ export function createInventoryService(deps) {
         SELECT id
         FROM warehouses
         WHERE status = 'active'
-          AND (company_id = @company_id OR company_id IS NULL OR company_id = 0)
         ORDER BY id
         LIMIT 1
       ),

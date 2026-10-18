@@ -152,13 +152,21 @@ export function analyzeDependencies(db) {
   };
 }
 
-function activeCount(db, table) {
+// With a company id, counts only that company's rows (directly or through the parent table).
+function activeCount(db, table, companyId = null) {
   const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(r => r.name);
-  const where = cols.includes("is_deleted") ? " WHERE COALESCE(is_deleted, 0) = 0" : "";
-  return db.prepare(`SELECT COUNT(*) count FROM "${table}"${where}`).get().count;
+  const where = cols.includes("is_deleted") ? ["COALESCE(is_deleted, 0) = 0"] : [];
+  const params = [];
+  if (companyId) {
+    const child = CHILD_TABLE_PARENTS[table];
+    if (cols.includes("company_id")) { where.push("company_id = ?"); params.push(companyId); }
+    else if (child) { where.push(`"${child.column}" IN (SELECT id FROM "${child.parent}" WHERE company_id = ?)`); params.push(companyId); }
+  }
+  const clause = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+  return db.prepare(`SELECT COUNT(*) count FROM "${table}"${clause}`).get(...params).count;
 }
 
-export function rebuildZeroState(db) {
+export function rebuildZeroState(db, companyId = null) {
   const results = { rebuilt: [], warnings: [] };
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
 
@@ -185,7 +193,7 @@ export function rebuildZeroState(db) {
 
   for (const check of zeroChecks) {
     if (!tables.has(check.table)) continue;
-    const count = activeCount(db, check.table);
+    const count = activeCount(db, check.table, companyId);
     if (count > 0) {
       results.warnings.push(`${check.label}: ${count} rows remain (expected 0)`);
     } else {

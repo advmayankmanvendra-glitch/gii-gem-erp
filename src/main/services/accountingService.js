@@ -416,9 +416,11 @@ export function createAccountingService(deps) {
       SELECT record_id FROM audit_log
       WHERE action = 'automatic_sales_stock_issue' AND table_name = 'stock_outwards'
         AND json_extract(new_value, '$.voucher_number') = ?
-    `).all(guidedVoucher.voucher_number);
+        AND (company_id IS NULL OR company_id = ?)
+    `).all(guidedVoucher.voucher_number, guidedVoucher.company_id);
+    // Voucher numbers repeat across companies, so only this company's issues are reversed.
     issued.forEach(({ record_id: outwardId }) => {
-      const outward = db.prepare("SELECT * FROM stock_outwards WHERE id = ? AND posting_status = 'Posted'").get(outwardId);
+      const outward = db.prepare("SELECT * FROM stock_outwards WHERE id = ? AND company_id = ? AND posting_status = 'Posted'").get(outwardId, guidedVoucher.company_id);
       if (outward) reverseSourceDocumentStock(db, "stock_outwards", outward, reason);
     });
   }
@@ -482,6 +484,9 @@ export function createAccountingService(deps) {
       else if (source && !original.source_module.startsWith("stock_")) db.prepare(`UPDATE ${source.table} SET posting_status = 'Reversed' WHERE id = ?`).run(original.source_id);
 
       if (original.source_module === "billing") {
+        // Release advances first: reverseAdvanceAdjustment refreshes the receivable, which must not reopen it.
+        db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'receipt' AND billing_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
+          .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Invoice reversed: ${reasonText}`));
         db.prepare(`
           UPDATE receivables
           SET balance_outstanding = 0, status = 'Reversed', allocation_status = 'Reversed', updated_at = CURRENT_TIMESTAMP
@@ -492,8 +497,6 @@ export function createAccountingService(deps) {
           SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, allocation_status = 'Reversed', change_reason = ?
           WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0
         `).run(`Invoice reversed: ${reasonText}`, original.source_id);
-        db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'receipt' AND billing_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
-          .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Invoice reversed: ${reasonText}`));
       }
       if (original.source_module === "payment") {
         const affected = db.prepare("SELECT DISTINCT billing_id FROM payment_allocations WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0").all(original.source_id);

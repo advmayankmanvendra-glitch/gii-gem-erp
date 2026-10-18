@@ -146,14 +146,14 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
 
   const stockCompany = companyId ? " AND company_id = ?" : "";
   // Item opening stock is not in stock_ledger; it sits in the item's default
-  // warehouse (or the company's first active one), so add it back before judging.
+  // warehouse (or the database's first active one), so add it back before judging.
   const negative = db.prepare(`
     SELECT company_id, item_id, warehouse_id, SUM(inward_quantity - outward_quantity) qty FROM stock_ledger
     WHERE COALESCE(is_deleted, 0) = 0${stockCompany} GROUP BY company_id, item_id, warehouse_id HAVING qty < -0.0001
   `).all(...params).filter((row) => {
     const item = db.prepare("SELECT opening_stock, default_warehouse_id FROM items WHERE id = ?").get(row.item_id) || {};
     const home = Number(item.default_warehouse_id || 0)
-      || db.prepare("SELECT id FROM warehouses WHERE status = 'active' AND (company_id = ? OR company_id IS NULL OR company_id = 0) ORDER BY id LIMIT 1").get(row.company_id)?.id;
+      || db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id;
     const opening = Number(home) === Number(row.warehouse_id) ? Number(item.opening_stock || 0) : 0;
     return row.qty + opening < -0.0001;
   });
