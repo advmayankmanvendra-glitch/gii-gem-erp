@@ -265,3 +265,37 @@ test("go-live readiness looks at the selected company's own set-up", async () =>
   assert.ok(result.failedChecks.includes("Financial years exist"), JSON.stringify(result.failedChecks));
   assert.ok(result.failedChecks.includes("Chart of accounts exists"));
 });
+
+test("an inward cannot be reversed once part of its batch was issued", () => {
+  const db = fresh();
+  const { wh, item } = widget(db);
+  const a = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A1-BA", quantity: 10, rate: 100, landed_cost: 0, batch_number: "A1-BATCH-A" });
+  const b = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A1-BB", quantity: 10, rate: 100, landed_cost: 0, batch_number: "A1-BATCH-B" });
+  m.postStockInward(db, a.id);
+  m.postStockInward(db, b.id);
+  db.prepare("UPDATE batches SET balance_quantity = 5 WHERE batch_number = 'A1-BATCH-A'").run();
+  assert.throws(() => m.reverseStockInward(db, a.id), /batch A1-BATCH-A/);
+  assert.equal(db.prepare("SELECT posting_status FROM stock_inwards WHERE id = ?").get(a.id).posting_status, "Posted");
+});
+
+test("a delivery challan cannot be saved under a company other than its order's", () => {
+  const db = fresh();
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Challan Other')").run().lastInsertRowid;
+  const wh = db.prepare("SELECT id FROM warehouses LIMIT 1").get().id;
+  const item = db.prepare("SELECT id FROM items LIMIT 1").get().id;
+  assert.throws(() => m.createDeliveryChallan(db, { company_id: other, order_id: firstOrder(db), lines: [{ item_id: item, warehouse_id: wh, quantity: 1 }] }), /another company/);
+});
+
+test("issuing stock for an order updates its automatic reservation", () => {
+  const db = fresh();
+  const { wh, item } = widget(db);
+  const order = firstOrder(db);
+  const inward = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A1-RSV", quantity: 10, rate: 100, landed_cost: 0 });
+  m.postStockInward(db, inward.id);
+  db.prepare("INSERT INTO order_items (company_id, order_id, item_id, quantity) VALUES (1, ?, ?, 4)").run(order, item);
+  m.autoReserveOrderStock(db, order);
+  const outward = m.createRecord(db, "stock_outwards", { company_id: 1, order_id: order, item_id: item, warehouse_id: wh, issue_date: "2026-07-02", quantity_issued: 4 });
+  m.postStockOutward(db, outward.id);
+  const reservation = db.prepare("SELECT issued_quantity, balance_reserved FROM stock_reservations WHERE order_id = ? AND item_id = ? AND status <> 'Cancelled'").get(order, item);
+  assert.deepEqual(reservation, { issued_quantity: 4, balance_reserved: 0 });
+});

@@ -274,7 +274,7 @@ export function createInventoryService(deps) {
           balance_reserved = MAX(0, balance_reserved - ?),
           status = CASE WHEN MAX(0, balance_reserved - ?) <= 0 THEN 'Fully Issued' ELSE 'Partially Issued' END,
           updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status IN ('Reserved','Partially Issued')
+        WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status NOT IN ('Fully Issued','Cancelled')
       `).run(row.quantity_issued, row.quantity_issued, row.quantity_issued, row.order_id, row.item_id, row.warehouse_id);
       auditLog(db, { company_id: row.company_id, action: "stock_outward_posted", table_name: "stock_outwards", record_id: id, new_value: JSON.stringify(row) });
     });
@@ -423,6 +423,7 @@ export function createInventoryService(deps) {
     const already = db.prepare("SELECT 1 FROM stock_ledger WHERE source_module = ? AND source_id = ? AND document_number = ? AND COALESCE(is_deleted, 0) = 0 LIMIT 1").get(table, id, `${doc.prefix}-${id}`);
     if (already) return 0;
     const rows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = ? AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(table, id);
+    if (rows.length) assertTrackingReversible(db, table, id);
     const today = localBusinessDate();
     rows.forEach((sl) => {
       try {
@@ -448,6 +449,21 @@ export function createInventoryService(deps) {
     });
     if (rows.length) reverseTrackingForSource(db, table, id);
     return rows.length;
+  }
+
+  // An inward can only be undone while its own serial or batch is still unissued in stock.
+  function assertTrackingReversible(db, table, id) {
+    if (table !== "stock_inwards") return;
+    const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ?").get(id);
+    if (!row) return;
+    if (row.serial_number) {
+      const serial = db.prepare("SELECT status FROM serial_numbers WHERE company_id = ? AND item_id = ? AND serial_number = ? AND COALESCE(is_deleted, 0) = 0").get(row.company_id, row.item_id, row.serial_number);
+      if (serial && serial.status !== "In Stock") throw new Error(`Stock inward ${id} cannot be reversed: serial number ${row.serial_number} is ${serial.status}. Reverse the issue of that serial first, then retry.`);
+    }
+    if (row.batch_number) {
+      const batch = db.prepare("SELECT balance_quantity FROM batches WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0").get(row.company_id, row.item_id, row.warehouse_id, row.batch_number);
+      if (batch && Number(batch.balance_quantity || 0) < Number(row.quantity || 0)) throw new Error(`Stock inward ${id} cannot be reversed: only ${batch.balance_quantity} of batch ${row.batch_number} is still in stock out of ${row.quantity} received. Reverse the issues from that batch first, then retry.`);
+    }
   }
 
   // Undoes what posting did to serial numbers, batches and reservations.

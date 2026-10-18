@@ -29,7 +29,8 @@ function writeHistory(runtimeRoot, history) {
 }
 
 function projectRoot() {
-  return path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+  // This file is src/main/services/deployment/; the app root holding package.json is four levels up.
+  return path.resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 }
 
 function versionFromPackage() {

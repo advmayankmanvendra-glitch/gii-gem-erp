@@ -63,11 +63,13 @@ export function createOperationsService(deps) {
   }
 
   function createDeliveryChallan(db, payload = {}) {
-    const companyId = Number(payload.company_id || 0);
     const orderId = Number(payload.order_id || 0);
-    if (!companyId || !orderId) throw new Error("Company and order are required");
+    if (!Number(payload.company_id || 0) || !orderId) throw new Error("Company and order are required");
     const order = db.prepare("SELECT * FROM supply_orders WHERE id = ?").get(orderId);
     if (!order) throw new Error("Supply order not found");
+    // The challan belongs to the order's company; a different company on the screen is refused.
+    const companyId = Number(order.company_id || 0);
+    if (companyId !== Number(payload.company_id)) throw new Error("Delivery challan not saved: the supply order belongs to another company. Switch to that company, or pick a supply order of the current company.");
     const lines = Array.isArray(payload.lines) ? payload.lines : [{
       item_id: payload.item_id,
       warehouse_id: payload.warehouse_id,
