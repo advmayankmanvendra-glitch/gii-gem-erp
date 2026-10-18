@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sendMail } from "./smtpClient.js";
 import { sendWhatsApp } from "./whatsappClient.js";
+import { localBusinessDate } from "../../domain/businessDate.js";
 
 // Pending-dues and stock alerts by email and/or WhatsApp. Off until an admin turns
 // it on; every send (scheduled, manual or test) is written to the audit log.
@@ -98,17 +99,18 @@ export function createAlertService(deps) {
   }
 
   // The summary a business owner wants each morning, for one company.
-  function buildDigest(db, companyId, { overdueDays = 0, today = new Date().toISOString().slice(0, 10) } = {}) {
+  function buildDigest(db, companyId, { overdueDays = 0, today = localBusinessDate() } = {}) {
     const company = db.prepare("SELECT id, company_name FROM companies WHERE id = ?").get(companyId);
     if (!company) throw new Error(`Company ${companyId} was not found. Pick a company in Settings > Alerts.`);
     const dues = db.prepare(`
       SELECT r.invoice_number, r.invoice_date, r.due_date, r.balance_outstanding, COALESCE(gd.department_name, 'Department') party,
         CAST(julianday(?) - julianday(COALESCE(r.due_date, r.invoice_date)) AS INTEGER) overdue_days
       FROM receivables r LEFT JOIN government_departments gd ON gd.id = r.department_id
-      WHERE r.company_id = ? AND COALESCE(r.is_deleted, 0) = 0 AND r.balance_outstanding > 0.009 AND r.status != 'Reversed'
+      WHERE r.company_id = ? AND COALESCE(r.is_deleted, 0) = 0 AND ABS(r.balance_outstanding) > 0.009 AND r.status != 'Reversed'
       ORDER BY overdue_days DESC
     `).all(today, companyId);
-    const overdue = dues.filter((row) => row.overdue_days > overdueDays);
+    // Credit notes are negative lines; they reduce the total but are never "overdue".
+    const overdue = dues.filter((row) => row.balance_outstanding > 0 && row.overdue_days > overdueDays);
     const payables = (supplierPayableReport(db, companyId) || []).filter((row) => Number(row.balance_due || 0) > 0.009);
     const stock = inventoryStockSummary(db, companyId) || [];
     const stockValue = stock.reduce((sum, row) => sum + Number(row.stock_value || 0), 0);
@@ -123,7 +125,7 @@ export function createAlertService(deps) {
     const lines = [
       `${company.company_name}: ERP summary for ${today}`,
       "",
-      `Pending dues: ${formatInr(totals.receivable)} on ${dues.length} invoice(s)`,
+      `Pending dues: ${formatInr(totals.receivable)} on ${dues.filter((row) => row.balance_outstanding > 0).length} invoice(s)`,
       `Overdue: ${formatInr(totals.overdue)} on ${overdue.length} invoice(s)`,
       ...overdue.slice(0, 5).map((row) => `  ${row.invoice_number} ${row.party}: ${formatInr(row.balance_outstanding)}, ${row.overdue_days} day(s) overdue`),
       `Payable to suppliers: ${formatInr(totals.payable)} on ${payables.length} bill(s)`,
@@ -188,7 +190,7 @@ export function createAlertService(deps) {
   async function runScheduled(db, root, now = new Date()) {
     const settings = readSettings(root);
     if (!settings.enabled || (!settings.email.enabled && !settings.whatsapp.enabled)) return null;
-    const day = now.toISOString().slice(0, 10);
+    const day = localBusinessDate(now);
     const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     if (hhmm < settings.sendTime || settings.lastSent?.scheduled === day) return null;
     // Mark the day first, so a crash mid-send never causes a second batch.

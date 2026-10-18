@@ -181,23 +181,43 @@ export function createBankReconciliationService(deps) {
     return row || null;
   }
 
-  // A bank line that matches a receipt, supplier payment or voucher already posted
-  // in the books is reconciliation evidence, not a new transaction.
+  // A bank line counts as already in the books only when it matches a posted (not
+  // reversed) receipt, supplier payment or voucher of the same company, for the same
+  // amount, within 10 days, and no other bank line already claims that record.
+  // Anything weaker is left for a person to review.
   function alreadyBookedMatch(db, entry) {
     const recordId = Number(entry.matched_record_id || 0);
-    if (!recordId) return null;
-    if (entry.matched_module === "payments" || entry.matched_module === "supplier_payments") {
-      const row = db.prepare(`SELECT id, posting_status FROM ${entry.matched_module} WHERE id = ?`).get(recordId);
-      if (["Posted", "Reversed"].includes(row?.posting_status)) {
-        const voucher = db.prepare("SELECT id, voucher_number FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0 ORDER BY id LIMIT 1").get(entry.matched_module === "payments" ? "payment" : "supplier_payment", recordId);
-        return { voucher_id: voucher?.id || null, reference: voucher?.voucher_number || `${entry.matched_module} #${recordId}` };
-      }
+    const companyId = Number(entry.company_id || db.prepare("SELECT company_id FROM bank_statement_imports WHERE id = ?").get(entry.import_id)?.company_id || 0);
+    if (!recordId || !companyId) return null;
+    const amount = Math.max(Number(entry.debit || 0), Number(entry.credit || 0), Number(entry.amount || 0));
+    const sources = {
+      payments: { sql: "SELECT id, posting_status status, payment_amount amount, payment_date date FROM payments WHERE id = ? AND COALESCE(company_id, ?) = ?", module: "payment" },
+      supplier_payments: { sql: "SELECT id, posting_status status, amount_paid amount, payment_date date FROM supplier_payments WHERE id = ? AND company_id = ? AND ? IS NOT NULL", module: "supplier_payment" }
+    };
+    let voucher = null;
+    let record = null;
+    if (sources[entry.matched_module]) {
+      const source = sources[entry.matched_module];
+      record = db.prepare(source.sql).get(recordId, companyId, companyId);
+      if (!record || record.status !== "Posted") return null;
+      voucher = db.prepare("SELECT id, voucher_number FROM vouchers WHERE source_module = ? AND source_id = ? AND status = 'Posted' AND is_deleted = 0 ORDER BY id LIMIT 1").get(source.module, recordId);
+    } else if (entry.matched_module === "vouchers") {
+      voucher = db.prepare("SELECT id, voucher_number, voucher_date date FROM vouchers WHERE id = ? AND company_id = ? AND status = 'Posted' AND is_deleted = 0").get(recordId, companyId);
+      if (!voucher) return null;
+      const bankLeg = db.prepare("SELECT MAX(debit, credit) amount FROM voucher_lines vl JOIN accounts a ON a.id = vl.account_id WHERE vl.voucher_id = ? AND a.account_name IN ('Bank', 'Cash') ORDER BY vl.id LIMIT 1").get(voucher.id);
+      record = { amount: bankLeg?.amount, date: voucher.date };
+    } else {
+      return null;
     }
-    if (entry.matched_module === "vouchers") {
-      const voucher = db.prepare("SELECT id, voucher_number, status FROM vouchers WHERE id = ? AND is_deleted = 0").get(recordId);
-      if (["Posted", "Reversed"].includes(voucher?.status)) return { voucher_id: voucher.id, reference: voucher.voucher_number };
-    }
-    return null;
+    if (!voucher || Math.abs(Number(record.amount || 0) - amount) > 0.01) return null;
+    const days = Math.abs((Date.parse(entry.transaction_date) - Date.parse(record.date)) / 86400000);
+    if (!Number.isFinite(days) || days > 10) return null;
+    const claimed = db.prepare(`
+      SELECT 1 FROM bank_statement_entries
+      WHERE id != ? AND matched_module = ? AND matched_record_id = ? AND review_status = 'Reconciled' AND COALESCE(is_deleted, 0) = 0 LIMIT 1
+    `).get(entry.id || 0, entry.matched_module, recordId);
+    if (claimed) return null;
+    return { voucher_id: voucher.id, reference: voucher.voucher_number };
   }
 
   function buildVoucherProposal(db, companyId, entry) {
@@ -277,8 +297,8 @@ export function createBankReconciliationService(deps) {
     }
     if (moduleName === "supplier_payments" && recordId) {
       const row = db.prepare(`
-        SELECT sp.id supplier_payment_id, sp.order_id, sp.utr_number reference, sp.supplier_id party_id, s.supplier_name party_name,
-          (SELECT id FROM procurements WHERE order_id = sp.order_id AND supplier_id = sp.supplier_id AND COALESCE(is_deleted, 0) = 0 ORDER BY purchase_date DESC LIMIT 1) procurement_id
+        SELECT sp.id supplier_payment_id, sp.utr_number reference, sp.supplier_id party_id, s.supplier_name party_name,
+          (SELECT spa.procurement_id FROM supplier_payment_allocations spa WHERE spa.supplier_payment_id = sp.id AND COALESCE(spa.is_deleted, 0) = 0 ORDER BY spa.id LIMIT 1) procurement_id
         FROM supplier_payments sp
         LEFT JOIN suppliers s ON s.id = sp.supplier_id
         WHERE sp.id = ? AND sp.company_id = ?
@@ -481,6 +501,14 @@ export function createBankReconciliationService(deps) {
     const moduleName = payload.matched_module || payload.module;
     const recordId = Number(payload.matched_record_id || payload.record_id || 0);
     if (!moduleName || !recordId) throw new Error("Match module and record ID are required");
+    const tables = { vouchers: "vouchers", invoices: "invoices", payments: "payments", supplier_payments: "supplier_payments", procurements: "procurements", supply_orders: "supply_orders" };
+    if (!tables[moduleName]) throw new Error(`Bank lines can be matched to vouchers, invoices, receipts, supplier payments, purchase bills or orders, not ${moduleName}.`);
+    const companyId = entry.company_id || db.prepare("SELECT company_id FROM bank_statement_imports WHERE id = ?").get(entry.import_id)?.company_id;
+    const target = db.prepare(`SELECT id, company_id FROM ${tables[moduleName]} WHERE id = ?`).get(recordId);
+    if (!target) throw new Error(`The ${moduleName.replace("_", " ")} record ${recordId} was not found. Pick the record again from the match list.`);
+    if (target.company_id && companyId && Number(target.company_id) !== Number(companyId)) {
+      throw new Error("That record belongs to another company. A bank line can only be matched to records of the company whose bank statement it is.");
+    }
     const reference = payload.matched_reference || referenceModule(db, moduleName, recordId)?.reference || `${moduleName} #${recordId}`;
     const score = Math.min(100, Math.max(0, Number(payload.confidence_score || 100)));
     const tx = db.transaction(() => {

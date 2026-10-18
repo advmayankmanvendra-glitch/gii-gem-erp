@@ -1,4 +1,5 @@
 import { parseMoneyToMinor } from "../domain/money.js";
+import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createInventoryService(deps) {
   const {
@@ -198,6 +199,12 @@ export function createInventoryService(deps) {
       });
       syncSerialInward(db, row);
       syncBatchInward(db, row);
+      // Goods arriving after their purchase bill was posted: the bill already
+      // expensed them to Purchase, so the receipt moves that value into Inventory
+      // instead of creating a second liability in GRNI.
+      const billedFirst = row.procurement_id
+        ? db.prepare("SELECT 1 FROM procurements WHERE id = ? AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0").get(row.procurement_id)
+        : null;
       const grnVoucher = value > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.inward_date,
@@ -207,7 +214,7 @@ export function createInventoryService(deps) {
         source_id: row.id,
         lines: [
           { account_id: accountId(db, row.company_id, "Inventory"), debit: value, credit: 0 },
-          { account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: 0, credit: value }
+          { account_id: accountId(db, row.company_id, billedFirst ? "Purchase" : "Goods Received Not Invoiced"), debit: 0, credit: value }
         ]
       }) : null;
       db.prepare("UPDATE stock_inwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(grnVoucher?.id || null, id);
@@ -402,7 +409,7 @@ export function createInventoryService(deps) {
     const already = db.prepare("SELECT 1 FROM stock_ledger WHERE source_module = ? AND source_id = ? AND document_number = ? AND COALESCE(is_deleted, 0) = 0 LIMIT 1").get(table, id, `${doc.prefix}-${id}`);
     if (already) return 0;
     const rows = db.prepare("SELECT * FROM stock_ledger WHERE source_module = ? AND source_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(table, id);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBusinessDate();
     rows.forEach((sl) => {
       try {
         insertStockLedger(db, {
@@ -515,7 +522,7 @@ export function createInventoryService(deps) {
     const issuedQuantity = reservations.reduce((sum, row) => sum + Number(row.issued_quantity || 0), 0);
     const reservedStockValue = reservations.reduce((sum, row) => sum + Number(row.balance_reserved || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
     const procurementRequiredValue = reservations.reduce((sum, row) => sum + Number(row.short_quantity || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBusinessDate();
     const pendingGrns = db.prepare("SELECT COUNT(*) count FROM goods_receipts WHERE company_id = ? AND status != 'Posted' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
     const pendingDeliveries = db.prepare("SELECT COUNT(*) count FROM delivery_challans WHERE company_id = ? AND status != 'Confirmed' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
     const stockIssuedToday = db.prepare("SELECT COALESCE(SUM(outward_quantity), 0) qty FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_date = ? AND transaction_type = 'Outward'").get(companyId, today).qty;

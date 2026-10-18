@@ -38,6 +38,8 @@ import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 import { createAccountMappingService } from "../services/accountMappingService.js";
+import { localBusinessDate } from "../domain/businessDate.js";
+import { roundMoney } from "../domain/money.js";
 
 export {
   APP_FOLDERS,
@@ -1196,7 +1198,7 @@ function transactionDateFor(table, data) {
   if (table === "stock_outwards") return data.issue_date;
   if (table === "stock_adjustments") return data.adjustment_date;
   if (table === "stock_returns") return data.return_date;
-  return new Date().toISOString().slice(0, 10);
+  return localBusinessDate();
 }
 
 function financialYearForDate(db, companyId, date) {
@@ -1240,6 +1242,9 @@ function markPosted(db, table, id, voucherId, postingDate) {
 
 // A failed second attempt must never downgrade a document that is already posted or reversed.
 function markPostingError(db, table, id, error) {
+  // Tables without a posting_error column (e.g. supplier_payments) keep the message in the Error Console only.
+  const hasErrorColumn = db.prepare(`PRAGMA table_info(${table})`).all().some((column) => column.name === "posting_error");
+  if (!hasErrorColumn) return;
   db.prepare(`UPDATE ${table} SET posting_status = 'Error', posting_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND COALESCE(posting_status, '') NOT IN ('Posted', 'Reversed')`).run(String(error?.message || error), id);
 }
 
@@ -1439,7 +1444,7 @@ function creditDueDate(db, companyId, partyType, partyId, baseDate, explicitDueD
     WHERE company_id = ? AND party_type = ? AND party_id = ? AND status = 'active' AND COALESCE(is_deleted, 0) = 0
   `).get(companyId, partyType, partyId);
   const days = Number(term?.default_credit_days ?? 30) + Number(term?.grace_period ?? 0);
-  const date = new Date(`${baseDate || new Date().toISOString().slice(0, 10)}T00:00:00`);
+  const date = new Date(`${baseDate || localBusinessDate()}T00:00:00`);
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
 }
@@ -1458,15 +1463,25 @@ function postExpenseEntry(db, expenseId) {
     throw new Error(`Expense entry ${expenseId} is already posted. Open its voucher from the expense list instead of posting again.`);
   }
   const order = db.prepare("SELECT so.*, e.incentive_percentage FROM supply_orders so LEFT JOIN employees e ON e.id = so.employee_id WHERE so.id = ?").get(expense.order_id);
-  const calculated = order ? calculateProfitability(db, order).dynamicExpenses.find((row) => row.id === expense.id) : null;
-  const amount = Number(expense.expense_amount || 0) || Number(calculated?.amount || 0);
-  if (amount <= 0) return null;
+  // Same formula as the profitability engine (billingService calculateProfitability),
+  // which only lists expenses already posted, so it is applied here directly.
+  const profit = order ? calculateProfitability(db, order) : null;
+  const billingValue = Number(profit?.billingValue || 0);
+  const gstRate = Number(profit?.gstRate || 0) / 100;
+  const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
+  let calculated = Number(expense.fixed_amount || 0);
+  if (expense.calculation_method === "percentage_gross") calculated = billingValue * (Number(expense.percentage || 0) / 100);
+  if (expense.calculation_method === "percentage_taxable") calculated = taxableValue * (Number(expense.percentage || 0) / 100);
+  const amount = roundMoney(Number(expense.expense_amount || 0) || calculated);
+  if (amount <= 0) {
+    throw new Error(`Expense ${expense.expense_head_name} (entry ${expense.id}) has no amount to post. ${String(expense.calculation_method || "").startsWith("percentage") ? "A percentage expense is calculated on the order's posted invoices; post the sales invoice first." : "Enter the expense amount on the entry, then post."}`);
+  }
   const accountName = expense.expense_head_name.includes("Authorization") ? "Authorization Expense" :
     expense.expense_head_name.includes("L1") ? "L1 Expense" :
     /Commission|Work Incentive/i.test(expense.expense_head_name) ? "Work Incentive Expense" :
     expense.expense_head_name.includes("Transport") ? "Transport Expense" :
     expense.expense_head_name.includes("Installation") ? "Installation Expense" : "Work Incentive Expense";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localBusinessDate();
   return db.transaction(() => {
     const voucher = createBalancedVoucher(db, {
       company_id: expense.company_id,
@@ -1488,7 +1503,10 @@ function postExpenseEntry(db, expenseId) {
 
 function postExpenseAccrualsForOrder(db, orderId) {
   db.prepare("SELECT id FROM expense_entries WHERE order_id = ? AND COALESCE(voucher_id, 0) = 0 AND is_deleted = 0 ORDER BY id").all(orderId)
-    .forEach((row) => postExpenseEntry(db, row.id));
+    .forEach((row) => {
+      // Bulk accrual skips entries that have no amount yet; posting one directly explains why.
+      try { postExpenseEntry(db, row.id); } catch (error) { if (!/has no amount/.test(error.message)) throw error; }
+    });
 }
 
 function upsertReceivable(db, invoice, invoiceAmount) {
@@ -1511,7 +1529,7 @@ function upsertReceivable(db, invoice, invoiceAmount) {
     invoice_amount: invoiceAmount,
     balance_outstanding: invoiceAmount,
     due_date: dueDate,
-    days_outstanding: daysBetween(invoice.invoice_date, new Date().toISOString().slice(0, 10))
+    days_outstanding: daysBetween(invoice.invoice_date, localBusinessDate())
   });
   refreshReceivable(db, invoice.id);
 }
@@ -1533,7 +1551,7 @@ function refreshReceivable(db, billingId) {
     UPDATE receivables SET amount_received = ?, tds_deducted = ?, gst_tds_deducted = ?, other_deductions = ?,
       balance_outstanding = ?, days_outstanding = ?, status = ?, allocation_status = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(allocation.amount_received + advanceAdjusted, allocation.tds, allocation.gst_tds, allocation.other_deductions, balance, daysBetween(receivable.invoice_date, new Date().toISOString().slice(0, 10)), balance <= 0 ? "Closed" : "Open", allocationStatus(settled, receivable.invoice_amount), receivable.id);
+  `).run(allocation.amount_received + advanceAdjusted, allocation.tds, allocation.gst_tds, allocation.other_deductions, balance, daysBetween(receivable.invoice_date, localBusinessDate()), Number(receivable.invoice_amount || 0) < 0 ? "Credit" : balance <= 0 ? "Closed" : "Open", allocationStatus(settled, receivable.invoice_amount), receivable.id);
 }
 
 function allocationStatus(settled, total) {
@@ -1594,7 +1612,8 @@ export function auditLog(db, payload) {
     old_value: payload.old_value || null,
     new_value: payload.new_value || null,
     ip_address: payload.ip_address || "local",
-    created_at: new Date().toISOString()
+    // Same "YYYY-MM-DD HH:MM:SS" (UTC) format as CURRENT_TIMESTAMP everywhere else.
+    created_at: new Date().toISOString().replace("T", " ").slice(0, 19)
   });
   const stored = db.prepare("SELECT * FROM audit_log WHERE id = ?").get(info.lastInsertRowid);
   db.prepare("UPDATE audit_log SET event_hash = ? WHERE id = ?").run(auditEventHash(stored, previousHash), stored.id);
@@ -1649,9 +1668,15 @@ export function verifyAuditChain(db) {
     expectedId = row.id + 1;
     if (broken.length >= 20) break;
   }
+  // AUTOINCREMENT keeps the highest id ever issued, so rows deleted from the end
+  // of the log leave a gap between it and the last row still present.
+  const lastIssued = Number(db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'").get()?.seq || 0);
+  const lastPresent = Number(rows[rows.length - 1]?.id || 0);
+  if (lastIssued > lastPresent) broken.push(lastPresent + 1);
   return {
     chained: true,
     startedAt: rows[0]?.created_at || null,
+    missingNewestRows: Math.max(0, lastIssued - lastPresent),
     verified: rows.length - new Set(broken).size,
     broken: [...new Set(broken)],
     legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log WHERE id < ?").get(startId).c
@@ -1909,7 +1934,7 @@ const {
   auditLog, stockBalance, nextDocumentNumber, createRecord,
   postStockOutward, weightedAverageCost, insertStockLedger,
   getRecord, postSalesVoucher, postPurchaseVoucher,
-  postReceiptVoucher, postExpenseAccrualsForOrder, postExpenseEntry
+  postReceiptVoucher, postSupplierPaymentVoucher, postExpenseAccrualsForOrder, postExpenseEntry
 });
 
 const { seed } = createSeedData({

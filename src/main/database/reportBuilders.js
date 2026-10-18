@@ -1,4 +1,5 @@
 import { parseMoneyToMinor, minorToMajor } from "../domain/money.js";
+import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createReportBuilders({ activeRowClause, creditDueDate, allocationStatus, daysBetween, financialYearForDate }) {
   function round2(value) {
@@ -130,7 +131,17 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
       LEFT JOIN vouchers v ON v.id = ee.voucher_id AND v.is_deleted = 0
       WHERE ee.company_id = ? AND ee.is_deleted = 0
     `).all(companyId);
-    rows.push(...invoiceRows, ...procurementRows, ...paymentRows, ...expenseRows);
+    const supplierPaymentRows = db.prepare(`
+      SELECT 'Supplier Payment' module, 'supplier_payment' source_module, 'supplier_payments' table_name, sp.id record_id, COALESCE(sp.utr_number, 'Supplier Payment ' || sp.id) reference, sp.payment_date record_date,
+        sp.amount_paid amount, COALESCE(MAX(v.id), 0) voucher_id, COALESCE(MAX(v.voucher_number), '') voucher_number,
+        COALESCE(NULLIF(sp.posting_status, ''), CASE WHEN COUNT(v.id) > 0 THEN 'Posted' ELSE 'Draft' END) posting_status,
+        NULL approval_status, NULL posting_error
+      FROM supplier_payments sp
+      LEFT JOIN vouchers v ON v.source_module = 'supplier_payment' AND v.source_id = sp.id AND v.is_deleted = 0
+      WHERE sp.company_id = ? AND COALESCE(sp.is_deleted, 0) = 0
+      GROUP BY sp.id
+    `).all(companyId);
+    rows.push(...invoiceRows, ...procurementRows, ...paymentRows, ...expenseRows, ...supplierPaymentRows);
     return rows.map((row, index) => {
       const posted = ["Posted", "Reversed"].includes(row.posting_status);
       const hasError = row.posting_status === "Error" || Boolean(row.posting_error);
@@ -229,7 +240,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   }
 
   function billWiseReceivableReport(db, companyId) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBusinessDate();
     const creditNotesByInvoice = postedGuidedNoteAdjustments(db, companyId, "credit_note", "linked_invoice_id");
     return db.prepare(`
       SELECT r.id, r.department_id, gd.department_name, so.order_number, r.billing_id, r.invoice_number, r.invoice_date,
@@ -266,7 +277,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   }
 
   function billWisePayableReport(db, companyId) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBusinessDate();
     const debitNotesByPurchase = postedGuidedNoteAdjustments(db, companyId, "debit_note", "linked_purchase_id");
     return db.prepare(`
       SELECT s.supplier_name, s.id supplier_id, p.id procurement_id, p.purchase_invoice_number, p.purchase_date invoice_date,
@@ -583,7 +594,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const reversed = db.prepare("SELECT COUNT(*) count FROM vouchers WHERE company_id = ? AND status = 'Reversed' AND is_deleted = 0").get(companyId).count;
     const closedYears = db.prepare("SELECT COUNT(*) count FROM financial_years WHERE company_id = ? AND status IN ('Closed', 'Locked')").get(companyId).count;
     const lockedYears = db.prepare("SELECT COUNT(*) count FROM financial_years WHERE company_id = ? AND status = 'Locked'").get(companyId).count;
-    const currentYear = financialYearForDate(db, companyId, new Date().toISOString().slice(0, 10));
+    const currentYear = financialYearForDate(db, companyId, localBusinessDate());
     const statement = financialStatementSummary(db, companyId, dateFrom, dateTo);
     const gst = gstSummary(db, companyId, dateFrom, dateTo);
     const tds = db.prepare("SELECT COALESCE(SUM(tds_deducted + gst_tds_deducted), 0) value FROM payment_allocations WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0").get(companyId).value;

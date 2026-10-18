@@ -145,14 +145,22 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
   checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open each voucher listed, reverse it and post a corrected entry."));
 
   const stockCompany = companyId ? " AND company_id = ?" : "";
+  // Item opening stock is not in stock_ledger; it sits in the item's default
+  // warehouse (or the company's first active one), so add it back before judging.
   const negative = db.prepare(`
-    SELECT item_id, warehouse_id, SUM(inward_quantity - outward_quantity) qty FROM stock_ledger
-    WHERE COALESCE(is_deleted, 0) = 0${stockCompany} GROUP BY company_id, item_id, warehouse_id HAVING qty < -0.0001 LIMIT 10
-  `).all(...params);
+    SELECT company_id, item_id, warehouse_id, SUM(inward_quantity - outward_quantity) qty FROM stock_ledger
+    WHERE COALESCE(is_deleted, 0) = 0${stockCompany} GROUP BY company_id, item_id, warehouse_id HAVING qty < -0.0001
+  `).all(...params).filter((row) => {
+    const item = db.prepare("SELECT opening_stock, default_warehouse_id FROM items WHERE id = ?").get(row.item_id) || {};
+    const home = Number(item.default_warehouse_id || 0)
+      || db.prepare("SELECT id FROM warehouses WHERE status = 'active' AND (company_id = ? OR company_id IS NULL OR company_id = 0) ORDER BY id LIMIT 1").get(row.company_id)?.id;
+    const opening = Number(home) === Number(row.warehouse_id) ? Number(item.opening_stock || 0) : 0;
+    return row.qty + opening < -0.0001;
+  });
   checks.push(integrityCheck("negative_stock", "No warehouse holds negative stock", negative.length === 0, negative.length ? `${negative.length} item/warehouse pair(s) below zero` : "No negative balances.", "Open Inventory > Stock Summary, find the item, and post the missing inward or reverse the excess issue."));
 
   if (hasColumn(db, "receivables", "balance_outstanding")) {
-    const negativeReceivables = db.prepare(`SELECT COUNT(*) c FROM receivables WHERE balance_outstanding < -0.009${companyId ? " AND company_id = ?" : ""}`).get(...params).c;
+    const negativeReceivables = db.prepare(`SELECT COUNT(*) c FROM receivables WHERE balance_outstanding < -0.009 AND invoice_amount >= 0${companyId ? " AND company_id = ?" : ""}`).get(...params).c;
     checks.push(integrityCheck("receivables_not_negative", "No invoice is over-collected", negativeReceivables === 0, `${negativeReceivables} invoice(s) with a negative balance`, "Open Accounting > Allocations and release the extra allocation against those invoices."));
   }
 
@@ -161,8 +169,8 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
 
   if (verifyAuditChain) {
     const chain = verifyAuditChain(db);
-    checks.push(integrityCheck("audit_chain", "Audit trail is untampered", chain.chained && chain.broken.length === 0,
-      chain.chained ? `${chain.verified} chained row(s) verified${chain.broken.length ? `; broken at row(s) ${chain.broken.join(", ")}` : ""}${chain.legacyRows ? `; ${chain.legacyRows} older row(s) predate the chain` : ""}` : "The audit chain has not started on this database.",
+    checks.push(integrityCheck("audit_chain", "No tampering found in the audit trail", chain.chained && chain.broken.length === 0,
+      chain.chained ? `${chain.verified} chained row(s) verified${chain.broken.length ? `; broken at row(s) ${chain.broken.join(", ")}` : ""}${chain.missingNewestRows ? `; ${chain.missingNewestRows} newest row(s) deleted` : ""}${chain.legacyRows ? `; ${chain.legacyRows} older row(s) predate the chain` : ""}` : "The audit chain has not started on this database.",
       "Someone edited or deleted audit rows outside the ERP. Keep this database aside, restore the last good backup and review who had file access."));
   }
   return checks;

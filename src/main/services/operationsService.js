@@ -1,9 +1,10 @@
+import { localBusinessDate } from "../domain/businessDate.js";
 export function createOperationsService(deps) {
   const {
     auditLog, stockBalance, nextDocumentNumber, createRecord,
     postStockOutward, weightedAverageCost, insertStockLedger,
     getRecord, postSalesVoucher, postPurchaseVoucher,
-    postReceiptVoucher, postExpenseAccrualsForOrder, postExpenseEntry
+    postReceiptVoucher, postSupplierPaymentVoucher, postExpenseAccrualsForOrder, postExpenseEntry
   } = deps;
 
   function moduleTable(moduleName) {
@@ -21,7 +22,10 @@ export function createOperationsService(deps) {
       payments: "payments",
       expense: "expense_entries",
       expenses: "expense_entries",
-      expense_entries: "expense_entries"
+      expense_entries: "expense_entries",
+      supplier_payment: "supplier_payments",
+      "supplier payment": "supplier_payments",
+      supplier_payments: "supplier_payments"
     };
     const table = aliases[normalized];
     if (!table) throw new Error("Unsupported module");
@@ -77,7 +81,7 @@ export function createOperationsService(deps) {
       const dc = db.prepare(`
         INSERT INTO delivery_challans (company_id, challan_number, order_id, department_id, dispatch_date, vehicle_details, status, remarks)
         VALUES (?, ?, ?, ?, ?, ?, 'Draft', ?)
-      `).run(companyId, challanNumber, orderId, payload.department_id || order.department_id || null, payload.dispatch_date || new Date().toISOString().slice(0, 10), payload.vehicle_details || "", payload.remarks || "");
+      `).run(companyId, challanNumber, orderId, payload.department_id || order.department_id || null, payload.dispatch_date || localBusinessDate(), payload.vehicle_details || "", payload.remarks || "");
       validLines.forEach((line) => db.prepare(`
         INSERT INTO delivery_challan_items (company_id, delivery_challan_id, item_id, warehouse_id, quantity, remarks)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -132,7 +136,7 @@ export function createOperationsService(deps) {
     const result = db.prepare(`
       INSERT INTO warehouse_transfers (company_id, transfer_number, from_warehouse_id, to_warehouse_id, item_id, transfer_date, quantity, rate, reason, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft')
-    `).run(companyId, transferNumber, fromWarehouseId, toWarehouseId, itemId, payload.transfer_date || new Date().toISOString().slice(0, 10), quantity, Number(payload.rate || 0), payload.reason || "");
+    `).run(companyId, transferNumber, fromWarehouseId, toWarehouseId, itemId, payload.transfer_date || localBusinessDate(), quantity, Number(payload.rate || 0), payload.reason || "");
     auditLog(db, { company_id: companyId, action: "warehouse_transfer_created", table_name: "warehouse_transfers", record_id: result.lastInsertRowid, new_value: JSON.stringify({ transferNumber }) });
     return db.prepare("SELECT * FROM warehouse_transfers WHERE id = ?").get(result.lastInsertRowid);
   }
@@ -232,6 +236,7 @@ export function createOperationsService(deps) {
     if (table === "procurements") return postPurchaseVoucher(db, recordId);
     // The receipt allocates itself: to the invoice named on it, else oldest open invoice first.
     if (table === "payments") return postReceiptVoucher(db, recordId);
+    if (table === "supplier_payments") return postSupplierPaymentVoucher(db, recordId);
     if (table === "expense_entries") {
       postExpenseEntry(db, recordId);
       return db.prepare("SELECT * FROM vouchers WHERE id = (SELECT voucher_id FROM expense_entries WHERE id = ?)").get(recordId);

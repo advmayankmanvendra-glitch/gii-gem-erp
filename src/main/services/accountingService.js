@@ -1,4 +1,5 @@
 import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
+import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createAccountingService(deps) {
   const {
@@ -281,7 +282,7 @@ export function createAccountingService(deps) {
   function createBusinessVoucher(db, payload = {}) {
     const companyId = Number(payload.company_id || 0);
     const voucherKind = String(payload.voucher_kind || payload.voucher_type || "").trim();
-    const voucherDate = String(payload.voucher_date || payload.receipt_date || payload.payment_date || payload.invoice_date || payload.purchase_date || new Date().toISOString().slice(0, 10));
+    const voucherDate = String(payload.voucher_date || payload.receipt_date || payload.payment_date || payload.invoice_date || payload.purchase_date || localBusinessDate());
     if (!companyId) throw new Error("Company is required");
     if (!voucherKind) throw new Error("Voucher workflow is required");
 
@@ -451,7 +452,7 @@ export function createAccountingService(deps) {
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
     const reasonText = String(reason || "").trim() || "Reversed by user";
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localBusinessDate();
     // The reversal is dated today (in the open year) unless the original is later
     // than today; the original stays in its own period, so closed years never change.
     const reversalDate = original.voucher_date > today ? original.voucher_date : today;
@@ -610,7 +611,9 @@ export function createAccountingService(deps) {
         source_id: invoice.id,
         lines: voucherLines.filter((line) => Number(line.debit || 0) || Number(line.credit || 0))
       });
-      if (!isCreditNote) upsertReceivable(db, invoice, totals.gross);
+      // A credit note stands in the buyer's bill-wise account as a credit line
+      // (negative amount), so bill-wise receivables keep agreeing with the ledger.
+      upsertReceivable(db, invoice, isCreditNote ? -totals.gross : totals.gross);
       markPosted(db, "invoices", invoice.id, voucher.id, invoice.invoice_date);
       auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "receivables", "output_gst", "sales_register", "profitability"]);
       return voucher;
@@ -634,7 +637,9 @@ export function createAccountingService(deps) {
         JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Inward'
         WHERE si.procurement_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
       `).get(procurement.id)?.value || 0));
-      const grniPortion = Math.min(receivedValue, totals.taxable);
+      // GRNI is cleared in full; a bill price above or below the GRN value is a
+      // purchase price difference booked to Purchase (debit or credit).
+      const grniPortion = receivedValue;
       const purchasePortion = roundMoney(totals.taxable - grniPortion);
       const voucher = createBalancedVoucher(db, {
         company_id: companyId,
@@ -645,7 +650,7 @@ export function createAccountingService(deps) {
         source_id: procurement.id,
         lines: [
           { account_id: accountId(db, companyId, "Goods Received Not Invoiced"), debit: grniPortion, credit: 0 },
-          { account_id: accountId(db, companyId, "Purchase"), debit: purchasePortion, credit: 0 },
+          { account_id: accountId(db, companyId, "Purchase"), debit: Math.max(purchasePortion, 0), credit: Math.max(-purchasePortion, 0) },
           { account_id: accountId(db, companyId, "Input GST"), debit: totals.tax, credit: 0 },
           { account_id: accountId(db, companyId, "Trade Payables"), debit: 0, credit: totals.gross, linked_party_type: "supplier", linked_party_id: procurement.supplier_id }
         ].filter((line) => Number(line.debit || 0) || Number(line.credit || 0))
@@ -688,6 +693,7 @@ export function createAccountingService(deps) {
       const named = targetId ? db.prepare("SELECT i.*, so.department_id FROM invoices i LEFT JOIN supply_orders so ON so.id = i.order_id WHERE i.id = ?").get(targetId) : null;
       if (targetId && !named) throw new Error("The invoice selected on this receipt was not found. Pick the invoice again, then post.");
       if (named && Number(named.company_id) !== Number(payment.company_id)) throw new Error("Receipt refused: the selected invoice belongs to another company.");
+      if (named && named.posting_status !== "Posted") throw new Error(`Receipt refused: invoice ${named.invoice_number} is ${named.posting_status || "Draft"}. Post the invoice first, then post this receipt so it settles that invoice.`);
       const order = db.prepare("SELECT department_id FROM supply_orders WHERE id = ?").get(named?.order_id || payment.order_id);
       const departmentId = named?.department_id || order?.department_id || null;
       const voucher = createBalancedVoucher(db, {
@@ -726,6 +732,12 @@ export function createAccountingService(deps) {
         `).run(payment.company_id, payment.id, target.id, invoiceRow?.order_id || payment.order_id, cashUsed, tdsUsed, gstTdsUsed, otherUsed, room <= 0 ? "Fully Allocated" : "Partially Allocated");
         refreshReceivable(db, target.id);
       });
+      // Deductions (TDS, GST TDS, others) only make sense against an invoice; with no
+      // open invoice to carry them they would be stranded, so the receipt is refused.
+      const strandedDeductions = roundMoney(deductionLeft.tds + deductionLeft.gstTds + deductionLeft.other);
+      if (strandedDeductions > 0.004) {
+        throw new Error(`Receipt refused: deductions of ${strandedDeductions.toFixed(2)} (TDS / GST TDS / other) have no open posted invoice to settle. Post the invoice for this order first, or remove the deductions and record them when the invoice is posted.`);
+      }
       db.prepare("UPDATE payments SET allocation_status = ? WHERE id = ?").run(cashLeft > 0.004 ? (cashLeft < amount ? "Partially Allocated" : "Unallocated") : "Fully Allocated", payment.id);
       updateCashBankLedger(db, { company_id: payment.company_id, bank_account_id: payment.bank_id, transaction_date: payment.payment_date, transaction_type: "Receipt", source_module: "payment", source_id: payment.id, voucher_id: voucher.id, debit: amount, payment_mode: payment.payment_mode, utr_number: payment.utr_number, remarks: payment.remarks });
       markPosted(db, "payments", payment.id, voucher.id, payment.payment_date);
@@ -740,7 +752,7 @@ export function createAccountingService(deps) {
     assertNotAlreadyPosted(db, "supplier_payment", payment.id, payment, "supplier payment");
     const amount = roundMoney(payment.amount_paid);
     assertPositive(amount, "Supplier payment");
-    return db.transaction(() => {
+    return atomicPosting(db, "supplier_payments", payment.id, () => {
       const voucher = createBalancedVoucher(db, {
         company_id: payment.company_id,
         voucher_date: payment.payment_date,
@@ -757,7 +769,7 @@ export function createAccountingService(deps) {
       db.prepare("UPDATE supplier_payments SET posting_status = 'Posted', voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher.id, payment.id);
       auditVoucherDependencySync(db, voucher, ["general_ledger", "trial_balance", "cash_bank", "payables", "outstanding", "ageing", "cash_flow"]);
       return voucher;
-    })();
+    });
   }
 
   function createReceiptAllocation(db, payload) {
@@ -771,6 +783,20 @@ export function createAccountingService(deps) {
     const gstTds = Number(payload.gst_tds_deducted || 0);
     const other = Number(payload.other_deductions || 0);
     assertPositive(allocated + tds + gstTds + other, "Allocation");
+    // Only money and deductions already in the ledger can settle an invoice:
+    // both documents must be posted, and deductions cannot exceed what the
+    // receipt itself recorded (and posted to the TDS ledgers).
+    if (payment.posting_status !== "Posted") throw new Error(`Allocation refused: receipt ${payment.utr_number || payment.id} is ${payment.posting_status || "Draft"}. Post the receipt first.`);
+    if (invoice.posting_status !== "Posted") throw new Error(`Allocation refused: invoice ${invoice.invoice_number} is ${invoice.posting_status || "Draft"}. Post the invoice first.`);
+    const usedDeductions = db.prepare("SELECT COALESCE(SUM(tds_deducted), 0) tds, COALESCE(SUM(gst_tds_deducted), 0) gst_tds, COALESCE(SUM(other_deductions), 0) other FROM payment_allocations WHERE payment_id = ? AND COALESCE(is_deleted, 0) = 0").get(payment.id);
+    const room = {
+      tds: roundMoney(Number(payment.tds_deducted || 0) - usedDeductions.tds),
+      gstTds: roundMoney(Number(payment.gst_tds_deducted || 0) - usedDeductions.gst_tds),
+      other: roundMoney(Number(payment.other_deductions || 0) - usedDeductions.other)
+    };
+    if (tds > room.tds + 0.004 || gstTds > room.gstTds + 0.004 || other > room.other + 0.004) {
+      throw new Error(`Allocation refused: deductions exceed what the receipt recorded (TDS ${room.tds.toFixed(2)}, GST TDS ${room.gstTds.toFixed(2)}, other ${room.other.toFixed(2)} still available). Enter TDS on the receipt itself so it is posted to the TDS ledgers.`);
+    }
     const available = receiptUnallocatedAmount(db, payment.id);
     if (allocated > available && !payload.allow_excess) throw new Error("Allocation cannot exceed available receipt amount");
     const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ?").get(invoice.id);
@@ -814,6 +840,8 @@ export function createAccountingService(deps) {
     if (Number(payment.supplier_id) !== Number(procurement.supplier_id) && !payload.allow_excess) throw new Error("Supplier payment and purchase bill must belong to the same supplier unless marked advance/excess");
     const amount = Number(payload.allocated_amount || 0);
     assertPositive(amount, "Supplier allocation");
+    if (payment.posting_status !== "Posted") throw new Error(`Allocation refused: supplier payment ${payment.utr_number || payment.id} is ${payment.posting_status || "Draft"}. Post the payment first.`);
+    if (procurement.posting_status !== "Posted") throw new Error(`Allocation refused: purchase bill ${procurement.purchase_invoice_number || procurement.id} is ${procurement.posting_status || "Draft"}. Post the bill first.`);
     const available = supplierPaymentUnallocatedAmount(db, payment.id);
     if (amount > available && !payload.allow_excess) throw new Error("Allocation cannot exceed available supplier payment amount");
     const outstanding = purchaseOutstandingAmount(db, procurement.id);
