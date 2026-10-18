@@ -39,14 +39,13 @@ export function validateBackup(backupInfo) {
 
 export function executeAutoRollback(runtimeRoot, goLiveEntry, reason) {
   try {
-    const backupId = goLiveEntry?.backup?.fileName || goLiveEntry?.backup?.path;
-    const backups = listBackups(runtimeRoot);
-    let targetBackup = backupId;
-    if (!targetBackup || !backups.includes(targetBackup)) {
-      targetBackup = backups[0];
+    // Only the backup recorded for this go-live may be restored; never fall back to another snapshot.
+    if (!goLiveEntry) {
+      return { success: false, reason: "Rollback refused: this go-live run was not found in the go-live history. Open Environment Manager > Go-Live history and pick the run to roll back. Nothing was changed.", goLiveEntry };
     }
-    if (!targetBackup) {
-      return { success: false, reason: "No backup available for rollback", goLiveEntry };
+    const targetBackup = goLiveEntry.backup?.fileName || "";
+    if (!targetBackup || !listBackups(runtimeRoot).includes(targetBackup)) {
+      return { success: false, reason: `Rollback refused: the backup recorded for this go-live (${targetBackup || "none"}) is not in the backups folder. Restore it from Backup & Restore if you still have a copy. Nothing was changed.`, goLiveEntry };
     }
     const pendingFile = path.join(runtimeRoot, "database", "pending_restore.json");
     if (fs.existsSync(pendingFile)) {

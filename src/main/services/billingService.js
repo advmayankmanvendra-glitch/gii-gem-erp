@@ -14,8 +14,10 @@ export function createBillingService(deps) {
     const gstRate = Number(item.gst_rate || 0);
     const gstType = item.gst_type || "CGST/SGST";
     const gstAmount = roundMoney(taxableValue * gstRate / 100);
-    const cgst = gstType === "IGST" ? 0 : roundMoney(gstAmount / 2);
-    const sgst = gstType === "IGST" ? 0 : roundMoney(gstAmount - cgst);
+    // The split follows the GST type chosen on the invoice: IGST, CGST only, SGST only, or CGST + SGST half each.
+    const single = ["IGST", "CGST", "SGST"].includes(gstType);
+    const cgst = gstType === "CGST" ? gstAmount : single ? 0 : roundMoney(gstAmount / 2);
+    const sgst = gstType === "SGST" ? gstAmount : single ? 0 : roundMoney(gstAmount - cgst);
     const igst = gstType === "IGST" ? gstAmount : 0;
     return {
       company_id: companyId,

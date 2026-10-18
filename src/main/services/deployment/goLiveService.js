@@ -3,7 +3,7 @@ import path from "node:path";
 import { previewReset, analyzeDependencies, rebuildZeroState, executeEnhancedReset } from "../operationalResetService.js";
 import { calculateReadinessScore } from "./readinessService.js";
 import { generateGoLiveCertificate } from "./certificationService.js";
-import { recordGoLiveEntry, updateGoLiveEntry } from "./goLiveHistoryService.js";
+import { getGoLiveHistory, recordGoLiveEntry, updateGoLiveEntry } from "./goLiveHistoryService.js";
 import { runProductionVerification } from "./goLiveVerificationService.js";
 import { createGoLiveBackup, validateBackup, executeAutoRollback } from "./rollbackService.js";
 
@@ -36,7 +36,7 @@ export function checkGoLivePreconditions(db, runtimeRoot, currentEnv) {
   try {
     const readiness = calculateReadinessScore(db, runtimeRoot);
     if (readiness.status !== "Production Ready") {
-      issues.push({ key: "readiness", label: "Readiness status must be Production Ready", passed: false, detail: `Status: ${readiness.status} (${readiness.score}%)` });
+      issues.push({ key: "readiness", label: "Readiness status must be Production Ready", passed: false, detail: `Status: ${readiness.status} (${readiness.score}%)${readiness.failedChecks?.length ? `. Still failing: ${readiness.failedChecks.join(", ")}` : ""}` });
     } else {
       issues.push({ key: "readiness", label: "Readiness status is Production Ready", passed: true, detail: `${readiness.score}%` });
     }
@@ -83,6 +83,7 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
   const zeroStatePassed = zeroState.warnings.length === 0;
 
   updateGoLiveEntry(runtimeRoot, goLiveEntry.id, {
+    companyId: resetResult.company?.id || null,
     resetResult: {
       before: resetResult.before,
       after: resetResult.after,
@@ -103,7 +104,8 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
 }
 
 export function verifyGoLiveProduction(db, runtimeRoot, userId, goLiveId) {
-  const verification = runProductionVerification(db, "production");
+  const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
+  const verification = runProductionVerification(db, entry?.companyId || null);
   return { verification, goLiveId };
 }
 
@@ -135,7 +137,7 @@ export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId
   const entry = updateGoLiveEntry(runtimeRoot, goLiveId, { status: "rolling_back" });
   const rollbackResult = executeAutoRollback(runtimeRoot, entry, reason);
   updateGoLiveEntry(runtimeRoot, goLiveId, {
-    status: "rolled_back",
+    status: rollbackResult.success ? "rolled_back" : "rollback_failed",
     rollback: rollbackResult,
     failureReason: reason
   });

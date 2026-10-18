@@ -168,8 +168,10 @@ export function calculateReadinessScore(db, runtimeRoot) {
   }
 
   const overallScore = Math.round(totalWeighted);
+  // A high weighted score must not hide a failed check: Production Ready needs every check to pass.
+  const failedChecks = Object.values(categories).flatMap((result) => result.checks.filter((check) => !check.passed).map((check) => check.label));
   let overallStatus;
-  if (overallScore >= 95) overallStatus = "Production Ready";
+  if (overallScore >= 95 && failedChecks.length === 0) overallStatus = "Production Ready";
   else if (overallScore >= 80) overallStatus = "Ready with Warnings";
   else if (overallScore >= 60) overallStatus = "Requires Attention";
   else overallStatus = "Not Ready";
@@ -177,6 +179,7 @@ export function calculateReadinessScore(db, runtimeRoot) {
   return {
     score: overallScore,
     status: overallStatus,
+    failedChecks,
     categories,
     weights: WEIGHTS,
     generatedAt: new Date().toISOString()

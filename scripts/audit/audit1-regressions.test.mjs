@@ -187,3 +187,30 @@ test("go-live zero-state check looks only at the company that was reset", async 
   assert.ok(rebuildZeroState(db).warnings.length > 0, "the seeded company still has transactions");
   assert.deepEqual(rebuildZeroState(db, empty).warnings, []);
 });
+
+test("CGST only and SGST only invoices keep the whole tax in the chosen component", () => {
+  const db = fresh();
+  const order = firstOrder(db);
+  const save = (gstType) => m.saveBillingVoucher(db, { header: { order_id: order, company_id: 1, invoice_date: "2026-07-01", gst_type: gstType }, items: [{ quantity: 1, billing_rate: 1000, gst_rate: 18, gst_type: gstType }] });
+  const line = (inv) => db.prepare("SELECT cgst, sgst, igst FROM invoice_items WHERE billing_id = ?").get(inv.id);
+  assert.deepEqual(line(save("CGST")), { cgst: 180, sgst: 0, igst: 0 });
+  assert.deepEqual(line(save("SGST")), { cgst: 0, sgst: 180, igst: 0 });
+});
+
+test("go-live rollback refuses an unknown run instead of restoring another backup", async () => {
+  const { executeAutoRollback } = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/rollbackService.js")).href);
+  const root = freshRoot();
+  fs.mkdirSync(path.join(root, "backups"), { recursive: true });
+  fs.writeFileSync(path.join(root, "backups", "unrelated.db"), "x");
+  assert.equal(executeAutoRollback(root, null, "test").success, false);
+  assert.equal(executeAutoRollback(root, { backup: { fileName: "missing.db" } }, "test").success, false);
+});
+
+test("go-live verification runs in the app and passes on a freshly reset company", async () => {
+  const { runProductionVerification } = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/goLiveVerificationService.js")).href);
+  const db = fresh();
+  const empty = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Go-live Co')").run().lastInsertRowid;
+  const result = runProductionVerification(db, empty);
+  assert.equal(result.overallPassed, true, JSON.stringify(result));
+  assert.equal(runProductionVerification(db, 1).additionalPassed, false, "the seeded company still has vouchers");
+});
