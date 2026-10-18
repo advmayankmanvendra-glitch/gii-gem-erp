@@ -160,7 +160,7 @@ const api = {
   analyzeResetDependencies: () => ipcRenderer.invoke("reset:analyze-dependencies"),
   executeEnhancedReset: (payload) => ipcRenderer.invoke("reset:execute-enhanced", payload && typeof payload === "object" ? payload : {}),
   rollbackReset: (backup) => ipcRenderer.invoke("reset:rollback", { backup }),
-  checkGoLivePreconditions: () => ipcRenderer.invoke("go-live:preconditions"),
+  checkGoLivePreconditions: (payload) => ipcRenderer.invoke("go-live:preconditions", payload),
   previewGoLive: () => ipcRenderer.invoke("go-live:preview"),
   executeGoLive: (payload) => ipcRenderer.invoke("go-live:execute", payload && typeof payload === "object" ? payload : {}),
   verifyGoLive: (goLiveId) => ipcRenderer.invoke("go-live:verify", { goLiveId }),

@@ -513,7 +513,7 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
               <Field name="consignee" label="Consignee" type="text" value={header.consignee} onChange={(value) => setHeader({ ...header, consignee: value })} />
               <Field name="place_of_supply" label="Place of Supply" type="text" value={header.place_of_supply} onChange={(value) => setHeader({ ...header, place_of_supply: value })} />
               <SelectBox label="GST Type" value={header.gst_type} onChange={(value) => setHeader({ ...header, gst_type: value })} options={[["CGST/SGST", "CGST + SGST"], ["CGST", "CGST only"], ["SGST", "SGST only"], ["IGST", "IGST"]]} />
-              <SelectBox label="Invoice Status" value={header.invoice_status} onChange={(value) => setHeader({ ...header, invoice_status: value })} options={["Draft", "Pending Approval", "Approved", "Posted", "Reversed"].map((status) => [status, status])} />
+              <SelectBox label="Invoice Status" value={header.invoice_status} onChange={(value) => setHeader({ ...header, invoice_status: value })} options={["Draft", "Pending Approval"].map((status) => [status, status])} />
             </div>
           </>
         )}

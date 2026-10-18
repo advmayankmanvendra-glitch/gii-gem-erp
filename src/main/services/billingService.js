@@ -312,6 +312,10 @@ export function createBillingService(deps) {
     const gstRate = normalizedItems.length ? Math.max(...normalizedItems.map((item) => item.gst_rate)) : Number(header.gst_rate || 0);
     if (billingValue < 0 || gstTotal < 0) throw new Error("Invoice amount cannot be negative");
 
+    // Saving may only keep an invoice as Draft or submit it for approval; approval goes
+    // through the approval queue and posting through the posting service.
+    const requestedStatus = ["Draft", "Pending Approval"].includes(header.invoice_status) ? header.invoice_status : null;
+    const existingInvoice = header.id ? db.prepare("SELECT posting_status, approval_status, invoice_status FROM invoices WHERE id = ?").get(header.id) : null;
     const data = {
       company_id: companyId,
       financial_year_id: financialYear.id,
@@ -326,10 +330,11 @@ export function createBillingService(deps) {
       billing_value: billingValue,
       gst_rate: gstRate,
       invoice_type: header.invoice_type || "Tax Invoice",
-      invoice_status: header.invoice_status || header.approval_status || "Draft",
+      invoice_status: requestedStatus || existingInvoice?.invoice_status || "Draft",
       remarks: header.remarks || "",
-      posting_status: header.posting_status || "Draft",
-      approval_status: header.approval_status || "Draft",
+      // Posting has its own controlled path; saving never changes it.
+      posting_status: existingInvoice?.posting_status || "Draft",
+      approval_status: requestedStatus || existingInvoice?.approval_status || "Draft",
       posting_error: header.posting_error || null
     };
 

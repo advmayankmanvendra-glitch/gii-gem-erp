@@ -238,3 +238,30 @@ test("go-live completion re-checks the books instead of trusting the screen's ve
   const root = freshRoot();
   assert.throws(() => goLive.completeGoLive(db, root, 1, "no-such-run", { overallPassed: true }), /not found/);
 });
+
+test("reversing a serial- and batch-tracked inward takes the serial and batch out of stock", () => {
+  const db = fresh();
+  const { wh, item } = widget(db);
+  const inward = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A1-SER", quantity: 1, rate: 100, landed_cost: 0, serial_number: "A1-SN-1", batch_number: "A1-B1" });
+  m.postStockInward(db, inward.id);
+  m.reverseStockInward(db, inward.id);
+  assert.equal(db.prepare("SELECT status FROM serial_numbers WHERE serial_number = 'A1-SN-1'").get().status, "Reversed");
+  assert.equal(db.prepare("SELECT balance_quantity FROM batches WHERE batch_number = 'A1-B1'").get().balance_quantity, 0);
+});
+
+test("saving an invoice cannot mark it approved or posted", () => {
+  const db = fresh();
+  const inv = m.saveBillingVoucher(db, { header: { order_id: firstOrder(db), company_id: 1, invoice_date: "2026-07-01", invoice_status: "Approved", approval_status: "Approved", posting_status: "Posted" }, items: [{ quantity: 1, billing_rate: 100, gst_rate: 18 }] });
+  assert.deepEqual(db.prepare("SELECT invoice_status, approval_status, posting_status FROM invoices WHERE id = ?").get(inv.id), { invoice_status: "Draft", approval_status: "Draft", posting_status: "Draft" });
+  const pending = m.saveBillingVoucher(db, { header: { order_id: firstOrder(db), company_id: 1, invoice_date: "2026-07-01", invoice_status: "Pending Approval" }, items: [{ quantity: 1, billing_rate: 100, gst_rate: 18 }] });
+  assert.equal(db.prepare("SELECT approval_status FROM invoices WHERE id = ?").get(pending.id).approval_status, "Pending Approval");
+});
+
+test("go-live readiness looks at the selected company's own set-up", async () => {
+  const { calculateReadinessScore } = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/readinessService.js")).href);
+  const db = fresh();
+  const empty = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Not Set Up')").run().lastInsertRowid;
+  const result = calculateReadinessScore(db, freshRoot(), empty);
+  assert.ok(result.failedChecks.includes("Financial years exist"), JSON.stringify(result.failedChecks));
+  assert.ok(result.failedChecks.includes("Chart of accounts exists"));
+});

@@ -11,10 +11,26 @@ const WEIGHTS = {
   deployment: 5
 };
 
-function count(db, table, where = "") {
+function count(db, table, where = "", params = []) {
   const sql = `SELECT COUNT(*) count FROM "${table}" ${where}`;
-  const row = db.prepare(sql).get();
+  const row = db.prepare(sql).get(...params);
   return Number(row?.count || 0);
+}
+
+// With a company id, company-linked checks look only at that company (shared warehouses
+// and banks without a company count for every company). Items, suppliers, departments,
+// employees, users and expense heads are shared masters.
+function scoped(db, table, where, companyId) {
+  if (!companyId) return { where, params: [] };
+  const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map((c) => c.name);
+  if (!cols.includes("company_id")) return { where, params: [] };
+  const clause = "(company_id = ? OR company_id IS NULL OR company_id = 0)";
+  return { where: where ? `${where} AND ${clause}` : `WHERE ${clause}`, params: [companyId] };
+}
+
+function scopedCount(db, table, where, companyId) {
+  const q = scoped(db, table, where, companyId);
+  return count(db, table, q.where, q.params);
 }
 
 function hasTable(db, name) {
@@ -27,28 +43,34 @@ function categoryScore(passed, total) {
   return { score: pct, passed, total };
 }
 
-export function assessFoundation(db) {
+export function assessFoundation(db, companyId = null) {
   const checks = [];
-  checks.push({ key: "companies", label: "Companies exist", passed: count(db, "companies", "WHERE COALESCE(is_deleted,0)=0") > 0 });
-  checks.push({ key: "financialYears", label: "Financial years exist", passed: count(db, "financial_years") > 0 });
+  checks.push({ key: "companies", label: companyId ? "Selected company exists" : "Companies exist", passed: companyId
+    ? count(db, "companies", "WHERE COALESCE(is_deleted,0)=0 AND id = ?", [companyId]) > 0
+    : count(db, "companies", "WHERE COALESCE(is_deleted,0)=0") > 0 });
+  checks.push({ key: "financialYears", label: "Financial years exist", passed: companyId
+    ? count(db, "financial_years", "WHERE company_id = ?", [companyId]) > 0
+    : count(db, "financial_years") > 0 });
   checks.push({ key: "users", label: "Users exist", passed: count(db, "users") > 0 });
-  checks.push({ key: "chartOfAccounts", label: "Chart of accounts exists", passed: count(db, "accounts", "WHERE COALESCE(is_deleted,0)=0") > 0 });
-  checks.push({ key: "banks", label: "Banks configured", passed: count(db, "banks", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
-  checks.push({ key: "warehouses", label: "Warehouses configured", passed: count(db, "warehouses", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
+  checks.push({ key: "chartOfAccounts", label: "Chart of accounts exists", passed: companyId
+    ? count(db, "accounts", "WHERE COALESCE(is_deleted,0)=0 AND company_id = ?", [companyId]) > 0
+    : count(db, "accounts", "WHERE COALESCE(is_deleted,0)=0") > 0 });
+  checks.push({ key: "banks", label: "Banks configured", passed: scopedCount(db, "banks", "WHERE COALESCE(is_deleted,0)=0 AND status='active'", companyId) > 0 });
+  checks.push({ key: "warehouses", label: "Warehouses configured", passed: scopedCount(db, "warehouses", "WHERE COALESCE(is_deleted,0)=0 AND status='active'", companyId) > 0 });
   checks.push({ key: "items", label: "Item masters exist", passed: count(db, "items", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
   checks.push({ key: "suppliers", label: "Suppliers exist", passed: count(db, "suppliers", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
   checks.push({ key: "departments", label: "Departments exist", passed: count(db, "government_departments", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
   checks.push({ key: "employees", label: "Employees exist", passed: count(db, "employees", "WHERE COALESCE(is_deleted,0)=0 AND status='active'") > 0 });
-  checks.push({ key: "creditTerms", label: "Credit terms exist", passed: hasTable(db, "credit_terms") && count(db, "credit_terms") > 0 });
+  checks.push({ key: "creditTerms", label: "Credit terms exist", passed: hasTable(db, "credit_terms") && scopedCount(db, "credit_terms", "", companyId) > 0 });
   checks.push({ key: "expenseHeads", label: "Expense heads exist", passed: count(db, "expense_heads") > 0 });
   const passed = checks.filter(c => c.passed).length;
   return { checks, score: categoryScore(passed, checks.length), status: statusFor(checks) };
 }
 
-export function assessAccounting(db) {
+export function assessAccounting(db, companyId = null) {
   const checks = [];
   const tbRows = hasTable(db, "accounts") && hasTable(db, "ledger_entries")
-    ? db.prepare("SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE COALESCE(a.is_deleted,0)=0 AND COALESCE(le.is_deleted,0)=0").get()
+    ? db.prepare(`SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE COALESCE(a.is_deleted,0)=0 AND COALESCE(le.is_deleted,0)=0${companyId ? " AND a.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
     : { debit: 0, credit: 0 };
   const tbDiff = Math.round((Number(tbRows.debit || 0) - Number(tbRows.credit || 0)) * 100) / 100;
   checks.push({ key: "trialBalance", label: "Trial balance difference is zero", passed: tbDiff === 0, detail: `Difference: ${tbDiff}` });
@@ -74,12 +96,12 @@ export function assessInventory(db) {
   return { checks, score: categoryScore(passed, checks.length), status: statusFor(checks) };
 }
 
-export function assessGst(db) {
+export function assessGst(db, companyId = null) {
   const checks = [];
   const gstRows = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
     ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
       COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
-      FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE COALESCE(v.is_deleted,0)=0 AND COALESCE(vl.is_deleted,0)=0 AND COALESCE(a.is_deleted,0)=0`).get()
+      FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE COALESCE(v.is_deleted,0)=0 AND COALESCE(vl.is_deleted,0)=0 AND COALESCE(a.is_deleted,0)=0${companyId ? " AND v.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
     : { input: 0, output: 0 };
   const netGst = Math.round((Number(gstRows.output || 0) - Number(gstRows.input || 0)) * 100) / 100;
   checks.push({ key: "gstReconciled", label: "GST input/output reconciled", passed: netGst >= 0, detail: `Net: ${netGst}` });
@@ -150,12 +172,12 @@ function statusFor(checks) {
   return "Fail";
 }
 
-export function calculateReadinessScore(db, runtimeRoot) {
+export function calculateReadinessScore(db, runtimeRoot, companyId = null) {
   const categories = {
-    foundation: assessFoundation(db),
-    accounting: assessAccounting(db),
+    foundation: assessFoundation(db, companyId),
+    accounting: assessAccounting(db, companyId),
     inventory: assessInventory(db),
-    gst: assessGst(db),
+    gst: assessGst(db, companyId),
     operations: assessOperations(db),
     technical: assessTechnical(db),
     deployment: assessDeployment(db, runtimeRoot)
@@ -180,6 +202,7 @@ export function calculateReadinessScore(db, runtimeRoot) {
     score: overallScore,
     status: overallStatus,
     failedChecks,
+    companyId: companyId || null,
     categories,
     weights: WEIGHTS,
     generatedAt: new Date().toISOString()

@@ -73,7 +73,7 @@ function GoLiveWizard({ apiClient, companyContext }) {
   const step1CheckPreconditions = async () => {
     setLoading(true);
     try {
-      const result = await apiClient.checkGoLivePreconditions();
+      const result = await apiClient.checkGoLivePreconditions({ company_id: companyContext?.company_id });
       setPreconditions(result);
       if (!result.allPassed) {
         const failedPreconditions = result.issues.filter(i => !i.passed).map(i => `${i.label}${i.detail ? ` (${i.detail})` : ""}`);

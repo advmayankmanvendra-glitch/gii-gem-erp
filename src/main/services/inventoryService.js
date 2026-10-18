@@ -342,6 +342,20 @@ export function createInventoryService(deps) {
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
+  // A supplier return reduces the supplier payable when the goods were already billed by
+  // that supplier on the order (a posted purchase bill), and Goods Received Not Invoiced
+  // otherwise. Judged from the returned goods' own order and supplier, not the company total.
+  function isReturnBilled(db, row) {
+    if (!row.supplier_id) return isGrniClearedForCompany(db, row.company_id);
+    const billed = db.prepare(`
+      SELECT 1 FROM procurements
+      WHERE company_id = ? AND supplier_id = ? AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0
+        AND (? IS NULL OR order_id = ?)
+      LIMIT 1
+    `).get(row.company_id, row.supplier_id, row.order_id || null, row.order_id || null);
+    return Boolean(billed);
+  }
+
   function postStockReturn(db, id) {
     const row = db.prepare("SELECT * FROM stock_returns WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
     ensureStockNotPosted(row);
@@ -368,7 +382,7 @@ export function createInventoryService(deps) {
         source_module: "stock_returns",
         source_id: row.id
       });
-      const grniAlreadyCleared = !isDepartmentReturn && isGrniClearedForCompany(db, row.company_id);
+      const grniAlreadyCleared = !isDepartmentReturn && isReturnBilled(db, row);
       const retVoucher = retValue > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.return_date,
@@ -432,7 +446,51 @@ export function createInventoryService(deps) {
         throw error;
       }
     });
+    if (rows.length) reverseTrackingForSource(db, table, id);
     return rows.length;
+  }
+
+  // Undoes what posting did to serial numbers, batches and reservations.
+  function reverseTrackingForSource(db, table, id) {
+    if (table === "stock_inwards") {
+      const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ?").get(id);
+      if (!row) return;
+      if (row.serial_number) {
+        db.prepare("UPDATE serial_numbers SET status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND serial_number = ? AND status = 'In Stock' AND COALESCE(is_deleted, 0) = 0")
+          .run(row.company_id, row.item_id, row.serial_number);
+      }
+      if (row.batch_number) {
+        db.prepare("UPDATE batches SET quantity = MAX(0, quantity - ?), balance_quantity = MAX(0, balance_quantity - ?), updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0")
+          .run(row.quantity, row.quantity, row.company_id, row.item_id, row.warehouse_id, row.batch_number);
+      }
+    }
+    if (table === "stock_outwards") {
+      const row = db.prepare("SELECT * FROM stock_outwards WHERE id = ?").get(id);
+      if (!row) return;
+      const quantity = Number(row.quantity_issued || row.quantity || 0);
+      if (row.serial_number) {
+        db.prepare("UPDATE serial_numbers SET status = 'In Stock', order_id = NULL, department_id = NULL, delivery_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND serial_number = ? AND status = 'Issued' AND COALESCE(is_deleted, 0) = 0")
+          .run(row.company_id, row.item_id, row.serial_number);
+      }
+      if (row.batch_number) {
+        db.prepare("UPDATE batches SET balance_quantity = balance_quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0")
+          .run(quantity, row.company_id, row.item_id, row.warehouse_id, row.batch_number);
+      }
+      if (row.order_id && quantity > 0) {
+        db.prepare(`
+          UPDATE stock_reservations
+          SET issued_quantity = MAX(0, issued_quantity - ?),
+            balance_reserved = balance_reserved + MIN(?, issued_quantity),
+            status = CASE WHEN MAX(0, issued_quantity - ?) <= 0 THEN 'Reserved' ELSE 'Partially Issued' END,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = (
+            SELECT id FROM stock_reservations
+            WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND issued_quantity > 0 AND status IN ('Partially Issued', 'Fully Issued')
+            ORDER BY id DESC LIMIT 1
+          )
+        `).run(quantity, quantity, quantity, row.order_id, row.item_id, row.warehouse_id);
+      }
+    }
   }
 
   // Reversing a stock document reverses its voucher when it has one (the voucher

@@ -67,8 +67,8 @@ function getDbVersion(db) {
   }
 }
 
-export function generateGoLiveCertificate(db, runtimeRoot, userId) {
-  const readiness = calculateReadinessScore(db, runtimeRoot);
+export function generateGoLiveCertificate(db, runtimeRoot, userId, companyId = null) {
+  const readiness = calculateReadinessScore(db, runtimeRoot, companyId);
   const history = readHistory(runtimeRoot);
   const certId = zeroPad(history.nextId, 6);
   const certNumber = `GLC-2026-${certId}`;

@@ -1226,8 +1226,8 @@ function registerIpc() {
     return { success: true, path: backupDir };
   });
 
-  handle("deployment:readiness", () => {
-    return calculateReadinessScore(db, runtimeDataRoot);
+  handle("deployment:readiness", (payload = {}) => {
+    return calculateReadinessScore(db, runtimeDataRoot, Number(payload?.company_id || 0) || null);
   });
 
   handle("deployment:certify", guarded("system_reset", "deployment", () => {
@@ -1238,9 +1238,9 @@ function registerIpc() {
     return getCertificateHistory(runtimeDataRoot);
   });
 
-  handle("go-live:preconditions", () => {
+  handle("go-live:preconditions", (payload = {}) => {
     const envConfig = readEnvironmentConfig();
-    return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development");
+    return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development", Number(payload?.company_id || 0) || null);
   });
 
   handle("go-live:preview", () => {

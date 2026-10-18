@@ -7,7 +7,7 @@ import { getGoLiveHistory, recordGoLiveEntry, updateGoLiveEntry } from "./goLive
 import { runProductionVerification } from "./goLiveVerificationService.js";
 import { createGoLiveBackup, validateBackup, executeAutoRollback } from "./rollbackService.js";
 
-export function checkGoLivePreconditions(db, runtimeRoot, currentEnv) {
+export function checkGoLivePreconditions(db, runtimeRoot, currentEnv, companyId = null) {
   const issues = [];
 
   if (String(currentEnv || "").toLowerCase() !== "production") {
@@ -34,7 +34,7 @@ export function checkGoLivePreconditions(db, runtimeRoot, currentEnv) {
   }
 
   try {
-    const readiness = calculateReadinessScore(db, runtimeRoot);
+    const readiness = calculateReadinessScore(db, runtimeRoot, companyId);
     if (readiness.status !== "Production Ready") {
       issues.push({ key: "readiness", label: "Readiness status must be Production Ready", passed: false, detail: `Status: ${readiness.status} (${readiness.score}%)${readiness.failedChecks?.length ? `. Still failing: ${readiness.failedChecks.join(", ")}` : ""}` });
     } else {
@@ -121,7 +121,7 @@ export function completeGoLive(db, runtimeRoot, userId, goLiveId) {
 
   let certResult = null;
   if (allVerificationPassed) {
-    certResult = generateGoLiveCertificate(db, runtimeRoot, userId);
+    certResult = generateGoLiveCertificate(db, runtimeRoot, userId, entry.companyId || null);
   }
 
   const updated = updateGoLiveEntry(runtimeRoot, goLiveId, {
