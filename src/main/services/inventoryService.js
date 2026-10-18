@@ -268,14 +268,7 @@ export function createInventoryService(deps) {
         remarks: "Issue for supply"
       });
       db.prepare("UPDATE stock_outwards SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(voucher?.id || null, id);
-      db.prepare(`
-        UPDATE stock_reservations
-        SET issued_quantity = issued_quantity + ?,
-          balance_reserved = MAX(0, balance_reserved - ?),
-          status = CASE WHEN MAX(0, balance_reserved - ?) <= 0 THEN 'Fully Issued' ELSE 'Partially Issued' END,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status NOT IN ('Fully Issued','Cancelled')
-      `).run(row.quantity_issued, row.quantity_issued, row.quantity_issued, row.order_id, row.item_id, row.warehouse_id);
+      consumeReservations(db, row.order_id, row.item_id, row.warehouse_id, Number(row.quantity_issued || 0));
       auditLog(db, { company_id: row.company_id, action: "stock_outward_posted", table_name: "stock_outwards", record_id: id, new_value: JSON.stringify(row) });
     });
     tx();
@@ -451,6 +444,39 @@ export function createInventoryService(deps) {
     return rows.length;
   }
 
+  // An issue for an order uses up that order's open reservations for the item, oldest
+  // first, and never more than each one holds (an order can list the same item twice).
+  function consumeReservations(db, orderId, itemId, warehouseId, quantity) {
+    let left = quantity;
+    const open = db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status NOT IN ('Fully Issued', 'Cancelled') ORDER BY id")
+      .all(orderId, itemId, warehouseId);
+    open.forEach((reservation, index) => {
+      if (left <= 0) return;
+      const room = Number(reservation.balance_reserved || 0);
+      const take = index === open.length - 1 ? left : Math.min(left, room);
+      if (take <= 0) return;
+      const balance = Math.max(0, room - take);
+      db.prepare("UPDATE stock_reservations SET issued_quantity = issued_quantity + ?, balance_reserved = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(take, balance, balance <= 0 ? "Fully Issued" : "Partially Issued", reservation.id);
+      left -= take;
+    });
+  }
+
+  // Reversing an issue gives the quantity back to the reservations it used, newest first.
+  function releaseReservations(db, orderId, itemId, warehouseId, quantity) {
+    let left = quantity;
+    db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND issued_quantity > 0 AND status <> 'Cancelled' ORDER BY id DESC")
+      .all(orderId, itemId, warehouseId)
+      .forEach((reservation) => {
+        if (left <= 0) return;
+        const give = Math.min(left, Number(reservation.issued_quantity || 0));
+        const issued = Number(reservation.issued_quantity || 0) - give;
+        db.prepare("UPDATE stock_reservations SET issued_quantity = ?, balance_reserved = balance_reserved + ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .run(issued, give, issued > 0 ? "Partially Issued" : "Reserved", reservation.id);
+        left -= give;
+      });
+  }
+
   // An inward can only be undone while its own serial or batch is still unissued in stock.
   function assertTrackingReversible(db, table, id) {
     if (table !== "stock_inwards") return;
@@ -492,20 +518,7 @@ export function createInventoryService(deps) {
         db.prepare("UPDATE batches SET balance_quantity = balance_quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND batch_number = ? AND COALESCE(is_deleted, 0) = 0")
           .run(quantity, row.company_id, row.item_id, row.warehouse_id, row.batch_number);
       }
-      if (row.order_id && quantity > 0) {
-        db.prepare(`
-          UPDATE stock_reservations
-          SET issued_quantity = MAX(0, issued_quantity - ?),
-            balance_reserved = balance_reserved + MIN(?, issued_quantity),
-            status = CASE WHEN MAX(0, issued_quantity - ?) <= 0 THEN 'Reserved' ELSE 'Partially Issued' END,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = (
-            SELECT id FROM stock_reservations
-            WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND issued_quantity > 0 AND status IN ('Partially Issued', 'Fully Issued')
-            ORDER BY id DESC LIMIT 1
-          )
-        `).run(quantity, quantity, quantity, row.order_id, row.item_id, row.warehouse_id);
-      }
+      if (row.order_id && quantity > 0) releaseReservations(db, row.order_id, row.item_id, row.warehouse_id, quantity);
     }
   }
 

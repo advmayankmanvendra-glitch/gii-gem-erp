@@ -299,3 +299,28 @@ test("issuing stock for an order updates its automatic reservation", () => {
   const reservation = db.prepare("SELECT issued_quantity, balance_reserved FROM stock_reservations WHERE order_id = ? AND item_id = ? AND status <> 'Cancelled'").get(order, item);
   assert.deepEqual(reservation, { issued_quantity: 4, balance_reserved: 0 });
 });
+
+test("one issue uses up only as much reservation as it issued when an order lists the item twice", () => {
+  const db = fresh();
+  const { wh, item } = widget(db);
+  const order = firstOrder(db);
+  const inward = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A1-RSV2", quantity: 10, rate: 100, landed_cost: 0 });
+  m.postStockInward(db, inward.id);
+  db.prepare("INSERT INTO order_items (company_id, order_id, item_id, quantity) VALUES (1, ?, ?, 3)").run(order, item);
+  db.prepare("INSERT INTO order_items (company_id, order_id, item_id, quantity) VALUES (1, ?, ?, 3)").run(order, item);
+  m.autoReserveOrderStock(db, order);
+  const outward = m.createRecord(db, "stock_outwards", { company_id: 1, order_id: order, item_id: item, warehouse_id: wh, issue_date: "2026-07-02", quantity_issued: 3 });
+  m.postStockOutward(db, outward.id);
+  const issued = () => db.prepare("SELECT SUM(issued_quantity) issued FROM stock_reservations WHERE order_id = ? AND item_id = ? AND status <> 'Cancelled'").get(order, item).issued;
+  assert.equal(issued(), 3);
+  m.reverseStockOutward(db, outward.id);
+  assert.equal(issued(), 0);
+});
+
+test("go-live reset is refused when its preconditions fail, even if called directly", async () => {
+  const goLive = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/goLiveService.js")).href);
+  const db = fresh();
+  const vouchers = db.prepare("SELECT COUNT(*) c FROM vouchers").get().c;
+  assert.throws(() => goLive.executeGoLiveReset(db, freshRoot(), { companyId: 1, confirmText: "RESET", currentEnv: "development" }), /Environment must be Production/);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM vouchers").get().c, vouchers);
+});

@@ -33,6 +33,16 @@ function projectRoot() {
   return path.resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 }
 
+// The profile chosen in Environment Manager (environment-config.json), as checked by the go-live preconditions.
+function configuredProfile(runtimeRoot) {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(runtimeRoot, "environment-config.json"), "utf8"));
+    const profile = String(config.verificationProfile || config.profile || "").trim();
+    if (profile) return profile.charAt(0).toUpperCase() + profile.slice(1).toLowerCase();
+  } catch { /* no config yet */ }
+  return process.env.VERIFY_PROFILE || "Development";
+}
+
 function versionFromPackage() {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot(), "package.json"), "utf8"));
@@ -88,7 +98,7 @@ export function generateGoLiveCertificate(db, runtimeRoot, userId, companyId = n
     issuedBy: userId || "system",
     companyCount,
     readiness,
-    verificationProfile: process.env.VERIFY_PROFILE || "Development"
+    verificationProfile: configuredProfile(runtimeRoot)
   };
 
   const reportDir = path.join(runtimeRoot, "reports");

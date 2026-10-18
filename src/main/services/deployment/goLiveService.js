@@ -57,6 +57,12 @@ export function previewGoLiveReset(db, runtimeRoot) {
 export function executeGoLiveReset(db, runtimeRoot, options = {}) {
   const resetOptions = typeof options === "object" && options ? options : { userId: options };
   const userId = resetOptions.userId || null;
+  // The wizard checks these first, but the destructive path must not rely on the screen.
+  const preconditions = checkGoLivePreconditions(db, runtimeRoot, resetOptions.currentEnv, Number(resetOptions.companyId || 0) || null);
+  if (!preconditions.allPassed) {
+    const failing = preconditions.issues.filter((issue) => !issue.passed).map((issue) => `${issue.label}${issue.detail ? ` (${issue.detail})` : ""}`);
+    throw new Error(`Go-live reset refused: ${failing.join("; ")}. Fix these in Environment Manager, then retry. Nothing was changed.`);
+  }
   const dependencies = analyzeDependencies(db);
   if (dependencies?.total?.blocked > 0) {
     throw new Error(`Go-live reset refused: dependency analysis found ${dependencies.total.blocked} blocked table(s). Open Environment Manager > Dependencies, fix the listed orphan rows, then retry. Nothing was changed.`);

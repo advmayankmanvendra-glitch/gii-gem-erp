@@ -1248,7 +1248,8 @@ function registerIpc() {
   });
 
   handle("go-live:execute", guarded("system_reset", "go_live", (payload = {}) => {
-    return executeGoLiveReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
+    const envConfig = readEnvironmentConfig();
+    return executeGoLiveReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text, currentEnv: envConfig?.environment || "development" });
   }));
 
   handle("go-live:verify", guarded("system_reset", "go_live", ({ goLiveId } = {}) => {
