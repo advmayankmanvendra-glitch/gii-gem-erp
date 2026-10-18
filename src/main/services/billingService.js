@@ -1,19 +1,22 @@
+import { roundMoney } from "../domain/money.js";
+
 export function createBillingService(deps) {
   const {
     referenceData, suggestedInvoiceSequences, assertRecordEditable,
     getRecord, auditLog, financialYearForDate, nextInvoiceNumber
   } = deps;
 
+  // GST is always computed here from taxable value and rate; tax figures sent by the screen are ignored.
   function normalizeInvoiceItem(item, companyId, orderId) {
     const quantity = Number(item.quantity || 0);
     const billingRate = Number(item.billing_rate || 0);
-    const taxableValue = Number(item.taxable_value || (quantity * billingRate) || 0);
+    const taxableValue = roundMoney(Number(item.taxable_value || (quantity * billingRate) || 0));
     const gstRate = Number(item.gst_rate || 0);
     const gstType = item.gst_type || "CGST/SGST";
-    const gstAmount = Number(item.gst_amount || (taxableValue * gstRate / 100) || 0);
-    const cgst = gstType === "IGST" ? 0 : Number(item.cgst || gstAmount / 2 || 0);
-    const sgst = gstType === "IGST" ? 0 : Number(item.sgst || gstAmount / 2 || 0);
-    const igst = gstType === "IGST" ? Number(item.igst || gstAmount || 0) : 0;
+    const gstAmount = roundMoney(taxableValue * gstRate / 100);
+    const cgst = gstType === "IGST" ? 0 : roundMoney(gstAmount / 2);
+    const sgst = gstType === "IGST" ? 0 : roundMoney(gstAmount - cgst);
+    const igst = gstType === "IGST" ? gstAmount : 0;
     return {
       company_id: companyId,
       order_id: orderId,
@@ -30,7 +33,7 @@ export function createBillingService(deps) {
       sgst,
       igst,
       gst_amount: gstAmount,
-      gross_value: Number(item.gross_value || taxableValue + gstAmount || 0)
+      gross_value: roundMoney(taxableValue + gstAmount)
     };
   }
 

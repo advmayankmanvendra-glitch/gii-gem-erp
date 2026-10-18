@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { parseMoneyToMinor } from "../domain/money.js";
 
 export function createBankReconciliationService(deps) {
   const {
@@ -399,11 +400,28 @@ export function createBankReconciliationService(deps) {
     });
   }
 
+  // A proposal may only point at ledgers and documents of its own company.
+  function assertProposalLinksInCompany(db, companyId, next) {
+    const checks = [
+      ["accounts", next.suggested_ledger_id, "ledger"],
+      ["invoices", next.linked_invoice_id, "invoice"],
+      ["procurements", next.linked_procurement_id, "procurement"],
+      ["supply_orders", next.linked_order_id, "supply order"]
+    ];
+    checks.forEach(([table, id, label]) => {
+      if (!id) return;
+      const row = db.prepare(`SELECT company_id FROM ${table} WHERE id = ?`).get(Number(id));
+      if (!row) throw new Error(`Bank proposal: the selected ${label} (#${id}) does not exist. Pick it again from the list in Voucher Proposals.`);
+      if (Number(row.company_id) !== Number(companyId)) throw new Error(`Bank proposal: the selected ${label} (#${id}) belongs to another company. Switch to the right company or pick a ${label} of this company.`);
+    });
+  }
+
   function voucherLinesFromProposal(db, proposal) {
     const amount = Number(proposal.credit || proposal.debit || 0);
     if (amount <= 0) throw new Error("Proposal amount is required");
     const bankAccount = accountId(db, proposal.company_id, "Bank");
     const ledgerAccount = Number(proposal.suggested_ledger_id || 0) || accountId(db, proposal.company_id, proposal.suggested_voucher_type === "Bank Charges" ? "Bank Charges" : proposal.credit > 0 ? "Trade Receivables" : "Trade Payables");
+    assertProposalLinksInCompany(db, proposal.company_id, { suggested_ledger_id: ledgerAccount });
     const partyType = proposal.suggested_party_type || null;
     const partyId = proposal.suggested_party_id || null;
     if (Number(proposal.credit || 0) > 0) {
@@ -632,6 +650,7 @@ export function createBankReconciliationService(deps) {
       remarks: payload.remarks || proposal.remarks,
       status: payload.status || "Needs Review"
     };
+    assertProposalLinksInCompany(db, proposal.company_id, next);
     db.prepare(`
       UPDATE voucher_proposals SET
         suggested_voucher_type = @suggested_voucher_type,
@@ -692,9 +711,9 @@ export function createBankReconciliationService(deps) {
       `).run(proposal.company_id, voucherNumber, proposal.transaction_date, normalizeVoucherType(proposal.suggested_voucher_type), proposal.narration, proposal.id, financialYear.id);
       lines.forEach((line) => {
         db.prepare(`
-          INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(info.lastInsertRowid, line.account_id, line.debit, line.credit, line.narration, line.linked_party_type || null, line.linked_party_id || null);
+          INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id, debit_minor, credit_minor)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(info.lastInsertRowid, line.account_id, line.debit, line.credit, line.narration, line.linked_party_type || null, line.linked_party_id || null, parseMoneyToMinor(line.debit), parseMoneyToMinor(line.credit));
       });
       db.prepare("UPDATE voucher_proposals SET status = 'Draft Voucher Created', draft_voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(info.lastInsertRowid, proposal.id);
       db.prepare("UPDATE bank_statement_entries SET voucher_id = ?, review_status = 'Draft Voucher Created', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(info.lastInsertRowid, proposal.bank_entry_id);

@@ -24,6 +24,7 @@ import {
   ensureAccountMappingRegistry
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
+import { backfillAll } from "./moneyMigration.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -273,6 +274,7 @@ export const WRITE_POLICY = {
 
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
+  backupBeforePendingMigration(db, root);
   migrate(db);
   ensureAuditChain(db);
   seed(db);
@@ -664,6 +666,30 @@ export function migrate(db) {
   runMigration(db, FSR2B1_MIGRATION_NAME, () => {
     applyAccountMappingRegistryMigration(db);
   });
+
+  // Databases upgraded from older builds applied 022 and 034 before these columns existed:
+  // add whatever is still missing and fill the paise columns from the stored rupee amounts.
+  runMigration(db, UPGRADE_REPAIR_MIGRATION, () => {
+    addRuntimeSoftDeleteColumns(db);
+    addMoneyShadowColumns(db);
+    backfillAll(db);
+  });
+}
+
+const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
+
+// Copy an existing database aside before migrations that have not run on it yet.
+function backupBeforePendingMigration(db, root) {
+  const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
+  if (!hasMigrations) return null;
+  const applied = db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(UPGRADE_REPAIR_MIGRATION);
+  if (applied) return null;
+  const hasData = db.prepare("SELECT COUNT(*) total FROM schema_migrations").get().total > 0;
+  if (!hasData) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const target = path.join(root, "backups", `pre-upgrade-${stamp}.db`);
+  db.prepare("VACUUM INTO ?").run(target);
+  return target;
 }
 
 function runMigration(db, migrationName, callback) {
