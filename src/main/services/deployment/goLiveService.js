@@ -63,6 +63,9 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
   }
   const backup = createGoLiveBackup(runtimeRoot, db);
   const backupValidation = validateBackup(backup);
+  if (!backupValidation?.valid) {
+    throw new Error(`Go-live reset refused: the safety backup could not be verified (${backupValidation?.reason || "unknown reason"}). Check free disk space and the backups folder, then retry. Nothing was deleted.`);
+  }
 
   const goLiveEntry = recordGoLiveEntry(runtimeRoot, {
     status: "in_progress",
@@ -109,15 +112,19 @@ export function verifyGoLiveProduction(db, runtimeRoot, userId, goLiveId) {
   return { verification, goLiveId };
 }
 
-export function completeGoLive(db, runtimeRoot, userId, goLiveId, verificationResult) {
-  const allVerificationPassed = verificationResult?.overallPassed === true;
+export function completeGoLive(db, runtimeRoot, userId, goLiveId) {
+  // Re-run verification here; a result sent by the screen is never trusted.
+  const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
+  if (!entry) throw new Error("Go-live completion refused: this go-live run was not found in the go-live history. Start go-live again from Environment Manager.");
+  const verificationResult = runProductionVerification(db, entry.companyId || null);
+  const allVerificationPassed = verificationResult.overallPassed === true;
 
   let certResult = null;
   if (allVerificationPassed) {
     certResult = generateGoLiveCertificate(db, runtimeRoot, userId);
   }
 
-  const entry = updateGoLiveEntry(runtimeRoot, goLiveId, {
+  const updated = updateGoLiveEntry(runtimeRoot, goLiveId, {
     status: allVerificationPassed ? "completed" : "failed",
     verification: verificationResult,
     certificate: certResult?.certificate || null,

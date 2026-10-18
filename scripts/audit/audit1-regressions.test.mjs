@@ -214,3 +214,27 @@ test("go-live verification runs in the app and passes on a freshly reset company
   assert.equal(result.overallPassed, true, JSON.stringify(result));
   assert.equal(runProductionVerification(db, 1).additionalPassed, false, "the seeded company still has vouchers");
 });
+
+test("an invoice cannot be saved under a company other than its supply order's", () => {
+  const db = fresh();
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A1 Billing Other')").run().lastInsertRowid;
+  assert.throws(() => m.saveBillingVoucher(db, { header: { order_id: firstOrder(db), company_id: other, invoice_date: "2026-07-01" }, items: [{ quantity: 1, billing_rate: 100, gst_rate: 18 }] }), /another company/);
+});
+
+test("go-live deletes nothing when the safety backup fails", async () => {
+  const goLive = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/goLiveService.js")).href);
+  const db = fresh();
+  const vouchers = db.prepare("SELECT COUNT(*) c FROM vouchers").get().c;
+  // A root whose backups folder is a file makes the backup fail before anything is deleted.
+  const root = freshRoot();
+  fs.writeFileSync(path.join(root, "backups"), "not a folder");
+  assert.throws(() => goLive.executeGoLiveReset(db, root, { companyId: 1, confirmText: "RESET" }));
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM vouchers").get().c, vouchers);
+});
+
+test("go-live completion re-checks the books instead of trusting the screen's verification", async () => {
+  const goLive = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/goLiveService.js")).href);
+  const db = fresh();
+  const root = freshRoot();
+  assert.throws(() => goLive.completeGoLive(db, root, 1, "no-such-run", { overallPassed: true }), /not found/);
+});

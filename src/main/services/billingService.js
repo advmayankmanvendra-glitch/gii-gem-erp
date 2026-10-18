@@ -284,12 +284,15 @@ export function createBillingService(deps) {
     if (!order) throw new Error("Linked order not found");
     if (!order.department_id) throw new Error("Department is required before billing");
 
-    const companyId = Number(header.company_id || order.company_id || db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0);
-    if (!companyId) throw new Error("Company is required");
+    const companyId = Number(order.company_id || header.company_id || 0);
+    if (!companyId) throw new Error("Company is required: the linked supply order has no company. Open the supply order, set its company, then save the invoice again.");
+    if (header.company_id && Number(header.company_id) !== companyId) {
+      throw new Error("Invoice not saved: the supply order belongs to another company. Switch to that company, or pick a supply order of the current company.");
+    }
     const financialYear = header.financial_year_id
-      ? db.prepare("SELECT * FROM financial_years WHERE id = ?").get(header.financial_year_id)
+      ? db.prepare("SELECT * FROM financial_years WHERE id = ? AND company_id = ?").get(header.financial_year_id, companyId)
       : financialYearForDate(db, companyId, header.invoice_date);
-    if (!financialYear) throw new Error("Financial year is not configured for this invoice date");
+    if (!financialYear) throw new Error("Financial year is not configured for this invoice date in this company. Open Settings > Financial Years and add the year, or pick a year of this company.");
     const invoiceNumber = String(header.invoice_number || "").trim() || nextInvoiceNumber(db, companyId, financialYear.id);
 
     const duplicate = db.prepare(`

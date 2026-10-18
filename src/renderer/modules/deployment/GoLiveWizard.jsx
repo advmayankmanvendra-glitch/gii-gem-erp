@@ -340,14 +340,20 @@ function GoLiveWizard({ apiClient, companyContext }) {
         </section>
       )}
 
-      {step >= 9 && certificate && (
+      {step === 9 && (
         <section className="panel" style={{ padding: "var(--spacing-md)", marginBottom: "var(--spacing-sm)", border: "2px solid #155724", backgroundColor: "#d4edda" }}>
           <h3 style={{ margin: "0 0 var(--spacing-sm)", color: "#155724", fontSize: "0.9rem" }}>Step 9: Production Certificate</h3>
-          <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Certificate: <strong>{certificate.certificateNumber}</strong></p>
-          <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Status: <strong>{certificate.readiness?.status || certificate.status}</strong></p>
-          <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Score: <strong>{certificate.readiness?.score}%</strong></p>
-          <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Version: {certificate.erpVersion} | DB: {certificate.dbVersion}</p>
-          <button type="button" className="primary-btn" onClick={step9GenerateCertificate} style={{ marginTop: 8 }}>Complete Go-Live</button>
+          {certificate ? (
+            <>
+              <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Certificate: <strong>{certificate.certificateNumber}</strong></p>
+              <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Status: <strong>{certificate.readiness?.status || certificate.status}</strong></p>
+              <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Score: <strong>{certificate.readiness?.score}%</strong></p>
+              <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Version: {certificate.erpVersion} | DB: {certificate.dbVersion}</p>
+            </>
+          ) : (
+            <p style={{ margin: "4px 0", fontSize: "0.85rem" }}>Verification passed. Complete go-live to re-check the books and issue the production certificate.</p>
+          )}
+          <button type="button" className="primary-btn" onClick={step9GenerateCertificate} disabled={loading} style={{ marginTop: 8 }}>Complete Go-Live</button>
         </section>
       )}
 

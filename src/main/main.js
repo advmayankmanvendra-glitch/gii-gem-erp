@@ -1255,8 +1255,8 @@ function registerIpc() {
     return verifyGoLiveProduction(db, runtimeDataRoot, actorId(), goLiveId);
   }));
 
-  handle("go-live:complete", guarded("system_reset", "go_live", ({ goLiveId, verification } = {}) => {
-    return completeGoLive(db, runtimeDataRoot, actorId(), goLiveId, verification);
+  handle("go-live:complete", guarded("system_reset", "go_live", ({ goLiveId } = {}) => {
+    return completeGoLive(db, runtimeDataRoot, actorId(), goLiveId);
   }));
 
   handle("go-live:rollback", guarded("restore_backup", "go_live", ({ goLiveId, reason } = {}) => {
