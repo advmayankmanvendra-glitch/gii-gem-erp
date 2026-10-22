@@ -13,7 +13,8 @@ export function createCrudHelpers({
   seedAccounts,
   autoReserveOrderStock,
   createProcurementPlanRecord,
-  updateProcurementPlanRecord
+  updateProcurementPlanRecord,
+  guardSensitiveWrite = () => []
 }) {
   function tableExists(db, table) {
     return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
@@ -325,6 +326,19 @@ export function createCrudHelpers({
     }
   }
 
+  function auditSensitiveWrite(db, table, id, companyId, changes) {
+    if (!changes?.length) return;
+    auditLog(db, {
+      company_id: companyId || null,
+      action: "bank_details_changed",
+      module: "security",
+      table_name: table,
+      record_id: id,
+      old_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.oldValue]))),
+      new_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.newValue])))
+    });
+  }
+
   function createRecord(db, table, payload) {
     assertWriteAllowed(table, "create");
     if (table === "supply_orders") return createSupplyOrderRecord(db, payload);
@@ -335,6 +349,7 @@ export function createCrudHelpers({
       throw new Error("Company context is required. Select Current Company before saving this record.");
     }
     assertLinksInCompany(db, table, data);
+    const sensitiveChanges = guardSensitiveWrite(db, table, data, null);
     if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
       // A new record is never born Posted or Approved: those states are reached only
       // through the posting and approval services, which create the vouchers.
@@ -370,6 +385,7 @@ export function createCrudHelpers({
       autoReserveOrderStock(db, record.id);
     }
     auditLog(db, { company_id: data.company_id, action: "create", table_name: table, record_id: result.lastInsertRowid, new_value: JSON.stringify(record) });
+    auditSensitiveWrite(db, table, result.lastInsertRowid, data.company_id, sensitiveChanges);
     return record;
   }
 
@@ -388,6 +404,7 @@ export function createCrudHelpers({
       throw new Error("Company context is required. Select Current Company before updating this record.");
     }
     assertLinksInCompany(db, table, { ...oldRecord, ...data });
+    const sensitiveChanges = guardSensitiveWrite(db, table, data, oldRecord);
     if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
       data.posting_status = oldRecord?.posting_status || data.posting_status || "Draft";
       data.approval_status = oldRecord?.approval_status || data.approval_status || "Draft";
@@ -401,6 +418,7 @@ export function createCrudHelpers({
     db.prepare(`UPDATE ${table} SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run({ ...data, id });
     const record = getRecord(db, table, id);
     auditLog(db, { company_id: data.company_id, action: "update", table_name: table, record_id: id, old_value: JSON.stringify(oldRecord), new_value: JSON.stringify(record) });
+    auditSensitiveWrite(db, table, id, data.company_id, sensitiveChanges);
     return record;
   }
 
@@ -409,6 +427,7 @@ export function createCrudHelpers({
     assertWriteAllowed(table, "delete");
     const record = getRecord(db, table, id);
     assertRecordEditable(table, record);
+    auditSensitiveWrite(db, table, id, record?.company_id, guardSensitiveWrite(db, table, null, record));
     if (table === "supply_orders") {
       assertSupplyOrderNotLinked(db, id);
     }

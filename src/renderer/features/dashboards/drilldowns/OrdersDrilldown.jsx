@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters } from "./drilldownFilters.js";
 
 function pendingReason(order) {
   const status = (order.order_status || "").toLowerCase();
@@ -24,17 +25,18 @@ export function OrdersDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
-    apiClient.getDashboardCounts(companyContext).then((counts) => {
+    setError(null);
+    apiClient.getDashboardCounts(drilldownFilters(companyContext)).then((counts) => {
       setData({ counts });
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load orders data");
+      setError(err.message || "Could not load orders data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
 
   return (
-    <DrilldownBase title="Orders Pending" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No pending orders.">
+    <DrilldownBase companyContext={companyContext} title="Orders Pending" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No pending orders.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Active Orders</strong><span>{data?.counts?.activeOrders || 0}</span></div>
         <div className="metric-card"><strong>Total Orders</strong><span>{data?.counts?.totalOrders || 0}</span></div>

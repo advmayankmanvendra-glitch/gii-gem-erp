@@ -35,7 +35,7 @@ GRNI (Goods Received Not Invoiced) is a credit-normal Liability account. It was 
 
 ## COGS Recognition
 
-COGS of 400,000 paise is recognised once. This represents 5 units sold at ₹10 (1,000) per unit minus 1 unit returned at ₹10 (1,000) per unit = 4 units × 1,000 = 4,000 = 400,000 paise. No double recognition.
+COGS of 400,000 paise is recognised once. This represents 5 units sold at ₹1,000 (100,000 paise) per unit minus 1 unit returned at ₹1,000 (100,000 paise) per unit = 4 units × ₹1,000 = ₹4,000 = 400,000 paise. No double recognition.
 
 ## Purchase Account
 

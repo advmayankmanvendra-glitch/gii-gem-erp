@@ -1,14 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { readDashboardNavContext } from "./drilldownFilters.js";
 
-export function DrilldownBase({ title, onNavigate, loading, error, empty, emptyMessage, children }) {
-  const [navContext, setNavContext] = useState(null);
-
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("gii-gem-dashboard-nav-context");
-      if (raw) setNavContext(JSON.parse(raw));
-    } catch {}
-  }, []);
+export function DrilldownBase({ title, companyContext, onNavigate, loading, error, empty, emptyMessage, children }) {
+  // The snapshot only carries the originating period/navigation details. The
+  // company heading follows the live company context used for fetching.
+  const [navContext] = useState(readDashboardNavContext);
+  const companyName = companyContext?.company_name || "Company";
 
   return (
     <section className="page drilldown-page">
@@ -18,14 +15,12 @@ export function DrilldownBase({ title, onNavigate, loading, error, empty, emptyM
         </button>
       </div>
 
-      {navContext && (
-        <div className="context-strip">
-          <strong>{navContext.company?.company_name || "Company"}</strong>
-          {navContext.financialYear && <span>FY: {navContext.financialYear.label}</span>}
-          {navContext.periodLabel && <span>Period: {navContext.periodLabel}</span>}
-          {navContext.comparisonLabel && <span>Comparison: {navContext.comparisonLabel}</span>}
-        </div>
-      )}
+      <div className="context-strip">
+        <strong>{companyName}</strong>
+        {navContext?.financialYear && <span>FY: {navContext.financialYear.label}</span>}
+        {navContext?.periodLabel && <span>Period: {navContext.periodLabel}</span>}
+        {navContext?.comparisonLabel && <span>Comparison: {navContext.comparisonLabel}</span>}
+      </div>
 
       <h2 className="drilldown-title">{title}</h2>
 

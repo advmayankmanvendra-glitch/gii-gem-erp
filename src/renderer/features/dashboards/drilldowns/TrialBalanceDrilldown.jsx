@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters } from "./drilldownFilters.js";
 
 export function TrialBalanceDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -10,11 +11,12 @@ export function TrialBalanceDrilldown({ apiClient, companyContext, onNavigate })
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
-    apiClient.getAccountingData(companyContext).then((result) => {
+    setError(null);
+    apiClient.getAccountingData(drilldownFilters(companyContext)).then((result) => {
       setData(result);
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load trial balance data");
+      setError(err.message || "Could not load trial balance data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -25,7 +27,7 @@ export function TrialBalanceDrilldown({ apiClient, companyContext, onNavigate })
   const difference = Math.round((totalDebit - totalCredit) * 100) / 100;
 
   return (
-    <DrilldownBase title="Trial Balance" onNavigate={onNavigate} loading={loading} error={error} empty={!tb.length} emptyMessage="No trial balance data available.">
+    <DrilldownBase companyContext={companyContext} title="Trial Balance" onNavigate={onNavigate} loading={loading} error={error} empty={!tb.length} emptyMessage="No trial balance data available.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Total Debit</strong><span>{formatCurrency(totalDebit)}</span></div>
         <div className="metric-card"><strong>Total Credit</strong><span>{formatCurrency(totalCredit)}</span></div>

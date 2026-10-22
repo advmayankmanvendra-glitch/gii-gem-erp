@@ -104,6 +104,7 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
 
   updateGoLiveEntry(runtimeRoot, goLiveEntry.id, {
     companyId: resetResult.company?.id || null,
+    highWater: bookHighWater(db),
     resetResult: {
       before: resetResult.before,
       after: resetResult.after,
@@ -159,6 +160,27 @@ export function completeGoLive(db, runtimeRoot, userId, goLiveId) {
 
 const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_failed"]);
 
+// Tables whose new rows mean real work was entered after the go-live reset.
+const HIGH_WATER_TABLES = ["vouchers", "invoices", "payments", "procurements", "stock_ledger"];
+
+function bookHighWater(db) {
+  return Object.fromEntries(HIGH_WATER_TABLES.map((table) => {
+    try { return [table, Number(db.prepare(`SELECT COALESCE(MAX(id), 0) id FROM ${table}`).get().id || 0)]; } catch { return [table, 0]; }
+  }));
+}
+
+// Called with the live database open, before the rollback closes it. Restoring the
+// pre-go-live backup would erase anything entered after the reset, so that is refused.
+export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
+  const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
+  if (!entry?.highWater) return;
+  const now = bookHighWater(db);
+  const grown = HIGH_WATER_TABLES.filter((table) => now[table] > Number(entry.highWater[table] || 0));
+  if (grown.length) {
+    throw new Error(`Rollback refused: new ${grown.join(", ").replaceAll("_", " ")} were entered after go-live ${entry.goliveNumber || goLiveId}. Restoring the pre-go-live backup would erase them. To return to an older state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
+  }
+}
+
 export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId) {
   const history = getGoLiveHistory(runtimeRoot);
   const current = history.find((item) => item.id === goLiveId);
@@ -169,6 +191,9 @@ export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId
   // pre-go-live backup would silently erase them.
   if (!ROLLBACK_ALLOWED_STATUSES.has(current.status)) {
     return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is ${current.status}. Only a go-live that is still in progress or failed can be rolled back. To return to an older state, use Backup & Restore. Nothing was changed.` }, reason };
+  }
+  if (!current.resetResult) {
+    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} never reset the books (${current.failureReason || "it stopped before the reset"}), so there is nothing to roll back. Nothing was changed.` }, reason };
   }
   if (history[0]?.id !== goLiveId) {
     return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is not the latest go-live run. Nothing was changed.` }, reason };

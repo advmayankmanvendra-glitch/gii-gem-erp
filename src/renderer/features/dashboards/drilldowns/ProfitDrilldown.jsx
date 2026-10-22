@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters, inFilterRange } from "./drilldownFilters.js";
 
 export function ProfitDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -10,14 +11,16 @@ export function ProfitDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
+    setError(null);
+    const filters = drilldownFilters(companyContext);
     Promise.all([
-      apiClient.getDashboardCounts(companyContext),
-      apiClient.getAccountingData ? apiClient.getAccountingData(companyContext) : Promise.resolve(null)
+      apiClient.getDashboardCounts(filters),
+      apiClient.getAccountingData ? apiClient.getAccountingData(filters) : Promise.resolve(null)
     ]).then(([counts, accounting]) => {
-      setData({ counts, accounting });
+      setData({ counts, accounting, filters });
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load profitability data");
+      setError(err.message || "Could not load profitability data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -26,15 +29,15 @@ export function ProfitDrilldown({ apiClient, companyContext, onNavigate }) {
   const accounting = data?.accounting || {};
   const totalProfit = counts.totalProfit || 0;
 
-  const invoices = accounting.invoices || [];
-  const procurements = accounting.procurements || [];
+  const invoices = (accounting.invoices || []).filter((i) => inFilterRange(i.invoice_date, data?.filters));
+  const procurements = (accounting.procurements || []).filter((p) => inFilterRange(p.purchase_date, data?.filters));
   const totalRevenue = invoices.reduce((s, i) => s + Number(i.billing_value || 0), 0);
   const totalPurchase = procurements.reduce((s, p) => s + Number(p.purchase_value || 0), 0);
   const totalGst = invoices.reduce((s, i) => s + Number(i.gst_amount || 0), 0);
   const margin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(2) : "0.00";
 
   return (
-    <DrilldownBase title="Net Profit" onNavigate={onNavigate} loading={loading} error={error} empty={!invoices.length && !procurements.length} emptyMessage="No profitability data available for the selected period.">
+    <DrilldownBase companyContext={companyContext} title="Net Profit" onNavigate={onNavigate} loading={loading} error={error} empty={!invoices.length && !procurements.length} emptyMessage="No profitability data available for the selected period.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Total Revenue</strong><span>{formatCurrency(totalRevenue)}</span></div>
         <div className="metric-card"><strong>Total Purchase Cost</strong><span>{formatCurrency(totalPurchase)}</span></div>

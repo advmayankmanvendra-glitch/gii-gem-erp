@@ -1,4 +1,4 @@
-import { parseMoneyToMinor } from "../domain/money.js";
+import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createInventoryService(deps) {
@@ -122,8 +122,11 @@ export function createInventoryService(deps) {
 
   function serialWarrantyExpiry(date, warrantyMonths) {
     if (!date || !warrantyMonths) return null;
-    const expiry = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
-    expiry.setUTCMonth(expiry.getUTCMonth() + Number(warrantyMonths || 0));
+    const start = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
+    // Month-end safe: 31 Jan + 1 month is 28/29 Feb, not 3 Mar.
+    const expiry = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + Number(warrantyMonths || 0), 1));
+    const lastDay = new Date(Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth() + 1, 0)).getUTCDate();
+    expiry.setUTCDate(Math.min(start.getUTCDate(), lastDay));
     return expiry.toISOString().slice(0, 10);
   }
 
@@ -335,29 +338,31 @@ export function createInventoryService(deps) {
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
-  // A supplier return clears Goods Received Not Invoiced while the supplier still has
-  // unbilled receipts of this item (inwards with no posted bill, less earlier returns that
-  // already cleared GRNI), and reduces Trade Payables only once those goods were billed.
-  // Judged per item, supplier and order, not from "any bill exists".
-  function isReturnBilled(db, row) {
-    if (!row.supplier_id) return isGrniClearedForCompany(db, row.company_id);
+  // How much of a supplier return clears Goods Received Not Invoiced: the value of this
+  // item's receipts from the supplier (on the order, when given) that no posted bill
+  // covers yet, less what earlier returns already took out of GRNI. The rest of the
+  // return reduces Trade Payables, because those goods were billed.
+  // Returns are not linked to a specific receipt, so this is judged per item, supplier
+  // and order rather than per receipt.
+  function returnGrniPortion(db, row, retValue) {
+    if (!row.supplier_id) return isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
     const orderId = row.order_id || null;
-    const unbilledReceived = Number(db.prepare(`
-      SELECT COALESCE(SUM(si.quantity), 0) qty FROM stock_inwards si
+    const unbilledValue = Number(db.prepare(`
+      SELECT COALESCE(SUM(sl.value), 0) value FROM stock_inwards si
+      JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
         AND (? IS NULL OR si.order_id = ?) AND p.id IS NULL
-    `).get(row.company_id, row.supplier_id, row.item_id, orderId, orderId)?.qty || 0);
-    const returnedAgainstGrni = Number(db.prepare(`
-      SELECT COALESCE(SUM(sr.quantity), 0) qty FROM stock_returns sr
+    `).get(row.company_id, row.supplier_id, row.item_id, orderId, orderId)?.value || 0);
+    const alreadyReturned = Number(db.prepare(`
+      SELECT COALESCE(SUM(vl.debit), 0) value FROM stock_returns sr
+      JOIN vouchers v ON v.source_module = 'stock_returns' AND v.source_id = sr.id AND COALESCE(v.is_deleted, 0) = 0 AND v.status = 'Posted'
+      JOIN voucher_lines vl ON vl.voucher_id = v.id
+      JOIN accounts a ON a.id = vl.account_id AND a.account_name = 'Goods Received Not Invoiced'
       WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
         AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ?)
-        AND EXISTS (
-          SELECT 1 FROM vouchers v JOIN voucher_lines vl ON vl.voucher_id = v.id JOIN accounts a ON a.id = vl.account_id
-          WHERE v.source_module = 'stock_returns' AND v.source_id = sr.id AND a.account_name = 'Goods Received Not Invoiced' AND vl.debit > 0
-        )
-    `).get(row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.qty || 0);
-    return unbilledReceived - returnedAgainstGrni < Number(row.quantity || 0) - 0.0001;
+    `).get(row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.value || 0);
+    return roundMoney(Math.min(retValue, Math.max(0, unbilledValue - alreadyReturned)));
   }
 
   function postStockReturn(db, id) {
@@ -386,7 +391,8 @@ export function createInventoryService(deps) {
         source_module: "stock_returns",
         source_id: row.id
       });
-      const grniAlreadyCleared = !isDepartmentReturn && isReturnBilled(db, row);
+      const grniPortion = isDepartmentReturn ? 0 : returnGrniPortion(db, row, roundMoney(retValue));
+      const payablesPortion = isDepartmentReturn ? 0 : roundMoney(roundMoney(retValue) - grniPortion);
       const retVoucher = retValue > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.return_date,
@@ -397,13 +403,11 @@ export function createInventoryService(deps) {
         lines: isDepartmentReturn ? [
           { account_id: accountId(db, row.company_id, "Inventory"), debit: retValue, credit: 0 },
           { account_id: accountId(db, row.company_id, "Cost of Goods Sold"), debit: 0, credit: retValue }
-        ] : (grniAlreadyCleared ? [
-          { account_id: accountId(db, row.company_id, "Trade Payables"), debit: retValue, credit: 0 },
-          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: retValue }
         ] : [
-          { account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: retValue, credit: 0 },
-          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: retValue }
-        ])
+          ...(payablesPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Trade Payables"), debit: payablesPortion, credit: 0 }] : []),
+          ...(grniPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: grniPortion, credit: 0 }] : []),
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: payablesPortion + grniPortion }
+        ]
       }) : null;
       db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(retVoucher?.id || null, id);
       auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify({ row, voucher_id: retVoucher?.id }) });

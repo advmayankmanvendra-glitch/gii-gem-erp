@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters } from "./drilldownFilters.js";
 
 export function StockDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -10,13 +11,15 @@ export function StockDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
-    apiClient.getDashboardCounts(companyContext).then((counts) => {
-      return apiClient.getAccountingData(companyContext).then((accounting) => ({ counts, accounting }));
+    setError(null);
+    const filters = drilldownFilters(companyContext);
+    apiClient.getDashboardCounts(filters).then((counts) => {
+      return apiClient.getAccountingData(filters).then((accounting) => ({ counts, accounting }));
     }).then((result) => {
       setData(result);
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load stock data");
+      setError(err.message || "Could not load stock data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -26,7 +29,7 @@ export function StockDrilldown({ apiClient, companyContext, onNavigate }) {
   const itemsInStock = data?.counts?.itemsInStock || 0;
 
   return (
-    <DrilldownBase title="Stock Value" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No stock data available.">
+    <DrilldownBase companyContext={companyContext} title="Stock Value" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No stock data available.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Stock Value</strong><span>{formatCurrency(totalValue)}</span></div>
         <div className="metric-card"><strong>Items In Stock</strong><span>{itemsInStock}</span></div>

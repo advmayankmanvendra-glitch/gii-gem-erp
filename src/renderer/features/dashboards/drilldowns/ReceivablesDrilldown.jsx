@@ -22,11 +22,12 @@ export function ReceivablesDrilldown({ apiClient, companyContext, onNavigate }) 
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
+    setError(null);
     apiClient.getAccountingData(companyContext).then((result) => {
       setData(result);
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load receivables data");
+      setError(err.message || "Could not load receivables data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -35,7 +36,7 @@ export function ReceivablesDrilldown({ apiClient, companyContext, onNavigate }) 
   const totalOutstanding = receivables.reduce((s, r) => s + Math.max(0, Number(r.outstanding || r.balance_due || 0)), 0);
 
   return (
-    <DrilldownBase title="Outstanding Receivables" onNavigate={onNavigate} loading={loading} error={error} empty={!receivables.length} emptyMessage="No outstanding receivables.">
+    <DrilldownBase companyContext={companyContext} title="Outstanding Receivables" onNavigate={onNavigate} loading={loading} error={error} empty={!receivables.length} emptyMessage="No outstanding receivables.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Total Outstanding Bills</strong><span>{receivables.length}</span></div>
         <div className="metric-card"><strong>Total Outstanding</strong><span>{formatCurrency(totalOutstanding)}</span></div>

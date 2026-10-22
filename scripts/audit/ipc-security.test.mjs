@@ -191,7 +191,10 @@ test("only an admin can change supplier or company bank details", async () => {
   const denied = await call(deo, "records:update", "suppliers", supplier.id, { ...supplier, supplier_account_number: "999988887777", supplier_bank_ifsc_code: "EVIL0000001" });
   assert.match(denied.err || "", /Permission denied: settings/);
   assert.match((await call(deo, "records:update", "companies", company.id, { ...company, account_number: "111122223333" })).err || "", /Permission denied/);
-  assert.match((await call(deo, "records:create", "banks", { company_id: 1, bank_account_name: "X", bank_name: "Y", status: "active" })).err || "", /Permission denied: settings/);
+  const bank = await call(deo, "records:create", "banks", { company_id: 1, bank_account_name: "X", bank_name: "Y", account_number: "100100", status: "active" });
+  assert.ok(bank.ok, `a new bank master can be created: ${bank.err}`);
+  assert.match((await call(deo, "records:update", "banks", bank.ok.id, { ...bank.ok, account_number: "999999" })).err || "", /Permission denied: settings/);
+  assert.ok((await call(deo, "records:update", "banks", bank.ok.id, { ...bank.ok, remarks: "edited" })).ok, "other bank fields stay editable");
   const renamed = await call(deo, "records:update", "suppliers", supplier.id, { ...supplier, remarks: "edited by data entry" });
   assert.ok(renamed.ok, `other supplier fields stay editable: ${renamed.err}`);
   db = side();
@@ -268,4 +271,49 @@ test("reset rollback without a named backup restores nothing", async () => {
   const result = await call(admin, "reset:rollback", {});
   assert.equal(result.ok?.success, false);
   assert.match(result.ok?.reason || "", /no backup was named/);
+});
+
+test("bank details cannot be changed under another field name, wiped, or set on a new record by a data-entry user", async () => {
+  const deo = await roleWindow("deo3", "data_entry_operator");
+  let db = side();
+  const supplier = db.prepare("SELECT * FROM suppliers ORDER BY id LIMIT 1").get();
+  const company = db.prepare("SELECT * FROM companies ORDER BY id LIMIT 1").get();
+  const employee = db.prepare("SELECT * FROM employees ORDER BY id LIMIT 1").get();
+  db.close();
+  const { supplier_account_number: _a, supplier_bank_ifsc_code: _b, ...withoutBank } = supplier;
+  const aliased = await call(deo, "records:update", "suppliers", supplier.id, { ...withoutBank, account_number: "999988887777", ifsc: "EVIL0000001" });
+  assert.match(aliased.err || "", /Permission denied: settings/, "alias names are checked");
+  const { account_number: _c, ifsc: _d, bank_name: _e, ...companyNoBank } = company;
+  if (company.account_number || company.ifsc || company.bank_name) {
+    assert.match((await call(deo, "records:update", "companies", company.id, companyNoBank)).err || "", /Permission denied: settings/, "leaving bank fields out cannot wipe them");
+  }
+  assert.match((await call(deo, "records:create", "suppliers", { supplier_name: "New With Bank", status: "active", supplier_account_number: "123123123123" })).err || "", /Permission denied: settings/);
+  assert.ok((await call(deo, "records:create", "suppliers", { supplier_name: "New Without Bank", status: "active" })).ok, "a supplier without bank details can still be created");
+  if (employee) {
+    assert.match((await call(deo, "records:update", "employees", employee.id, { ...employee, account_number: "555500005555" })).err || "", /Permission denied: settings/);
+  }
+  const imported = await call(deo, "imports:confirm", "suppliers", [{ supplier_name: "Imported With Bank", supplier_account_number: "777700007777", status: "active" }], { file_name: "x.csv" });
+  assert.match(imported.err || "", /Permission denied: settings/, JSON.stringify(imported));
+  const master = await call(deo, "master-data:confirm-update", { masterKey: "suppliers", company_id: 1, mode: "insert_update", rows: [{ supplier_code: "MD-BANK-1", supplier_name: "Master With Bank", account_number: "888800008888", is_active: "active" }] });
+  assert.match(master.err || "", /Permission denied: settings/, JSON.stringify(master));
+  db = side();
+  try {
+    assert.equal(db.prepare("SELECT supplier_account_number FROM suppliers WHERE id = ?").get(supplier.id).supplier_account_number, supplier.supplier_account_number);
+    assert.equal(db.prepare("SELECT COUNT(*) c FROM suppliers WHERE supplier_account_number IN ('123123123123', '777700007777', '888800008888')").get().c, 0);
+  } finally { db.close(); }
+});
+
+test("an .xlsx with a cell past Excel's last column is refused quickly", async () => {
+  const admin = await adminWindow();
+  const zlib = await import("node:zlib");
+  const sheet = Buffer.from('<worksheet><sheetData><row r="1"><c r="ZZZZZZ1" t="inlineStr"><is><t>x</t></is></c></row></sheetData></worksheet>');
+  const name = Buffer.from("xl/worksheets/sheet1.xml");
+  const data = zlib.deflateRawSync(sheet);
+  const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(8, 8); local.writeUInt32LE(data.length, 18); local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(8, 10); central.writeUInt32LE(data.length, 20); central.writeUInt16LE(name.length, 28);
+  const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(1, 8); eocd.writeUInt16LE(1, 10); eocd.writeUInt32LE(central.length + name.length, 12); eocd.writeUInt32LE(local.length + name.length + data.length, 16);
+  const started = Date.now();
+  const result = await call(admin, "imports:parse-buffer", "wide.xlsx", Buffer.concat([local, name, data, central, name, eocd]));
+  assert.match(result.err || "", /beyond Excel's last column/);
+  assert.ok(Date.now() - started < 2000);
 });

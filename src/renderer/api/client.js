@@ -82,6 +82,42 @@ const blockedPreviewActions = new Set([
   "installUpdate"
 ]);
 
+// Desktop-only capabilities that screens call directly (without first checking
+// that the method exists). In browser preview they reject with a guided
+// message instead of failing with "is not a function". Every other method the
+// preview does not provide stays undefined, so `if (api.x)` / `api.x?.()`
+// capability checks keep working.
+const desktopOnlyActions = new Set([
+  "checkGoLivePreconditions",
+  "previewGoLive",
+  "executeGoLive",
+  "verifyGoLive",
+  "rollbackGoLive",
+  "completeGoLive",
+  "getGoLiveHistory",
+  "getDeploymentReadiness",
+  "generateGoLiveCertificate",
+  "getCertificateHistory",
+  "generateCertificate",
+  "previewReset",
+  "executeReset",
+  "openBackupFolder",
+  "setVerificationProfile",
+  "switchEnvironment",
+  "computeOrderClosure",
+  "markOrderOperationallyClosed",
+  "createCracRecord",
+  "listCracRecords",
+  "getPaymentReadinessReport",
+  "getAccountMappingRegistry",
+  "getAccountClassifications",
+  "getAccountMappingCoverage",
+  "saveAlertSettings",
+  "previewAlert",
+  "sendAlertNow",
+  "logout"
+]);
+
 function previewBlocked(methodName) {
   return async () => {
     throw new Error(`${methodName} requires the Windows desktop app. Browser preview is read-only and is not connected to SQLite.`);
@@ -95,9 +131,9 @@ export function resolveApi(fallbackApi) {
   return new Proxy({ ...fallbackApi, __runtime: "browser-preview", __readOnlyPreview: true }, {
     get(target, prop) {
       if (blockedPreviewActions.has(prop)) return previewBlocked(prop);
-      if (typeof target[prop] === "function") return target[prop];
       if (prop in target) return target[prop];
-      return async () => { throw new Error(`${String(prop)} is not available in browser preview. Run in the desktop app.`); };
+      if (desktopOnlyActions.has(prop)) return previewBlocked(prop);
+      return undefined;
     }
   });
 }

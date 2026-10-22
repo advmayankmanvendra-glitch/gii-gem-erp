@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters, inFilterRange } from "./drilldownFilters.js";
 
 export function BillingDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -10,16 +11,18 @@ export function BillingDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
-    apiClient.getAccountingData(companyContext).then((result) => {
-      setData(result);
+    setError(null);
+    const filters = drilldownFilters(companyContext);
+    apiClient.getAccountingData(filters).then((result) => {
+      setData({ ...result, filters });
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load billing data");
+      setError(err.message || "Could not load billing data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
 
-  const invoices = data?.invoices || [];
+  const invoices = (data?.invoices || []).filter((i) => inFilterRange(i.invoice_date, data?.filters));
 
   const totalTaxable = invoices.reduce((s, i) => s + Number(i.taxable_value || 0), 0);
   const totalGst = invoices.reduce((s, i) => s + Number(i.gst_amount || 0), 0);
@@ -27,7 +30,7 @@ export function BillingDrilldown({ apiClient, companyContext, onNavigate }) {
   const reconciled = invoices.filter((i) => Number(i.received_amount || 0) >= Number(i.billing_value || 0)).length;
 
   return (
-    <DrilldownBase title="Billing This Month" onNavigate={onNavigate} loading={loading} error={error} empty={!invoices.length} emptyMessage="No invoices raised in the selected period.">
+    <DrilldownBase companyContext={companyContext} title="Billing This Month" onNavigate={onNavigate} loading={loading} error={error} empty={!invoices.length} emptyMessage="No invoices raised in the selected period.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Total Invoices</strong><span>{invoices.length}</span></div>
         <div className="metric-card"><strong>Total Taxable Value</strong><span>{formatCurrency(totalTaxable)}</span></div>

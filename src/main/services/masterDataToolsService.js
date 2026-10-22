@@ -1,3 +1,5 @@
+import { neutralizeFormula } from "../domain/csvSafety.js";
+
 const STATUS_VALUES = new Map([
   ["active", "active"],
   ["inactive", "inactive"],
@@ -205,12 +207,6 @@ function normalizeText(value) {
 
 function normalizeKey(value) {
   return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
-// A cell starting with = + - @ is run as a formula by Excel; prefix it so it opens as text.
-// Plain numbers such as -500 are left alone.
-function neutralizeFormula(text) {
-  return /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
 }
 
 function csvCell(value) {

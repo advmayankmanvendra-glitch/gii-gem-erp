@@ -1,4 +1,4 @@
-import { downloadText } from "./formatters.js";
+import { downloadText, neutralizeFormula } from "./formatters.js";
 
 export function downloadXlsx(fileName, rows) {
   const bytes = buildXlsxBytes(rows);
@@ -119,14 +119,8 @@ export function crc32(bytes) {
 }
 
 export function downloadErrorReport(table, errors) {
-  const csv = ["row,status,errors", ...errors.map((item) => [item.row, item.status, `"${item.errors.join("; ").replaceAll('"', '""')}"`].join(","))].join("\n");
+  const csv = ["row,status,errors", ...errors.map((item) => [item.row, item.status, item.errors.join("; ")].map(csvCell).join(","))].join("\n");
   downloadText(`${table}-import-errors.csv`, csv);
-}
-
-// A cell starting with = + - @ is run as a formula by Excel; prefix it so it opens as text.
-// Plain numbers such as -500 are left alone.
-function neutralizeFormula(text) {
-  return /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
 }
 
 export function csvCell(value) {

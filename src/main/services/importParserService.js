@@ -93,6 +93,8 @@ export function createImportParserService() {
   const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
   const MAX_XLSX_ENTRY_BYTES = 64 * 1024 * 1024;
   const MAX_XLSX_TOTAL_BYTES = 128 * 1024 * 1024;
+  const MAX_XLSX_COLUMN_INDEX = 16383;
+  const MAX_XLSX_CELLS = 2000000;
 
   function assertImportSize(buffer) {
     if (buffer.length > MAX_IMPORT_BYTES) {
@@ -100,14 +102,16 @@ export function createImportParserService() {
     }
   }
 
+  // Lists the workbook's XML parts; each part is inflated only when it is read, so a
+  // large workbook with many sheets is not refused when only one small sheet is used.
   function unzipXlsx(buffer) {
-    const files = {};
+    const entries = {};
     let totalBytes = 0;
     const eocd = findEndOfCentralDirectory(buffer);
     const centralDirectoryOffset = buffer.readUInt32LE(eocd + 16);
-    const entries = buffer.readUInt16LE(eocd + 10);
+    const count = buffer.readUInt16LE(eocd + 10);
     let offset = centralDirectoryOffset;
-    for (let index = 0; index < entries; index += 1) {
+    for (let index = 0; index < count; index += 1) {
       if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
       const method = buffer.readUInt16LE(offset + 10);
       const compressedSize = buffer.readUInt32LE(offset + 20);
@@ -116,41 +120,51 @@ export function createImportParserService() {
       const commentLength = buffer.readUInt16LE(offset + 32);
       const localHeaderOffset = buffer.readUInt32LE(offset + 42);
       const name = buffer.slice(offset + 46, offset + 46 + fileNameLength).toString("utf8");
-      const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
-      const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
-      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
-      const compressed = buffer.slice(dataStart, dataStart + compressedSize);
       offset += 46 + fileNameLength + extraLength + commentLength;
-      // Only the workbook XML parts are read; skip media and anything else.
       if (!/^xl\/.*\.(xml|rels)$/.test(name)) continue;
-      let data;
-      try {
-        data = method === 0 ? compressed : zlib.inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES });
-      } catch (error) {
-        if (error?.code === "ERR_BUFFER_TOO_LARGE" || /too large|maxOutputLength/i.test(String(error?.message))) {
-          throw new Error("Import refused: a part of this .xlsx expands to more than 64 MB. Save the sheet again from Excel (or as CSV) and retry.");
-        }
-        throw new Error(`Import refused: the .xlsx file is damaged (${error.message}). Save it again from Excel and retry.`);
-      }
-      totalBytes += data.length;
-      if (totalBytes > MAX_XLSX_TOTAL_BYTES) {
-        throw new Error("Import refused: this .xlsx expands to more than 128 MB. Split the sheet into smaller files and import them one by one.");
-      }
-      files[name] = data;
+      entries[name] = { method, compressedSize, localHeaderOffset };
     }
-    return files;
+    const cache = {};
+    return {
+      get(name) {
+        if (name in cache) return cache[name];
+        const entry = entries[name];
+        if (!entry) return undefined;
+        const localNameLength = buffer.readUInt16LE(entry.localHeaderOffset + 26);
+        const localExtraLength = buffer.readUInt16LE(entry.localHeaderOffset + 28);
+        const dataStart = entry.localHeaderOffset + 30 + localNameLength + localExtraLength;
+        const compressed = buffer.slice(dataStart, dataStart + entry.compressedSize);
+        let data;
+        try {
+          data = entry.method === 0 ? compressed : zlib.inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES });
+        } catch (error) {
+          if (error?.code === "ERR_BUFFER_TOO_LARGE" || /too large|maxOutputLength/i.test(String(error?.message))) {
+            throw new Error("Import refused: a part of this .xlsx expands to more than 64 MB. Save the sheet again from Excel (or as CSV) and retry.");
+          }
+          throw new Error(`Import refused: the .xlsx file is damaged (${error.message}). Save it again from Excel and retry.`);
+        }
+        totalBytes += data.length;
+        if (totalBytes > MAX_XLSX_TOTAL_BYTES) {
+          throw new Error("Import refused: this .xlsx expands to more than 128 MB. Split the sheet into smaller files and import them one by one.");
+        }
+        cache[name] = data;
+        return data;
+      }
+    };
   }
 
   function parseXlsx(buffer) {
     const files = unzipXlsx(buffer);
-    const sharedStrings = parseSharedStrings(files["xl/sharedStrings.xml"]?.toString("utf8") || "");
-    const workbook = files["xl/workbook.xml"]?.toString("utf8") || "";
-    const rels = files["xl/_rels/workbook.xml.rels"]?.toString("utf8") || "";
+    const sharedStrings = parseSharedStrings(files.get("xl/sharedStrings.xml")?.toString("utf8") || "");
+    const workbook = files.get("xl/workbook.xml")?.toString("utf8") || "";
+    const rels = files.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
     const firstSheetId = /<sheet[^>]*r:id="([^"]+)"/.exec(workbook)?.[1];
     const target = firstSheetId ? new RegExp(`<Relationship[^>]*Id="${firstSheetId}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] : "worksheets/sheet1.xml";
     const sheetPath = `xl/${(target || "worksheets/sheet1.xml").replace(/^\/xl\//, "")}`;
-    const sheetXml = files[sheetPath]?.toString("utf8") || files["xl/worksheets/sheet1.xml"]?.toString("utf8") || "";
+    const sheetXml = files.get(sheetPath)?.toString("utf8") || files.get("xl/worksheets/sheet1.xml")?.toString("utf8") || "";
     const matrix = [];
+    let cellCount = 0;
+    let spreadCells = 0;
     for (const rowMatch of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
       const row = [];
       for (const cellMatch of rowMatch[1].matchAll(/<c([^>]*)>([\s\S]*?)<\/c>/g)) {
@@ -158,10 +172,23 @@ export function createImportParserService() {
         const body = cellMatch[2];
         const ref = /r="([A-Z]+)(\d+)"/.exec(attrs)?.[1] || "";
         const colIndex = excelColumnIndex(ref);
+        // Excel stops at column XFD (16,384 columns); a cell further right is a crafted file
+        // that would make every row a huge sparse array and freeze the app.
+        if (colIndex > MAX_XLSX_COLUMN_INDEX) {
+          throw new Error(`Import refused: the sheet has a cell in column ${ref}, beyond Excel's last column XFD. Save the sheet again from Excel and retry.`);
+        }
+        cellCount += 1;
+        if (cellCount > MAX_XLSX_CELLS) {
+          throw new Error("Import refused: the sheet has more than 2,000,000 cells. Split it into smaller files and import them one by one.");
+        }
         const type = /t="([^"]+)"/.exec(attrs)?.[1];
         const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] || /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1] || "";
         const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);
         row[colIndex] = value;
+      }
+      spreadCells += row.length;
+      if (spreadCells > MAX_XLSX_CELLS * 10) {
+        throw new Error("Import refused: the sheet is too wide and long to read safely. Delete empty columns, or split it into smaller files, and retry.");
       }
       if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
     }

@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import { parseMoneyToMinor } from "../domain/money.js";
-import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "./bankDetailsPolicy.js";
 
 export function createImportValidationService(deps) {
   const {
@@ -30,7 +29,9 @@ export function createImportValidationService(deps) {
       return Number.isNaN(Date.parse(iso)) ? "" : iso;
     }
     const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+    if (Number.isNaN(parsed.getTime())) return "";
+    // "22 Oct 2026" parses as local midnight; read the local calendar date, not UTC.
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
   }
 
   function normalizeHeader(value) {
@@ -408,9 +409,6 @@ export function createImportValidationService(deps) {
         if (updateId) {
           const existing = getRecord(db, table, updateId);
           const incoming = Object.fromEntries(Object.entries(cleanImportPayload).filter(([, value]) => String(value ?? "").trim() !== ""));
-          if (bankDetailChanges(table, incoming, existing).length) {
-            enforcePermission(db, BANK_DETAILS_PERMISSION, { ...context, module: "bank_details", table_name: table, record_id: updateId });
-          }
           updateRecord(db, table, updateId, { ...existing, ...incoming });
           result.updatedRows += 1;
           return;

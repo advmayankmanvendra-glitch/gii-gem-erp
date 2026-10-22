@@ -53,11 +53,25 @@ test("go-live rollback refuses a completed or older run", async () => {
   const goLive = await service("deployment/goLiveService.js");
   const history = await service("deployment/goLiveHistoryService.js");
   const root = freshRoot();
-  const older = history.recordGoLiveEntry(root, { status: "failed", backup: { fileName: "old.db" } });
+  const older = history.recordGoLiveEntry(root, { status: "failed", backup: { fileName: "old.db" }, resetResult: {} });
   const done = history.recordGoLiveEntry(root, { status: "completed", backup: { fileName: "done.db" } });
   assert.match(goLive.failGoLiveWithRollback(root, done.id, "test").rollbackResult.reason, /is completed/);
   assert.match(goLive.failGoLiveWithRollback(root, older.id, "test").rollbackResult.reason, /not the latest/);
   assert.equal(history.getGoLiveHistory(root).find((e) => e.id === done.id).status, "completed", "entry left as it was");
+});
+
+test("go-live rollback refuses a run that never reset the books, or one with work entered after it", async () => {
+  const goLive = await service("deployment/goLiveService.js");
+  const history = await service("deployment/goLiveHistoryService.js");
+  const db = fresh();
+  const root = freshRoot();
+  const stopped = history.recordGoLiveEntry(root, { status: "failed", backup: { fileName: "x.db" }, failureReason: "wrong company" });
+  assert.match(goLive.failGoLiveWithRollback(root, stopped.id, "test").rollbackResult.reason, /never reset the books/);
+  const maxVoucher = db.prepare("SELECT COALESCE(MAX(id), 0) id FROM vouchers").get().id;
+  const run = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "y.db" }, resetResult: {}, highWater: { vouchers: maxVoucher - 1 } });
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, run.id), /entered after go-live/);
+  history.updateGoLiveEntry(root, run.id, { highWater: { vouchers: maxVoucher, invoices: 1e9, payments: 1e9, procurements: 1e9, stock_ledger: 1e9 } });
+  assert.doesNotThrow(() => goLive.assertGoLiveRollbackSafe(db, root, run.id));
 });
 
 test("go-live reset needs GO-LIVE typed by the person, and records nothing otherwise", async () => {
@@ -124,6 +138,22 @@ test("returning goods that were never billed clears GRNI even when another recei
   assert.equal(Math.round((balance(db, "Trade Payables") - payables) * 100) / 100, 200);
 });
 
+test("a return of partly billed goods splits between Trade Payables and GRNI", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Split");
+  const order = firstOrder(db);
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-SPLIT", purchase_value: 500, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-SPLIT", quantity: 5, rate: 100, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-SPLIT-B", quantity: 3, rate: 100, landed_cost: 0 }).id);
+  const payables = balance(db, "Trade Payables");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-03", quantity: 5 });
+  m.postStockReturn(db, ret.id);
+  assert.equal(Math.round((balance(db, "Goods Received Not Invoiced") - grni) * 100) / 100, 300);
+  assert.equal(Math.round((balance(db, "Trade Payables") - payables) * 100) / 100, 200);
+});
+
 test("a record cannot link to another company's order, bill or warehouse", () => {
   const db = fresh();
   const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A2 Other Co')").run().lastInsertRowid;
@@ -175,6 +205,15 @@ test("CSV exports open formula-looking cells as text", async () => {
   assert.equal(csvCell("@SUM(A1)"), "'@SUM(A1)");
   assert.equal(csvCell("-500"), "-500");
   assert.equal(csvCell("Supplier A"), "Supplier A");
+  const formatters = await import(pathToFileURL(path.join(REPO, "src/renderer/utils/formatters.js")).href);
+  const csvSafety = await import(pathToFileURL(path.join(REPO, "src/main/domain/csvSafety.js")).href);
+  for (const neutralize of [formatters.neutralizeFormula, csvSafety.neutralizeFormula]) {
+    assert.equal(neutralize("=1+1"), "'=1+1");
+    assert.equal(neutralize("-12.5"), "-12.5");
+    assert.equal(neutralize("-1,234.50"), "-1,234.50");
+    assert.equal(neutralize("+91 98765 43210"), "+91 98765 43210");
+    assert.equal(neutralize("-2+3"), "'-2+3");
+  }
 });
 
 test("an .xlsx that inflates past the limit is refused instead of freezing the app", () => {

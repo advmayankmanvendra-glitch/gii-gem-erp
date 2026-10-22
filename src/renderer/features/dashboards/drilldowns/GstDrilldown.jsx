@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { drilldownFilters } from "./drilldownFilters.js";
 
 export function GstDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -10,11 +11,12 @@ export function GstDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
-    apiClient.getAccountingData(companyContext).then((result) => {
+    setError(null);
+    apiClient.getAccountingData(drilldownFilters(companyContext)).then((result) => {
       setData(result);
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load GST data");
+      setError(err.message || "Could not load GST data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -25,7 +27,7 @@ export function GstDrilldown({ apiClient, companyContext, onNavigate }) {
   const netPayable = outputGst - inputGst;
 
   return (
-    <DrilldownBase title="GST Position" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No GST data available for the selected period.">
+    <DrilldownBase companyContext={companyContext} title="GST Position" onNavigate={onNavigate} loading={loading} error={error} empty={!data} emptyMessage="No GST data available for the selected period.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Output GST</strong><span>{formatCurrency(outputGst)}</span></div>
         <div className="metric-card"><strong>Input GST</strong><span>{formatCurrency(inputGst)}</span></div>

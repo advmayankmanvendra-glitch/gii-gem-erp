@@ -9,6 +9,10 @@ export function SummaryScreen({ view, notify, companyContext, onNavigate, api })
   const [accounting, setAccounting] = useState(null);
 
   useEffect(() => {
+    if (typeof api?.getProfitability !== "function" || typeof api?.getAccountingData !== "function") {
+      notify("Summary data could not be loaded because the data connection is missing. Reopen this screen from the main menu; if it persists, restart the app.", "error");
+      return;
+    }
     Promise.all([api.getProfitability(companyContext), api.getAccountingData(companyContext)])
       .then(([profitRows, accountingRows]) => {
         setRows(profitRows);

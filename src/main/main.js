@@ -40,7 +40,6 @@ import {
   deleteItemImportBatch,
   deleteRecord,
   deleteUnusedImportedItems,
-  getRecord,
   drilldownData,
   initializeDatabase,
   inventoryData,
@@ -104,7 +103,7 @@ import {
   voucherProposalData,
   previewImportRollback
 } from "./database/init.js";
-import { BANK_DETAILS_PERMISSION, bankDetailChanges, bankDetailDeleteNeedsAdmin, masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
+import { BANK_DETAILS_PERMISSION, masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -124,7 +123,7 @@ import { getVerificationConsoleState, recordVerificationSnapshot } from "./servi
 import { PROFILES } from "./config/verificationConfig.js";
 import { calculateReadinessScore } from "./services/deployment/readinessService.js";
 import { generateGoLiveCertificate, getCertificateHistory } from "./services/deployment/certificationService.js";
-import { checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";
+import { assertGoLiveRollbackSafe, checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";
 import { getGoLiveHistory } from "./services/deployment/goLiveHistoryService.js";
 import {
   listCracRecords,
@@ -306,20 +305,6 @@ function guarded(permission, moduleName, handler) {
       currentActor = previous;
     }
   };
-}
-
-const BANK_GUARDED_TABLES = new Set(["companies", "suppliers", "banks"]);
-
-// Called inside a guarded handler, so currentActor is the signed-in user.
-function requireBankDetailsPermission(table, changes, payload = {}, recordId = null) {
-  if (!changes.length) return;
-  enforcePermission(db, BANK_DETAILS_PERMISSION, {
-    company_id: payload?.company_id || null,
-    module: "bank_details",
-    table_name: table,
-    record_id: recordId,
-    user_id: currentActor?.id || null
-  });
 }
 
 function sessionGuarded(permission, moduleName, handler) {
@@ -596,9 +581,13 @@ function createWindow() {
   // The signed-in session is bound to this window, so it must never show another page:
   // block navigation away from the app and refuse new windows.
   const devOrigin = process.env.VITE_DEV_SERVER_URL ? new URL(process.env.VITE_DEV_SERVER_URL).origin : null;
+  const appIndex = path.join(app.isPackaged ? app.getAppPath() : sourceProjectRoot(), "dist", "index.html");
   win.webContents.on("will-navigate", (event, url) => {
-    const target = new URL(url);
-    const allowed = target.protocol === "file:" || (devOrigin && target.origin === devOrigin);
+    let allowed = false;
+    try {
+      const target = new URL(url);
+      allowed = devOrigin ? target.origin === devOrigin : target.protocol === "file:" && path.resolve(fileURLToPath(target)) === path.resolve(appIndex);
+    } catch { allowed = false; }
     if (!allowed) event.preventDefault();
   });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -606,8 +595,7 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    const appRoot = app.isPackaged ? app.getAppPath() : sourceProjectRoot();
-    win.loadFile(path.join(appRoot, "dist", "index.html"));
+    win.loadFile(appIndex);
   }
 
   win.webContents.on("console-message", (details) => {
@@ -972,10 +960,7 @@ function registerIpc() {
   });
   handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(assertSelectedFile(typeof payload === "string" ? payload : payload?.filePath))));
   handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, (payload?.files || []).map((file) => ({ ...file, filePath: assertSelectedFile(file?.filePath) })), userContext([payload], { module: "tally_migration_assistant" }))));
-  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => {
-    if (bankDetailDeleteNeedsAdmin(table)) requireBankDetailsPermission(table, [{ field: "*" }], context);
-    return bulkImportRecords(db, table, rows, context);
-  }));
+  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
   handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
   handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
   handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
@@ -991,10 +976,16 @@ function registerIpc() {
   }));
   handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
-    if (masterImportTouchesBankDetails(payload?.masterKey, previewMasterDataUpdate(db, payload, context))) {
-      requireBankDetailsPermission(payload?.masterKey, [{ field: "*" }], payload);
+    // Master-data import writes rows directly, so the bank-details rule is checked here.
+    const touchesBank = masterImportTouchesBankDetails(payload?.masterKey, previewMasterDataUpdate(db, payload, context));
+    if (touchesBank) {
+      enforcePermission(db, BANK_DETAILS_PERMISSION, { company_id: payload?.company_id || null, module: "bank_details", table_name: payload?.masterKey, user_id: actorId() });
     }
-    return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
+    const result = confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
+    if (touchesBank) {
+      auditLog(db, { company_id: payload?.company_id || null, action: "bank_details_changed", module: "security", table_name: payload?.masterKey, user_id: actorId(), new_value: JSON.stringify({ source: "master_data_import", batch: result?.batchId || null }) });
+    }
+    return result;
   }));
   handle("master-data:completeness", (_event, context) => {
     return getMasterDataCompleteness(db, userContext([context], { module: "master_data_tools" }));
@@ -1096,23 +1087,9 @@ function registerIpc() {
   });
 
   handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
-  handle("records:create", guarded("create", "records", (table, payload) => {
-    requireBankDetailsPermission(table, bankDetailChanges(table, payload, null), payload);
-    return createRecord(db, table, payload);
-  }));
-  handle("records:update", guarded("edit", "records", (table, id, payload) => {
-    const changes = bankDetailChanges(table, payload, BANK_GUARDED_TABLES.has(table) ? getRecord(db, table, id) : null);
-    requireBankDetailsPermission(table, changes, payload, id);
-    const record = updateRecord(db, table, id, payload);
-    if (changes.length) {
-      auditLog(db, { company_id: record?.company_id || payload?.company_id || null, action: "bank_details_changed", module: "security", table_name: table, record_id: id, user_id: actorId(), old_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.oldValue]))), new_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.newValue]))) });
-    }
-    return record;
-  }));
-  handle("records:delete", guarded("delete", "records", (table, id) => {
-    if (bankDetailDeleteNeedsAdmin(table)) requireBankDetailsPermission(table, [{ field: "*" }], {}, id);
-    return deleteRecord(db, table, id);
-  }));
+  handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
+  handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
+  handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
   handle("purchase-orders:convert-to-work-order", guarded("create", "records", (id, payload) => convertPurchaseOrderToWorkOrder(db, id, payload)));
   handle("records:search", (_event, entityType, searchTerm, options) => {
     if (!SUPPORTED_ENTITY_TYPES.includes(entityType)) throw new Error(`Unsupported entity type: ${entityType}`);
@@ -1331,6 +1308,7 @@ function registerIpc() {
 
   handle("go-live:rollback", guarded("restore_backup", "go_live", ({ goLiveId, reason } = {}) => {
     const userId = actorId();
+    assertGoLiveRollbackSafe(db, runtimeDataRoot, goLiveId);
     const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
     auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason, success: result?.rollbackResult?.success }) });
     return result;

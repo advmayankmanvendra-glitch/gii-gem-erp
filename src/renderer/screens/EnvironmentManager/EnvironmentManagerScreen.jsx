@@ -105,6 +105,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      if (!apiClient.getEnvironmentInfo) throw new Error("Environment Manager requires the Windows desktop app. Open GII GeM ERP on the desktop to manage environments.");
       const result = await apiClient.getEnvironmentInfo(context);
       setInfo(result);
     } catch (error) {

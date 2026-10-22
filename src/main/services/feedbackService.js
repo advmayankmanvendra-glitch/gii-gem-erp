@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { projectRoot } from "../database/init.js";
+import { neutralizeFormula } from "../domain/csvSafety.js";
 
 function ensureFeedbackLogTable(db) {
   db.exec(`
@@ -66,7 +67,7 @@ export function exportFeedback(db, format) {
       const values = headers.map(h => {
         const val = row[h];
         if (val === null || val === undefined) return "";
-        const str = String(val);
+        const str = neutralizeFormula(String(val));
         return str.includes(",") || str.includes('"') || str.includes("\n") ? `"${str.replace(/"/g, '""')}"` : str;
       });
       csvLines.push(values.join(","));

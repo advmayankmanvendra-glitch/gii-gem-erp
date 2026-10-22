@@ -56,12 +56,21 @@ totalValue   = SUM(value_minor for Inward/Increases)
 
 totalQty     = SUM(inward_quantity) - SUM(outward_quantity)
 
-WAC rate     = totalValue / totalQty    // floating point, JavaScript Number precision
+WAC rate (minor) = totalValue / totalQty      // paise per unit; full JavaScript Number precision
+WAC rate (major) = WAC rate (minor) / 100     // rupees per unit; the stock_ledger.rate value
 ```
+
+Units:
+- `totalValue` is in paise, so `totalValue / totalQty` is a **paise-per-unit** rate. It is the
+  rate `multiplyRateByQuantity(rateMinor, quantity)` (src/main/domain/money.js) expects, and that
+  function returns integer paise.
+- `inventoryService` and the `stock_ledger.rate` column hold a **rupee-per-unit** rate. Convert the
+  minor-unit rate to major units (divide by 100) before storing or displaying it there. Never pass a
+  paise rate where a rupee rate is expected, or the outward valuation is inflated 100×.
 
 Rules:
 - `WAC rate` is NOT rounded to 4dp; kept as full JavaScript Number precision.
-- Only the OUTWARD posting rounds the product (`quantity × WAC`) to integer paise.
+- Only the OUTWARD posting rounds the product (`quantity × WAC rate (minor)`) to integer paise.
 
 ## Certification
 

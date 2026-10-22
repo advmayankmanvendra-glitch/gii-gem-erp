@@ -11,6 +11,7 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
   useEffect(() => {
     if (!apiClient) return;
     setLoading(true);
+    setError(null);
     Promise.all([
       apiClient.getAccountingData(companyContext),
       apiClient.getBankLedgers ? apiClient.getBankLedgers(companyContext) : Promise.resolve([])
@@ -18,7 +19,7 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
       setData({ accounting, bankLedgers });
       setLoading(false);
     }).catch((err) => {
-      setError(err.message || "Failed to load treasury data");
+      setError(err.message || "Could not load treasury data. Check the selected company, then reopen this view from the Dashboard.");
       setLoading(false);
     });
   }, [apiClient, companyContext]);
@@ -31,7 +32,7 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
   const bankBalance = banks.reduce((sum, bank) => sum + Number(bank.bookBalance || 0), 0);
 
   return (
-    <DrilldownBase title="Treasury Overview" onNavigate={onNavigate} loading={loading} error={error} empty={!cashBank.length && !banks.length} emptyMessage="No cash or bank accounts configured.">
+    <DrilldownBase companyContext={companyContext} title="Treasury Overview" onNavigate={onNavigate} loading={loading} error={error} empty={!cashBank.length && !banks.length} emptyMessage="No cash or bank accounts configured.">
       <div className="drilldown-summary">
         <div className="metric-card"><strong>Cash Balance</strong><span>{formatCurrency(cashBalance)}</span></div>
         <div className="metric-card"><strong>Bank Balance</strong><span>{formatCurrency(bankBalance)}</span></div>
@@ -51,7 +52,7 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
             </thead>
             <tbody>
               {banks.map((b) => (
-                <tr key={b.id}>
+                <tr key={b.id ?? b.name}>
                   <td>{b.name || b.account_name || b.bank_name}</td>
                   <td>{b.bankName || b.bank_name || "-"}</td>
                   <td>{b.accountNumber || b.account_number || "-"}</td>

@@ -41,6 +41,7 @@ import { createOperationalPlanningService } from "../services/operationalPlannin
 import { createAccountMappingService } from "../services/accountMappingService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 import { roundMoney } from "../domain/money.js";
+import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "../services/bankDetailsPolicy.js";
 
 export {
   APP_FOLDERS,
@@ -1740,8 +1741,27 @@ const {
   seedAccounts,
   autoReserveOrderStock: (...args) => autoReserveOrderStock(...args),
   createProcurementPlanRecord: (...args) => createProcurementPlanRecord(...args),
-  updateProcurementPlanRecord: (...args) => updateProcurementPlanRecord(...args)
+  updateProcurementPlanRecord: (...args) => updateProcurementPlanRecord(...args),
+  guardSensitiveWrite: (...args) => guardBankDetailWrite(...args)
 });
+
+// Writes made for a signed-in user (every IPC call runs as one) need the settings
+// permission to set or change bank details. Seeding, migrations and other internal
+// writes have no actor and are not gated.
+function guardBankDetailWrite(db, table, row, oldRecord) {
+  const changes = bankDetailChanges(table, row, oldRecord);
+  const actor = currentActor();
+  if (changes.length && actor) {
+    enforcePermission(db, BANK_DETAILS_PERMISSION, {
+      company_id: row?.company_id || oldRecord?.company_id || null,
+      module: "bank_details",
+      table_name: table,
+      record_id: oldRecord?.id || null,
+      user_id: actor.id
+    });
+  }
+  return changes;
+}
 
 export {
   createRecord,
