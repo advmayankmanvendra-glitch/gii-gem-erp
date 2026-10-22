@@ -336,8 +336,12 @@ export function executeReset(db, runtimeRoot, options = {}) {
   return performCompanyReset(db, runtimeRoot, typeof options === "object" && options ? options : { userId: options });
 }
 
+// The audit module of an Enhanced Reset (the go-live reset). The go-live rollback guard
+// looks for this module's audit row.
+export const GO_LIVE_RESET_MODULE = "go_live_preparation";
+
 export function executeEnhancedReset(db, runtimeRoot, options = {}) {
-  return performCompanyReset(db, runtimeRoot, { ...(typeof options === "object" && options ? options : { userId: options }), module: "go_live_preparation" });
+  return performCompanyReset(db, runtimeRoot, { ...(typeof options === "object" && options ? options : { userId: options }), module: GO_LIVE_RESET_MODULE });
 }
 
 // Restores the database from a backup. The caller MUST close its connection to

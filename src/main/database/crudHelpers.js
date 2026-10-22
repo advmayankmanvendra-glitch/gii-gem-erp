@@ -46,6 +46,9 @@ export function createCrudHelpers({
     }
   }
 
+  // One rule for "this field carries a value": null, undefined and blank text do not; 0 does.
+  const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+
   // Supplier fields that the import and quick-create screens may send under another name.
   const SUPPLIER_FIELD_ALIASES = {
     supplier_name: ["supplier_account_name", "beneficiary_account_name", "account_name"],
@@ -58,18 +61,10 @@ export function createCrudHelpers({
     supplier_branch: ["beneficiary_branch", "branch"],
     supplier_contact: ["beneficiary_contact", "contact"]
   };
+  // On update each alias stands for exactly one column (see withStoredFields): the same
+  // map without the supplier-name entry, so an account-name alias never renames a supplier.
+  const SUPPLIER_UPDATE_ALIASES = Object.fromEntries(Object.entries(SUPPLIER_FIELD_ALIASES).filter(([field]) => field !== "supplier_name"));
   // The account name is left out: it defaults to the supplier name, so it is not a sign of a bank change.
-  // On update each alias stands for exactly one column (see withStoredFields).
-  const SUPPLIER_UPDATE_ALIASES = {
-    supplier_type: ["beneficiary_type"],
-    supplier_code: ["beneficiary_code"],
-    supplier_account_name: ["beneficiary_account_name"],
-    supplier_account_number: ["beneficiary_account_number", "account_number"],
-    supplier_bank_name: ["beneficiary_bank_name", "bank_name"],
-    supplier_bank_ifsc_code: ["beneficiary_ifsc_code", "ifsc"],
-    supplier_branch: ["beneficiary_branch", "branch"],
-    supplier_contact: ["beneficiary_contact", "contact"]
-  };
   const SUPPLIER_BANK_PARTS = ["supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch"];
 
   // Masters that hold bank details are edited from forms that do not show every column
@@ -86,12 +81,15 @@ export function createCrudHelpers({
       // A non-empty value sent under another name replaces the stored one. Each alias maps
       // to one column here; an account-name alias never renames the supplier itself.
       for (const [field, aliases] of Object.entries(SUPPLIER_UPDATE_ALIASES)) {
-        if (!sent(field) && aliases.some((alias) => sent(alias) && String(payload[alias]).trim())) delete stored[field];
+        if (!sent(field) && aliases.some((alias) => hasValue(payload[alias]))) delete stored[field];
       }
       // The combined bank text is rebuilt when one of its parts is sent with a new value
       // and the text itself is not sent; a part resent unchanged keeps the stored text.
-      const differs = (field, key) => sent(key) && String(payload[key] ?? "").trim() !== String(oldRecord[field] ?? "").trim();
-      const partChanged = SUPPLIER_BANK_PARTS.some((field) => differs(field, field) || SUPPLIER_UPDATE_ALIASES[field].some((alias) => String(payload[alias] ?? "").trim() && differs(field, alias)));
+      // An alias counts only when the column itself was not sent (the column wins).
+      const differs = (field, key) => String(payload[key] ?? "").trim() !== String(oldRecord[field] ?? "").trim();
+      const partChanged = SUPPLIER_BANK_PARTS.some((field) => (sent(field)
+        ? differs(field, field)
+        : SUPPLIER_UPDATE_ALIASES[field].some((alias) => hasValue(payload[alias]) && differs(field, alias))));
       if (partChanged && !sent("bank_details")) delete stored.bank_details;
     }
     return { ...stored, ...payload };
@@ -118,7 +116,7 @@ export function createCrudHelpers({
     if (table !== "suppliers") return payload;
     const normalized = { ...payload };
     for (const [field, aliases] of Object.entries(SUPPLIER_FIELD_ALIASES)) {
-      normalized[field] ||= aliases.map((alias) => normalized[alias]).find(Boolean) || "";
+      if (!hasValue(normalized[field])) normalized[field] = aliases.map((alias) => normalized[alias]).find(hasValue) ?? "";
     }
     normalized.supplier_account_name ||= normalized.supplier_name || "";
     normalized.status ||= "active";

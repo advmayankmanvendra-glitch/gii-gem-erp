@@ -22,8 +22,19 @@ const MASTER_IMPORT_BANK_KEYS = new Set(["bank_name", "account_number", "ifsc", 
 
 export const BANK_DETAILS_PERMISSION = "settings";
 
+const EDGE_SPACE = /^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/g;
+
 function text(value) {
-  return String(value ?? "").trim();
+  return String(value ?? "").replace(EDGE_SPACE, "");
+}
+
+// Bank values are stored without surrounding spaces, line breaks or invisible characters,
+// so a padded account number or IFSC cannot be saved as a "different" value.
+export function trimBankFields(table, row) {
+  for (const field of BANK_FIELDS[table] || []) {
+    if (row && typeof row[field] === "string") row[field] = row[field].replace(EDGE_SPACE, "");
+  }
+  return row;
 }
 
 // Returns [{ field, oldValue, newValue }] for every bank field this write sets or changes.

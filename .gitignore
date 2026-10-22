@@ -48,3 +48,6 @@ reports/*
 
 # Environment profile written at runtime when the dev runtime root is the checkout
 /environment-config.json
+# Alert settings (with encrypted secrets) and restore markers written into the dev checkout
+/config/
+database/*.json

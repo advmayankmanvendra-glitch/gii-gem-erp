@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { previewReset, analyzeDependencies, rebuildZeroState, executeEnhancedReset } from "../operationalResetService.js";
+import { previewReset, analyzeDependencies, rebuildZeroState, executeEnhancedReset, GO_LIVE_RESET_MODULE } from "../operationalResetService.js";
 import { calculateReadinessScore } from "./readinessService.js";
 import { generateGoLiveCertificate } from "./certificationService.js";
 import { getGoLiveHistory, recordGoLiveEntry, updateGoLiveEntry } from "./goLiveHistoryService.js";
@@ -192,18 +192,18 @@ function resetAuditIdFor(db, entry) {
   if (Number.isInteger(entry.auditIdAtStart)) {
     return db.prepare(`
       SELECT id FROM audit_log
-      WHERE id > ? AND action = 'operational_reset' AND module = 'go_live_preparation' AND (? IS NULL OR company_id = ?)
+      WHERE id > ? AND action = 'operational_reset' AND module = ? AND (? IS NULL OR company_id = ?)
       ORDER BY id LIMIT 1
-    `).get(entry.auditIdAtStart, companyId, companyId)?.id || null;
+    `).get(entry.auditIdAtStart, GO_LIVE_RESET_MODULE, companyId, companyId)?.id || null;
   }
   // Entries written before 2026-10-23 have no audit position; fall back to the start time.
   const since = String(entry.generatedAt || "").slice(0, 19).replace("T", " ");
   if (!since) return null;
   return db.prepare(`
     SELECT id FROM audit_log
-    WHERE created_at >= ? AND action = 'operational_reset' AND module = 'go_live_preparation' AND (? IS NULL OR company_id = ?)
+    WHERE created_at >= ? AND action = 'operational_reset' AND module = ? AND (? IS NULL OR company_id = ?)
     ORDER BY id LIMIT 1
-  `).get(since, companyId, companyId)?.id || null;
+  `).get(since, GO_LIVE_RESET_MODULE, companyId, companyId)?.id || null;
 }
 
 // Called with the live database open, before the rollback closes it. Restoring the
@@ -234,7 +234,9 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
     if (!reset) {
       throw new Error(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
     }
-    mark = { tables: {}, auditId: reset };
+    // Count from where the run started, not from the reset row: another reset that writes
+    // the same kind of row must not hide work entered before it.
+    mark = { tables: {}, auditId: Number.isInteger(entry.auditIdAtStart) ? entry.auditIdAtStart : reset };
     compared = [];
   }
   const grown = new Set(compared.filter((table) => now.tables[table] > Number(mark.tables[table] || 0)));

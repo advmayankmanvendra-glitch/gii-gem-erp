@@ -102,20 +102,27 @@ test("go-live rollback sees any new or edited record, not just vouchers and bill
 
 test("a go-live whose reset finished but whose history update was lost can still be rolled back", async () => {
   const goLive = await service("deployment/goLiveService.js");
+  const { GO_LIVE_RESET_MODULE } = await service("operationalResetService.js");
   const history = await service("deployment/goLiveHistoryService.js");
   const root = freshRoot();
-  const lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" }, auditIdAtStart: 0, companyId: 1 });
+  const db = fresh();
+  const start = () => db.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id;
+  const resetRow = () => m.auditLog(db, { company_id: 1, action: "operational_reset", module: GO_LIVE_RESET_MODULE, table_name: "system", new_value: "{}" });
+  let lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" }, auditIdAtStart: start(), companyId: 1 });
   const result = goLive.failGoLiveWithRollback(root, lost.id, "test");
   assert.doesNotMatch(result.rollbackResult.reason || "", /never reset the books/);
-  // Without its stored mark, the rollback check falls back to the reset's audit row.
-  const db = fresh();
+  // Without its stored mark, the rollback check uses the run's start and its own reset row.
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /no record of a reset/);
-  m.auditLog(db, { company_id: 1, action: "operational_reset", module: "go_live_preparation", table_name: "system", new_value: "{}" });
+  resetRow();
   assert.doesNotThrow(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id));
   m.createRecord(db, "suppliers", { supplier_name: "Entered After Lost Mark", status: "active" });
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
-  // A later reset does not become this run's mark and hide the work entered before it.
-  m.auditLog(db, { company_id: 1, action: "operational_reset", module: "go_live_preparation", table_name: "system", new_value: "{}" });
+  resetRow();
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/, "a later reset does not hide earlier work");
+  // A run that stopped before its reset: work entered, then a separate Enhanced Reset.
+  lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing2.db" }, auditIdAtStart: start(), companyId: 1 });
+  m.createRecord(db, "suppliers", { supplier_name: "Entered Before Another Reset", status: "active" });
+  resetRow();
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
   const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
   assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
@@ -148,6 +155,13 @@ test("a partial supplier update keeps the name and the other stored fields", () 
   assert.equal(later.supplier_name, supplier.supplier_name, "a beneficiary-name alias does not rename the supplier");
   assert.equal(later.supplier_account_name, "Beneficiary Name");
   assert.equal(later.supplier_branch, supplier.supplier_branch, "a blank alias does not blank the stored branch");
+  m.updateRecord(db, "suppliers", supplier.id, { account_number: null, supplier_branch: later.supplier_branch, branch: "Other" });
+  const last = db.prepare("SELECT * FROM suppliers WHERE id = ?").get(supplier.id);
+  assert.equal(last.supplier_account_number, supplier.supplier_account_number, "a null alias does not blank the account number");
+  assert.equal(last.supplier_branch, later.supplier_branch, "the column wins over a disagreeing alias");
+  assert.equal(last.bank_details, later.bank_details, "nothing changed, so the bank text is kept");
+  m.updateRecord(db, "suppliers", supplier.id, { supplier_bank_ifsc_code: ` ${supplier.supplier_bank_ifsc_code}\u2028` });
+  assert.equal(db.prepare("SELECT supplier_bank_ifsc_code c FROM suppliers WHERE id = ?").get(supplier.id).c, supplier.supplier_bank_ifsc_code, "bank values are stored trimmed");
 });
 
 test("the signed-in user survives an await inside a handler", async () => {
@@ -347,6 +361,14 @@ test("an import with a crafted very wide header is refused quickly", () => {
   const html = `<table><tr><td>supplier_name</td></tr><tr><td>${"<".repeat(160000)}</td></tr></table>`;
   assert.equal(m.parseImportBuffer("lt.xls", Buffer.from(html)).length, 1);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+});
+
+test("real wide sheets still import: blank trailing headers and 300 columns x 30,000 rows", () => {
+  const header = Array.from({ length: 300 }, (_, i) => `c${i}`).join(",") + ",".repeat(250);
+  const row = Array(300).fill("x").join(",");
+  const rows = m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${`${row}\n`.repeat(30000)}`));
+  assert.equal(rows.length, 30000);
+  assert.equal(Object.keys(rows[0]).length, 300);
 });
 
 test("an .xlsx full of unclosed tags is read quickly, and normal sheets still parse", () => {

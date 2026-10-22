@@ -21,7 +21,17 @@ export function createImportParserService() {
   // limits) would block the app for minutes; real import sheets are far below them.
   const MAX_IMPORT_COLUMNS = 500;
   const MAX_IMPORT_ROWS = 200000;
-  const MAX_IMPORT_VALUES = 5000000;
+  const MAX_IMPORT_VALUES = 12000000;
+  const MAX_HEADER_SEARCH_ROWS = 50;
+
+  function tooManyRows() {
+    return new Error(`Import refused: the sheet has more than ${MAX_IMPORT_ROWS.toLocaleString("en-IN")} rows. Split it into smaller files and import them one by one.`);
+  }
+
+  // Header cells left blank (for example trailing commas saved by Excel) carry no field.
+  function namedColumns(headers) {
+    return headers.map((header, index) => [header, index]).filter(([header]) => header);
+  }
 
   function toRecords(headerEntries, rows) {
     if (headerEntries.length > MAX_IMPORT_COLUMNS) {
@@ -53,6 +63,8 @@ export function createImportParserService() {
         if (char === "\r" && next === "\n") index += 1;
         row.push(value.trim());
         if (row.some((cell) => cell !== "")) rows.push(row);
+        // Refuse a sheet past the row limit while reading, before it fills memory.
+        if (rows.length > MAX_IMPORT_ROWS + 1) throw tooManyRows();
         row = [];
         value = "";
       } else {
@@ -62,13 +74,14 @@ export function createImportParserService() {
     row.push(value.trim());
     if (row.some((cell) => cell !== "")) rows.push(row);
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return toRecords(headers.map((header, index) => [header, index]), rows);
+    return toRecords(namedColumns(headers), rows);
   }
 
   function parseDelimited(text, delimiter) {
+    if ((text.match(/\n/g)?.length || 0) > MAX_IMPORT_ROWS + 1) throw tooManyRows();
     const rows = text.split(/\r?\n/).map((line) => line.split(delimiter).map((cell) => cell.trim())).filter((row) => row.some(Boolean));
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return toRecords(headers.map((header, index) => [header, index]), rows);
+    return toRecords(namedColumns(headers), rows);
   }
 
   function parseHtmlTable(text) {
@@ -88,9 +101,10 @@ export function createImportParserService() {
         cellPattern.lastIndex = end;
       }
       if (cells.some(Boolean)) rows.push(cells);
+      if (rows.length > MAX_IMPORT_ROWS + 1) throw tooManyRows();
     });
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return toRecords(headers.map((header, index) => [header, index]), rows);
+    return toRecords(namedColumns(headers), rows);
   }
 
   function parseLegacyXls(buffer) {
@@ -161,6 +175,8 @@ export function createImportParserService() {
   const MAX_XLSX_TOTAL_BYTES = 128 * 1024 * 1024;
   const MAX_XLSX_COLUMN_INDEX = 16383;
   const MAX_XLSX_CELLS = 2000000;
+  const MAX_CELL_CHARS = 32767;
+  const MAX_SHEET_CHARS = 64 * 1024 * 1024;
 
   function assertImportSize(buffer) {
     if (buffer.length > MAX_IMPORT_BYTES) {
@@ -239,6 +255,7 @@ export function createImportParserService() {
     const matrix = [];
     let cellCount = 0;
     let spreadCells = 0;
+    let textChars = 0;
     forEachElement(sheetXml, "row", (_rowAttrs, rowBody) => {
       const row = [];
       forEachElement(rowBody, "c", (attrs, body) => {
@@ -256,6 +273,15 @@ export function createImportParserService() {
         const type = /t="([^"]+)"/.exec(attrs)?.[1];
         const raw = firstElementBody(body, "v") ?? firstElementBody(body, "t") ?? "";
         const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);
+        // Many cells can point at one shared string, so a few KB of sheet can expand to
+        // gigabytes of text. Excel itself stops a cell at 32,767 characters.
+        if (value.length > MAX_CELL_CHARS) {
+          throw new Error(`Import refused: cell ${ref}${/r="[A-Z]+(\d+)"/.exec(attrs)?.[1] || ""} holds more than 32,767 characters, Excel's limit for one cell. Save the sheet again from Excel and retry.`);
+        }
+        textChars += value.length;
+        if (textChars > MAX_SHEET_CHARS) {
+          throw new Error("Import refused: the sheet holds more than 64 million characters of text. Split it into smaller files and import them one by one.");
+        }
         row[colIndex] = value;
       });
       spreadCells += row.length;
@@ -264,7 +290,8 @@ export function createImportParserService() {
       }
       if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
     });
-    const headerIndex = matrix.findIndex((row) => {
+    // The header is near the top; looking further only costs time on a crafted sheet.
+    const headerIndex = matrix.slice(0, MAX_HEADER_SEARCH_ROWS).findIndex((row) => {
       const normalized = row.map(normalizeHeader);
       return normalized.includes("supplier_name") ||
         normalized.includes("beneficiary_account_name") ||
@@ -274,7 +301,7 @@ export function createImportParserService() {
     });
     const sourceRows = headerIndex >= 0 ? matrix.slice(headerIndex) : matrix;
     const headers = (sourceRows.shift() || []).map(normalizeHeader);
-    return toRecords(headers.map((header, index) => [header, index]).filter(([header]) => header), sourceRows);
+    return toRecords(namedColumns(headers), sourceRows);
   }
 
   function parseImportFile(filePath) {

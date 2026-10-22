@@ -42,7 +42,7 @@ import { createOperationalPlanningService } from "../services/operationalPlannin
 import { createAccountMappingService } from "../services/accountMappingService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 import { roundMoney } from "../domain/money.js";
-import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "../services/bankDetailsPolicy.js";
+import { BANK_DETAILS_PERMISSION, bankDetailChanges, trimBankFields } from "../services/bankDetailsPolicy.js";
 
 export {
   APP_FOLDERS,
@@ -1748,7 +1748,9 @@ const {
 // Writes made for a signed-in user (every IPC call runs as one) need the settings
 // permission to set or change bank details. Seeding, migrations and other internal
 // writes run outside any IPC call, have no actor and are not gated.
+// The row passed in is the one about to be written; its bank values are trimmed in place.
 function guardBankDetailWrite(db, table, row, oldRecord) {
+  trimBankFields(table, row);
   const changes = bankDetailChanges(table, row, oldRecord);
   const actor = currentActor();
   if (changes.length && actor) {

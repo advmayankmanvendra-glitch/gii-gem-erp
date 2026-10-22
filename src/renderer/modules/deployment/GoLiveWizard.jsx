@@ -169,7 +169,8 @@ function GoLiveWizard({ apiClient, companyContext }) {
       if (!result.verification.overallPassed) {
         handleError("Production verification failed — auto-rollback triggered", 8);
         const rollback = await apiClient.rollbackGoLive(goLiveEntry?.id, "Production verification failed");
-        setError(`Rollback ${rollback.rollbackResult.success ? "succeeded" : "failed"}: ${rollback.reason}`);
+        // rollback.reason is the reason we passed in; the outcome's own reason says what happened.
+        setError(`Rollback ${rollback.rollbackResult.success ? "succeeded" : "failed"}: ${rollback.rollbackResult.reason || rollback.reason}`);
       } else {
         enterStep(9);
       }
