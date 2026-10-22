@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1597,24 +1598,23 @@ function daysBetween(start, end) {
 
 // The signed-in user whose request is being handled. main.js sets it for the
 // duration of each IPC call, so service code that writes audit rows without an
-// explicit user still records who acted.
-let ambientActor = null;
+// explicit user still records who acted. AsyncLocalStorage keeps it across an
+// await, so an async handler cannot drop it half-way and skip the bank-details rule.
+// Code that runs outside any IPC call (seeding, migrations, startup) has no actor.
+const actorStore = new AsyncLocalStorage();
 
 export function runAsActor(user, fn) {
-  const previous = ambientActor;
-  ambientActor = user ? { id: Number(user.id || user.user_id || 0) || null, role: user.role || user.user_role || null } : null;
-  try {
-    return fn();
-  } finally {
-    ambientActor = previous;
-  }
+  const actor = user ? { id: Number(user.id || user.user_id || 0) || null, role: user.role || user.user_role || null } : null;
+  return actorStore.run(actor, fn);
 }
 
 export function currentActor() {
-  return ambientActor ? { ...ambientActor } : null;
+  const actor = actorStore.getStore();
+  return actor ? { ...actor } : null;
 }
 
 export function auditLog(db, payload) {
+  const ambientActor = actorStore.getStore();
   if (!payload.user_id && ambientActor?.id) payload = { ...payload, user_id: ambientActor.id, user_role: payload.user_role || ambientActor.role };
   const moduleName = payload.module || payload.table_name || "system";
   const tableName = payload.table_name || payload.module || "system";
@@ -1747,20 +1747,30 @@ const {
 
 // Writes made for a signed-in user (every IPC call runs as one) need the settings
 // permission to set or change bank details. Seeding, migrations and other internal
-// writes have no actor and are not gated.
+// writes run outside any IPC call, have no actor and are not gated.
 function guardBankDetailWrite(db, table, row, oldRecord) {
   const changes = bankDetailChanges(table, row, oldRecord);
   const actor = currentActor();
   if (changes.length && actor) {
-    enforcePermission(db, BANK_DETAILS_PERMISSION, {
+    enforceBankDetailPermission(db, {
       company_id: row?.company_id || oldRecord?.company_id || null,
-      module: "bank_details",
       table_name: table,
       record_id: oldRecord?.id || null,
       user_id: actor.id
     });
   }
   return changes;
+}
+
+// The plain "Permission denied: settings" does not tell a data-entry user that the
+// bank fields are the reason, so the refusal names them and the way forward.
+export function enforceBankDetailPermission(db, context = {}) {
+  try {
+    return enforcePermission(db, BANK_DETAILS_PERMISSION, { ...context, module: "bank_details" });
+  } catch (error) {
+    if (!/^Permission denied/.test(String(error?.message)) || /signed-in user/i.test(String(error?.message))) throw error;
+    throw new Error("Permission denied: settings. Bank account number, bank name, IFSC, branch and UPI details decide where money is paid, so only an admin can add or change them. Save the record without changing the bank details, or ask an admin to enter them. Nothing was saved.");
+  }
 }
 
 export {

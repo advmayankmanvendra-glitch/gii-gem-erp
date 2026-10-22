@@ -69,9 +69,61 @@ test("go-live rollback refuses a run that never reset the books, or one with wor
   assert.match(goLive.failGoLiveWithRollback(root, stopped.id, "test").rollbackResult.reason, /never reset the books/);
   const maxVoucher = db.prepare("SELECT COALESCE(MAX(id), 0) id FROM vouchers").get().id;
   const run = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "y.db" }, resetResult: {}, highWater: { vouchers: maxVoucher - 1 } });
-  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, run.id), /entered after go-live/);
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, run.id), /changed after go-live/, "older five-table marks still work");
   history.updateGoLiveEntry(root, run.id, { highWater: { vouchers: maxVoucher, invoices: 1e9, payments: 1e9, procurements: 1e9, stock_ledger: 1e9 } });
   assert.doesNotThrow(() => goLive.assertGoLiveRollbackSafe(db, root, run.id));
+});
+
+test("go-live rollback sees any new or edited record, not just vouchers and bills", async () => {
+  const goLive = await service("deployment/goLiveService.js");
+  const history = await service("deployment/goLiveHistoryService.js");
+  const root = freshRoot();
+  const check = (db, mark) => {
+    const run = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "z.db" }, resetResult: {}, highWater: mark });
+    return () => goLive.assertGoLiveRollbackSafe(db, root, run.id);
+  };
+  let db = fresh();
+  let safe = check(db, goLive.bookHighWater(db));
+  assert.doesNotThrow(safe, "nothing entered yet");
+  m.createRecord(db, "suppliers", { supplier_name: "After Go-Live", status: "active" });
+  assert.throws(safe, /suppliers changed after go-live/);
+  db = fresh();
+  const supplier = db.prepare("SELECT * FROM suppliers ORDER BY id LIMIT 1").get();
+  safe = check(db, goLive.bookHighWater(db));
+  m.updateRecord(db, "suppliers", supplier.id, { ...supplier, remarks: "edited after go-live" });
+  assert.throws(safe, /suppliers changed after go-live/, "an edit adds no row but is still seen");
+});
+
+test("a go-live whose reset finished but whose history update was lost can still be rolled back", async () => {
+  const goLive = await service("deployment/goLiveService.js");
+  const history = await service("deployment/goLiveHistoryService.js");
+  const root = freshRoot();
+  const lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" } });
+  const result = goLive.failGoLiveWithRollback(root, lost.id, "test");
+  assert.doesNotMatch(result.rollbackResult.reason || "", /never reset the books/);
+  const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
+  assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
+});
+
+test("the go-live history is replaced whole on each write and rejects reused ids", async () => {
+  const history = await service("deployment/goLiveHistoryService.js");
+  const root = freshRoot();
+  const first = history.recordGoLiveEntry(root, { status: "in_progress" });
+  history.updateGoLiveEntry(root, first.id, { status: "failed" });
+  const file = path.join(root, "deployment", "go-live-history.json");
+  assert.equal(JSON.parse(fs.readFileSync(`${file}.bak`, "utf8")).entries[0].status, "in_progress", "previous version kept");
+  assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.includes(".tmp-")), [], "no temp file left behind");
+  fs.writeFileSync(file, JSON.stringify({ entries: [{ id: 3 }], nextId: 2 }));
+  assert.throws(() => history.getGoLiveHistory(root), /was damaged/, "nextId at or below an existing id is refused");
+});
+
+test("the signed-in user survives an await inside a handler", async () => {
+  const seen = await m.runAsActor({ id: 7, role: "accountant" }, async () => {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return m.currentActor();
+  });
+  assert.deepEqual(seen, { id: 7, role: "accountant" });
+  assert.equal(m.currentActor(), null, "no actor outside the call");
 });
 
 test("go-live reset needs GO-LIVE typed by the person, and records nothing otherwise", async () => {
@@ -216,6 +268,23 @@ test("CSV exports open formula-looking cells as text", async () => {
   }
 });
 
+test("master-data export and re-import keeps apostrophes and formula-like names exactly", async () => {
+  const tools = await service("masterDataToolsService.js");
+  const parser = (await service("importParserService.js")).createImportParserService();
+  const db = fresh();
+  const names = ["'Gold Ring", "=SUM(A1)", "''Two", "-500", "@Note", "'=Kept as typed", "'-2+3"];
+  names.forEach((item_name, i) => m.createRecord(db, "items", { item_name, item_code: `RT-${i}`, unit: "Nos", status: "active", gst_rate: 0 }));
+  const exported = tools.exportMasterData(db, { masterKey: "items", exportType: "all" }, { company_id: 1 });
+  const rows = parser.parseImportBuffer("items.csv", Buffer.from(exported.csv)).filter((row) => String(row.item_code).startsWith("RT-"));
+  assert.equal(rows.length, names.length);
+  const preview = tools.previewMasterDataUpdate(db, { masterKey: "items", mode: "update_existing", rows }, { company_id: 1 });
+  for (const row of preview.rows) {
+    assert.equal(row.action, "updated", row.errors.join("; "));
+    assert.deepEqual(row.changes.filter((change) => /name/.test(change.field || change.key || "")), [], `${row.code} came back changed`);
+  }
+  assert.deepEqual(preview.rows.map((row) => row.name).sort(), [...names].sort());
+});
+
 test("an .xlsx that inflates past the limit is refused instead of freezing the app", () => {
   // One stored-deflate entry that expands to 70 MB of zeros.
   const name = Buffer.from("xl/worksheets/sheet1.xml");
@@ -227,4 +296,23 @@ test("an .xlsx that inflates past the limit is refused instead of freezing the a
   const zip = Buffer.concat([local, name, data, central, name, eocd]);
   assert.throws(() => m.parseImportBuffer("bomb.xlsx", zip), /expands to more than 64 MB/);
   assert.throws(() => m.parseImportBuffer("big.csv", Buffer.alloc(26 * 1024 * 1024)), /limit is 25 MB/);
+});
+
+function sheetZip(sheetXml) {
+  const name = Buffer.from("xl/worksheets/sheet1.xml");
+  const data = zlib.deflateRawSync(Buffer.from(sheetXml));
+  const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(8, 8); local.writeUInt32LE(data.length, 18); local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(8, 10); central.writeUInt32LE(data.length, 20); central.writeUInt16LE(name.length, 28);
+  const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(1, 8); eocd.writeUInt16LE(1, 10); eocd.writeUInt32LE(central.length + name.length, 12); eocd.writeUInt32LE(local.length + name.length + data.length, 16);
+  return Buffer.concat([local, name, data, central, name, eocd]);
+}
+
+test("an .xlsx full of unclosed tags is read quickly, and normal sheets still parse", () => {
+  for (const body of ["<row>".repeat(200000), `<row r="1">${"<c r=\"A1\">".repeat(200000)}</row>`]) {
+    const started = Date.now();
+    m.parseImportBuffer("tags.xlsx", sheetZip(`<worksheet><sheetData>${body}</sheetData></worksheet>`));
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  }
+  const rows = m.parseImportBuffer("ok.xlsx", sheetZip('<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>supplier_name</t></is></c><c r="B1"/><c r="C1" t="inlineStr"><is><t>remarks</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>Acme &amp; Co</t></is></c><c r="C2"><v>42</v></c></row></sheetData></worksheet>'));
+  assert.deepEqual(rows, [{ supplier_name: "Acme & Co", remarks: "42" }]);
 });

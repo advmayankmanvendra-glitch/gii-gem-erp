@@ -393,7 +393,8 @@ export function createInventoryService(deps) {
       });
       const grniPortion = isDepartmentReturn ? 0 : returnGrniPortion(db, row, roundMoney(retValue));
       const payablesPortion = isDepartmentReturn ? 0 : roundMoney(roundMoney(retValue) - grniPortion);
-      const retVoucher = retValue > 0 ? createBalancedVoucher(db, {
+      // A return worth under half a paisa rounds to zero and needs no voucher.
+      const retVoucher = roundMoney(retValue) > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.return_date,
         voucher_type: "Journal",

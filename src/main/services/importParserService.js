@@ -78,8 +78,48 @@ export function createImportParserService() {
     return column.split("").reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0) - 1;
   }
 
+  // Walks <tag ...>body</tag> (or <tag .../>) elements with indexOf, in one pass. A lazy
+  // regex such as /<row[^>]*>([\s\S]*?)<\/row>/g rescans to the end of the text for every
+  // unclosed tag, so a tiny crafted file with many open tags freezes the app.
+  function forEachElement(xml, tag, fn) {
+    const open = `<${tag}`;
+    const close = `</${tag}>`;
+    let at = 0;
+    while ((at = xml.indexOf(open, at)) !== -1) {
+      const next = xml[at + open.length];
+      if (next !== ">" && next !== "/" && !/\s/.test(next || "")) {
+        at += open.length;
+        continue;
+      }
+      const tagEnd = xml.indexOf(">", at);
+      if (tagEnd === -1) return;
+      const attrs = xml.slice(at + open.length, tagEnd);
+      if (attrs.endsWith("/")) {
+        fn(attrs.slice(0, -1), "");
+        at = tagEnd + 1;
+        continue;
+      }
+      const end = xml.indexOf(close, tagEnd + 1);
+      if (end === -1) return;
+      fn(attrs, xml.slice(tagEnd + 1, end));
+      at = end + close.length;
+    }
+  }
+
+  function firstElementBody(xml, tag) {
+    let body = null;
+    forEachElement(xml, tag, (_attrs, inner) => { if (body === null) body = inner; });
+    return body;
+  }
+
   function parseSharedStrings(xml) {
-    return [...xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g)].map((match) => decodeXml([...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => part[1]).join("")));
+    const strings = [];
+    forEachElement(xml, "si", (_attrs, body) => {
+      const parts = [];
+      forEachElement(body, "t", (_tAttrs, text) => parts.push(text));
+      strings.push(decodeXml(parts.join("")));
+    });
+    return strings;
   }
 
   function findEndOfCentralDirectory(buffer) {
@@ -165,11 +205,9 @@ export function createImportParserService() {
     const matrix = [];
     let cellCount = 0;
     let spreadCells = 0;
-    for (const rowMatch of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+    forEachElement(sheetXml, "row", (_rowAttrs, rowBody) => {
       const row = [];
-      for (const cellMatch of rowMatch[1].matchAll(/<c([^>]*)>([\s\S]*?)<\/c>/g)) {
-        const attrs = cellMatch[1];
-        const body = cellMatch[2];
+      forEachElement(rowBody, "c", (attrs, body) => {
         const ref = /r="([A-Z]+)(\d+)"/.exec(attrs)?.[1] || "";
         const colIndex = excelColumnIndex(ref);
         // Excel stops at column XFD (16,384 columns); a cell further right is a crafted file
@@ -182,16 +220,16 @@ export function createImportParserService() {
           throw new Error("Import refused: the sheet has more than 2,000,000 cells. Split it into smaller files and import them one by one.");
         }
         const type = /t="([^"]+)"/.exec(attrs)?.[1];
-        const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] || /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1] || "";
+        const raw = firstElementBody(body, "v") ?? firstElementBody(body, "t") ?? "";
         const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);
         row[colIndex] = value;
-      }
+      });
       spreadCells += row.length;
       if (spreadCells > MAX_XLSX_CELLS * 10) {
         throw new Error("Import refused: the sheet is too wide and long to read safely. Delete empty columns, or split it into smaller files, and retry.");
       }
       if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
-    }
+    });
     const headerIndex = matrix.findIndex((row) => {
       const normalized = row.map(normalizeHeader);
       return normalized.includes("supplier_name") ||

@@ -35,6 +35,7 @@ for (const entry of all) {
 if (errors.length) {
   console.log("\nERRORS:");
   errors.forEach(e => console.log(`  - ${e}`));
+  process.exitCode = 1;
 } else {
   console.log("No duplicate IDs found ✓");
 }

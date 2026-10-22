@@ -427,6 +427,8 @@ export function ReadOnlyReportFamilyTable({
 
 function renderReadOnlyReportCell(row, column, handlers) {
   if (column.type === "drill_account") {
+    // Summary rows such as current-year profit have no ledger account to open.
+    if (!row.id && !row.account_id) return null;
     return (
       <button className="ghost-btn small-btn" type="button" onClick={() => handlers.onDrillAccount?.(row)}>
         Ledger

@@ -46,7 +46,52 @@ export function createCrudHelpers({
     }
   }
 
-  function normalizePayloadForTable(table, payload = {}) {
+  // Supplier fields that the import and quick-create screens may send under another name.
+  const SUPPLIER_FIELD_ALIASES = {
+    supplier_name: ["supplier_account_name", "beneficiary_account_name", "account_name"],
+    supplier_type: ["beneficiary_type"],
+    supplier_code: ["beneficiary_code"],
+    supplier_account_name: ["beneficiary_account_name"],
+    supplier_account_number: ["beneficiary_account_number", "account_number"],
+    supplier_bank_name: ["beneficiary_bank_name", "bank_name"],
+    supplier_bank_ifsc_code: ["beneficiary_ifsc_code", "ifsc"],
+    supplier_branch: ["beneficiary_branch", "branch"],
+    supplier_contact: ["beneficiary_contact", "contact"]
+  };
+  // The account name is left out: it defaults to the supplier name, so it is not a sign of a bank change.
+  const SUPPLIER_BANK_PARTS = ["supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch"];
+
+  // Masters that hold bank details are edited from forms that do not show every column
+  // (for example an employee form without the bank fields). On update, a column the
+  // caller did not send keeps its stored value instead of being blanked.
+  const KEEP_OMITTED_ON_UPDATE = new Set(["companies", "suppliers", "employees", "banks"]);
+
+  function withStoredFields(table, oldRecord, payload = {}) {
+    if (!KEEP_OMITTED_ON_UPDATE.has(table) || !oldRecord) return payload;
+    const sent = (field) => Object.prototype.hasOwnProperty.call(payload, field) && payload[field] !== undefined;
+    const stored = { ...oldRecord };
+    delete stored.id;
+    if (table === "suppliers") {
+      // A value sent under another name replaces the stored one.
+      for (const [field, aliases] of Object.entries(SUPPLIER_FIELD_ALIASES)) {
+        if (!sent(field) && aliases.some(sent)) delete stored[field];
+      }
+      // The combined bank text is rebuilt when any of its parts is sent without it.
+      const partSent = SUPPLIER_BANK_PARTS.some((field) => sent(field) || SUPPLIER_FIELD_ALIASES[field].some(sent));
+      if (partSent && !sent("bank_details")) delete stored.bank_details;
+    }
+    return { ...stored, ...payload };
+  }
+
+  // The combined supplier bank text is rebuilt only when one of its parts really changes;
+  // otherwise an unrelated edit would rewrite it and count as a bank-details change.
+  function supplierBankPartsChanged(merged, oldRecord) {
+    if (!oldRecord) return true;
+    const next = normalizePayloadForTable("suppliers", merged, { composeBankText: false });
+    return SUPPLIER_BANK_PARTS.some((field) => String(next[field] ?? "").trim() !== String(oldRecord[field] ?? "").trim());
+  }
+
+  function normalizePayloadForTable(table, payload = {}, { composeBankText = true } = {}) {
     if (["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
       const normalized = { ...payload };
       ["company_id", "procurement_id", "order_id", "supplier_id", "department_id", "item_id", "warehouse_id"].forEach((field) => {
@@ -58,17 +103,12 @@ export function createCrudHelpers({
     }
     if (table !== "suppliers") return payload;
     const normalized = { ...payload };
-    normalized.supplier_name ||= normalized.supplier_account_name || normalized.beneficiary_account_name || normalized.account_name || "";
-    normalized.supplier_type ||= normalized.beneficiary_type || "";
-    normalized.supplier_code ||= normalized.beneficiary_code || "";
-    normalized.supplier_account_name ||= normalized.beneficiary_account_name || normalized.supplier_name || "";
-    normalized.supplier_account_number ||= normalized.beneficiary_account_number || normalized.account_number || "";
-    normalized.supplier_bank_name ||= normalized.beneficiary_bank_name || normalized.bank_name || "";
-    normalized.supplier_bank_ifsc_code ||= normalized.beneficiary_ifsc_code || normalized.ifsc || "";
-    normalized.supplier_branch ||= normalized.beneficiary_branch || normalized.branch || "";
-    normalized.supplier_contact ||= normalized.beneficiary_contact || normalized.contact || "";
+    for (const [field, aliases] of Object.entries(SUPPLIER_FIELD_ALIASES)) {
+      normalized[field] ||= aliases.map((alias) => normalized[alias]).find(Boolean) || "";
+    }
+    normalized.supplier_account_name ||= normalized.supplier_name || "";
     normalized.status ||= "active";
-    if (!normalized.bank_details && (normalized.supplier_account_number || normalized.supplier_bank_name || normalized.supplier_bank_ifsc_code || normalized.supplier_branch)) {
+    if (composeBankText && !normalized.bank_details && (normalized.supplier_account_number || normalized.supplier_bank_name || normalized.supplier_bank_ifsc_code || normalized.supplier_branch)) {
       normalized.bank_details = [
         `Account Name: ${normalized.supplier_account_name || "-"}`,
         `Account Number: ${normalized.supplier_account_number || "-"}`,
@@ -81,9 +121,9 @@ export function createCrudHelpers({
     return normalized;
   }
 
-  function cleanPayload(table, payload) {
+  function cleanPayload(table, payload, options) {
     assertTable(table);
-    payload = normalizePayloadForTable(table, payload);
+    payload = normalizePayloadForTable(table, payload, options);
     const allowed = ALL_TABLES[table].fields;
     const cleaned = {};
     allowed.forEach((field) => {
@@ -395,7 +435,8 @@ export function createCrudHelpers({
     if (table === "procurement_plans") return updateProcurementPlanRecord(db, id, payload);
     const oldRecord = getRecord(db, table, id);
     assertRecordEditable(table, oldRecord);
-    const data = cleanPayload(table, payload);
+    const merged = withStoredFields(table, oldRecord, payload);
+    const data = cleanPayload(table, merged, { composeBankText: table !== "suppliers" || supplierBankPartsChanged(merged, oldRecord) });
     const requiresCompanyContext = TRANSACTION_TABLES[table] || COMPANY_SPECIFIC_MASTER_TABLES.has(table);
     if (requiresCompanyContext && !data.company_id) {
       data.company_id = oldRecord?.company_id || null;
@@ -427,7 +468,7 @@ export function createCrudHelpers({
     assertWriteAllowed(table, "delete");
     const record = getRecord(db, table, id);
     assertRecordEditable(table, record);
-    auditSensitiveWrite(db, table, id, record?.company_id, guardSensitiveWrite(db, table, null, record));
+    const sensitiveChanges = guardSensitiveWrite(db, table, null, record);
     if (table === "supply_orders") {
       assertSupplyOrderNotLinked(db, id);
     }
@@ -440,10 +481,13 @@ export function createCrudHelpers({
     if (columnExists(db, table, "is_deleted")) {
       const changes = db.prepare(`UPDATE ${table} SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id).changes;
       auditLog(db, { action: "delete", table_name: table, record_id: id, old_value: "", new_value: "soft_delete" });
+      if (changes > 0) auditSensitiveWrite(db, table, id, record?.company_id, sensitiveChanges);
       return changes > 0;
     }
     auditLog(db, { action: "hard_delete", table_name: table, record_id: id, old_value: JSON.stringify(record), new_value: "hard_delete" });
-    return db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id).changes > 0;
+    const deleted = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id).changes > 0;
+    if (deleted) auditSensitiveWrite(db, table, id, record?.company_id, sensitiveChanges);
+    return deleted;
   }
 
   function getRecord(db, table, id) {

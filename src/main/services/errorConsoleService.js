@@ -169,7 +169,7 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
 
   if (verifyAuditChain) {
     const chain = verifyAuditChain(db);
-    checks.push(integrityCheck("audit_chain", "No tampering found in the audit trail", chain.chained && chain.broken.length === 0,
+    checks.push(integrityCheck("audit_chain", "No tampering found in the audit trail", chain.chained && chain.broken.length === 0 && !chain.missingNewestRows,
       chain.chained ? `${chain.verified} chained row(s) verified${chain.broken.length ? `; broken at row(s) ${chain.broken.join(", ")}` : ""}${chain.missingNewestRows ? `; ${chain.missingNewestRows} newest row(s) deleted` : ""}${chain.legacyRows ? `; ${chain.legacyRows} older row(s) predate the chain` : ""}` : "The audit chain has not started on this database.",
       "Someone edited or deleted audit rows outside the ERP. Keep this database aside, restore the last good backup and review who had file access."));
   }

@@ -283,10 +283,18 @@ test("bank details cannot be changed under another field name, wiped, or set on 
   const { supplier_account_number: _a, supplier_bank_ifsc_code: _b, ...withoutBank } = supplier;
   const aliased = await call(deo, "records:update", "suppliers", supplier.id, { ...withoutBank, account_number: "999988887777", ifsc: "EVIL0000001" });
   assert.match(aliased.err || "", /Permission denied: settings/, "alias names are checked");
+  // Give the company bank details so the checks below always run.
+  let setup = side();
+  setup.prepare("UPDATE companies SET bank_name = 'SBI', account_number = '30001234567', ifsc = 'SBIN0001234' WHERE id = ?").run(company.id);
+  setup.close();
   const { account_number: _c, ifsc: _d, bank_name: _e, ...companyNoBank } = company;
-  if (company.account_number || company.ifsc || company.bank_name) {
-    assert.match((await call(deo, "records:update", "companies", company.id, companyNoBank)).err || "", /Permission denied: settings/, "leaving bank fields out cannot wipe them");
-  }
+  assert.ok((await call(deo, "records:update", "companies", company.id, { ...companyNoBank, remarks: "edited" })).ok, "leaving bank fields out is an ordinary edit");
+  const wiped = await call(deo, "records:update", "companies", company.id, { ...companyNoBank, account_number: "", ifsc: "", bank_name: "" });
+  assert.match(wiped.err || "", /only an admin can add or change them/, "blanking them is refused with the reason");
+  setup = side();
+  try {
+    assert.deepEqual({ ...setup.prepare("SELECT bank_name, account_number, ifsc FROM companies WHERE id = ?").get(company.id) }, { bank_name: "SBI", account_number: "30001234567", ifsc: "SBIN0001234" });
+  } finally { setup.close(); }
   assert.match((await call(deo, "records:create", "suppliers", { supplier_name: "New With Bank", status: "active", supplier_account_number: "123123123123" })).err || "", /Permission denied: settings/);
   assert.ok((await call(deo, "records:create", "suppliers", { supplier_name: "New Without Bank", status: "active" })).ok, "a supplier without bank details can still be created");
   if (employee) {
@@ -300,6 +308,43 @@ test("bank details cannot be changed under another field name, wiped, or set on 
   try {
     assert.equal(db.prepare("SELECT supplier_account_number FROM suppliers WHERE id = ?").get(supplier.id).supplier_account_number, supplier.supplier_account_number);
     assert.equal(db.prepare("SELECT COUNT(*) c FROM suppliers WHERE supplier_account_number IN ('123123123123', '777700007777', '888800008888')").get().c, 0);
+  } finally { db.close(); }
+});
+
+test("edit forms that leave bank fields out still save for non-admins and keep the bank details", async () => {
+  const accountant = await roleWindow("acct-forms", "accountant");
+  const deo = await roleWindow("deo-forms", "data_entry_operator");
+  let db = side();
+  db.prepare("UPDATE employees SET bank_name = 'SBI', account_number = '111', ifsc = 'SBIN0000001', branch = 'X' WHERE id = (SELECT MIN(id) FROM employees)").run();
+  db.prepare("UPDATE suppliers SET upi_id = 'abc@upi' WHERE id = (SELECT MIN(id) FROM suppliers)").run();
+  const employee = db.prepare("SELECT * FROM employees ORDER BY id LIMIT 1").get();
+  const supplier = db.prepare("SELECT * FROM suppliers ORDER BY id LIMIT 1").get();
+  db.close();
+  // MasterScreen sends only the fields shown on the form (src/renderer/config/viewDefinitions.js).
+  const employeeForm = { employee_name: employee.employee_name, mobile_number: employee.mobile_number, designation: "Senior", incentive_percentage: employee.incentive_percentage, status: employee.status };
+  const employeeEdit = await call(accountant, "records:update", "employees", employee.id, employeeForm);
+  assert.ok(employeeEdit.ok, employeeEdit.err);
+  const { upi_id: _u, ...supplierForm } = supplier;
+  const supplierEdit = await call(accountant, "records:update", "suppliers", supplier.id, { ...supplierForm, remarks: "edited on the form" });
+  assert.ok(supplierEdit.ok, supplierEdit.err);
+  const admin = await adminWindow();
+  const imported = await call(admin, "master-data:confirm-update", { masterKey: "suppliers", company_id: 1, mode: "insert_update", rows: [{ supplier_code: "MD-FORM-1", supplier_name: "Form Supplier", bank_name: "HDFC", account_number: "5050505050", ifsc: "HDFC0000123", is_active: "active" }] });
+  assert.ok(imported.ok, imported.err);
+  db = side();
+  const mdSupplier = db.prepare("SELECT * FROM suppliers WHERE supplier_code = 'MD-FORM-1'").get();
+  db.close();
+  const deoEdit = await call(deo, "records:update", "suppliers", mdSupplier.id, { ...mdSupplier, remarks: "phone changed" });
+  assert.ok(deoEdit.ok, `a supplier imported with bank details stays editable: ${deoEdit.err}`);
+  const deoImport = await call(deo, "imports:confirm", "suppliers", [{ supplier_name: "Form Supplier", supplier_code: "MD-FORM-1", remarks: "x", status: "active" }], { file_name: "u.csv", import_mode: "update_existing" });
+  assert.ok(deoImport.ok, deoImport.err);
+  db = side();
+  try {
+    assert.deepEqual({ ...db.prepare("SELECT designation, bank_name, account_number, ifsc, branch FROM employees WHERE id = ?").get(employee.id) }, { designation: "Senior", bank_name: "SBI", account_number: "111", ifsc: "SBIN0000001", branch: "X" });
+    assert.equal(db.prepare("SELECT upi_id FROM suppliers WHERE id = ?").get(supplier.id).upi_id, "abc@upi");
+    const md = db.prepare("SELECT supplier_account_number, supplier_bank_ifsc_code, bank_details FROM suppliers WHERE id = ?").get(mdSupplier.id);
+    assert.equal(md.supplier_account_number, "5050505050");
+    assert.equal(md.supplier_bank_ifsc_code, "HDFC0000123");
+    assert.equal(md.bank_details ?? "", mdSupplier.bank_details ?? "", "the bank text is not rewritten by an unrelated edit");
   } finally { db.close(); }
 });
 

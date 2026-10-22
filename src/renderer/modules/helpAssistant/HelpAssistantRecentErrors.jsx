@@ -9,6 +9,9 @@ function HelpAssistantRecentErrors({ companyContext, onNavigate }) {
   useEffect(() => {
     let active = true;
     const api = window.giiGemErp;
+    // Never show the previous company's problems while the new company's load runs or fails.
+    setErrors([]);
+    setStuck(0);
     if (typeof api?.getErrorConsole !== "function") return undefined;
     api.getErrorConsole({ company_id: companyContext?.company_id })
       .then((state) => {

@@ -1,4 +1,5 @@
 import { bookIntegrityChecks } from "../errorConsoleService.js";
+import { verifyAuditChain } from "../../database/init.js";
 
 // Go-live verification runs inside the app against the live books of the company that
 // was reset. (The repo's verify scripts are developer tools: they are not packaged and
@@ -13,7 +14,9 @@ function companyCount(db, table, companyId) {
 }
 
 export function runProductionVerification(db, companyId = null) {
-  const scriptResults = bookIntegrityChecks(db, companyId)
+  // The audit-chain check is required: a go-live certificate must not be issued on books
+  // whose audit trail was edited or cut outside the ERP.
+  const scriptResults = bookIntegrityChecks(db, companyId, { verifyAuditChain })
     .map((check) => ({ name: check.label, passed: check.status === "pass", output: check.detail, error: check.status === "pass" ? undefined : check.action }));
   const additionalChecks = [];
   const add = (key, label, fn) => {

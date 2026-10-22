@@ -8,11 +8,13 @@ function historyFilePath(runtimeRoot) {
 }
 
 function isValidHistory(history) {
-  return Boolean(history)
-    && typeof history === "object"
-    && Array.isArray(history.entries)
-    && Number.isInteger(history.nextId)
-    && history.nextId >= 1;
+  if (!history || typeof history !== "object" || !Array.isArray(history.entries)) return false;
+  if (!Number.isInteger(history.nextId) || history.nextId < 1) return false;
+  // Every entry must be a record with its own id, and nextId must be past all of them,
+  // or the next run would reuse an id and point at the wrong backup.
+  const ids = history.entries.map((entry) => (entry && typeof entry === "object" ? entry.id : null));
+  if (!ids.every((id) => Number.isInteger(id) && id >= 1)) return false;
+  return new Set(ids).size === ids.length && ids.every((id) => id < history.nextId);
 }
 
 // Fail closed: the go-live history is the evidence that ties each run to its
@@ -64,14 +66,27 @@ function readHistory(runtimeRoot) {
     }
     throw new Error(
       `The go-live history at ${filePath} was damaged. It has been kept as ${preservedPath}. `
-      + "Restore a good copy of go-live-history.json from a backup (or ask support to repair the kept file) before running go-live or rollback again."
+      + `Restore a good copy of go-live-history.json (the previous version is kept next to it as go-live-history.json.bak) before running go-live or rollback again.`
     );
   }
   return history;
 }
 
+// Written to a temporary file and renamed into place, so a crash or full disk mid-write
+// leaves the previous history intact instead of a half-written file that blocks go-live
+// and rollback. The previous version is kept as go-live-history.json.bak.
 function writeHistory(runtimeRoot, history) {
-  fs.writeFileSync(historyFilePath(runtimeRoot), JSON.stringify(history, null, 2));
+  const filePath = historyFilePath(runtimeRoot);
+  const tempPath = `${filePath}.tmp-${process.pid}`;
+  const fd = fs.openSync(tempPath, "w");
+  try {
+    fs.writeSync(fd, JSON.stringify(history, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  if (fs.existsSync(filePath)) fs.copyFileSync(filePath, `${filePath}.bak`);
+  fs.renameSync(tempPath, filePath);
 }
 
 export function recordGoLiveEntry(runtimeRoot, entry) {

@@ -95,7 +95,8 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
     resetResult = executeEnhancedReset(db, runtimeRoot, { ...resetOptions, confirmText: "RESET" });
   } catch (error) {
     // Leave a truthful history entry; the reset runs in one transaction, so the books are unchanged.
-    updateGoLiveEntry(runtimeRoot, goLiveEntry.id, { status: "failed", failureReason: error.message, completedAt: new Date().toISOString() });
+    // resetFailed marks "the books were not touched", so rollback has nothing to undo.
+    updateGoLiveEntry(runtimeRoot, goLiveEntry.id, { status: "failed", resetFailed: true, failureReason: error.message, completedAt: new Date().toISOString() });
     throw error;
   }
 
@@ -160,13 +161,21 @@ export function completeGoLive(db, runtimeRoot, userId, goLiveId) {
 
 const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_failed"]);
 
-// Tables whose new rows mean real work was entered after the go-live reset.
-const HIGH_WATER_TABLES = ["vouchers", "invoices", "payments", "procurements", "stock_ledger"];
+// Tables whose rows are not books: logs, review trails and schema bookkeeping. A new
+// row in any other table, or an audited change to one, means real work was entered
+// after the go-live reset.
+const NOT_BOOK_TABLES = new Set(["audit_log", "schema_migrations", "feedback_log", "allocation_audit", "voucher_proposal_audit", "sqlite_sequence"]);
 
-function bookHighWater(db) {
-  return Object.fromEntries(HIGH_WATER_TABLES.map((table) => {
-    try { return [table, Number(db.prepare(`SELECT COALESCE(MAX(id), 0) id FROM ${table}`).get().id || 0)]; } catch { return [table, 0]; }
-  }));
+function bookTables(db) {
+  return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()
+    .map((row) => row.name)
+    .filter((name) => !NOT_BOOK_TABLES.has(name) && db.prepare(`PRAGMA table_info(${name})`).all().some((column) => column.name === "id"));
+}
+
+export function bookHighWater(db) {
+  const tables = Object.fromEntries(bookTables(db).map((table) => [table, Number(db.prepare(`SELECT COALESCE(MAX(id), 0) id FROM ${table}`).get().id || 0)]));
+  const auditId = Number(db.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id || 0);
+  return { tables, auditId };
 }
 
 // Called with the live database open, before the rollback closes it. Restoring the
@@ -174,10 +183,20 @@ function bookHighWater(db) {
 export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
   const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
   if (!entry?.highWater) return;
+  // Entries written before 2026-10-23 hold a flat { table: maxId } map of five tables.
+  const mark = entry.highWater.tables ? entry.highWater : { tables: entry.highWater, auditId: null };
   const now = bookHighWater(db);
-  const grown = HIGH_WATER_TABLES.filter((table) => now[table] > Number(entry.highWater[table] || 0));
-  if (grown.length) {
-    throw new Error(`Rollback refused: new ${grown.join(", ").replaceAll("_", " ")} were entered after go-live ${entry.goliveNumber || goLiveId}. Restoring the pre-go-live backup would erase them. To return to an older state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
+  // An older mark only knows its five tables, so only those can be compared.
+  const compared = entry.highWater.tables ? Object.keys(now.tables) : Object.keys(mark.tables).filter((table) => table in now.tables);
+  const grown = new Set(compared.filter((table) => now.tables[table] > Number(mark.tables[table] || 0)));
+  if (mark.auditId !== null) {
+    // Edits and deletes add no rows, but every record write leaves an audit row naming its table.
+    const tables = new Set(Object.keys(now.tables));
+    db.prepare("SELECT DISTINCT table_name FROM audit_log WHERE id > ? AND table_name IS NOT NULL").all(Number(mark.auditId || 0))
+      .forEach((row) => { if (tables.has(row.table_name) && row.table_name !== "users") grown.add(row.table_name); });
+  }
+  if (grown.size) {
+    throw new Error(`Rollback refused: ${[...grown].sort().join(", ").replaceAll("_", " ")} changed after go-live ${entry.goliveNumber || goLiveId}. Restoring the pre-go-live backup would erase that work. To return to an older state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
   }
 }
 
@@ -192,7 +211,10 @@ export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId
   if (!ROLLBACK_ALLOWED_STATUSES.has(current.status)) {
     return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is ${current.status}. Only a go-live that is still in progress or failed can be rolled back. To return to an older state, use Backup & Restore. Nothing was changed.` }, reason };
   }
-  if (!current.resetResult) {
+  // Only a run known to have stopped before or inside the (single-transaction) reset is
+  // refused. A run whose reset finished but whose history update was lost, for example
+  // to a locked file, has no resetResult yet still needs its rollback.
+  if (!current.resetResult && (current.resetFailed || current.status === "failed")) {
     return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} never reset the books (${current.failureReason || "it stopped before the reset"}), so there is nothing to roll back. Nothing was changed.` }, reason };
   }
   if (history[0]?.id !== goLiveId) {

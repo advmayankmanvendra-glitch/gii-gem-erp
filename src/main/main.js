@@ -11,6 +11,7 @@ import {
   adjustSupplierAdvance,
   auditLog,
   runAsActor,
+  enforceBankDetailPermission,
   verifyAuditChain,
   alertServiceWith,
   autoReserveOrderStock,
@@ -103,7 +104,7 @@ import {
   voucherProposalData,
   previewImportRollback
 } from "./database/init.js";
-import { BANK_DETAILS_PERMISSION, masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
+import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -979,7 +980,7 @@ function registerIpc() {
     // Master-data import writes rows directly, so the bank-details rule is checked here.
     const touchesBank = masterImportTouchesBankDetails(payload?.masterKey, previewMasterDataUpdate(db, payload, context));
     if (touchesBank) {
-      enforcePermission(db, BANK_DETAILS_PERMISSION, { company_id: payload?.company_id || null, module: "bank_details", table_name: payload?.masterKey, user_id: actorId() });
+      enforceBankDetailPermission(db, { company_id: payload?.company_id || null, table_name: payload?.masterKey, user_id: actorId() });
     }
     const result = confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
     if (touchesBank) {
