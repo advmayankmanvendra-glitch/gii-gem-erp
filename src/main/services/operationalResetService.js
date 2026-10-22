@@ -276,6 +276,9 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
     if (tables.has(table)) before.push({ table, module: area, count: companyRowCount(db, table, company.id) });
   });
 
+  let after;
+  let zeroState;
+  let auditId;
   runWithForeignKeysDisabled(db, () => {
     db.transaction(() => {
       // Children first, while their parents still exist to identify the company.
@@ -294,30 +297,31 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
       if (tables.has("carry_forward_entries")) db.prepare("DELETE FROM carry_forward_entries WHERE company_id = ?").run(company.id);
       if (tables.has("year_end_closings")) db.prepare("DELETE FROM year_end_closings WHERE company_id = ?").run(company.id);
       assertNoForeignKeyIssues(db);
+      // The audit row is written in the same transaction, so a reset never lands without
+      // its record (the go-live rollback guard relies on it).
+      after = before.map((row) => ({ ...row, count: tables.has(row.table) ? companyRowCount(db, row.table, company.id) : 0 }));
+      zeroState = {
+        rebuilt: after.filter((row) => row.count === 0).map((row) => `${row.table}: 0 (clean)`),
+        warnings: after.filter((row) => row.count > 0).map((row) => `${row.table}: ${row.count} rows remain (expected 0)`)
+      };
+      init.auditLog(db, {
+        company_id: company.id,
+        action: "operational_reset",
+        module,
+        table_name: "system",
+        user_id: userId || null,
+        new_value: JSON.stringify({
+          company: company.company_name,
+          backupFileName: backup.fileName,
+          removedRows: before.reduce((sum, row) => sum + row.count, 0),
+          before,
+          after,
+          resetAt: nowIso()
+        })
+      });
+      auditId = db.prepare("SELECT last_insert_rowid() as id").get()?.id || null;
     })();
   });
-
-  const after = before.map((row) => ({ ...row, count: tables.has(row.table) ? companyRowCount(db, row.table, company.id) : 0 }));
-  const zeroState = {
-    rebuilt: after.filter((row) => row.count === 0).map((row) => `${row.table}: 0 (clean)`),
-    warnings: after.filter((row) => row.count > 0).map((row) => `${row.table}: ${row.count} rows remain (expected 0)`)
-  };
-  init.auditLog(db, {
-    company_id: company.id,
-    action: "operational_reset",
-    module,
-    table_name: "system",
-    user_id: userId || null,
-    new_value: JSON.stringify({
-      company: company.company_name,
-      backupFileName: backup.fileName,
-      removedRows: before.reduce((sum, row) => sum + row.count, 0),
-      before,
-      after,
-      resetAt: nowIso()
-    })
-  });
-  const auditId = db.prepare("SELECT last_insert_rowid() as id").get()?.id || null;
   return {
     company: { id: company.id, name: company.company_name },
     backup: { fileName: backup.fileName, path: backup.path, size: backup.size, createdAt: backup.createdAt },

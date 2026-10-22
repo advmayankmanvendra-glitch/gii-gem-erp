@@ -104,15 +104,18 @@ test("a go-live whose reset finished but whose history update was lost can still
   const goLive = await service("deployment/goLiveService.js");
   const history = await service("deployment/goLiveHistoryService.js");
   const root = freshRoot();
-  const lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" } });
+  const lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" }, auditIdAtStart: 0, companyId: 1 });
   const result = goLive.failGoLiveWithRollback(root, lost.id, "test");
   assert.doesNotMatch(result.rollbackResult.reason || "", /never reset the books/);
   // Without its stored mark, the rollback check falls back to the reset's audit row.
   const db = fresh();
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /no record of a reset/);
-  m.auditLog(db, { action: "operational_reset", module: "go_live", table_name: "system", new_value: "{}" });
+  m.auditLog(db, { company_id: 1, action: "operational_reset", module: "go_live_preparation", table_name: "system", new_value: "{}" });
   assert.doesNotThrow(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id));
   m.createRecord(db, "suppliers", { supplier_name: "Entered After Lost Mark", status: "active" });
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
+  // A later reset does not become this run's mark and hide the work entered before it.
+  m.auditLog(db, { company_id: 1, action: "operational_reset", module: "go_live_preparation", table_name: "system", new_value: "{}" });
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
   const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
   assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
@@ -139,6 +142,12 @@ test("a partial supplier update keeps the name and the other stored fields", () 
   assert.equal(after.supplier_account_name, "Account Name Only");
   assert.equal(after.supplier_account_number, supplier.supplier_account_number);
   assert.equal(after.gstin, supplier.gstin);
+  m.updateRecord(db, "suppliers", supplier.id, { beneficiary_account_name: "Beneficiary Name" });
+  m.updateRecord(db, "suppliers", supplier.id, { branch: "" });
+  const later = db.prepare("SELECT * FROM suppliers WHERE id = ?").get(supplier.id);
+  assert.equal(later.supplier_name, supplier.supplier_name, "a beneficiary-name alias does not rename the supplier");
+  assert.equal(later.supplier_account_name, "Beneficiary Name");
+  assert.equal(later.supplier_branch, supplier.supplier_branch, "a blank alias does not blank the stored branch");
 });
 
 test("the signed-in user survives an await inside a handler", async () => {
@@ -330,6 +339,15 @@ function sheetZip(sheetXml) {
   const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(1, 8); eocd.writeUInt16LE(1, 10); eocd.writeUInt32LE(central.length + name.length, 12); eocd.writeUInt32LE(local.length + name.length + data.length, 16);
   return Buffer.concat([local, name, data, central, name, eocd]);
 }
+
+test("an import with a crafted very wide header is refused quickly", () => {
+  const header = Array.from({ length: 20000 }, (_, i) => `c${i}`).join(",");
+  const started = Date.now();
+  assert.throws(() => m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${"x\n".repeat(4000)}`)), /the limit is 500/);
+  const html = `<table><tr><td>supplier_name</td></tr><tr><td>${"<".repeat(160000)}</td></tr></table>`;
+  assert.equal(m.parseImportBuffer("lt.xls", Buffer.from(html)).length, 1);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+});
 
 test("an .xlsx full of unclosed tags is read quickly, and normal sheets still parse", () => {
   for (const body of ["<row>".repeat(200000), `<row r="1">${"<c r=\"A1\">".repeat(200000)}</row>`]) {

@@ -59,6 +59,17 @@ export function createCrudHelpers({
     supplier_contact: ["beneficiary_contact", "contact"]
   };
   // The account name is left out: it defaults to the supplier name, so it is not a sign of a bank change.
+  // On update each alias stands for exactly one column (see withStoredFields).
+  const SUPPLIER_UPDATE_ALIASES = {
+    supplier_type: ["beneficiary_type"],
+    supplier_code: ["beneficiary_code"],
+    supplier_account_name: ["beneficiary_account_name"],
+    supplier_account_number: ["beneficiary_account_number", "account_number"],
+    supplier_bank_name: ["beneficiary_bank_name", "bank_name"],
+    supplier_bank_ifsc_code: ["beneficiary_ifsc_code", "ifsc"],
+    supplier_branch: ["beneficiary_branch", "branch"],
+    supplier_contact: ["beneficiary_contact", "contact"]
+  };
   const SUPPLIER_BANK_PARTS = ["supplier_account_number", "supplier_bank_name", "supplier_bank_ifsc_code", "supplier_branch"];
 
   // Masters that hold bank details are edited from forms that do not show every column
@@ -72,16 +83,15 @@ export function createCrudHelpers({
     const stored = { ...oldRecord };
     delete stored.id;
     if (table === "suppliers") {
-      // A value sent under another name replaces the stored one. An alias that is itself
-      // a supplier column (supplier_account_name) is only a fallback for an empty field,
-      // so sending it alone must not rename the supplier.
-      for (const [field, aliases] of Object.entries(SUPPLIER_FIELD_ALIASES)) {
-        if (!sent(field) && aliases.filter((alias) => !(alias in SUPPLIER_FIELD_ALIASES)).some(sent)) delete stored[field];
+      // A non-empty value sent under another name replaces the stored one. Each alias maps
+      // to one column here; an account-name alias never renames the supplier itself.
+      for (const [field, aliases] of Object.entries(SUPPLIER_UPDATE_ALIASES)) {
+        if (!sent(field) && aliases.some((alias) => sent(alias) && String(payload[alias]).trim())) delete stored[field];
       }
       // The combined bank text is rebuilt when one of its parts is sent with a new value
       // and the text itself is not sent; a part resent unchanged keeps the stored text.
       const differs = (field, key) => sent(key) && String(payload[key] ?? "").trim() !== String(oldRecord[field] ?? "").trim();
-      const partChanged = SUPPLIER_BANK_PARTS.some((field) => differs(field, field) || SUPPLIER_FIELD_ALIASES[field].some((alias) => differs(field, alias)));
+      const partChanged = SUPPLIER_BANK_PARTS.some((field) => differs(field, field) || SUPPLIER_UPDATE_ALIASES[field].some((alias) => String(payload[alias] ?? "").trim() && differs(field, alias)));
       if (partChanged && !sent("bank_details")) delete stored.bank_details;
     }
     return { ...stored, ...payload };

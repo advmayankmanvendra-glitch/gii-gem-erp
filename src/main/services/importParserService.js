@@ -16,6 +16,23 @@ export function createImportParserService() {
     return String(value || "").trim().toLowerCase().replaceAll(" ", "_");
   }
 
+  // Each data row becomes one object with a key per header column, so the work is
+  // columns x rows. A small crafted file with a very wide header (or a sheet past these
+  // limits) would block the app for minutes; real import sheets are far below them.
+  const MAX_IMPORT_COLUMNS = 500;
+  const MAX_IMPORT_ROWS = 200000;
+  const MAX_IMPORT_VALUES = 5000000;
+
+  function toRecords(headerEntries, rows) {
+    if (headerEntries.length > MAX_IMPORT_COLUMNS) {
+      throw new Error(`Import refused: the header row has ${headerEntries.length} columns; the limit is ${MAX_IMPORT_COLUMNS}. Delete the unused columns and import again.`);
+    }
+    if (rows.length > MAX_IMPORT_ROWS || headerEntries.length * rows.length > MAX_IMPORT_VALUES) {
+      throw new Error(`Import refused: the sheet has ${rows.length} rows of ${headerEntries.length} columns, more than one import can read safely. Split it into smaller files and import them one by one.`);
+    }
+    return rows.map((cells) => Object.fromEntries(headerEntries.map(([header, index]) => [header, cells[index] ?? ""])));
+  }
+
   function parseCsv(text) {
     const rows = [];
     let row = [];
@@ -45,13 +62,13 @@ export function createImportParserService() {
     row.push(value.trim());
     if (row.some((cell) => cell !== "")) rows.push(row);
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+    return toRecords(headers.map((header, index) => [header, index]), rows);
   }
 
   function parseDelimited(text, delimiter) {
     const rows = text.split(/\r?\n/).map((line) => line.split(delimiter).map((cell) => cell.trim())).filter((row) => row.some(Boolean));
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+    return toRecords(headers.map((header, index) => [header, index]), rows);
   }
 
   function parseHtmlTable(text) {
@@ -67,13 +84,13 @@ export function createImportParserService() {
         if (tagEnd === -1) break;
         const end = rowBody.indexOf(`</${match[1]}>`, tagEnd + 1);
         if (end === -1) break;
-        cells.push(rowBody.slice(tagEnd + 1, end).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
+        cells.push(rowBody.slice(tagEnd + 1, end).replace(/<[^<>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
         cellPattern.lastIndex = end;
       }
       if (cells.some(Boolean)) rows.push(cells);
     });
     const headers = (rows.shift() || []).map(normalizeHeader);
-    return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+    return toRecords(headers.map((header, index) => [header, index]), rows);
   }
 
   function parseLegacyXls(buffer) {
@@ -257,8 +274,7 @@ export function createImportParserService() {
     });
     const sourceRows = headerIndex >= 0 ? matrix.slice(headerIndex) : matrix;
     const headers = (sourceRows.shift() || []).map(normalizeHeader);
-    const headerEntries = headers.map((header, index) => [header, index]).filter(([header]) => header);
-    return sourceRows.map((cells) => Object.fromEntries(headerEntries.map(([header, index]) => [header, cells[index] ?? ""])));
+    return toRecords(headers.map((header, index) => [header, index]).filter(([header]) => header), sourceRows);
   }
 
   function parseImportFile(filePath) {

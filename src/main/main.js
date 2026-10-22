@@ -919,7 +919,8 @@ function registerIpc() {
   handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
   handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
   handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
-  handle("imports:parse-file", (_event, filePath) => {
+  handle("imports:parse-file", (event, filePath) => {
+    enforcePermission(db, "import", { module: "imports", table_name: "imports", user_id: sessionUser(event).user_id });
     if (!selectedFiles.has(path.resolve(String(filePath || "")))) {
       throw new Error("Import refused: choose the file with the Browse button first. Only files picked in the file dialog can be read.");
     }

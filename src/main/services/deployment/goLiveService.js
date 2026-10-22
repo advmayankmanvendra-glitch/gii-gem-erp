@@ -87,7 +87,11 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
     },
     backupValidation,
     userId: userId || "system",
-    currentEnv: "production"
+    currentEnv: "production",
+    // Where this run starts in the audit trail; the rollback guard finds this run's own
+    // reset row after it even if the later history update is lost.
+    auditIdAtStart: Number(db.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id || 0),
+    companyId: Number(resetOptions.companyId || 0) || null
   });
 
   let resetResult;
@@ -167,7 +171,7 @@ const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_fa
 const NOT_BOOK_TABLES = new Set(["audit_log", "schema_migrations", "feedback_log", "allocation_audit", "voucher_proposal_audit", "sqlite_sequence"]);
 
 // Audit rows that record a look or a refusal, not a change; they must not block rollback.
-const READ_ONLY_AUDIT_ACTIONS = ["voucher drilldown access", "document view", "document download", "master_data_export", "master_data_template_download", "permission_denied"];
+const READ_ONLY_AUDIT_ACTIONS = ["voucher drilldown access", "document view", "document download", "master_data_export", "master_data_template_download", "permission_denied", "bank_statement_direct_post_blocked"];
 
 function bookTables(db) {
   return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()
@@ -181,18 +185,35 @@ export function bookHighWater(db) {
   return { tables, auditId };
 }
 
-// The id of the reset's audit row written after this go-live run started, or null.
+// The id of this go-live run's own reset audit row (the first go-live reset of its company
+// after the run started), or null when the books show no such reset.
 function resetAuditIdFor(db, entry) {
+  const companyId = Number(entry.companyId || 0) || null;
+  if (Number.isInteger(entry.auditIdAtStart)) {
+    return db.prepare(`
+      SELECT id FROM audit_log
+      WHERE id > ? AND action = 'operational_reset' AND module = 'go_live_preparation' AND (? IS NULL OR company_id = ?)
+      ORDER BY id LIMIT 1
+    `).get(entry.auditIdAtStart, companyId, companyId)?.id || null;
+  }
+  // Entries written before 2026-10-23 have no audit position; fall back to the start time.
   const since = String(entry.generatedAt || "").slice(0, 19).replace("T", " ");
   if (!since) return null;
-  return db.prepare("SELECT id FROM audit_log WHERE action = 'operational_reset' AND created_at >= ? ORDER BY id DESC LIMIT 1").get(since)?.id || null;
+  return db.prepare(`
+    SELECT id FROM audit_log
+    WHERE created_at >= ? AND action = 'operational_reset' AND module = 'go_live_preparation' AND (? IS NULL OR company_id = ?)
+    ORDER BY id LIMIT 1
+  `).get(since, companyId, companyId)?.id || null;
 }
 
 // Called with the live database open, before the rollback closes it. Restoring the
 // pre-go-live backup would erase anything entered after the reset, so that is refused.
 export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
-  const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
-  if (!entry) return;
+  const history = getGoLiveHistory(runtimeRoot);
+  // The history checks come first, so a completed or unknown run gets its own reason.
+  const refusal = rollbackRefusalReason(history, goLiveId);
+  if (refusal) throw new Error(refusal);
+  const entry = history.find((item) => item.id === goLiveId);
   let mark;
   let compared;
   const now = bookHighWater(db);
@@ -232,26 +253,30 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
   }
 }
 
-export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId) {
-  const history = getGoLiveHistory(runtimeRoot);
+// Why a rollback of this run is refused by its history entry alone, or null.
+function rollbackRefusalReason(history, goLiveId) {
   const current = history.find((item) => item.id === goLiveId);
-  if (!current) {
-    return { rollbackResult: { success: false, reason: "Rollback refused: this go-live run was not found in the go-live history. Nothing was changed." }, reason };
-  }
+  if (!current) return "Rollback refused: this go-live run was not found in the go-live history. Nothing was changed.";
   // A completed or superseded go-live has live books on top of it; restoring its
   // pre-go-live backup would silently erase them.
   if (!ROLLBACK_ALLOWED_STATUSES.has(current.status)) {
-    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is ${current.status}. Only a go-live that is still in progress or failed can be rolled back. To return to an older state, use Backup & Restore. Nothing was changed.` }, reason };
+    return `Rollback refused: go-live ${current.goliveNumber || goLiveId} is ${current.status}. Only a go-live that is still in progress or failed can be rolled back. To return to an older state, use Backup & Restore. Nothing was changed.`;
   }
   // Only a run known to have stopped before or inside the (single-transaction) reset is
   // refused. A run whose reset finished but whose history update was lost, for example
   // to a locked file, has no resetResult yet still needs its rollback.
   if (!current.resetResult && (current.resetFailed || current.status === "failed")) {
-    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} never reset the books (${current.failureReason || "it stopped before the reset"}), so there is nothing to roll back. Nothing was changed.` }, reason };
+    return `Rollback refused: go-live ${current.goliveNumber || goLiveId} never reset the books (${current.failureReason || "it stopped before the reset"}), so there is nothing to roll back. Nothing was changed.`;
   }
   if (history[0]?.id !== goLiveId) {
-    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is not the latest go-live run. Nothing was changed.` }, reason };
+    return `Rollback refused: go-live ${current.goliveNumber || goLiveId} is not the latest go-live run. Nothing was changed.`;
   }
+  return null;
+}
+
+export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId) {
+  const refusal = rollbackRefusalReason(getGoLiveHistory(runtimeRoot), goLiveId);
+  if (refusal) return { rollbackResult: { success: false, reason: refusal }, reason };
   const entry = updateGoLiveEntry(runtimeRoot, goLiveId, { status: "rolling_back" });
   const rollbackResult = executeAutoRollback(runtimeRoot, entry, reason);
   updateGoLiveEntry(runtimeRoot, goLiveId, {

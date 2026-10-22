@@ -45,3 +45,6 @@ reports/*
 !reports/phase-ag-1-audit-intelligence-graph-report.md
 !reports/phase-kg-5-manual-graph-report.md
 !reports/phase-ggr-1-governance-graph-reconciliation-report.md
+
+# Environment profile written at runtime when the dev runtime root is the checkout
+/environment-config.json
