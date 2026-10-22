@@ -7,6 +7,8 @@ dist-installer/
 
 # Electron runtime/user-data and caches
 runtime/
+# Go-live and certificate history written when the dev runtime root is the checkout
+/deployment/
 
 # Uploaded business documents
 documents/

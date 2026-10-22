@@ -92,6 +92,12 @@ test("go-live rollback sees any new or edited record, not just vouchers and bill
   safe = check(db, goLive.bookHighWater(db));
   m.updateRecord(db, "suppliers", supplier.id, { ...supplier, remarks: "edited after go-live" });
   assert.throws(safe, /suppliers changed after go-live/, "an edit adds no row but is still seen");
+  db = fresh();
+  safe = check(db, goLive.bookHighWater(db));
+  m.auditLog(db, { company_id: 1, action: "voucher drilldown access", table_name: "vouchers", record_id: 1 });
+  m.auditLog(db, { company_id: 1, action: "document view", table_name: "documents", record_id: 1 });
+  m.auditLog(db, { company_id: 1, action: "permission_denied", table_name: "suppliers" });
+  assert.doesNotThrow(safe, "looking at records or a refused action is not new work");
 });
 
 test("a go-live whose reset finished but whose history update was lost can still be rolled back", async () => {
@@ -101,6 +107,13 @@ test("a go-live whose reset finished but whose history update was lost can still
   const lost = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "missing.db" } });
   const result = goLive.failGoLiveWithRollback(root, lost.id, "test");
   assert.doesNotMatch(result.rollbackResult.reason || "", /never reset the books/);
+  // Without its stored mark, the rollback check falls back to the reset's audit row.
+  const db = fresh();
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /no record of a reset/);
+  m.auditLog(db, { action: "operational_reset", module: "go_live", table_name: "system", new_value: "{}" });
+  assert.doesNotThrow(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id));
+  m.createRecord(db, "suppliers", { supplier_name: "Entered After Lost Mark", status: "active" });
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
   const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
   assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
 });
@@ -115,6 +128,17 @@ test("the go-live history is replaced whole on each write and rejects reused ids
   assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((name) => name.includes(".tmp-")), [], "no temp file left behind");
   fs.writeFileSync(file, JSON.stringify({ entries: [{ id: 3 }], nextId: 2 }));
   assert.throws(() => history.getGoLiveHistory(root), /was damaged/, "nextId at or below an existing id is refused");
+});
+
+test("a partial supplier update keeps the name and the other stored fields", () => {
+  const db = fresh();
+  const supplier = db.prepare("SELECT * FROM suppliers ORDER BY id LIMIT 1").get();
+  m.updateRecord(db, "suppliers", supplier.id, { supplier_account_name: "Account Name Only" });
+  const after = db.prepare("SELECT * FROM suppliers WHERE id = ?").get(supplier.id);
+  assert.equal(after.supplier_name, supplier.supplier_name, "sending only the account name does not rename the supplier");
+  assert.equal(after.supplier_account_name, "Account Name Only");
+  assert.equal(after.supplier_account_number, supplier.supplier_account_number);
+  assert.equal(after.gstin, supplier.gstin);
 });
 
 test("the signed-in user survives an await inside a handler", async () => {

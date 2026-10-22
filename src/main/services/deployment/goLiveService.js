@@ -166,6 +166,9 @@ const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_fa
 // after the go-live reset.
 const NOT_BOOK_TABLES = new Set(["audit_log", "schema_migrations", "feedback_log", "allocation_audit", "voucher_proposal_audit", "sqlite_sequence"]);
 
+// Audit rows that record a look or a refusal, not a change; they must not block rollback.
+const READ_ONLY_AUDIT_ACTIONS = ["voucher drilldown access", "document view", "document download", "master_data_export", "master_data_template_download", "permission_denied"];
+
 function bookTables(db) {
   return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()
     .map((row) => row.name)
@@ -178,21 +181,50 @@ export function bookHighWater(db) {
   return { tables, auditId };
 }
 
+// The id of the reset's audit row written after this go-live run started, or null.
+function resetAuditIdFor(db, entry) {
+  const since = String(entry.generatedAt || "").slice(0, 19).replace("T", " ");
+  if (!since) return null;
+  return db.prepare("SELECT id FROM audit_log WHERE action = 'operational_reset' AND created_at >= ? ORDER BY id DESC LIMIT 1").get(since)?.id || null;
+}
+
 // Called with the live database open, before the rollback closes it. Restoring the
 // pre-go-live backup would erase anything entered after the reset, so that is refused.
 export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
   const entry = getGoLiveHistory(runtimeRoot).find((item) => item.id === goLiveId);
-  if (!entry?.highWater) return;
-  // Entries written before 2026-10-23 hold a flat { table: maxId } map of five tables.
-  const mark = entry.highWater.tables ? entry.highWater : { tables: entry.highWater, auditId: null };
+  if (!entry) return;
+  let mark;
+  let compared;
   const now = bookHighWater(db);
-  // An older mark only knows its five tables, so only those can be compared.
-  const compared = entry.highWater.tables ? Object.keys(now.tables) : Object.keys(mark.tables).filter((table) => table in now.tables);
+  if (entry.highWater?.tables) {
+    mark = entry.highWater;
+    compared = Object.keys(now.tables);
+  } else if (entry.highWater) {
+    // Entries written before 2026-10-23 hold a flat { table: maxId } map of five tables,
+    // so only those can be compared.
+    // Audited edits after the reset's own audit row are checked as well.
+    mark = { tables: entry.highWater, auditId: resetAuditIdFor(db, entry) };
+    compared = Object.keys(mark.tables).filter((table) => table in now.tables);
+  } else {
+    // The history update that stores the mark was lost (for example to a locked file).
+    // The reset's own audit row in the database is the mark instead: any audited record
+    // write after it is work the rollback would erase.
+    const reset = resetAuditIdFor(db, entry);
+    if (!reset) {
+      throw new Error(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
+    }
+    mark = { tables: {}, auditId: reset };
+    compared = [];
+  }
   const grown = new Set(compared.filter((table) => now.tables[table] > Number(mark.tables[table] || 0)));
-  if (mark.auditId !== null) {
+  if (mark.auditId) {
     // Edits and deletes add no rows, but every record write leaves an audit row naming its table.
     const tables = new Set(Object.keys(now.tables));
-    db.prepare("SELECT DISTINCT table_name FROM audit_log WHERE id > ? AND table_name IS NOT NULL").all(Number(mark.auditId || 0))
+    db.prepare(`
+      SELECT DISTINCT table_name FROM audit_log
+      WHERE id > ? AND table_name IS NOT NULL AND action NOT LIKE 'ui:%'
+        AND action NOT IN (${READ_ONLY_AUDIT_ACTIONS.map(() => "?").join(", ")})
+    `).all(Number(mark.auditId || 0), ...READ_ONLY_AUDIT_ACTIONS)
       .forEach((row) => { if (tables.has(row.table_name) && row.table_name !== "users") grown.add(row.table_name); });
   }
   if (grown.size) {

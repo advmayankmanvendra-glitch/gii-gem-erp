@@ -56,13 +56,22 @@ export function createImportParserService() {
 
   function parseHtmlTable(text) {
     const rows = [];
-    for (const rowMatch of text.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    // HTML tag names are case-insensitive; the walker below matches lower case.
+    const html = text.replace(/<(\/?)(tr|td|th)\b/gi, (_match, slash, tag) => `<${slash}${tag.toLowerCase()}`);
+    forEachElement(html, "tr", (_attrs, rowBody) => {
       const cells = [];
-      for (const cellMatch of rowMatch[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
-        cells.push(cellMatch[1].replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
+      const cellPattern = /<(td|th)(?=[\s>\/])/g;
+      let match;
+      while ((match = cellPattern.exec(rowBody))) {
+        const tagEnd = rowBody.indexOf(">", match.index);
+        if (tagEnd === -1) break;
+        const end = rowBody.indexOf(`</${match[1]}>`, tagEnd + 1);
+        if (end === -1) break;
+        cells.push(rowBody.slice(tagEnd + 1, end).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
+        cellPattern.lastIndex = end;
       }
       if (cells.some(Boolean)) rows.push(cells);
-    }
+    });
     const headers = (rows.shift() || []).map(normalizeHeader);
     return rows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
   }
@@ -198,8 +207,16 @@ export function createImportParserService() {
     const sharedStrings = parseSharedStrings(files.get("xl/sharedStrings.xml")?.toString("utf8") || "");
     const workbook = files.get("xl/workbook.xml")?.toString("utf8") || "";
     const rels = files.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
-    const firstSheetId = /<sheet[^>]*r:id="([^"]+)"/.exec(workbook)?.[1];
-    const target = firstSheetId ? new RegExp(`<Relationship[^>]*Id="${firstSheetId}"[^>]*Target="([^"]+)"`).exec(rels)?.[1] : "worksheets/sheet1.xml";
+    // Read the first sheet's id and its relationship target from tag attributes only; a
+    // regex over the whole file (or one built from text inside it) can be made to hang.
+    let firstSheetId = null;
+    forEachElement(workbook, "sheet", (attrs) => { if (firstSheetId === null) firstSheetId = /r:id="([^"]+)"/.exec(attrs)?.[1] || ""; });
+    let target = firstSheetId ? null : "worksheets/sheet1.xml";
+    if (firstSheetId) {
+      forEachElement(rels, "Relationship", (attrs) => {
+        if (target === null && /\bId="([^"]+)"/.exec(attrs)?.[1] === firstSheetId) target = /\bTarget="([^"]+)"/.exec(attrs)?.[1] || "";
+      });
+    }
     const sheetPath = `xl/${(target || "worksheets/sheet1.xml").replace(/^\/xl\//, "")}`;
     const sheetXml = files.get(sheetPath)?.toString("utf8") || files.get("xl/worksheets/sheet1.xml")?.toString("utf8") || "";
     const matrix = [];

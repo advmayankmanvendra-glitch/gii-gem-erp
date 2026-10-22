@@ -72,13 +72,17 @@ export function createCrudHelpers({
     const stored = { ...oldRecord };
     delete stored.id;
     if (table === "suppliers") {
-      // A value sent under another name replaces the stored one.
+      // A value sent under another name replaces the stored one. An alias that is itself
+      // a supplier column (supplier_account_name) is only a fallback for an empty field,
+      // so sending it alone must not rename the supplier.
       for (const [field, aliases] of Object.entries(SUPPLIER_FIELD_ALIASES)) {
-        if (!sent(field) && aliases.some(sent)) delete stored[field];
+        if (!sent(field) && aliases.filter((alias) => !(alias in SUPPLIER_FIELD_ALIASES)).some(sent)) delete stored[field];
       }
-      // The combined bank text is rebuilt when any of its parts is sent without it.
-      const partSent = SUPPLIER_BANK_PARTS.some((field) => sent(field) || SUPPLIER_FIELD_ALIASES[field].some(sent));
-      if (partSent && !sent("bank_details")) delete stored.bank_details;
+      // The combined bank text is rebuilt when one of its parts is sent with a new value
+      // and the text itself is not sent; a part resent unchanged keeps the stored text.
+      const differs = (field, key) => sent(key) && String(payload[key] ?? "").trim() !== String(oldRecord[field] ?? "").trim();
+      const partChanged = SUPPLIER_BANK_PARTS.some((field) => differs(field, field) || SUPPLIER_FIELD_ALIASES[field].some((alias) => differs(field, alias)));
+      if (partChanged && !sent("bank_details")) delete stored.bank_details;
     }
     return { ...stored, ...payload };
   }
