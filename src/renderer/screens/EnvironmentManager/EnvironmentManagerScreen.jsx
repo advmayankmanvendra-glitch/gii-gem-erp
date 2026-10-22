@@ -309,7 +309,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
   const handleRollback = async () => {
     setResetRollbackLoading(true);
     try {
-      const result = await apiClient.rollbackReset?.("");
+      const result = await apiClient.rollbackReset?.(resetResult?.backup?.fileName || resetBackupInfo?.fileName || "");
       setResetRollbackResult(result);
       if (result.success) {
         notify?.("Rollback initiated. Restart the app to complete restore.", "success");

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { parseMoneyToMinor } from "../domain/money.js";
+import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "./bankDetailsPolicy.js";
 
 export function createImportValidationService(deps) {
   const {
@@ -407,6 +408,9 @@ export function createImportValidationService(deps) {
         if (updateId) {
           const existing = getRecord(db, table, updateId);
           const incoming = Object.fromEntries(Object.entries(cleanImportPayload).filter(([, value]) => String(value ?? "").trim() !== ""));
+          if (bankDetailChanges(table, incoming, existing).length) {
+            enforcePermission(db, BANK_DETAILS_PERMISSION, { ...context, module: "bank_details", table_name: table, record_id: updateId });
+          }
           updateRecord(db, table, updateId, { ...existing, ...incoming });
           result.updatedRows += 1;
           return;

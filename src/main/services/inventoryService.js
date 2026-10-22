@@ -122,8 +122,8 @@ export function createInventoryService(deps) {
 
   function serialWarrantyExpiry(date, warrantyMonths) {
     if (!date || !warrantyMonths) return null;
-    const expiry = new Date(`${date}T00:00:00`);
-    expiry.setMonth(expiry.getMonth() + Number(warrantyMonths || 0));
+    const expiry = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
+    expiry.setUTCMonth(expiry.getUTCMonth() + Number(warrantyMonths || 0));
     return expiry.toISOString().slice(0, 10);
   }
 
@@ -203,7 +203,7 @@ export function createInventoryService(deps) {
       // expensed them to Purchase, so the receipt moves that value into Inventory
       // instead of creating a second liability in GRNI.
       const billedFirst = row.procurement_id
-        ? db.prepare("SELECT 1 FROM procurements WHERE id = ? AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0").get(row.procurement_id)
+        ? db.prepare("SELECT 1 FROM procurements WHERE id = ? AND company_id = ? AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0").get(row.procurement_id, row.company_id)
         : null;
       const grnVoucher = value > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
@@ -335,18 +335,29 @@ export function createInventoryService(deps) {
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
-  // A supplier return reduces the supplier payable when the goods were already billed by
-  // that supplier on the order (a posted purchase bill), and Goods Received Not Invoiced
-  // otherwise. Judged from the returned goods' own order and supplier, not the company total.
+  // A supplier return clears Goods Received Not Invoiced while the supplier still has
+  // unbilled receipts of this item (inwards with no posted bill, less earlier returns that
+  // already cleared GRNI), and reduces Trade Payables only once those goods were billed.
+  // Judged per item, supplier and order, not from "any bill exists".
   function isReturnBilled(db, row) {
     if (!row.supplier_id) return isGrniClearedForCompany(db, row.company_id);
-    const billed = db.prepare(`
-      SELECT 1 FROM procurements
-      WHERE company_id = ? AND supplier_id = ? AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0
-        AND (? IS NULL OR order_id = ?)
-      LIMIT 1
-    `).get(row.company_id, row.supplier_id, row.order_id || null, row.order_id || null);
-    return Boolean(billed);
+    const orderId = row.order_id || null;
+    const unbilledReceived = Number(db.prepare(`
+      SELECT COALESCE(SUM(si.quantity), 0) qty FROM stock_inwards si
+      LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
+      WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
+        AND (? IS NULL OR si.order_id = ?) AND p.id IS NULL
+    `).get(row.company_id, row.supplier_id, row.item_id, orderId, orderId)?.qty || 0);
+    const returnedAgainstGrni = Number(db.prepare(`
+      SELECT COALESCE(SUM(sr.quantity), 0) qty FROM stock_returns sr
+      WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
+        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ?)
+        AND EXISTS (
+          SELECT 1 FROM vouchers v JOIN voucher_lines vl ON vl.voucher_id = v.id JOIN accounts a ON a.id = vl.account_id
+          WHERE v.source_module = 'stock_returns' AND v.source_id = sr.id AND a.account_name = 'Goods Received Not Invoiced' AND vl.debit > 0
+        )
+    `).get(row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.qty || 0);
+    return unbilledReceived - returnedAgainstGrni < Number(row.quantity || 0) - 0.0001;
   }
 
   function postStockReturn(db, id) {
@@ -448,7 +459,7 @@ export function createInventoryService(deps) {
   // first, and never more than each one holds (an order can list the same item twice).
   function consumeReservations(db, orderId, itemId, warehouseId, quantity) {
     let left = quantity;
-    const open = db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status NOT IN ('Fully Issued', 'Cancelled') ORDER BY id")
+    const open = db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND status NOT IN ('Fully Issued', 'Cancelled') AND COALESCE(is_deleted, 0) = 0 ORDER BY id")
       .all(orderId, itemId, warehouseId);
     open.forEach((reservation, index) => {
       if (left <= 0) return;
@@ -465,14 +476,16 @@ export function createInventoryService(deps) {
   // Reversing an issue gives the quantity back to the reservations it used, newest first.
   function releaseReservations(db, orderId, itemId, warehouseId, quantity) {
     let left = quantity;
-    db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND issued_quantity > 0 AND status <> 'Cancelled' ORDER BY id DESC")
+    db.prepare("SELECT * FROM stock_reservations WHERE order_id = ? AND item_id = ? AND COALESCE(warehouse_id, 0) = COALESCE(?, 0) AND issued_quantity > 0 AND status <> 'Cancelled' AND COALESCE(is_deleted, 0) = 0 ORDER BY id DESC")
       .all(orderId, itemId, warehouseId)
       .forEach((reservation) => {
         if (left <= 0) return;
         const give = Math.min(left, Number(reservation.issued_quantity || 0));
         const issued = Number(reservation.issued_quantity || 0) - give;
-        db.prepare("UPDATE stock_reservations SET issued_quantity = ?, balance_reserved = balance_reserved + ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-          .run(issued, give, issued > 0 ? "Partially Issued" : "Reserved", reservation.id);
+        // An issue can take more than was reserved; never hold back more than the reservation itself.
+        const balance = Math.min(Number(reservation.balance_reserved || 0) + give, Math.max(0, Number(reservation.reserved_quantity || 0) - issued));
+        db.prepare("UPDATE stock_reservations SET issued_quantity = ?, balance_reserved = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+          .run(issued, balance, issued > 0 ? "Partially Issued" : "Reserved", reservation.id);
         left -= give;
       });
   }

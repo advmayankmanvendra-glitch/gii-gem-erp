@@ -341,14 +341,14 @@ export function executeEnhancedReset(db, runtimeRoot, options = {}) {
 export function rollbackReset(runtimeRoot, backupIdentifier) {
   try {
     const backups = listBackups(runtimeRoot);
-    let targetBackup = backupIdentifier;
+    // Restore only the backup the caller names (the one taken for this reset); never guess,
+    // because the newest backup may belong to another company or an older state of the books.
+    const targetBackup = String(backupIdentifier || "").trim();
     if (!targetBackup) {
-      targetBackup = backups.find((name) => name.startsWith("pre_reset_")) || backups[0];
-    } else if (!backups.includes(backupIdentifier)) {
-      return { success: false, reason: `Rollback refused: backup "${backupIdentifier}" is not in the backups folder. Choose one from the backup list.` };
+      return { success: false, reason: "Rollback refused: no backup was named. Open Backup & Restore and pick the pre-reset backup taken for this reset. Nothing was changed." };
     }
-    if (!targetBackup) {
-      return { success: false, reason: "No backup found to restore from. Reset rollback requires a valid backup." };
+    if (!backups.includes(targetBackup)) {
+      return { success: false, reason: `Rollback refused: backup "${targetBackup}" is not in the backups folder. Choose one from the backup list. Nothing was changed.` };
     }
     const pendingFile = path.join(runtimeRoot, "database", "pending_restore.json");
     if (fs.existsSync(pendingFile)) {

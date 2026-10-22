@@ -638,8 +638,8 @@ export function createAccountingService(deps) {
       const receivedValue = roundMoney(Number(db.prepare(`
         SELECT COALESCE(SUM(sl.value), 0) value FROM stock_inwards si
         JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Inward'
-        WHERE si.procurement_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
-      `).get(procurement.id)?.value || 0));
+        WHERE si.procurement_id = ? AND si.company_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
+      `).get(procurement.id, companyId)?.value || 0));
       // GRNI is cleared in full; a bill price above or below the GRN value is a
       // purchase price difference booked to Purchase (debit or credit).
       const grniPortion = receivedValue;
@@ -915,6 +915,9 @@ export function createAccountingService(deps) {
     if (!invoice) throw new Error("Open invoice is required");
     const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(invoice.id);
     if (!receivable) throw new Error("Receivable is not available for this invoice");
+    if (invoice.posting_status !== "Posted" || receivable.status === "Reversed") {
+      throw new Error(`Adjustment refused: invoice ${invoice.invoice_number || invoice.id} is ${receivable.status === "Reversed" ? "reversed" : String(invoice.posting_status || "not posted").toLowerCase()}. Advances can be adjusted only against a posted invoice. Post the invoice first, or pick another one.`);
+    }
     if (Number(invoice.company_id) !== Number(advance.company_id)) throw new Error("Adjustment refused: the advance and the invoice belong to different companies.");
     if (advance.department_id && receivable.department_id && Number(advance.department_id) !== Number(receivable.department_id)) {
       throw new Error("Adjustment refused: this advance was received from a different buyer department than the invoice. Pick an invoice of the same department.");
@@ -943,6 +946,9 @@ export function createAccountingService(deps) {
     if (!advance) throw new Error("Supplier advance is required");
     const procurement = db.prepare("SELECT * FROM procurements WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(payload.procurement_id);
     if (!procurement) throw new Error("Purchase bill is required");
+    if (procurement.posting_status !== "Posted") {
+      throw new Error(`Adjustment refused: purchase bill ${procurement.purchase_invoice_number || procurement.id} is ${String(procurement.posting_status || "not posted").toLowerCase()}. Supplier advances can be adjusted only against a posted bill. Post the bill first, or pick another one.`);
+    }
     if (Number(procurement.company_id) !== Number(advance.company_id) || Number(procurement.supplier_id) !== Number(advance.supplier_id)) {
       throw new Error("Adjustment refused: this advance was paid to a different supplier (or company) than the purchase bill. Pick a bill of the same supplier.");
     }

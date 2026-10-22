@@ -228,7 +228,7 @@ test("go-live deletes nothing when the safety backup fails", async () => {
   // A root whose backups folder is a file makes the backup fail before anything is deleted.
   const root = freshRoot();
   fs.writeFileSync(path.join(root, "backups"), "not a folder");
-  assert.throws(() => goLive.executeGoLiveReset(db, root, { companyId: 1, confirmText: "RESET" }));
+  assert.throws(() => goLive.executeGoLiveReset(db, root, { companyId: 1, confirmText: "GO-LIVE" }));
   assert.equal(db.prepare("SELECT COUNT(*) c FROM vouchers").get().c, vouchers);
 });
 
@@ -321,6 +321,6 @@ test("go-live reset is refused when its preconditions fail, even if called direc
   const goLive = await import(pathToFileURL(path.join(REPO, "src/main/services/deployment/goLiveService.js")).href);
   const db = fresh();
   const vouchers = db.prepare("SELECT COUNT(*) c FROM vouchers").get().c;
-  assert.throws(() => goLive.executeGoLiveReset(db, freshRoot(), { companyId: 1, confirmText: "RESET", currentEnv: "development" }), /Environment must be Production/);
+  assert.throws(() => goLive.executeGoLiveReset(db, freshRoot(), { companyId: 1, confirmText: "GO-LIVE", currentEnv: "development" }), /Environment must be Production/);
   assert.equal(db.prepare("SELECT COUNT(*) c FROM vouchers").get().c, vouchers);
 });

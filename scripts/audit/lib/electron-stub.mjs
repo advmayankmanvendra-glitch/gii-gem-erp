@@ -22,7 +22,7 @@ export const app = {
   __fireReady: () => readyResolve()
 };
 export class BrowserWindow {
-  constructor() { this.webContents = { id: 9999, on: noop, send: noop }; }
+  constructor() { this.webContents = { id: 9999, on: noop, send: noop, setWindowOpenHandler: noop }; }
   static getAllWindows() { return []; }
   static getFocusedWindow() { return null; }
   static fromWebContents() { return null; }

@@ -170,3 +170,102 @@ test("import parser only reads files picked in the file dialog", async () => {
   const admin = await adminWindow();
   assert.match((await call(admin, "imports:parse-file", "/etc/passwd")).err || "", /Browse button/);
 });
+
+async function roleWindow(username, role) {
+  const db = side();
+  if (!db.prepare("SELECT id FROM users WHERE username = ?").get(username)) {
+    db.prepare("INSERT INTO users (username, display_name, password_hash, role, status, force_password_change) VALUES (?, ?, ?, ?, 'active', 0)").run(username, username, hashPassword("Role@1234x"), role);
+  }
+  db.close();
+  const win = newWindow();
+  assert.ok((await call(win, "auth:login", { username, password: "Role@1234x" })).ok, `${username} signs in`);
+  return win;
+}
+
+test("only an admin can change supplier or company bank details", async () => {
+  const deo = await roleWindow("deo1", "data_entry_operator");
+  let db = side();
+  const supplier = db.prepare("SELECT * FROM suppliers ORDER BY id LIMIT 1").get();
+  const company = db.prepare("SELECT * FROM companies ORDER BY id LIMIT 1").get();
+  db.close();
+  const denied = await call(deo, "records:update", "suppliers", supplier.id, { ...supplier, supplier_account_number: "999988887777", supplier_bank_ifsc_code: "EVIL0000001" });
+  assert.match(denied.err || "", /Permission denied: settings/);
+  assert.match((await call(deo, "records:update", "companies", company.id, { ...company, account_number: "111122223333" })).err || "", /Permission denied/);
+  assert.match((await call(deo, "records:create", "banks", { company_id: 1, bank_account_name: "X", bank_name: "Y", status: "active" })).err || "", /Permission denied: settings/);
+  const renamed = await call(deo, "records:update", "suppliers", supplier.id, { ...supplier, remarks: "edited by data entry" });
+  assert.ok(renamed.ok, `other supplier fields stay editable: ${renamed.err}`);
+  db = side();
+  try {
+    assert.equal(db.prepare("SELECT supplier_account_number FROM suppliers WHERE id = ?").get(supplier.id).supplier_account_number, supplier.supplier_account_number);
+  } finally { db.close(); }
+  const admin = await adminWindow();
+  const allowed = await call(admin, "records:update", "suppliers", supplier.id, { ...supplier, supplier_account_number: "123400001234" });
+  assert.ok(allowed.ok, allowed.err);
+  db = side();
+  try {
+    const row = db.prepare("SELECT old_value, new_value FROM audit_log WHERE action = 'bank_details_changed' AND record_id = ? ORDER BY id DESC LIMIT 1").get(supplier.id);
+    assert.match(row?.new_value || "", /123400001234/);
+  } finally { db.close(); }
+});
+
+test("a session ends when its user is disabled or no longer in the database", async () => {
+  const win = await roleWindow("gone1", "accountant");
+  assert.ok((await call(win, "accounting:data", { company_id: 1 })).ok);
+  const db = side();
+  db.prepare("UPDATE users SET status = 'inactive' WHERE username = 'gone1'").run();
+  db.close();
+  assert.match((await call(win, "accounting:data", { company_id: 1 })).err || "", /no longer valid/);
+  assert.match((await call(win, "accounting:data", { company_id: 1 })).err || "", /not signed in/, "the session was cleared");
+});
+
+test("screens can write only known audit events and cannot fake a record's history", async () => {
+  const viewer = await roleWindow("viewer2", "viewer");
+  assert.match((await call(viewer, "audit:context", { action: "edited voucher", table_name: "vouchers", record_id: 1, old_value: "x" })).err || "", /only be written by the ERP/);
+  const written = await call(viewer, "audit:context", { action: "import company mapping approval", table_name: "vouchers", record_id: 1, old_value: "{\"amount\":1}", new_value: "ok" });
+  assert.equal(written.err, undefined);
+  const db = side();
+  try {
+    const row = db.prepare("SELECT table_name, old_value FROM audit_log WHERE action = 'ui:import company mapping approval' ORDER BY id DESC LIMIT 1").get();
+    assert.equal(row.table_name, "ui_context");
+    assert.ok(!row.old_value, "old value from the screen is dropped");
+  } finally { db.close(); }
+});
+
+test("feedback is stored under the signed-in user, not the name the screen sends", async () => {
+  const viewer = await roleWindow("viewer3", "viewer");
+  const saved = await call(viewer, "feedback:submit", { user_id: 1, user_name: "System Administrator", message: "hello", category: "suggestion" });
+  assert.ok(saved.ok, saved.err);
+  const db = side();
+  try {
+    const row = db.prepare("SELECT f.user_name, u.username FROM feedback_log f JOIN users u ON u.id = f.user_id WHERE f.id = ?").get(saved.ok.id);
+    assert.deepEqual(row, { user_name: "viewer3", username: "viewer3" });
+  } finally { db.close(); }
+});
+
+test("installers and in-memory imports need the right role", async () => {
+  const viewer = await roleWindow("viewer4", "viewer");
+  assert.match((await call(viewer, "updates:install", "setup.exe")).err || "", /Permission denied: settings/);
+  assert.match((await call(viewer, "imports:parse-buffer", "a.csv", Buffer.from("supplier_name\nX\n"))).err || "", /Permission denied: import/);
+  const deo = await roleWindow("deo2", "data_entry_operator");
+  const parsed = await call(deo, "imports:parse-buffer", "a.csv", Buffer.from("supplier_name\nX\n"));
+  assert.ok(parsed.ok, parsed.err);
+});
+
+test("go-live readiness channels read the selected company from the screen", async () => {
+  const admin = await adminWindow();
+  const db = side();
+  const empty = db.prepare("INSERT INTO companies (company_name) VALUES ('IPC Empty Co')").run().lastInsertRowid;
+  db.close();
+  const whole = await call(admin, "deployment:readiness", {});
+  const scoped = await call(admin, "deployment:readiness", { company_id: Number(empty) });
+  assert.ok(whole.ok && scoped.ok, whole.err || scoped.err);
+  assert.notDeepEqual(scoped.ok, whole.ok, "the company in the payload changes the result");
+  assert.ok((await call(admin, "go-live:preconditions", { company_id: Number(empty) })).ok);
+});
+
+test("reset rollback without a named backup restores nothing", async () => {
+  const admin = await adminWindow();
+  const result = await call(admin, "reset:rollback", {});
+  assert.equal(result.ok?.success, false);
+  assert.match(result.ok?.reason || "", /no backup was named/);
+});

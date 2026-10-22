@@ -57,6 +57,10 @@ export function previewGoLiveReset(db, runtimeRoot) {
 export function executeGoLiveReset(db, runtimeRoot, options = {}) {
   const resetOptions = typeof options === "object" && options ? options : { userId: options };
   const userId = resetOptions.userId || null;
+  // The person must have typed GO-LIVE themselves; the screen cannot supply it for them.
+  if (String(resetOptions.confirmText || "").trim() !== "GO-LIVE") {
+    throw new Error("Go-live reset refused: type GO-LIVE in the confirmation box of the Go-Live wizard, then retry. Nothing was changed.");
+  }
   // The wizard checks these first, but the destructive path must not rely on the screen.
   const preconditions = checkGoLivePreconditions(db, runtimeRoot, resetOptions.currentEnv, Number(resetOptions.companyId || 0) || null);
   if (!preconditions.allPassed) {
@@ -86,7 +90,14 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
     currentEnv: "production"
   });
 
-  const resetResult = executeEnhancedReset(db, runtimeRoot, resetOptions);
+  let resetResult;
+  try {
+    resetResult = executeEnhancedReset(db, runtimeRoot, { ...resetOptions, confirmText: "RESET" });
+  } catch (error) {
+    // Leave a truthful history entry; the reset runs in one transaction, so the books are unchanged.
+    updateGoLiveEntry(runtimeRoot, goLiveEntry.id, { status: "failed", failureReason: error.message, completedAt: new Date().toISOString() });
+    throw error;
+  }
 
   const zeroState = rebuildZeroState(db, resetResult.company?.id || null);
   const zeroStatePassed = zeroState.warnings.length === 0;
@@ -146,7 +157,22 @@ export function completeGoLive(db, runtimeRoot, userId, goLiveId) {
   };
 }
 
+const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_failed"]);
+
 export function failGoLiveWithRollback(runtimeRoot, goLiveId, reason, db, userId) {
+  const history = getGoLiveHistory(runtimeRoot);
+  const current = history.find((item) => item.id === goLiveId);
+  if (!current) {
+    return { rollbackResult: { success: false, reason: "Rollback refused: this go-live run was not found in the go-live history. Nothing was changed." }, reason };
+  }
+  // A completed or superseded go-live has live books on top of it; restoring its
+  // pre-go-live backup would silently erase them.
+  if (!ROLLBACK_ALLOWED_STATUSES.has(current.status)) {
+    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is ${current.status}. Only a go-live that is still in progress or failed can be rolled back. To return to an older state, use Backup & Restore. Nothing was changed.` }, reason };
+  }
+  if (history[0]?.id !== goLiveId) {
+    return { rollbackResult: { success: false, reason: `Rollback refused: go-live ${current.goliveNumber || goLiveId} is not the latest go-live run. Nothing was changed.` }, reason };
+  }
   const entry = updateGoLiveEntry(runtimeRoot, goLiveId, { status: "rolling_back" });
   const rollbackResult = executeAutoRollback(runtimeRoot, entry, reason);
   updateGoLiveEntry(runtimeRoot, goLiveId, {

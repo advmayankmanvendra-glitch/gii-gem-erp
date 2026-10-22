@@ -89,8 +89,20 @@ export function createImportParserService() {
     throw new Error("Invalid XLSX file");
   }
 
+  // An .xlsx is a zip; a small crafted file can inflate to gigabytes and freeze the app.
+  const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
+  const MAX_XLSX_ENTRY_BYTES = 64 * 1024 * 1024;
+  const MAX_XLSX_TOTAL_BYTES = 128 * 1024 * 1024;
+
+  function assertImportSize(buffer) {
+    if (buffer.length > MAX_IMPORT_BYTES) {
+      throw new Error(`Import refused: the file is ${(buffer.length / 1048576).toFixed(1)} MB; the limit is 25 MB. Split the sheet into smaller files and import them one by one.`);
+    }
+  }
+
   function unzipXlsx(buffer) {
     const files = {};
+    let totalBytes = 0;
     const eocd = findEndOfCentralDirectory(buffer);
     const centralDirectoryOffset = buffer.readUInt32LE(eocd + 16);
     const entries = buffer.readUInt16LE(eocd + 10);
@@ -108,8 +120,23 @@ export function createImportParserService() {
       const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
       const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
       const compressed = buffer.slice(dataStart, dataStart + compressedSize);
-      files[name] = method === 0 ? compressed : zlib.inflateRawSync(compressed);
       offset += 46 + fileNameLength + extraLength + commentLength;
+      // Only the workbook XML parts are read; skip media and anything else.
+      if (!/^xl\/.*\.(xml|rels)$/.test(name)) continue;
+      let data;
+      try {
+        data = method === 0 ? compressed : zlib.inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES });
+      } catch (error) {
+        if (error?.code === "ERR_BUFFER_TOO_LARGE" || /too large|maxOutputLength/i.test(String(error?.message))) {
+          throw new Error("Import refused: a part of this .xlsx expands to more than 64 MB. Save the sheet again from Excel (or as CSV) and retry.");
+        }
+        throw new Error(`Import refused: the .xlsx file is damaged (${error.message}). Save it again from Excel and retry.`);
+      }
+      totalBytes += data.length;
+      if (totalBytes > MAX_XLSX_TOTAL_BYTES) {
+        throw new Error("Import refused: this .xlsx expands to more than 128 MB. Split the sheet into smaller files and import them one by one.");
+      }
+      files[name] = data;
     }
     return files;
   }
@@ -154,6 +181,7 @@ export function createImportParserService() {
 
   function parseImportFile(filePath) {
     const extension = path.extname(filePath || "").toLowerCase();
+    if ([".csv", ".xlsx", ".xls"].includes(extension)) assertImportSize({ length: fs.statSync(filePath).size });
     if (extension === ".csv") return parseCsv(fs.readFileSync(filePath, "utf8"));
     if (extension === ".xlsx") return parseXlsx(fs.readFileSync(filePath));
     if (extension === ".xls") return parseLegacyXls(fs.readFileSync(filePath));
@@ -163,6 +191,7 @@ export function createImportParserService() {
   function parseImportBuffer(fileName, bytes) {
     const extension = path.extname(fileName || "").toLowerCase();
     const buffer = Buffer.from(bytes || []);
+    assertImportSize(buffer);
     if (extension === ".csv") return parseCsv(buffer.toString("utf8"));
     if (extension === ".xlsx") return parseXlsx(buffer);
     if (extension === ".xls") return parseLegacyXls(buffer);

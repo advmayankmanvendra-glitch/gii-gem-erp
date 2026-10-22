@@ -102,7 +102,7 @@ function GoLiveWizard({ apiClient, companyContext }) {
     try {
       const preview = await apiClient.previewGoLive();
       setPreviewData(preview);
-      const result = await apiClient.executeGoLive({ company_id: companyContext?.company_id, confirm_text: "RESET" });
+      const result = await apiClient.executeGoLive({ company_id: companyContext?.company_id, confirm_text: confirmText });
       setBackupInfo(result.backup);
       setBackupValidation(result.backupValidation);
       setResetResult(result.resetResult);

@@ -40,6 +40,7 @@ import {
   deleteItemImportBatch,
   deleteRecord,
   deleteUnusedImportedItems,
+  getRecord,
   drilldownData,
   initializeDatabase,
   inventoryData,
@@ -103,6 +104,7 @@ import {
   voucherProposalData,
   previewImportRollback
 } from "./database/init.js";
+import { BANK_DETAILS_PERMISSION, bankDetailChanges, bankDetailDeleteNeedsAdmin, masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -274,7 +276,15 @@ function sessionUser(event) {
   if (!session) {
     throw new Error("You are not signed in. Sign in again from the login screen, then retry this action.");
   }
-  return session;
+  // The database file can be swapped under a live session (restore, reset rollback,
+  // go-live rollback). Re-check the user on every call so a session never outlives
+  // its user or maps onto a different person in the restored file.
+  const user = db?.prepare("SELECT username, role, status FROM users WHERE id = ?").get(session.user_id);
+  if (!user || user.status !== "active" || (session.username && user.username !== session.username)) {
+    desktopSessions.clearSession(event?.sender?.id);
+    throw new Error("Your sign-in is no longer valid for this database (it was restored, or your user was changed or disabled). Sign in again from the login screen.");
+  }
+  return { ...session, role: user.role };
 }
 
 function guarded(permission, moduleName, handler) {
@@ -296,6 +306,20 @@ function guarded(permission, moduleName, handler) {
       currentActor = previous;
     }
   };
+}
+
+const BANK_GUARDED_TABLES = new Set(["companies", "suppliers", "banks"]);
+
+// Called inside a guarded handler, so currentActor is the signed-in user.
+function requireBankDetailsPermission(table, changes, payload = {}, recordId = null) {
+  if (!changes.length) return;
+  enforcePermission(db, BANK_DETAILS_PERMISSION, {
+    company_id: payload?.company_id || null,
+    module: "bank_details",
+    table_name: table,
+    record_id: recordId,
+    user_id: currentActor?.id || null
+  });
 }
 
 function sessionGuarded(permission, moduleName, handler) {
@@ -569,6 +593,16 @@ function createWindow() {
   });
   const senderId = win.webContents.id;
 
+  // The signed-in session is bound to this window, so it must never show another page:
+  // block navigation away from the app and refuse new windows.
+  const devOrigin = process.env.VITE_DEV_SERVER_URL ? new URL(process.env.VITE_DEV_SERVER_URL).origin : null;
+  win.webContents.on("will-navigate", (event, url) => {
+    const target = new URL(url);
+    const allowed = target.protocol === "file:" || (devOrigin && target.origin === devOrigin);
+    if (!allowed) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
@@ -729,6 +763,7 @@ const PUBLIC_CHANNELS = new Set([
   "updates:status",
   "environment:get-profiles"
 ]);
+const UI_AUDIT_ACTIONS = new Set(["screen_context", "company_scope_changed", "company_switched", "import company mapping approval"]);
 const PASSWORD_CHANGE_CHANNELS = new Set(["auth:change-password", "auth:logout"]);
 
 function handle(channel, handler) {
@@ -901,7 +936,10 @@ function registerIpc() {
     }
     return parseImportFile(filePath);
   });
-  handle("imports:parse-buffer", (_event, fileName, bytes) => parseImportBuffer(fileName, bytes));
+  handle("imports:parse-buffer", (event, fileName, bytes) => {
+    enforcePermission(db, "import", { module: "imports", table_name: "imports", user_id: sessionUser(event).user_id });
+    return parseImportBuffer(fileName, bytes);
+  });
   handle("imports:select-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select import file",
@@ -934,7 +972,10 @@ function registerIpc() {
   });
   handle("tally:preview-stock-xml", guarded("import", "tally_xml_import", (payload) => previewTallyStockXml(assertSelectedFile(typeof payload === "string" ? payload : payload?.filePath))));
   handle("tally:preview-master-migration", guarded("import", "tally_migration_assistant", (payload) => previewTallyMasterMigration(db, (payload?.files || []).map((file) => ({ ...file, filePath: assertSelectedFile(file?.filePath) })), userContext([payload], { module: "tally_migration_assistant" }))));
-  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => bulkImportRecords(db, table, rows, context)));
+  handle("imports:confirm", guarded("import", "imports", (table, rows, context) => {
+    if (bankDetailDeleteNeedsAdmin(table)) requireBankDetailsPermission(table, [{ field: "*" }], context);
+    return bulkImportRecords(db, table, rows, context);
+  }));
   handle("imports:batches", (_event, filters) => listImportBatches(db, filters));
   handle("imports:rollback-preview", (_event, batchId) => previewImportRollback(db, batchId));
   handle("imports:rollback", guarded("delete", "imports", (batchId, context) => rollbackImportBatch(db, batchId, context)));
@@ -950,6 +991,9 @@ function registerIpc() {
   }));
   handle("master-data:confirm-update", guarded("import", "master_data_tools", (payload) => {
     const context = userContext([payload], { module: "master_data_tools" });
+    if (masterImportTouchesBankDetails(payload?.masterKey, previewMasterDataUpdate(db, payload, context))) {
+      requireBankDetailsPermission(payload?.masterKey, [{ field: "*" }], payload);
+    }
     return confirmMasterDataUpdate(db, payload, context, (entry) => auditLog(db, entry));
   }));
   handle("master-data:completeness", (_event, context) => {
@@ -1004,13 +1048,22 @@ function registerIpc() {
   handle("documents:replace", guarded("create", "documents", (payload) => replaceDocument(db, { ...payload, source_path: assertSelectedFile(payload?.source_path) }, runtimeDataRoot, userContext([payload], { module: "documents" }))));
   handle("audit:context", (event, payload = {}) => {
     const session = sessionUser(event);
-    // Screens may record navigation/context events only; they cannot pick the actor
-    // or write security, posting or approval actions into the audit trail.
-    const action = String(payload.action || "screen_context").slice(0, 80);
-    if (/permission|login|password|approv|post|revers|delete|restore|reset/i.test(action)) {
-      throw new Error("This audit action can only be written by the ERP itself, not by a screen.");
+    // Screens may record a few known context events only. They cannot pick the actor,
+    // the audited table or an "old value", so a screen cannot fake a record's history.
+    const action = String(payload.action || "screen_context");
+    if (!UI_AUDIT_ACTIONS.has(action)) {
+      throw new Error(`The audit event "${action.slice(0, 60)}" can only be written by the ERP itself, not by a screen.`);
     }
-    return auditLog(db, { ...payload, action: `ui:${action}`, user_id: session.user_id, user_role: session.role });
+    return auditLog(db, {
+      company_id: Number(payload.company_id || 0) || null,
+      action: `ui:${action}`,
+      module: String(payload.module || "ui").slice(0, 60),
+      table_name: "ui_context",
+      record_id: Number(payload.record_id || 0) || null,
+      new_value: String(payload.new_value ?? "").slice(0, 500),
+      user_id: session.user_id,
+      user_role: session.role
+    });
   });
 
   handle("print:html", async (event, preview) => {
@@ -1043,9 +1096,23 @@ function registerIpc() {
   });
 
   handle("records:list", (_event, table, filters) => listRecords(db, table, filters));
-  handle("records:create", guarded("create", "records", (table, payload) => createRecord(db, table, payload)));
-  handle("records:update", guarded("edit", "records", (table, id, payload) => updateRecord(db, table, id, payload)));
-  handle("records:delete", guarded("delete", "records", (table, id) => deleteRecord(db, table, id)));
+  handle("records:create", guarded("create", "records", (table, payload) => {
+    requireBankDetailsPermission(table, bankDetailChanges(table, payload, null), payload);
+    return createRecord(db, table, payload);
+  }));
+  handle("records:update", guarded("edit", "records", (table, id, payload) => {
+    const changes = bankDetailChanges(table, payload, BANK_GUARDED_TABLES.has(table) ? getRecord(db, table, id) : null);
+    requireBankDetailsPermission(table, changes, payload, id);
+    const record = updateRecord(db, table, id, payload);
+    if (changes.length) {
+      auditLog(db, { company_id: record?.company_id || payload?.company_id || null, action: "bank_details_changed", module: "security", table_name: table, record_id: id, user_id: actorId(), old_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.oldValue]))), new_value: JSON.stringify(Object.fromEntries(changes.map((c) => [c.field, c.newValue]))) });
+    }
+    return record;
+  }));
+  handle("records:delete", guarded("delete", "records", (table, id) => {
+    if (bankDetailDeleteNeedsAdmin(table)) requireBankDetailsPermission(table, [{ field: "*" }], {}, id);
+    return deleteRecord(db, table, id);
+  }));
   handle("purchase-orders:convert-to-work-order", guarded("create", "records", (id, payload) => convertPurchaseOrderToWorkOrder(db, id, payload)));
   handle("records:search", (_event, entityType, searchTerm, options) => {
     if (!SUPPORTED_ENTITY_TYPES.includes(entityType)) throw new Error(`Unsupported entity type: ${entityType}`);
@@ -1144,9 +1211,11 @@ function registerIpc() {
     if (failureReason) throw new Error(failureReason);
     return { success: true, updateFolder };
   });
-  handle("updates:install", async (_event, installerPath) => {
+  handle("updates:install", async (event, installerPath) => {
+    const installer = enforcePermission(db, "settings", { module: "updates", table_name: "updates", user_id: sessionUser(event).user_id });
     const status = getUpdateStatus();
     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
+    auditLog(db, { action: "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: path.basename(selectedInstaller) });
     const failureReason = await shell.openPath(selectedInstaller);
     if (failureReason) throw new Error(failureReason);
     return { success: true, installerPath: selectedInstaller };
@@ -1226,7 +1295,7 @@ function registerIpc() {
     return { success: true, path: backupDir };
   });
 
-  handle("deployment:readiness", (payload = {}) => {
+  handle("deployment:readiness", (_event, payload = {}) => {
     return calculateReadinessScore(db, runtimeDataRoot, Number(payload?.company_id || 0) || null);
   });
 
@@ -1238,7 +1307,7 @@ function registerIpc() {
     return getCertificateHistory(runtimeDataRoot);
   });
 
-  handle("go-live:preconditions", (payload = {}) => {
+  handle("go-live:preconditions", (_event, payload = {}) => {
     const envConfig = readEnvironmentConfig();
     return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development", Number(payload?.company_id || 0) || null);
   });
@@ -1317,7 +1386,11 @@ function registerIpc() {
   handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId)));
   handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 
-  handle("feedback:submit", (_event, payload) => submitFeedback(db, payload));
+  handle("feedback:submit", (event, payload = {}) => {
+    // The author is the signed-in user, never what the screen claims.
+    const session = sessionUser(event);
+    return submitFeedback(db, { ...payload, user_id: session.user_id, user_name: session.username });
+  });
   handle("feedback:list", (_event, filters) => listFeedback(db, filters));
   handle("feedback:export", (_event, format) => exportFeedback(db, format));
 }

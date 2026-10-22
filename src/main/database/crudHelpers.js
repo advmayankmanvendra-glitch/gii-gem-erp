@@ -298,6 +298,33 @@ export function createCrudHelpers({
     }
   }
 
+  // A record may only link to orders, bills, warehouses and the like of its own company;
+  // postings follow these links, so a foreign link would move one company's books into another's.
+  const COMPANY_LINKS = {
+    order_id: "supply_orders",
+    procurement_id: "procurements",
+    billing_id: "invoices",
+    invoice_id: "invoices",
+    warehouse_id: "warehouses",
+    from_warehouse_id: "warehouses",
+    to_warehouse_id: "warehouses",
+    bank_id: "banks",
+    financial_year_id: "financial_years"
+  };
+
+  function assertLinksInCompany(db, table, data) {
+    const companyId = Number(data.company_id || 0);
+    if (!companyId) return;
+    for (const [column, refTable] of Object.entries(COMPANY_LINKS)) {
+      const refId = Number(data[column] || 0);
+      if (!refId || refTable === table || !tableExists(db, refTable) || !columnExists(db, refTable, "company_id")) continue;
+      const ref = db.prepare(`SELECT company_id FROM ${refTable} WHERE id = ?`).get(refId);
+      if (ref && ref.company_id !== null && Number(ref.company_id) !== companyId) {
+        throw new Error(`Save refused: the linked ${column.replace(/_id$/, "").replaceAll("_", " ")} (id ${refId}) belongs to another company. Switch to that company, or pick one of the current company's records. Nothing was saved.`);
+      }
+    }
+  }
+
   function createRecord(db, table, payload) {
     assertWriteAllowed(table, "create");
     if (table === "supply_orders") return createSupplyOrderRecord(db, payload);
@@ -307,6 +334,7 @@ export function createCrudHelpers({
     if (requiresCompanyContext && !data.company_id) {
       throw new Error("Company context is required. Select Current Company before saving this record.");
     }
+    assertLinksInCompany(db, table, data);
     if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
       // A new record is never born Posted or Approved: those states are reached only
       // through the posting and approval services, which create the vouchers.
@@ -359,6 +387,7 @@ export function createCrudHelpers({
     if (requiresCompanyContext && !data.company_id) {
       throw new Error("Company context is required. Select Current Company before updating this record.");
     }
+    assertLinksInCompany(db, table, { ...oldRecord, ...data });
     if (["procurements", "expense_entries", "invoices", "payments", "stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(table)) {
       data.posting_status = oldRecord?.posting_status || data.posting_status || "Draft";
       data.approval_status = oldRecord?.approval_status || data.approval_status || "Draft";

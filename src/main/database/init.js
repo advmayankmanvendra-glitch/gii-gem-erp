@@ -1470,8 +1470,9 @@ function creditDueDate(db, companyId, partyType, partyId, baseDate, explicitDueD
     WHERE company_id = ? AND party_type = ? AND party_id = ? AND status = 'active' AND COALESCE(is_deleted, 0) = 0
   `).get(companyId, partyType, partyId);
   const days = Number(term?.default_credit_days ?? 30) + Number(term?.grace_period ?? 0);
-  const date = new Date(`${baseDate || localBusinessDate()}T00:00:00`);
-  date.setDate(date.getDate() + days);
+  // Date-only arithmetic in UTC, so the result does not shift a day in IST or any other zone.
+  const date = new Date(`${String(baseDate || localBusinessDate()).slice(0, 10)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
@@ -1746,6 +1747,7 @@ export {
   createRecord,
   updateRecord,
   deleteRecord,
+  getRecord,
   listRecords
 };
 

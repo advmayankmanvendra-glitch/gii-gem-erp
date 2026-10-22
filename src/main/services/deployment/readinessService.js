@@ -104,7 +104,8 @@ export function assessGst(db, companyId = null) {
       FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE COALESCE(v.is_deleted,0)=0 AND COALESCE(vl.is_deleted,0)=0 AND COALESCE(a.is_deleted,0)=0${companyId ? " AND v.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
     : { input: 0, output: 0 };
   const netGst = Math.round((Number(gstRows.output || 0) - Number(gstRows.input || 0)) * 100) / 100;
-  checks.push({ key: "gstReconciled", label: "GST input/output reconciled", passed: netGst >= 0, detail: `Net: ${netGst}` });
+  // Input credit above output tax is a normal carry-forward, not a defect, so it never fails readiness.
+  checks.push({ key: "gstReconciled", label: "GST input/output summarised", passed: Number.isFinite(netGst), detail: netGst >= 0 ? `Net GST payable: ${netGst}` : `Input credit carried forward: ${Math.abs(netGst)}` });
   checks.push({ key: "gstRegisters", label: "GST registers exist", passed: hasTable(db, "gst_registers") ? count(db, "gst_registers") > 0 : true });
   const passed = checks.filter(c => c.passed).length;
   return { checks, score: categoryScore(passed, checks.length), status: statusFor(checks) };

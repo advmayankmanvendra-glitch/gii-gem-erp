@@ -362,8 +362,14 @@ export function validateStagedTemplateRows(template, rows) {
   return result;
 }
 
+// A cell starting with = + - @ is run as a formula by Excel; prefix it so it opens as text.
+// Plain numbers such as -500 are left alone.
+function neutralizeFormula(text) {
+  return /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
+}
+
 export function csvCell(value) {
-  const text = String(value ?? "");
+  const text = neutralizeFormula(String(value ?? ""));
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
