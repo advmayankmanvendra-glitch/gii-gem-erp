@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { parseMoneyToMinor } from "../domain/money.js";
+import { paise, rupees } from "../domain/money.js";
 
 export function createBankReconciliationService(deps) {
   const {
@@ -158,8 +158,8 @@ export function createBankReconciliationService(deps) {
 
   function bankMatchLinks(db, companyId) {
     return {
-      vouchers: db.prepare("SELECT v.id, v.voucher_number reference, v.voucher_type type, COALESCE((SELECT SUM(vl.debit) FROM voucher_lines vl WHERE vl.voucher_id = v.id), 0) amount FROM vouchers v WHERE v.company_id = ? AND v.is_deleted = 0 ORDER BY v.voucher_date DESC LIMIT 300").all(companyId),
-      invoices: db.prepare("SELECT id, invoice_number reference, 'Invoice' type, billing_value * (1 + COALESCE(gst_rate, 0) / 100.0) amount FROM invoices WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY invoice_date DESC LIMIT 300").all(companyId),
+      vouchers: db.prepare("SELECT v.id, v.voucher_number reference, v.voucher_type type, COALESCE((SELECT SUM(vl.debit_minor) FROM voucher_lines vl WHERE vl.voucher_id = v.id), 0) / 100.0 amount FROM vouchers v WHERE v.company_id = ? AND v.is_deleted = 0 ORDER BY v.voucher_date DESC LIMIT 300").all(companyId),
+      invoices: db.prepare("SELECT id, invoice_number reference, 'Invoice' type, CAST(ROUND(billing_value * (100 + COALESCE(gst_rate, 0))) AS INTEGER) / 100.0 amount FROM invoices WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY invoice_date DESC LIMIT 300").all(companyId),
       payments: db.prepare("SELECT id, utr_number reference, 'Receipt' type, payment_amount amount FROM payments WHERE COALESCE(company_id, ?) = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY payment_date DESC LIMIT 300").all(companyId, companyId),
       supplier_payments: db.prepare("SELECT id, COALESCE(utr_number, 'Supplier Payment ' || id) reference, 'Supplier Payment' type, amount_paid amount FROM supplier_payments WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY payment_date DESC LIMIT 300").all(companyId),
       procurements: db.prepare("SELECT id, purchase_invoice_number reference, 'Purchase Bill' type, purchase_value amount FROM procurements WHERE COALESCE(company_id, ?) = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY purchase_date DESC LIMIT 300").all(companyId, companyId),
@@ -700,9 +700,9 @@ export function createBankReconciliationService(deps) {
     if (booked) throw new Error(`Bank line is already booked as ${booked.reference}. Open Bank Reconciliation and mark it reconciled instead of creating a second voucher.`);
     const lines = voucherLinesFromProposal(db, proposal);
     const financialYear = assertOpenFinancialYear(db, proposal.company_id, proposal.transaction_date);
-    const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-    const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-    if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) throw new Error("Draft voucher proposal is not balanced");
+    const totalDebit = lines.reduce((sum, line) => sum + paise(line.debit), 0);
+    const totalCredit = lines.reduce((sum, line) => sum + paise(line.credit), 0);
+    if (totalDebit !== totalCredit) throw new Error(`Draft voucher proposal is not balanced: debit ${rupees(totalDebit).toFixed(2)}, credit ${rupees(totalCredit).toFixed(2)}. Correct the proposal lines in Bank Reconciliation, then create the draft again.`);
     const tx = db.transaction(() => {
       const voucherNumber = nextVoucherNumber(db, proposal.company_id, `DRAFT-${proposal.suggested_voucher_type.toUpperCase().replaceAll(" ", "")}`);
       const info = db.prepare(`
@@ -713,7 +713,7 @@ export function createBankReconciliationService(deps) {
         db.prepare(`
           INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, narration, linked_party_type, linked_party_id, debit_minor, credit_minor)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(info.lastInsertRowid, line.account_id, line.debit, line.credit, line.narration, line.linked_party_type || null, line.linked_party_id || null, parseMoneyToMinor(line.debit), parseMoneyToMinor(line.credit));
+        `).run(info.lastInsertRowid, line.account_id, rupees(paise(line.debit)), rupees(paise(line.credit)), line.narration, line.linked_party_type || null, line.linked_party_id || null, paise(line.debit), paise(line.credit));
       });
       db.prepare("UPDATE voucher_proposals SET status = 'Draft Voucher Created', draft_voucher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(info.lastInsertRowid, proposal.id);
       db.prepare("UPDATE bank_statement_entries SET voucher_id = ?, review_status = 'Draft Voucher Created', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(info.lastInsertRowid, proposal.bank_entry_id);
@@ -733,14 +733,14 @@ export function createBankReconciliationService(deps) {
     if (!voucher) throw new Error("Draft voucher not found");
     if (voucher.status === "Posted") throw new Error("Draft voucher is already posted");
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id").all(voucher.id);
-    const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-    const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-    if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) throw new Error("Draft voucher is not balanced");
+    const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit_minor ?? paise(line.debit)), 0);
+    const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit_minor ?? paise(line.credit)), 0);
+    if (totalDebit !== totalCredit) throw new Error(`Draft voucher is not balanced: debit ${rupees(totalDebit).toFixed(2)}, credit ${rupees(totalCredit).toFixed(2)}. Delete the draft and create it again from the approved proposal.`);
     assertOpenFinancialYear(db, voucher.company_id, voucher.voucher_date);
     const cashBankActiveWhere = activeRowClause(db, "cash_bank_ledger");
     const tx = db.transaction(() => {
       lines.forEach((line) => {
-        postLedgerEntry(db, voucher.company_id, voucher.id, line.id, line.account_id, voucher.voucher_date, Number(line.debit || 0), Number(line.credit || 0), "voucher_proposal", proposal.id);
+        postLedgerEntry(db, voucher.company_id, voucher.id, line.id, line.account_id, voucher.voucher_date, Number(line.debit || 0), Number(line.credit || 0), "voucher_proposal", proposal.id, Number(line.debit_minor ?? paise(line.debit)), Number(line.credit_minor ?? paise(line.credit)));
       });
       lines.forEach((line) => {
         const account = accountById(db, voucher.company_id, line.account_id);

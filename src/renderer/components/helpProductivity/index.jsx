@@ -7,6 +7,7 @@ import { buildScreenHelpProfile } from "../../modules/helpAssistant/screenHelpCa
 import { safeArray, safeObject } from "../../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../../utils/formatters.js";
 import { HelpList } from "../helpTraining/index.jsx";
+import { sumRupees } from "../../utils/money.js";
 
 export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, onAction, onLearn }) {
   const [shortcutQuery, setShortcutQuery] = useState("");
@@ -218,12 +219,12 @@ function productivityStatsForView(view, stats) {
       ["Draft Vouchers", safeArray(accounting.guidedVouchers).filter((row) => row.status === "Draft").length || 0]
     ],
     receivables: [
-      ["Outstanding Amount", formatCurrency(safeArray(accounting.billWiseReceivables || accounting.receivables).reduce((sum, row) => sum + Number(row.balance_outstanding || row.outstanding || 0), 0))],
+      ["Outstanding Amount", formatCurrency(sumRupees(safeArray(accounting.billWiseReceivables || accounting.receivables).map((row) => row.balance_outstanding || row.outstanding)))],
       ["Overdue Invoices", safeArray(accounting.receivableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Receipts Today", safeArray(accounting.payments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
     payables: [
-      ["Outstanding Payables", formatCurrency(safeArray(accounting.billWisePayables || accounting.payables).reduce((sum, row) => sum + Number(row.balance_due || 0), 0))],
+      ["Outstanding Payables", formatCurrency(sumRupees(safeArray(accounting.billWisePayables || accounting.payables).map((row) => row.balance_due)))],
       ["Overdue Supplier Bills", safeArray(accounting.payableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Payments Today", safeArray(accounting.supplierPayments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],

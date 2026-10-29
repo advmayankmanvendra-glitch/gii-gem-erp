@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatCurrency } from "../../utils/formatters.js";
 import { sortRecordsBy } from "../../utils/optionSorting.js";
+import { sumRupees, subtractRupees } from "../../utils/money.js";
 
 export function VoucherEntryScreen({ notify, companyContext, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -41,9 +42,10 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
 
   const accounts = data?.accounts || [];
   const banks = data?.banks || [];
-  const totalDebit = form.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-  const totalCredit = form.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-  const difference = totalDebit - totalCredit;
+  // Totals are added in paise, line by line, exactly as the posting check does.
+  const totalDebit = sumRupees(form.lines.map((line) => line.debit));
+  const totalCredit = sumRupees(form.lines.map((line) => line.credit));
+  const difference = subtractRupees(totalDebit, totalCredit);
 
   function updateLine(index, key, value) {
     setForm((current) => ({
@@ -65,7 +67,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
     try {
       if (!companyContext?.company_id) throw new Error("Select Current Company before posting a voucher.");
       if (form.company_id && String(form.company_id) !== String(companyContext.company_id)) throw new Error("Selected company and voucher company do not match.");
-      if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) throw new Error("Voucher debit and credit totals must match");
+      if (difference !== 0) throw new Error(`Voucher does not balance: debit ${formatCurrency(totalDebit)}, credit ${formatCurrency(totalCredit)}. Adjust the voucher lines until the difference is zero.`);
       const voucher = await api.createVoucher({
         ...form,
         company_id: Number(companyContext.company_id),

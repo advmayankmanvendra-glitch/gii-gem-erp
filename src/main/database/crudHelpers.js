@@ -1,3 +1,5 @@
+import { addRupees, paise, rupees } from "../domain/money.js";
+
 export function createCrudHelpers({
   ALL_TABLES,
   WRITE_POLICY,
@@ -153,8 +155,7 @@ export function createCrudHelpers({
   }
 
   function money(value) {
-    const number = Number(value || 0);
-    return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
+    return rupees(paise(value));
   }
 
   function supplyOrderNeedsItems(status) {
@@ -225,10 +226,10 @@ export function createCrudHelpers({
       };
     });
     const totals = prepared.reduce((sum, line) => ({
-      total_quantity: money(sum.total_quantity + Number(line.quantity || 0)),
-      order_taxable_value: money(sum.order_taxable_value + Number(line.taxable_value || 0)),
-      order_gst_amount: money(sum.order_gst_amount + Number(line.gst_amount || 0)),
-      order_gross_value: money(sum.order_gross_value + Number(line.gross_value || 0))
+      total_quantity: Math.round((sum.total_quantity + Number(line.quantity || 0)) * 1000) / 1000,
+      order_taxable_value: addRupees(sum.order_taxable_value, line.taxable_value),
+      order_gst_amount: addRupees(sum.order_gst_amount, line.gst_amount),
+      order_gross_value: addRupees(sum.order_gross_value, line.gross_value)
     }), { total_quantity: 0, order_taxable_value: 0, order_gst_amount: 0, order_gross_value: 0 });
     return { rows: prepared, totals };
   }

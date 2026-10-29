@@ -41,7 +41,7 @@ import { createImportValidationService } from "../services/importValidationServi
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 import { createAccountMappingService } from "../services/accountMappingService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
-import { roundMoney } from "../domain/money.js";
+import { roundMoney, paise, rupees } from "../domain/money.js";
 import { BANK_DETAILS_PERMISSION, bankDetailChanges, trimBankFields } from "../services/bankDetailsPolicy.js";
 
 export {
@@ -1165,16 +1165,15 @@ function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue
   const ledgerActiveWhere = activeRowClause(db, "ledger_entries");
   const previous = db.prepare(`SELECT running_balance, running_balance_minor FROM ledger_entries WHERE company_id = ? AND account_id = ?${ledgerActiveWhere} ORDER BY id DESC LIMIT 1`).get(companyId, accountIdValue);
   const account = db.prepare("SELECT normal_balance FROM accounts WHERE id = ?").get(accountIdValue);
-  const delta = account?.normal_balance === "Credit" ? credit - debit : debit - credit;
-  const running = Number(previous?.running_balance || 0) + delta;
   if (debitMinor === null) debitMinor = parseMoneyToMinor(debit);
   if (creditMinor === null) creditMinor = parseMoneyToMinor(credit);
   const deltaMinor = account?.normal_balance === "Credit" ? creditMinor - debitMinor : debitMinor - creditMinor;
   const runningMinor = Number(previous?.running_balance_minor || 0) + deltaMinor;
+  // The REAL columns mirror the paise columns exactly, so both always agree.
   db.prepare(`
     INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, source_module, source_id, debit_minor, credit_minor, running_balance_minor)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, running, sourceModule, sourceId, debitMinor, creditMinor, runningMinor);
+  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, rupees(debitMinor), rupees(creditMinor), rupees(runningMinor), sourceModule, sourceId, debitMinor, creditMinor, runningMinor);
 }
 
 function updateCashBankLedger(db, { company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit = 0, credit = 0, payment_mode, utr_number, remarks }) {
@@ -1193,7 +1192,9 @@ function updateCashBankLedger(db, { company_id, bank_account_id, transaction_dat
   `).get(company_id, bank_account_id || null, voucher_id || null, source_module || "", source_id || null, Number(debit || 0), Number(credit || 0));
   if (existing) return existing.id;
   const previous = db.prepare(`SELECT balance FROM cash_bank_ledger WHERE company_id = ? AND COALESCE(bank_account_id, 0) = COALESCE(?, 0)${cashBankActiveWhere} ORDER BY id DESC LIMIT 1`).get(company_id, bank_account_id);
-  const balance = Number(previous?.balance || 0) + Number(debit || 0) - Number(credit || 0);
+  debit = rupees(paise(debit));
+  credit = rupees(paise(credit));
+  const balance = rupees(paise(previous?.balance) + paise(debit) - paise(credit));
   const result = db.prepare(`
     INSERT INTO cash_bank_ledger (company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit, credit, balance, payment_mode, utr_number, remarks)
     VALUES (@company_id, @bank_account_id, @transaction_date, @transaction_type, @source_module, @source_id, @voucher_id, @debit, @credit, @balance, @payment_mode, @utr_number, @remarks)
@@ -1889,7 +1890,7 @@ const {
 });
 
 const {
-  stockBalance, weightedAverageCost, insertStockLedger,
+  stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
   inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
   procurementRequirementReport,
   postStockInward, postStockOutward, postStockAdjustment,
@@ -1992,7 +1993,7 @@ const {
   submitForApproval, approveTransaction, postBusinessTransaction
 } = createOperationsService({
   auditLog, stockBalance, nextDocumentNumber, createRecord,
-  postStockOutward, weightedAverageCost, insertStockLedger,
+  postStockOutward, weightedAverageCost, outwardValue, insertStockLedger,
   getRecord, postSalesVoucher, postPurchaseVoucher,
   postReceiptVoucher, postSupplierPaymentVoucher, postExpenseAccrualsForOrder, postExpenseEntry
 });

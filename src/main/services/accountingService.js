@@ -1,4 +1,4 @@
-import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
+import { parseMoneyToMinor, roundMoney, rupees, sumRupees, subtractRupees } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createAccountingService(deps) {
@@ -181,8 +181,11 @@ export function createAccountingService(deps) {
     const creditMinors = lines.map(line => parseMoneyToMinor(line.credit));
     const totalDebitMinor = debitMinors.reduce((a, b) => a + b, 0);
     const totalCreditMinor = creditMinors.reduce((a, b) => a + b, 0);
+    if (lines.some((line, idx) => debitMinors[idx] === 0 && creditMinors[idx] === 0)) {
+      throw new Error("Voucher line amount is less than one paisa. Enter amounts to two decimal places.");
+    }
     if (totalDebitMinor !== totalCreditMinor) {
-      throw new Error(`Unbalanced voucher in minor units: debit ${totalDebitMinor} paise, credit ${totalCreditMinor} paise (legacy: ${totalDebit}, ${totalCredit})`);
+      throw new Error(`Unbalanced voucher: debit ${rupees(totalDebitMinor).toFixed(2)} and credit ${rupees(totalCreditMinor).toFixed(2)} differ by ${rupees(Math.abs(totalDebitMinor - totalCreditMinor)).toFixed(2)}. Correct the voucher lines so debit equals credit to the paisa.`);
     }
 
     const transaction = db.transaction(() => {
@@ -201,17 +204,17 @@ export function createAccountingService(deps) {
         `).run({
           voucher_id: voucherId,
           account_id: line.account_id,
-          debit: line.debit,
-          credit: line.credit,
+          debit: rupees(lineMinorDebit),
+          credit: rupees(lineMinorCredit),
           narration: line.narration,
           linked_party_type: line.linked_party_type,
           linked_party_id: line.linked_party_id,
           debit_minor: lineMinorDebit,
           credit_minor: lineMinorCredit
         });
-        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, line.debit, line.credit, payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
+        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, rupees(lineMinorDebit), rupees(lineMinorCredit), payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
       });
-      auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit }) });
+      auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit: rupees(totalDebitMinor) }) });
       const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(voucherId);
       auditVoucherDependencySync(db, voucher, voucherTypeDependencyEffects(voucher.voucher_type));
       return voucher;
@@ -636,7 +639,7 @@ export function createAccountingService(deps) {
       // against GRNI; the bill clears GRNI for that value instead of expensing the
       // goods a second time. Any remainder (services, goods not received) is a purchase.
       const receivedValue = roundMoney(Number(db.prepare(`
-        SELECT COALESCE(SUM(sl.value), 0) value FROM stock_inwards si
+        SELECT COALESCE(SUM(sl.value_minor), 0) / 100.0 value FROM stock_inwards si
         JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Inward'
         WHERE si.procurement_id = ? AND si.company_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
       `).get(procurement.id, companyId)?.value || 0));
@@ -1166,15 +1169,15 @@ export function createAccountingService(deps) {
     if (postingIssues.length) throw new Error("Cannot close year while Draft/Error transactions exist");
 
     const tb = trialBalance(db, companyId, fromYear.start_date, fromYear.end_date);
-    const debit = tb.reduce((sum, row) => sum + Number(row.debit || 0), 0);
-    const credit = tb.reduce((sum, row) => sum + Number(row.credit || 0), 0);
-    const tbDifference = Math.round((debit - credit) * 100) / 100;
-    if (Math.round(debit * 100) !== Math.round(credit * 100)) throw new Error("Trial balance must balance before year close");
+    const debit = sumRupees(tb.map((row) => row.debit));
+    const credit = sumRupees(tb.map((row) => row.credit));
+    const tbDifference = subtractRupees(debit, credit);
+    if (tbDifference !== 0) throw new Error(`Trial balance must balance before year close: debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}. Open the Trial Balance for this year and correct the difference first.`);
 
     const pl = profitLossReport(db, companyId, fromYear.start_date, fromYear.end_date);
     const bs = balanceSheetReport(db, companyId, fromYear.start_date, fromYear.end_date);
-    const bsDifference = Math.round((Number(bs.assets || 0) - Number(bs.liabilitiesAndEquity || 0)) * 100) / 100;
-    if (Math.abs(bsDifference) > 1) throw new Error("Balance sheet must balance before year close");
+    const bsDifference = subtractRupees(bs.assets, bs.liabilitiesAndEquity);
+    if (bsDifference !== 0) throw new Error(`Balance sheet must balance to the paisa before year close (difference ${bsDifference.toFixed(2)}). Open the Balance Sheet for this year and correct the difference first.`);
 
     const transaction = db.transaction(() => {
       const closing = db.prepare(`

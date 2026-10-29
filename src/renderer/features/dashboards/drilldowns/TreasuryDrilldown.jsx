@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
 import { buildTreasuryOverview } from "../treasuryService.js";
 import { DrilldownBase } from "./DrilldownBase.jsx";
+import { sumRupees } from "../../../utils/money.js";
 
 export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
   const [data, setData] = useState(null);
@@ -29,7 +30,7 @@ export function TreasuryDrilldown({ apiClient, companyContext, onNavigate }) {
   const treasury = buildTreasuryOverview({}, accounting, data?.bankLedgers || []);
   const banks = treasury.bankAccounts || [];
   const cashBalance = treasury.cash.bookCashBalance;
-  const bankBalance = banks.reduce((sum, bank) => sum + Number(bank.bookBalance || 0), 0);
+  const bankBalance = sumRupees(banks.map((bank) => bank.bookBalance));
 
   return (
     <DrilldownBase companyContext={companyContext} title="Treasury Overview" onNavigate={onNavigate} loading={loading} error={error} empty={!cashBank.length && !banks.length} emptyMessage="No cash or bank accounts configured.">

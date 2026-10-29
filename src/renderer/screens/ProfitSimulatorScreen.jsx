@@ -3,6 +3,7 @@ import { EmptyState, Metric } from "../components/common.jsx";
 import { ReportToolbar, MetricLine } from "../components/forms/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { sortRecordsBy } from "../utils/optionSorting.js";
+import { addRupees } from "../utils/money.js";
 
 const SCENARIOS_KEY = "gii-gem-profit-simulator-scenarios";
 
@@ -67,13 +68,13 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
   }, []);
 
   const baselineTotals = rows.reduce((acc, row) => ({
-    billingValue: acc.billingValue + row.billingValue,
-    purchaseValue: acc.purchaseValue + (row.inventoryCostBasis ?? row.purchaseValue),
-    grossMargin: acc.grossMargin + row.grossMargin,
-    gstInputLoss: acc.gstInputLoss + row.gstInputLoss,
-    totalExpenses: acc.totalExpenses + row.totalExpenses,
-    employeeIncentive: acc.employeeIncentive + row.employeeIncentive,
-    netCompanyProfit: acc.netCompanyProfit + row.netCompanyProfit
+    billingValue: addRupees(acc.billingValue, row.billingValue),
+    purchaseValue: addRupees(acc.purchaseValue, row.inventoryCostBasis ?? row.purchaseValue),
+    grossMargin: addRupees(acc.grossMargin, row.grossMargin),
+    gstInputLoss: addRupees(acc.gstInputLoss, row.gstInputLoss),
+    totalExpenses: addRupees(acc.totalExpenses, row.totalExpenses),
+    employeeIncentive: addRupees(acc.employeeIncentive, row.employeeIncentive),
+    netCompanyProfit: addRupees(acc.netCompanyProfit, row.netCompanyProfit)
   }), { billingValue: 0, purchaseValue: 0, grossMargin: 0, gstInputLoss: 0, totalExpenses: 0, employeeIncentive: 0, netCompanyProfit: 0 });
 
   const baselineROI = (baselineTotals.purchaseValue > 0 ? (baselineTotals.netCompanyProfit / baselineTotals.purchaseValue) * 100 : 0);

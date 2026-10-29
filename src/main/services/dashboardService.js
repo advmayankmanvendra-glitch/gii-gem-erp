@@ -1,3 +1,5 @@
+import { addRupees } from "../domain/money.js";
+
 export function createDashboardService(deps) {
   const {
     activeRowClause,
@@ -12,7 +14,7 @@ export function createDashboardService(deps) {
   } = deps;
 
   function sumRows(rows, key) {
-    return rows.reduce((sum, row) => sum + Number(row?.[key] || 0), 0);
+    return rows.reduce((sum, row) => addRupees(sum, row?.[key]), 0);
   }
 
   function controlValue(rows, id) {
@@ -25,7 +27,7 @@ export function createDashboardService(deps) {
       : db.prepare("SELECT id FROM companies WHERE COALESCE(is_deleted, 0) = 0 AND status = 'active' ORDER BY id").all();
     const rows = companies.flatMap((company) => inventoryStockSummary(db, company.id));
     return {
-      totalStockValue: rows.reduce((sum, row) => sum + Number(row.stock_value || 0), 0),
+      totalStockValue: rows.reduce((sum, row) => addRupees(sum, row.stock_value), 0),
       lowStockItems: companies.reduce((sum, company) => sum + inventoryLowStockReport(db, company.id, "stocked").length, 0),
       itemsInStock: new Set(rows.filter((row) => Number(row.closing_quantity || 0) > 0).map((row) => row.id)).size
     };
@@ -49,9 +51,9 @@ export function createDashboardService(deps) {
       const statement = db.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`);
       return (Object.keys(queryParams).length ? statement.get(queryParams) : statement.get()).count;
     };
-    const totalOrderValue = db.prepare(`SELECT COALESCE(SUM(billing_value), 0) AS value FROM invoices WHERE ${companyWhere} AND invoice_date BETWEEN @date_from AND @date_to AND COALESCE(is_deleted, 0) = 0`).get(params).value;
-    const amountReceived = db.prepare(`SELECT COALESCE(SUM(payment_amount), 0) AS value FROM payments WHERE ${companyWhere} AND payment_date BETWEEN @date_from AND @date_to AND COALESCE(is_deleted, 0) = 0`).get(params).value;
-    const totalProfit = orderProfitability(db, { ...(companyId ? { company_id: companyId } : {}), date_from: dateFrom, date_to: dateTo }).reduce((sum, order) => sum + order.netCompanyProfit, 0);
+    const totalOrderValue = db.prepare(`SELECT COALESCE(SUM(CAST(ROUND(billing_value * 100) AS INTEGER)), 0) / 100.0 AS value FROM invoices WHERE ${companyWhere} AND invoice_date BETWEEN @date_from AND @date_to AND COALESCE(is_deleted, 0) = 0`).get(params).value;
+    const amountReceived = db.prepare(`SELECT COALESCE(SUM(CAST(ROUND(payment_amount * 100) AS INTEGER)), 0) / 100.0 AS value FROM payments WHERE ${companyWhere} AND payment_date BETWEEN @date_from AND @date_to AND COALESCE(is_deleted, 0) = 0`).get(params).value;
+    const totalProfit = orderProfitability(db, { ...(companyId ? { company_id: companyId } : {}), date_from: dateFrom, date_to: dateTo }).reduce((sum, order) => addRupees(sum, order.netCompanyProfit), 0);
     const inventorySummary = dashboardInventorySummary(db, companyId);
     const companyIds = companyId
       ? [companyId]
@@ -63,7 +65,7 @@ export function createDashboardService(deps) {
     const pendingProcurement = companyIds.reduce((sum, id) => sum + procurementRequirementReport(db, id).length, 0);
     const pendingDeliveries = inventoryMetrics
       .filter((row) => row.id === "pending_deliveries")
-      .reduce((sum, row) => sum + Number(row.value || 0), 0);
+      .reduce((sum, row) => addRupees(sum, row.value), 0);
     const cracWhere = companyId ? "WHERE cr.company_id = @company_id AND cr.is_deleted = 0" : `WHERE cr.company_id IN ${activeCompanySubquery} AND cr.is_deleted = 0`;
     const cracParams = companyId ? { company_id: companyId } : {};
     const cracPending = db.prepare(`SELECT COUNT(*) AS count FROM crac_records cr ${cracWhere} AND cr.crac_status = 'Pending'`).get(cracParams).count;
@@ -153,7 +155,7 @@ export function createDashboardService(deps) {
       profitLoss,
       trialBalanceStatus,
       balanceSheetStatus,
-      cashBankBalance: db.prepare(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance FROM cash_bank_ledger WHERE ${companyWhere}${cashBankActiveWhere}`).get(companyParams).balance
+      cashBankBalance: db.prepare(`SELECT (COALESCE(SUM(CAST(ROUND(debit * 100) AS INTEGER)), 0) - COALESCE(SUM(CAST(ROUND(credit * 100) AS INTEGER)), 0)) / 100.0 AS balance FROM cash_bank_ledger WHERE ${companyWhere}${cashBankActiveWhere}`).get(companyParams).balance
     };
   }
 

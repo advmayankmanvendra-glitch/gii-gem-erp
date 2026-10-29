@@ -1,3 +1,5 @@
+import { paise, rupees } from "../domain/money.js";
+
 export function createOperationalPlanningService({
   cleanPayload,
   getRecord,
@@ -5,10 +7,7 @@ export function createOperationalPlanningService({
   auditLog,
   inventoryStockSummary
 }) {
-  const money = (value) => {
-    const number = Number(value || 0);
-    return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
-  };
+  const money = (value) => rupees(paise(value));
 
   function activeRecord(db, table, id, label) {
     const record = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND COALESCE(is_deleted, 0) = 0`).get(id);

@@ -1,3 +1,4 @@
+import { sumRupees } from "../../../utils/money.js";
 export function blankSupplyOrderItem() {
   return {
     _key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -92,12 +93,13 @@ export function supplyOrderItemsFromRecord(record = {}) {
 }
 
 export function supplyOrderItemTotals(lines = [], references) {
-  return lines.map((line) => calculatedSupplyOrderLine(line, references)).reduce((sum, line) => ({
-    quantity: sum.quantity + Number(line.quantity || 0),
-    taxable: sum.taxable + Number(line.taxable_value || 0),
-    gst: sum.gst + Number(line.gst_amount || 0),
-    gross: sum.gross + Number(line.gross_value || 0)
-  }), { quantity: 0, taxable: 0, gst: 0, gross: 0 });
+  const calculated = lines.map((line) => calculatedSupplyOrderLine(line, references));
+  return {
+    quantity: calculated.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+    taxable: sumRupees(calculated.map((line) => line.taxable_value)),
+    gst: sumRupees(calculated.map((line) => line.gst_amount)),
+    gross: sumRupees(calculated.map((line) => line.gross_value))
+  };
 }
 
 export function statusRequiresSupplyOrderItems(status) {

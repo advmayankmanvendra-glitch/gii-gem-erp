@@ -22,6 +22,41 @@ export function roundMoney(value) {
   return parseMoneyToMinor(Number(value || 0)) / MINOR_UNITS;
 }
 
+// Rupee amounts as stored in the legacy REAL columns, converted to whole paise.
+// Blank and non-numeric values count as zero, as `Number(x || 0)` did before.
+export function paise(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? parseMoneyToMinor(value) : 0;
+  const cleaned = String(value).replace(/[₹,\s]/g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return 0;
+  return parseMoneyToMinor(cleaned);
+}
+
+// Whole paise back to a rupee number that prints exactly to two decimals.
+export function rupees(minor) {
+  return Number(minor || 0) / MINOR_UNITS;
+}
+
+// Adds rupee amounts in whole paise, so 0.10 + 0.20 is exactly 0.30 and long
+// lists never drift. Returns rupees.
+export function sumRupees(values) {
+  let total = 0;
+  for (const value of values) total += paise(value);
+  return rupees(total);
+}
+
+export function addRupees(...values) {
+  return sumRupees(values);
+}
+
+export function subtractRupees(a, b) {
+  return rupees(paise(a) - paise(b));
+}
+
+export function rupeesEqual(a, b) {
+  return paise(a) === paise(b);
+}
+
 export function parseMoneyToMinor(value) {
   if (value === null || value === undefined || value === "") return 0;
   if (typeof value === "number") {
