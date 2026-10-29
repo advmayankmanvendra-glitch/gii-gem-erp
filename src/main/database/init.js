@@ -41,6 +41,7 @@ import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 import { createAccountMappingService } from "../services/accountMappingService.js";
+import { createMoneyIntegrityService } from "../services/moneyIntegrityService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 import { roundMoney, paise, rupees } from "../domain/money.js";
 import { BANK_DETAILS_PERMISSION, bankDetailChanges, trimBankFields } from "../services/bankDetailsPolicy.js";
@@ -252,6 +253,7 @@ const DEFAULT_ACCOUNTS = [
   ["5150", "Employee Incentive Expense", "Expense", "Debit", 0],
   ["5160", "Bank Charges", "Expense", "Debit", 0],
   ["5170", "Other Deduction Ledger", "Expense", "Debit", 0],
+  ["5180", "Rounding Off", "Expense", "Debit", 0],
   ["5990", "Profit and Loss", "Equity", "Credit", 0]
 ];
 export const WRITE_POLICY = {
@@ -2059,6 +2061,12 @@ export {
   trialBalance, profitLossReport, balanceSheetReport,
   businessVoucherPayload
 };
+
+const { moneyIntegrityReport, postRoundingAdjustment } = createMoneyIntegrityService({
+  auditLog, accountId, nextVoucherNumber, postLedgerEntry, financialYearForDate
+});
+
+export { moneyIntegrityReport, postRoundingAdjustment };
 
 export {
   previewBankStatementImport, createBankStatementImport,

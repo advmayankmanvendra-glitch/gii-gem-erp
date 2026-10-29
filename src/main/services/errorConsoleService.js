@@ -140,9 +140,15 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
   const unbalanced = db.prepare(`
     SELECT v.voucher_number FROM vouchers v JOIN ledger_entries le ON le.voucher_id = v.id AND COALESCE(le.is_deleted, 0) = 0
     WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')${companyClause}
-    GROUP BY v.id HAVING SUM(le.debit_minor) != SUM(le.credit_minor) LIMIT 10
+      AND COALESCE(v.source_module, '') <> 'rounding_adjustment'
+    GROUP BY v.id
+    HAVING SUM(le.debit_minor) + COALESCE((SELECT SUM(ale.debit_minor) FROM vouchers a JOIN ledger_entries ale ON ale.voucher_id = a.id
+        WHERE a.source_module = 'rounding_adjustment' AND a.source_id = v.id AND a.is_deleted = 0 AND a.status IN ('Posted', 'Reversed')), 0)
+      != SUM(le.credit_minor) + COALESCE((SELECT SUM(ale.credit_minor) FROM vouchers a JOIN ledger_entries ale ON ale.voucher_id = a.id
+        WHERE a.source_module = 'rounding_adjustment' AND a.source_id = v.id AND a.is_deleted = 0 AND a.status IN ('Posted', 'Reversed')), 0)
+    LIMIT 10
   `).all(...params).map((row) => row.voucher_number);
-  checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open each voucher listed, reverse it and post a corrected entry."));
+  checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open Health > Money integrity. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
 
   const stockCompany = companyId ? " AND company_id = ?" : "";
   // Item opening stock is not in stock_ledger; it sits in the item's default

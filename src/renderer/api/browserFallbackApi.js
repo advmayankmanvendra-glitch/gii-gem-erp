@@ -995,6 +995,8 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
       return voucher;
     },
     reverseVoucher: async () => ({ id: Date.now(), voucher_number: "JOURNAL-PREVIEW", status: "Posted" }),
+    getMoneyIntegrity: async () => ({ ok: true, preview: true, trial_balance: { debit: 0, credit: 0, difference: 0 }, unbalanced_vouchers: [], line_ledger_mismatches: [], mirror_mismatches: [], missing_guards: [] }),
+    postRoundingAdjustment: async () => { throw new Error("Rounding adjustments are posted in the Windows desktop app only."); },
     postTransaction: async () => ({ id: Date.now(), voucher_number: "POST-PREVIEW" }),
     approveTransaction: async () => true,
     createFinancialYear: async (payload) => {

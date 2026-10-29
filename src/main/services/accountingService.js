@@ -451,6 +451,9 @@ export function createAccountingService(deps) {
     if (original.status !== "Posted") {
       throw new Error(`Only posted vouchers can be reversed. ${original.voucher_number} is ${original.status || "not posted"}; edit or delete the draft instead.`);
     }
+    if (original.source_module === "rounding_adjustment") {
+      throw new Error(`${original.voucher_number} is a rounding adjustment and cannot be reversed. It only corrects a paise difference in the older voucher it names.`);
+    }
     if (original.source_module === "voucher_reversal") {
       throw new Error(`${original.voucher_number} is itself a reversal and cannot be reversed. Post a fresh voucher for the correct entry instead.`);
     }
