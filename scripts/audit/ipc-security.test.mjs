@@ -94,7 +94,8 @@ test("a viewer cannot post, delete, reset or restore, even when it claims to be 
     ["records:delete", "suppliers", 1],
     ["backup:restore", "x.db"],
     ["reset:execute", { company_id: 1, confirm_text: "RESET", userId: 1 }],
-    ["financial-years:create", { company_id: 1, user_id: 1 }]
+    ["financial-years:create", { company_id: 1, user_id: 1 }],
+    ["money:rounding-adjustment", { voucherId: 1, userId: 1 }]
   ];
   for (const [channel, ...args] of attempts) {
     assert.match((await call(win, channel, ...args)).err || "", /Permission denied/i, channel);

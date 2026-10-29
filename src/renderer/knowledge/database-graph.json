@@ -12670,7 +12670,7 @@
   "accountingProtectionMappings": [
     {
       "table": "vouchers",
-      "reason": "Contains posted accounting entries - never generic CRUD writable",
+      "reason": "Contains posted accounting entries - never generic CRUD writable; the database also refuses unbalanced or edited posted vouchers (trg_ledger_guard_* triggers in ledgerGuards.js)",
       "blockedCRUD": [
         "create",
         "edit",
