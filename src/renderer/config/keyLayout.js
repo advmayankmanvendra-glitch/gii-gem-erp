@@ -40,17 +40,18 @@ const TALLY_VOUCHER_KEYS = [
 ];
 
 // What a key press means in the Tally layout, or null when the standard handling applies.
-// insidePicker: focus is on a party, ledger or item picker or its open list.
+// insidePicker: focus is on a party, ledger or item picker or its open list. There a
+// Tally key belongs to the picker ({ type: "picker" }): F4 opens its list, and a voucher
+// key must not throw away the entry the picker belongs to.
 export function tallyKeyAction(event, { insidePicker = false } = {}) {
   if (event.metaKey || event.shiftKey) return null;
   const ctrl = Boolean(event.ctrlKey);
   if (!event.altKey) {
-    // A party, ledger or item picker keeps its own keys (F4 opens its list), and a voucher
-    // key must not throw away the entry the picker belongs to.
-    if (insidePicker) return null;
     const voucher = TALLY_VOUCHER_KEYS.find((item) => item.key === event.key && item.ctrl === ctrl);
+    const changeDate = event.key === "F2" && !ctrl;
+    if ((voucher || changeDate) && insidePicker) return { type: "picker" };
     if (voucher) return { type: "voucher", kind: voucher.kind, view: voucher.view, label: voucher.label };
-    if (event.key === "F2" && !ctrl) return { type: "change_date" };
+    if (changeDate) return { type: "change_date" };
     return null;
   }
   if (!ctrl && event.key.toLowerCase() === "c") return { type: "create_master" };
@@ -96,6 +97,14 @@ export function handleTallyKey(event, { openVoucher, notify }) {
   const insidePicker = Boolean(active?.closest?.(".entity-picker-trigger, .entity-picker-modal"));
   const action = tallyKeyAction(event, { insidePicker });
   if (!action) return false;
+  if (action.type === "picker") {
+    // A real key press reaches the picker by itself. The desktop shell stops function keys
+    // before the page sees them, so a key it sent on is passed to the picker here.
+    if (event.fromDesktop) {
+      active.dispatchEvent(new KeyboardEvent("keydown", { key: event.key, ctrlKey: event.ctrlKey, bubbles: true, cancelable: true }));
+    }
+    return true;
+  }
   event.preventDefault();
   if (action.type === "voucher") {
     openVoucher(action.kind, action.view);
@@ -112,7 +121,7 @@ export function handleTallyKey(event, { openVoucher, notify }) {
 // The desktop shell sends plain F2-F9 as "f2".."f9" and Alt + C as "voucher-contra"
 // (src/main/main.js desktopShortcutCommand). This turns those back into the key press.
 export function desktopCommandKeyEvent(command) {
-  const base = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, preventDefault() {} };
+  const base = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, fromDesktop: true, preventDefault() {} };
   if (/^f[2-9]$/.test(String(command))) return { ...base, key: String(command).toUpperCase() };
   if (command === "voucher-contra") return { ...base, key: "c", altKey: true };
   return null;

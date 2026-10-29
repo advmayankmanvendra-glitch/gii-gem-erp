@@ -61,8 +61,32 @@ test("keys the desktop shell turns into commands still reach the Tally layout", 
   assert.equal(layout.desktopCommandKeyEvent("voucher-sales"), null);
 });
 
-test("inside a party, ledger or item picker the Tally keys leave the picker alone", () => {
-  for (const key of ["F2", "F4", "F5", "F8", "F9"]) assert.equal(layout.tallyKeyAction(press(key), { insidePicker: true }), null, key);
-  assert.equal(layout.tallyKeyAction(press("F8", { ctrlKey: true }), { insidePicker: true }), null);
+test("inside a party, ledger or item picker the Tally keys belong to the picker", () => {
+  for (const key of ["F2", "F4", "F5", "F8", "F9"]) assert.deepEqual(layout.tallyKeyAction(press(key), { insidePicker: true }), { type: "picker" }, key);
+  assert.deepEqual(layout.tallyKeyAction(press("F8", { ctrlKey: true }), { insidePicker: true }), { type: "picker" });
+  assert.equal(layout.tallyKeyAction(press("F10"), { insidePicker: true }), null);
   assert.equal(layout.tallyKeyAction(press("c", { altKey: true }), { insidePicker: true }).type, "create_master");
+});
+
+test("a function key the desktop shell sends from inside a picker reaches the picker, not the voucher screens", () => {
+  const sent = [];
+  const picker = { dataset: {}, closest: (selector) => (selector.includes(".entity-picker-trigger") ? {} : null), dispatchEvent: (event) => sent.push(event) };
+  const saved = { document: globalThis.document, KeyboardEvent: globalThis.KeyboardEvent };
+  globalThis.document = { activeElement: picker };
+  globalThis.KeyboardEvent = class { constructor(type, init) { Object.assign(this, { type }, init); } };
+  try {
+    const opened = [];
+    const used = layout.handleTallyKey(layout.desktopCommandKeyEvent("f4"), { openVoucher: (kind) => opened.push(kind) });
+    assert.equal(used, true, "standard function-key routing must not run");
+    assert.deepEqual(opened, []);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].key, "F4");
+    // A real key press is left for the picker's own handler.
+    sent.length = 0;
+    assert.equal(layout.handleTallyKey({ ...press("F4"), preventDefault() { throw new Error("must not prevent"); } }, { openVoucher: (kind) => opened.push(kind) }), true);
+    assert.deepEqual(sent, []);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.KeyboardEvent = saved.KeyboardEvent;
+  }
 });

@@ -414,3 +414,58 @@ test("the Rounding Off ledger never takes over a code or name the user already h
   assert.equal(db.prepare("SELECT account_code FROM accounts WHERE company_id = ? AND account_name = 'Rounding Off'").get(other).account_code, "5181");
   assert.equal(db.prepare("SELECT COUNT(*) c FROM accounts WHERE company_id = 1 AND account_name = 'Rounding Off'").get().c, 1);
 });
+
+test("one older imbalance can be cancelled only once, by an adjustment or a reversal", () => {
+  const db = fresh();
+  // A hand-made correction voucher that cancels creditMinor paise of the original.
+  const correction = (sourceId, number, sourceModule, creditMinor) => {
+    const id = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, source_module, source_id) VALUES (1, ?, ?, 'Journal', 'Draft', ?, ?)")
+      .run(number, DATE, sourceModule, sourceId).lastInsertRowid;
+    addLine(db, id, "Rounding Off", 0, creditMinor);
+    return () => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(id);
+  };
+
+  const twice = legacyUnbalanced(db, "OLD-REV", 10003, 10000);
+  assert.doesNotThrow(correction(twice, "REV-1", "voucher_reversal", 3));
+  assert.throws(correction(twice, "REV-2", "voucher_reversal", 3), /do not balance/, "a second mirror reversal");
+  assert.throws(correction(twice, "ADJ-AFTER-REV", "rounding_adjustment", 3), /do not balance/, "an adjustment after a reversal");
+
+  const adjusted = legacyUnbalanced(db, "OLD-ADJ", 10003, 10000);
+  assert.doesNotThrow(correction(adjusted, "ADJ-1", "rounding_adjustment", 3));
+  assert.throws(correction(adjusted, "REV-AFTER-ADJ", "voucher_reversal", 3), /do not balance/, "an unbalanced reversal after an adjustment");
+
+  const reversed = legacyUnbalanced(db, "OLD-GONE", 10003, 10000);
+  m.reverseVoucher(db, reversed, "wrong amounts");
+  assert.throws(correction(reversed, "REV-AGAIN", "voucher_reversal", 3), /do not balance/, "the original is already reversed");
+  assert.equal(m.moneyIntegrityReport(db, 1).trial_balance.difference, 0);
+});
+
+test("INSERT OR REPLACE cannot overwrite a posted voucher, line or ledger entry", () => {
+  const db = fresh();
+  const posted = postBalanced(db);
+  const line = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id LIMIT 1").get(posted.id);
+  const entry = db.prepare("SELECT * FROM ledger_entries WHERE voucher_id = ? ORDER BY id LIMIT 1").get(posted.id);
+  const draft = insertDraft(db, "DRAFT-R");
+
+  assert.throws(() => db.prepare("INSERT OR REPLACE INTO vouchers (id, company_id, voucher_number, voucher_date, voucher_type, status, narration) VALUES (?, 1, ?, ?, 'Journal', 'Draft', 'replaced')")
+    .run(posted.id, "OTHER-NUMBER", DATE), GUARD, "same id");
+  assert.throws(() => db.prepare("INSERT OR REPLACE INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, narration) VALUES (1, ?, ?, 'Journal', 'Draft', 'replaced')")
+    .run(posted.voucher_number, DATE), GUARD, "same voucher number");
+  assert.throws(() => db.prepare("INSERT OR REPLACE INTO voucher_lines (id, voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, ?, 1, 0, 100, 0)")
+    .run(line.id, draft, line.account_id), GUARD, "a posted line");
+  assert.throws(() => db.prepare(`INSERT OR REPLACE INTO ledger_entries (id, company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+    VALUES (?, 1, ?, ?, ?, ?, 1, 0, 0, 100, 0, 0)`).run(entry.id, draft, entry.voucher_line_id, entry.account_id, DATE), GUARD, "a posted ledger entry");
+
+  const after = db.prepare("SELECT status, narration FROM vouchers WHERE id = ?").get(posted.id);
+  assert.equal(after.status, "Posted");
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM ledger_entries WHERE id = ?").get(entry.id).c, 1);
+});
+
+test("a rounding adjustment needs one selected company, so All Companies View stays read-only", () => {
+  const db = fresh();
+  const id = legacyUnbalanced(db, "OLD-NOCO", 10001, 10000);
+  for (const company of [undefined, "", 0]) {
+    assert.throws(() => m.postRoundingAdjustment(db, { company_id: company, voucher_id: id }), /Select the voucher's company/);
+  }
+  assert.ok(m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id }).id);
+});

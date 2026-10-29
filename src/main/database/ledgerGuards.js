@@ -73,14 +73,23 @@ function lockedVoucher(voucherExpression) {
 }
 
 // Older, unbalanced voucher the given one corrects (rounding adjustment) or mirrors
-// (reversal): it must be posted, of the same company, and its lines must agree with its
-// ledger entries.
+// (reversal): it must still be Posted (not yet reversed), of the same company, its lines
+// must agree with its ledger entries, and no other correction may already have cancelled
+// its difference, so one imbalance is never cancelled twice.
 function correctableOriginal(newRow, extra) {
   return `EXISTS (
               SELECT 1 FROM vouchers original
               WHERE original.id = ${newRow}.source_id
                 AND original.company_id = ${newRow}.company_id
-                AND original.status IN ('Posted', 'Reversed')
+                AND original.status = 'Posted'
+                AND NOT EXISTS (
+                  SELECT 1 FROM vouchers other
+                  WHERE other.id <> ${newRow}.id
+                    AND other.source_id = original.id
+                    AND other.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', 'voucher_reversal')
+                    AND other.status IN ('Posted', 'Reversed')
+                    AND ${voucherImbalance("other.id")} <> 0
+                )
                 AND COALESCE(original.source_module, '') NOT IN ('${ROUNDING_ADJUSTMENT_SOURCE}', 'voucher_reversal')
                 AND ${voucherImbalance("original.id")} = ${entryImbalance("original.id")}
                 AND ${voucherImbalance("original.id")} + ${voucherImbalance(`${newRow}.id`)} = 0
@@ -90,11 +99,17 @@ function correctableOriginal(newRow, extra) {
 
 function triggerSql() {
   return [
+    // The conflict checks stop INSERT OR REPLACE from silently deleting a posted row:
+    // SQLite's replace deletion does not run the delete guards.
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_insert
       BEFORE INSERT ON vouchers
-      WHEN NEW.status IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("NEW.company_id")}
+      WHEN NOT ${maintenanceOpen("NEW.company_id")}
       BEGIN
-        SELECT RAISE(ABORT, 'Ledger guard: a voucher must be saved as Draft and then posted, so the database can check that it balances.');
+        SELECT RAISE(ABORT, 'Ledger guard: a voucher must be saved as Draft and then posted, so the database can check that it balances.')
+        WHERE NEW.status IN ('Posted', 'Reversed');
+        SELECT RAISE(ABORT, 'Ledger guard: a posted voucher cannot be replaced. Reverse it instead.')
+        WHERE EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.id AND status IN ('Posted', 'Reversed'))
+          OR EXISTS (SELECT 1 FROM vouchers WHERE company_id = NEW.company_id AND voucher_number = NEW.voucher_number AND status IN ('Posted', 'Reversed'));
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_post
@@ -115,14 +130,6 @@ function triggerSql() {
           AND NOT (
             COALESCE(NEW.source_module, '') = '${ROUNDING_ADJUSTMENT_SOURCE}'
             AND ${correctableOriginal("NEW", `AND ABS(${voucherImbalance("original.id")}) BETWEEN 1 AND ${ROUNDING_ADJUSTMENT_LIMIT_MINOR}`)}
-            AND NOT EXISTS (
-              SELECT 1 FROM vouchers other
-              WHERE other.id <> NEW.id
-                AND other.source_module = '${ROUNDING_ADJUSTMENT_SOURCE}'
-                AND other.source_id = NEW.source_id
-                AND other.status IN ('Posted', 'Reversed')
-                AND COALESCE(other.is_deleted, 0) = 0
-            )
           )
           AND NOT (
             COALESCE(NEW.source_module, '') = 'voucher_reversal'
@@ -161,9 +168,10 @@ function triggerSql() {
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_line_insert
       BEFORE INSERT ON voucher_lines
-      WHEN ${lockedVoucher("NEW.voucher_id")} AND NOT ${maintenanceOpen(lineCompany("NEW.voucher_id"))}
+      WHEN (${lockedVoucher("NEW.voucher_id")} OR EXISTS (SELECT 1 FROM voucher_lines old WHERE old.id = NEW.id AND ${lockedVoucher("old.voucher_id")}))
+        AND NOT ${maintenanceOpen(lineCompany("NEW.voucher_id"))}
       BEGIN
-        SELECT RAISE(ABORT, 'Ledger guard: lines cannot be added to a posted voucher.');
+        SELECT RAISE(ABORT, 'Ledger guard: lines cannot be added to or replaced on a posted voucher.');
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_line_update
@@ -186,7 +194,8 @@ function triggerSql() {
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: ledger entries can only be written for an existing voucher of the same company that is not yet posted.')
         WHERE NOT EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.voucher_id AND company_id = NEW.company_id)
-          OR ${lockedVoucher("NEW.voucher_id")};
+          OR ${lockedVoucher("NEW.voucher_id")}
+          OR EXISTS (SELECT 1 FROM ledger_entries old WHERE old.id = NEW.id);
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_entry_update

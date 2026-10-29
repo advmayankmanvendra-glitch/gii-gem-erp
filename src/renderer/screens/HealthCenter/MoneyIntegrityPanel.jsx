@@ -46,6 +46,8 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const mirrors = report?.mirror_mismatches || [];
   const guards = report?.missing_guards || [];
   const subPaisa = report?.sub_paisa_legacy || [];
+  // All Companies View is read-only: an adjustment is posted only with one company selected.
+  const canAdjust = Boolean(context?.company_id) && context?.company_scope !== "all";
 
   const heading = (
     <div className="section-heading">
@@ -90,7 +92,9 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
                   <td>{amount(row.credit)}</td>
                   <td>{amount(row.difference)}</td>
                   <td>
-                    {row.adjustable
+                    {row.adjustable && !canAdjust
+                      ? "Select this voucher's company to post a rounding adjustment."
+                      : row.adjustable
                       ? <button type="button" className="secondary-btn" disabled={posting === row.id} onClick={() => adjust(row)}>{posting === row.id ? "Posting..." : "Post rounding adjustment"}</button>
                       : row.reason}
                   </td>

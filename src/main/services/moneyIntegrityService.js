@@ -178,7 +178,9 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     const voucherId = Number(payload.voucher_id || 0);
     const original = db.prepare("SELECT * FROM vouchers WHERE id = ? AND is_deleted = 0").get(voucherId);
     if (!original) throw new Error("Voucher not found");
-    if (payload.company_id && Number(payload.company_id) !== Number(original.company_id)) {
+    // Posting needs one selected company (All Companies View is read-only).
+    if (!Number(payload.company_id || 0)) throw new Error("Select the voucher's company before posting a rounding adjustment. All Companies View is read-only.");
+    if (Number(payload.company_id) !== Number(original.company_id)) {
       throw new Error("This voucher belongs to a different company.");
     }
     const row = unbalancedVouchers(db, original.company_id).find((item) => item.id === original.id);
