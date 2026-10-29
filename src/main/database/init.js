@@ -26,6 +26,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
+import { ensureLedgerGuards, withLedgerMaintenance } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -282,6 +283,7 @@ export function initializeDatabase(root = projectRoot()) {
   seed(db);
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
+  ensureLedgerGuards(db);
   return db;
 }
 
@@ -674,7 +676,7 @@ export function migrate(db) {
   runMigration(db, UPGRADE_REPAIR_MIGRATION, () => {
     addRuntimeSoftDeleteColumns(db);
     addMoneyShadowColumns(db);
-    backfillAll(db);
+    withLedgerMaintenance(db, 0, "money_backfill", () => backfillAll(db));
   });
 }
 

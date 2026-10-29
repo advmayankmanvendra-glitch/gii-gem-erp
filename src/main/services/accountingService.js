@@ -192,7 +192,7 @@ export function createAccountingService(deps) {
       const voucherNumber = payload.voucher_number || nextVoucherNumber(db, payload.company_id, payload.voucher_type.toUpperCase().replaceAll(" ", ""));
       const voucherResult = db.prepare(`
         INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, narration, source_module, source_id, status, financial_year_id, approval_status)
-        VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Posted', @financial_year_id, 'Approved')
+        VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Draft', @financial_year_id, 'Approved')
       `).run({ ...payload, voucher_number: voucherNumber, financial_year_id: financialYear.id });
       const voucherId = voucherResult.lastInsertRowid;
       lines.forEach((line, idx) => {
@@ -214,6 +214,9 @@ export function createAccountingService(deps) {
         });
         postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, rupees(lineMinorDebit), rupees(lineMinorCredit), payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
       });
+      // The voucher becomes Posted only now, once its lines and ledger entries are in,
+      // so the database's own guard can check that they balance.
+      db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(voucherId);
       auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit: rupees(totalDebitMinor) }) });
       const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(voucherId);
       auditVoucherDependencySync(db, voucher, voucherTypeDependencyEffects(voucher.voucher_type));
