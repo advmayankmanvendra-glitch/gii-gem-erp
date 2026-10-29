@@ -47,19 +47,31 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const guards = report?.missing_guards || [];
   const subPaisa = report?.sub_paisa_legacy || [];
 
+  const heading = (
+    <div className="section-heading">
+      <div>
+        <p className="eyebrow">every amount to the paisa</p>
+        <h2>Money integrity</h2>
+      </div>
+      <button type="button" className="secondary-btn" onClick={load} disabled={loading}>{loading ? "Checking..." : "Re-check"}</button>
+    </div>
+  );
+
+  // Until a check has come back, show nothing that could read as "all clear".
+  if (!report) {
+    return (
+      <section className="panel health-section">
+        {heading}
+        <p>{loading ? "Checking every voucher..." : "Not checked yet. Press Re-check to run the check."}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="panel health-section">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">every amount to the paisa</p>
-          <h2>Money integrity</h2>
-        </div>
-        <button type="button" className="secondary-btn" onClick={load} disabled={loading}>{loading ? "Checking..." : "Re-check"}</button>
-      </div>
+      {heading}
 
-      {report ? (
-        <p><strong>{report.ok ? "Books balance to the paisa." : "Something needs attention below."}</strong></p>
-      ) : null}
+      <p><strong>{report.ok ? "Books balance to the paisa." : "Something needs attention below."}</strong></p>
 
       {tb ? <p>Trial balance: debit {amount(tb.debit)}, credit {amount(tb.credit)}, difference {amount(tb.difference)}.</p> : null}
 

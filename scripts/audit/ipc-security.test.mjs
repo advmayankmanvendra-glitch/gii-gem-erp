@@ -363,3 +363,12 @@ test("an .xlsx with a cell past Excel's last column is refused quickly", async (
   assert.match(result.err || "", /beyond Excel's last column/);
   assert.ok(Date.now() - started < 2000);
 });
+
+test("the money integrity check runs for an admin and a viewer, and only when signed in", async () => {
+  assert.match((await call(newWindow(), "money:integrity", { company_id: 1 })).err || "", /not signed in/);
+  for (const win of [await adminWindow(), await roleWindow("viewer5", "viewer")]) {
+    const result = await call(win, "money:integrity", { company_id: 1 });
+    assert.equal(result.err, undefined, result.err);
+    assert.equal(typeof result.ok.ok, "boolean");
+  }
+});
