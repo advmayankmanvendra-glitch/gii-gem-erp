@@ -582,9 +582,9 @@ export function createAccountingService(deps) {
   // always balances exactly in paise.
   function documentTotals(lines, fallbackTaxable, fallbackTax) {
     if (lines.length) {
-      const taxable = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.taxable_value), 0));
-      const tax = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.gst_amount), 0));
-      return { taxable, tax, gross: roundMoney(taxable + tax) };
+      const taxable = sumRupees(lines.map((row) => roundMoney(row.taxable_value)));
+      const tax = sumRupees(lines.map((row) => roundMoney(row.gst_amount)));
+      return { taxable, tax, gross: sumRupees([taxable, tax]) };
     }
     const taxable = roundMoney(fallbackTaxable);
     const tax = roundMoney(fallbackTax);

@@ -40,6 +40,7 @@ async function run() {
     initializeDatabase, updateFinancialYearStatus,
     trialBalance, profitLossReport, balanceSheetReport
   } = await import("../src/main/database/init.js");
+  const { withLedgerMaintenance } = await import("../src/main/database/ledgerGuards.js");
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr2a3-"));
   let db;
@@ -354,7 +355,8 @@ async function run() {
     const dInc = createLedgerAccount(dbDraft, { company_id: cDraft, account_code: "DI1", account_name: "Income", account_type: "Income", normal_balance: "Credit" });
     createBalancedVoucher(dbDraft, { company_id: cDraft, voucher_date: "2026-05-01", voucher_type: "Journal", narration: "Posted probe", source_module: "test", source_id: null, lines: [{ account_id: dInc.id, debit: 0, credit: 500 }, { account_id: dBnk.id, debit: 500, credit: 0 }] });
     /* Change its status to Draft */
-    dbDraft.prepare("UPDATE vouchers SET status = 'Draft' WHERE voucher_type = 'Journal' AND voucher_date = '2026-05-01'").run();
+    /* The ledger guard refuses un-posting; this fixture does it inside a maintenance window. */
+    dbDraft.transaction(() => withLedgerMaintenance(dbDraft, 0, "verify: draft probe", () => dbDraft.prepare("UPDATE vouchers SET status = 'Draft' WHERE voucher_type = 'Journal' AND voucher_date = '2026-05-01'").run()))();
     const afterDraftIncome = profitLossReport(dbDraft, cDraft, "2026-04-01", "2027-03-31").income;
     record("28. Draft postings excluded after close", Math.abs(Number(afterDraftIncome)) < 0.01, `income after draft=${afterDraftIncome}`);
 

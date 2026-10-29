@@ -45,6 +45,7 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const mismatches = report?.line_ledger_mismatches || [];
   const mirrors = report?.mirror_mismatches || [];
   const guards = report?.missing_guards || [];
+  const subPaisa = report?.sub_paisa_legacy || [];
 
   return (
     <section className="panel health-section">
@@ -101,6 +102,14 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
           <h3 className="health-section-subtitle">Older stored amounts that disagree with their paise value</h3>
           <ul>{mirrors.map((row) => <li key={`${row.table}.${row.column}`}>{row.table}.{row.column}: {row.count} row(s)</li>)}</ul>
         </>
+      ) : null}
+
+      {subPaisa.length ? (
+        <details>
+          <summary>Older amounts saved with a fraction of a paisa ({subPaisa.reduce((sum, row) => sum + row.count, 0)})</summary>
+          <p>These were saved by an earlier version. The books use the amount rounded to the paisa; the old rows are left as they are.</p>
+          <ul>{subPaisa.map((row) => <li key={`${row.table}.${row.column}`}>{row.table}.{row.column}: {row.count} row(s)</li>)}</ul>
+        </details>
       ) : null}
 
       {guards.length ? <p><strong>Database protection is missing ({guards.length} rule(s)). Restart the app to put it back.</strong></p> : null}

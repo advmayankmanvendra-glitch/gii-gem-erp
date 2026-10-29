@@ -184,6 +184,14 @@ export function ensureLedgerGuards(db) {
       opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // The guards sum a voucher's lines and ledger entries on every posting; without these
+  // indexes each posting would read the whole table. The last one serves the running
+  // balance lookup made for every ledger entry.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_voucher_lines_voucher ON voucher_lines (voucher_id);
+    CREATE INDEX IF NOT EXISTS idx_ledger_entries_voucher ON ledger_entries (voucher_id);
+    CREATE INDEX IF NOT EXISTS idx_ledger_entries_company_account ON ledger_entries (company_id, account_id, id);
+  `);
   // A maintenance row only lives inside its own transaction. One left behind (a crash
   // between statements outside a transaction) would switch the guards off, so clear it.
   db.prepare("DELETE FROM ledger_maintenance").run();

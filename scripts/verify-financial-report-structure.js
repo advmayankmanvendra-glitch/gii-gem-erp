@@ -133,6 +133,7 @@ async function run() {
   } = await import("../src/main/database/init.js");
   const { SHADOW_COLUMNS } = await import("../src/main/database/moneyMigration.js");
   const { checkMoneyIntegrity } = await import("../src/main/domain/moneyCompatibility.js");
+  const { withLedgerMaintenance } = await import("../src/main/database/ledgerGuards.js");
   const { parseMoneyToMinor } = await import("../src/main/domain/money.js");
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-gem-fsr1-"));
@@ -565,8 +566,9 @@ async function run() {
       let reportUnchanged = false;
       db.exec("SAVEPOINT fsr1_check20_legacy_probe");
       try {
-        db.prepare("UPDATE ledger_entries SET debit = ? WHERE id = ?")
-          .run(Number(reportProbe.debit) + 123.45, reportProbe.id);
+        // The ledger guard refuses this edit; the probe opens a maintenance window inside its savepoint.
+        withLedgerMaintenance(db, 0, "verify: legacy mirror probe", () => db.prepare("UPDATE ledger_entries SET debit = ? WHERE id = ?")
+          .run(Number(reportProbe.debit) + 123.45, reportProbe.id));
         const afterReportSnapshot = financialReportSnapshot(accountingData(db, {
           company_id: companyId,
           date_from: "2025-04-01",

@@ -11,6 +11,11 @@ export const ROUNDING_OFF_ACCOUNT = "Rounding Off";
 // be corrected by a separate, clearly labelled rounding adjustment journal; the old
 // voucher itself is never rewritten.
 export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNumber, postLedgerEntry, financialYearForDate }) {
+  function hasWholePaise(value) {
+    const scaled = Number(value || 0) * 100;
+    return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+  }
+
   function companyFilter(companyId, alias = "v") {
     return companyId ? { sql: ` AND ${alias}.company_id = ?`, params: [Number(companyId)] } : { sql: "", params: [] };
   }
@@ -105,13 +110,23 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     const unbalanced = unbalancedVouchers(db, companyId);
     const mismatches = lineLedgerMismatches(db, companyId);
     // The paise twins hold every company's rows, so this part is checked database-wide.
-    const mirrors = reconcileAll(db).map((col) => ({
-      table: col.table,
-      column: col.legacy,
-      paise_column: col.shadow,
-      count: col.disagreements.length,
-      sample: col.disagreements.slice(0, 5).map((row) => ({ id: row.id, stored: row.legacy, paise: row.minor }))
-    }));
+    // An older rupee amount saved with a fraction of a paisa (1181.475) is listed apart:
+    // the books use its paise value, and the old row is left as it is.
+    const mirrors = [];
+    const subPaisa = [];
+    for (const col of reconcileAll(db)) {
+      const fractional = col.disagreements.filter((row) => !hasWholePaise(row.legacy));
+      const real = col.disagreements.filter((row) => hasWholePaise(row.legacy));
+      const entry = (rows) => ({
+        table: col.table,
+        column: col.legacy,
+        paise_column: col.shadow,
+        count: rows.length,
+        sample: rows.slice(0, 5).map((row) => ({ id: row.id, stored: row.legacy, paise: row.minor }))
+      });
+      if (real.length) mirrors.push(entry(real));
+      if (fractional.length) subPaisa.push(entry(fractional));
+    }
     const missingGuards = missingLedgerGuards(db);
     const openVouchers = unbalanced.filter((row) => !row.adjusted_by);
     return {
@@ -122,6 +137,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       unbalanced_vouchers: unbalanced,
       line_ledger_mismatches: mismatches,
       mirror_mismatches: mirrors,
+      sub_paisa_legacy: subPaisa,
       missing_guards: missingGuards
     };
   }

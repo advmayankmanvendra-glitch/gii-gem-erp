@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency } from "../../utils/formatters.js";
 import { sortRecordsBy } from "../../utils/optionSorting.js";
 import { sumRupees, subtractRupees } from "../../utils/money.js";
+import { ADD_VOUCHER_LINE_EVENT } from "../../config/keyLayout.js";
 
 export function VoucherEntryScreen({ notify, companyContext, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -39,6 +40,26 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
       setForm((current) => ({ ...current, company_id: companyContext.company_id }));
     }
   }, [companyContext?.company_id, form.company_id]);
+
+  const linesRef = useRef(null);
+  const focusNewLine = useRef(false);
+
+  // Tally key layout: Enter on the last line's narration adds a line (see config/keyLayout.js).
+  useEffect(() => {
+    function onAddLine() {
+      focusNewLine.current = true;
+      addLine();
+    }
+    window.addEventListener(ADD_VOUCHER_LINE_EVENT, onAddLine);
+    return () => window.removeEventListener(ADD_VOUCHER_LINE_EVENT, onAddLine);
+  }, []);
+
+  useEffect(() => {
+    if (!focusNewLine.current) return;
+    focusNewLine.current = false;
+    const lines = linesRef.current?.querySelectorAll(".voucher-line:not(.voucher-line-head)");
+    lines?.[lines.length - 1]?.querySelector("select")?.focus();
+  }, [form.lines.length]);
 
   const accounts = data?.accounts || [];
   const banks = data?.banks || [];
@@ -144,7 +165,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
           <textarea value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         </label>
 
-        <div className="voucher-lines">
+        <div className="voucher-lines" ref={linesRef}>
           <div className="voucher-line voucher-line-head">
             <span>Account</span>
             <span>Debit</span>
@@ -160,7 +181,11 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
               </select>
               <input type="number" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} min="0" step="0.01" />
               <input type="number" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} min="0" step="0.01" />
-              <input value={line.narration} onChange={(event) => updateLine(index, "narration", event.target.value)} />
+              <input
+                value={line.narration}
+                onChange={(event) => updateLine(index, "narration", event.target.value)}
+                data-enter-adds-line={index === form.lines.length - 1 && line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0) ? "true" : undefined}
+              />
               <button type="button" className="ghost-btn" onClick={() => removeLine(index)} disabled={form.lines.length <= 2}>Remove</button>
             </div>
           ))}

@@ -342,7 +342,7 @@ export function ShortcutHelpDialog({ onClose }) {
   );
 }
 
-export function UserPreferencesDialog({ onClose, compactSidebar }) {
+export function UserPreferencesDialog({ onClose, compactSidebar, keyLayout = "standard", onKeyLayoutChange }) {
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key === "Escape" || event.key === "F12") {
@@ -369,6 +369,18 @@ export function UserPreferencesDialog({ onClose, compactSidebar }) {
             <h3>Keyboard Layer</h3>
             <div className="shortcut-row"><kbd>F12</kbd><span>Open or close this preferences panel.</span></div>
             <div className="shortcut-row"><kbd>F1</kbd><span>Open the full keyboard shortcut guide.</span></div>
+          </div>
+          <div className="shortcut-group">
+            <h3>Key Layout</h3>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="standard" checked={keyLayout !== "tally"} onChange={() => onKeyLayoutChange?.("standard")} />
+              <span>Standard: F2 Receipt, F3 Payment, F4 Sales, F5 Purchase, F6 Contra, F7 Journal on Accounting screens.</span>
+            </label>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="tally" checked={keyLayout === "tally"} onChange={() => onKeyLayoutChange?.("tally")} />
+              <span>Tally style: F4 Contra, F5 Payment, F6 Receipt, F7 Journal, F8 Sales, F9 Purchase, Ctrl+F8 Credit Note, Ctrl+F9 Debit Note, F2 change date, Alt+C create master, Enter on the last voucher line adds a line.</span>
+            </label>
+            <p>Kept on this computer. The mouse and menus work the same in both.</p>
           </div>
           <div className="shortcut-group">
             <h3>Current Session</h3>

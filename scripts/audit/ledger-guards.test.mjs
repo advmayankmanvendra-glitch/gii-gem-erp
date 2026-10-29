@@ -287,3 +287,20 @@ test("a rounding adjustment is refused for another company's voucher or a closed
   assert.match(row.reason, /closed/);
   assert.throws(() => m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id }), /closed/);
 });
+
+test("an older amount saved with a fraction of a paisa is listed apart and does not fail the check", () => {
+  const db = fresh();
+  const v = postBalanced(db, 1181.48);
+  db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: older sub-paisa row", () => {
+    db.prepare("UPDATE voucher_lines SET debit = 1181.474 WHERE voucher_id = ? AND debit_minor > 0").run(v.id);
+  }))();
+  const report = m.moneyIntegrityReport(db, 1);
+  assert.equal(report.ok, true, JSON.stringify(report.mirror_mismatches));
+  assert.deepEqual(report.sub_paisa_legacy.map((row) => [row.table, row.column, row.count]), [["voucher_lines", "debit", 1]]);
+  db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: drifted row", () => {
+    db.prepare("UPDATE voucher_lines SET debit = 1181.50 WHERE voucher_id = ? AND debit_minor > 0").run(v.id);
+  }))();
+  const drifted = m.moneyIntegrityReport(db, 1);
+  assert.equal(drifted.ok, false);
+  assert.deepEqual(drifted.mirror_mismatches.map((row) => [row.table, row.column, row.count]), [["voucher_lines", "debit", 1]]);
+});
