@@ -40,12 +40,14 @@ const TALLY_VOUCHER_KEYS = [
 ];
 
 // What a key press means in the Tally layout, or null when the standard handling applies.
-// insidePicker: focus is on a party, ledger or item picker, which keeps its own F4 (open list).
+// insidePicker: focus is on a party, ledger or item picker or its open list.
 export function tallyKeyAction(event, { insidePicker = false } = {}) {
   if (event.metaKey || event.shiftKey) return null;
   const ctrl = Boolean(event.ctrlKey);
   if (!event.altKey) {
-    if (insidePicker && event.key === "F4" && !ctrl) return null;
+    // A party, ledger or item picker keeps its own keys (F4 opens its list), and a voucher
+    // key must not throw away the entry the picker belongs to.
+    if (insidePicker) return null;
     const voucher = TALLY_VOUCHER_KEYS.find((item) => item.key === event.key && item.ctrl === ctrl);
     if (voucher) return { type: "voucher", kind: voucher.kind, view: voucher.view, label: voucher.label };
     if (event.key === "F2" && !ctrl) return { type: "change_date" };
@@ -91,7 +93,7 @@ export function handleTallyKey(event, { openVoucher, notify }) {
     window.dispatchEvent(new CustomEvent(ADD_VOUCHER_LINE_EVENT));
     return true;
   }
-  const insidePicker = Boolean(active?.closest?.(".entity-picker-trigger"));
+  const insidePicker = Boolean(active?.closest?.(".entity-picker-trigger, .entity-picker-modal"));
   const action = tallyKeyAction(event, { insidePicker });
   if (!action) return false;
   event.preventDefault();
@@ -100,9 +102,18 @@ export function handleTallyKey(event, { openVoucher, notify }) {
   } else if (action.type === "change_date") {
     if (!focusEntryDate()) notify?.("This screen has no entry date to change.", "warning");
   } else if (action.type === "create_master") {
-    const inField = Boolean(active?.closest?.(".entity-picker-trigger, .searchable-field"));
+    const inField = Boolean(active?.closest?.(".entity-picker-trigger, .entity-picker-modal, .searchable-field"));
     if (inField) window.dispatchEvent(new CustomEvent("gii-gem-quick-create"));
     else notify?.("Alt + C creates a master from a party, ledger or item field. Move to that field first.", "warning");
   }
   return true;
+}
+
+// The desktop shell sends plain F2-F9 as "f2".."f9" and Alt + C as "voucher-contra"
+// (src/main/main.js desktopShortcutCommand). This turns those back into the key press.
+export function desktopCommandKeyEvent(command) {
+  const base = { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, preventDefault() {} };
+  if (/^f[2-9]$/.test(String(command))) return { ...base, key: String(command).toUpperCase() };
+  if (command === "voucher-contra") return { ...base, key: "c", altKey: true };
+  return null;
 }

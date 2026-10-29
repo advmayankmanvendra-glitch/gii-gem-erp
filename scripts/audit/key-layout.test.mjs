@@ -31,7 +31,7 @@ test("F2 changes the date, Alt + C creates a master, and other keys keep their s
   for (const event of [press("F3"), press("F1"), press("F10"), press("F12"), press("s", { ctrlKey: true }), press("r", { altKey: true }), press("F5", { shiftKey: true })]) {
     assert.equal(layout.tallyKeyAction(event), null, JSON.stringify(event));
   }
-  assert.equal(layout.tallyKeyAction(press("F4"), { insidePicker: true }), null, "a picker keeps F4 to open its list");
+
 });
 
 test("the standard layout stays the default", () => {
@@ -49,4 +49,20 @@ test("shortcut help shows the keys in force for the chosen layout", () => {
   assert.ok(tally.some(([keys]) => keys === "Ctrl + F8"));
   assert.ok(!items("voucher_dashboard", "standard").some(([keys]) => keys === "Ctrl + F8"));
   assert.ok(shortcuts.keyboardGuideSections.some(([title]) => /Tally Key Layout/.test(title)));
+});
+
+test("keys the desktop shell turns into commands still reach the Tally layout", () => {
+  const action = (command) => layout.tallyKeyAction(layout.desktopCommandKeyEvent(command));
+  assert.equal(action("f4").kind, "contra");
+  assert.equal(action("f6").kind, "receipt");
+  assert.equal(action("f2").type, "change_date");
+  assert.equal(action("voucher-contra").type, "create_master");
+  assert.equal(layout.desktopCommandKeyEvent("f12"), null);
+  assert.equal(layout.desktopCommandKeyEvent("voucher-sales"), null);
+});
+
+test("inside a party, ledger or item picker the Tally keys leave the picker alone", () => {
+  for (const key of ["F2", "F4", "F5", "F8", "F9"]) assert.equal(layout.tallyKeyAction(press(key), { insidePicker: true }), null, key);
+  assert.equal(layout.tallyKeyAction(press("F8", { ctrlKey: true }), { insidePicker: true }), null);
+  assert.equal(layout.tallyKeyAction(press("c", { altKey: true }), { insidePicker: true }).type, "create_master");
 });

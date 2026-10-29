@@ -304,3 +304,113 @@ test("an older amount saved with a fraction of a paisa is listed apart and does 
   assert.equal(drifted.ok, false);
   assert.deepEqual(drifted.mirror_mismatches.map((row) => [row.table, row.column, row.count]), [["voucher_lines", "debit", 1]]);
 });
+
+test("every vouchers column is either fixed once posted or listed as editable", () => {
+  const db = fresh();
+  const columns = db.prepare("SELECT name FROM pragma_table_info('vouchers')").all().map((row) => row.name).sort();
+  const classified = [...guards.POSTED_VOUCHER_FIXED_COLUMNS, ...guards.POSTED_VOUCHER_EDITABLE_COLUMNS].sort();
+  assert.deepEqual(columns, classified, "add the new column to POSTED_VOUCHER_FIXED_COLUMNS (and the posted-update trigger) or to POSTED_VOUCHER_EDITABLE_COLUMNS");
+  const v = postBalanced(db);
+  for (const column of guards.POSTED_VOUCHER_FIXED_COLUMNS) {
+    const value = column === "is_deleted" ? 1 : column.endsWith("_id") || column === "id" ? 987654 : "changed";
+    assert.throws(() => db.prepare(`UPDATE vouchers SET ${column} = ? WHERE id = ?`).run(value, v.id), GUARD, column);
+  }
+});
+
+test("a guard changed outside the app is reported and replaced on the next start", () => {
+  const root = freshRoot();
+  let db = open(root);
+  db.exec("DROP TRIGGER trg_ledger_guard_entry_delete; CREATE TRIGGER trg_ledger_guard_entry_delete BEFORE DELETE ON ledger_entries WHEN 0 BEGIN SELECT 1; END");
+  assert.deepEqual(guards.missingLedgerGuards(db), ["trg_ledger_guard_entry_delete"]);
+  assert.equal(m.moneyIntegrityReport(db, 1).ok, false);
+  db.close();
+  db = open(root);
+  assert.deepEqual(guards.missingLedgerGuards(db), []);
+  const v = postBalanced(db);
+  assert.throws(() => db.prepare("DELETE FROM ledger_entries WHERE voucher_id = ?").run(v.id), GUARD);
+});
+
+test("a draft cannot be marked reversed without the posting checks, and rupee and paise amounts must agree", () => {
+  const db = fresh();
+  const unbalanced = insertDraft(db, "G-DRAFT-REV");
+  addLine(db, unbalanced, "Cash", 10001, 0);
+  addLine(db, unbalanced, "Capital", 0, 10000);
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Reversed' WHERE id = ?").run(unbalanced), /do not balance/);
+  const legacyOnly = insertDraft(db, "G-REAL-ONLY");
+  const cash = account(db, "Cash");
+  const capital = account(db, "Capital");
+  for (const [accountIdValue, debit, credit] of [[cash, 100, 0], [capital, 0, 100]]) {
+    const line = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit) VALUES (?, ?, ?, ?)").run(legacyOnly, accountIdValue, debit, credit).lastInsertRowid;
+    db.prepare("INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit) VALUES (1, ?, ?, ?, ?, ?, ?)").run(legacyOnly, line, accountIdValue, DATE, debit, credit);
+  }
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(legacyOnly), /rupee and paise amounts that differ/);
+});
+
+test("an older voucher off by more than a rupee can be reversed, and the pair nets to zero", () => {
+  const db = fresh();
+  const id = legacyUnbalanced(db, "OLD-BIG", 150000, 149500);
+  assert.equal(m.moneyIntegrityReport(db, 1).unbalanced_vouchers[0].adjustable, false);
+  const reversal = m.reverseVoucher(db, id, "wrong amounts");
+  const sums = db.prepare("SELECT SUM(debit_minor) d, SUM(credit_minor) c FROM voucher_lines WHERE voucher_id = ?").get(reversal.id);
+  assert.deepEqual(sums, { d: 149500, c: 150000 }, "the reversal mirrors the original exactly");
+  const report = m.moneyIntegrityReport(db, 1);
+  assert.equal(report.trial_balance.difference, 0);
+  assert.equal(report.ok, true, JSON.stringify(report.unbalanced_vouchers));
+  assert.equal(report.unbalanced_vouchers.length, 1, "the reversal is listed only as the original's correction");
+  assert.equal(report.unbalanced_vouchers[0].reversed_by, reversal.voucher_number);
+  assert.equal(bookIntegrityChecks(db, 1).find((c) => c.id === "voucher_balance").status, "pass");
+});
+
+test("reversing a voucher that took a rounding adjustment reverses the adjustment with it", () => {
+  const db = fresh();
+  const id = legacyUnbalanced(db, "OLD-ADJ", 10003, 10000);
+  const adjustment = m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id });
+  const reversal = m.reverseVoucher(db, id, "re-enter");
+  const sums = db.prepare("SELECT SUM(debit_minor) d, SUM(credit_minor) c FROM voucher_lines WHERE voucher_id = ?").get(reversal.id);
+  assert.equal(sums.d, sums.c, "original and adjustment reversed together balance");
+  assert.equal(db.prepare("SELECT status FROM vouchers WHERE id = ?").get(adjustment.id).status, "Reversed");
+  const report = m.moneyIntegrityReport(db, 1);
+  assert.equal(report.ok, true, JSON.stringify(report.unbalanced_vouchers));
+  assert.equal(report.trial_balance.difference, 0);
+  assert.equal(bookIntegrityChecks(db, 1).find((c) => c.id === "voucher_balance").status, "pass");
+});
+
+test("a reversal rebuilds amounts from the paise columns", () => {
+  const db = fresh();
+  const v = postBalanced(db, 1.01);
+  db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: older rupee mirror", () => {
+    db.prepare("UPDATE voucher_lines SET debit = 1.005 WHERE voucher_id = ? AND debit_minor > 0").run(v.id);
+    db.prepare("UPDATE voucher_lines SET credit = 1.005 WHERE voucher_id = ? AND credit_minor > 0").run(v.id);
+  }))();
+  const reversal = m.reverseVoucher(db, v.id, "paise source");
+  const sums = db.prepare("SELECT SUM(debit_minor) d, SUM(credit_minor) c FROM voucher_lines WHERE voucher_id = ?").get(reversal.id);
+  assert.deepEqual(sums, { d: 101, c: 101 });
+});
+
+test("a rounding adjustment is refused when the voucher's lines and ledger entries disagree", () => {
+  const db = fresh();
+  const id = db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: disagreeing voucher", () => {
+    const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+    const voucher = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id) VALUES (1, 'OLD-SPLIT', ?, 'Sales', 'Posted', ?)").run(DATE, year.id).lastInsertRowid;
+    addLine(db, voucher, "Trade Receivables", 10001, 0, { ledgerDebitMinor: 10000 });
+    addLine(db, voucher, "Sales", 0, 10000);
+    return voucher;
+  }))();
+  const row = m.moneyIntegrityReport(db, 1).unbalanced_vouchers.find((item) => item.id === id);
+  assert.equal(row.adjustable, false);
+  assert.match(row.reason, /ledger entries do not agree/);
+  assert.throws(() => m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id }), /ledger entries do not agree/);
+});
+
+test("the Rounding Off ledger never takes over a code or name the user already has", () => {
+  const root = freshRoot();
+  let db = open(root);
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('Code Taken Co')").run().lastInsertRowid;
+  db.prepare("DELETE FROM accounts WHERE company_id = ? AND account_name = 'Rounding Off'").run(other);
+  db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, status) VALUES (?, '5180', 'Packing Expense', 'Expense', 'Debit', 'active')").run(other);
+  db.close();
+  db = open(root);
+  assert.equal(db.prepare("SELECT account_name FROM accounts WHERE company_id = ? AND account_code = '5180'").get(other).account_name, "Packing Expense");
+  assert.equal(db.prepare("SELECT account_code FROM accounts WHERE company_id = ? AND account_name = 'Rounding Off'").get(other).account_code, "5181");
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM accounts WHERE company_id = 1 AND account_name = 'Rounding Off'").get().c, 1);
+});

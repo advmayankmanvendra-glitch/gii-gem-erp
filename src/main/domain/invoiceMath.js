@@ -1,3 +1,4 @@
+// Shared by the main process and the screens; keep it free of Node and Electron APIs.
 import { roundMoney } from "./money.js";
 
 // One invoice line's money, rounded to the paisa exactly as it is saved and posted.

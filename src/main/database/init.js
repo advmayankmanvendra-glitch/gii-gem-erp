@@ -26,7 +26,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
-import { ensureLedgerGuards, withLedgerMaintenance } from "./ledgerGuards.js";
+import { dropLedgerGuards, ensureLedgerGuards } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -253,7 +253,6 @@ const DEFAULT_ACCOUNTS = [
   ["5150", "Employee Incentive Expense", "Expense", "Debit", 0],
   ["5160", "Bank Charges", "Expense", "Debit", 0],
   ["5170", "Other Deduction Ledger", "Expense", "Debit", 0],
-  ["5180", "Rounding Off", "Expense", "Debit", 0],
   ["5990", "Profit and Loss", "Equity", "Credit", 0]
 ];
 export const WRITE_POLICY = {
@@ -279,6 +278,8 @@ export const WRITE_POLICY = {
 
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
+  // Migrations run with the ledger guards off; they are put back, current, at the end.
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get()) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
   migrate(db);
   ensureAuditChain(db);
@@ -678,7 +679,7 @@ export function migrate(db) {
   runMigration(db, UPGRADE_REPAIR_MIGRATION, () => {
     addRuntimeSoftDeleteColumns(db);
     addMoneyShadowColumns(db);
-    withLedgerMaintenance(db, 0, "money_backfill", () => backfillAll(db));
+    backfillAll(db);
   });
 }
 
@@ -794,7 +795,22 @@ function seedAccounts(db, companyId = null) {
           updated_at = CURRENT_TIMESTAMP
       `).run({ company_id: company.id, account_code, account_name, account_type, normal_balance, opening_balance });
     });
+    ensureRoundingOffAccount(db, company.id);
   });
+}
+
+// The Rounding Off ledger that rounding adjustments post to. Added after the defaults
+// above, and only when the company has none: an existing ledger with that name is
+// reused, and a code already in use (by a ledger the user created) is never taken over.
+function ensureRoundingOffAccount(db, companyId) {
+  const existing = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = 'Rounding Off' AND is_deleted = 0").get(companyId);
+  if (existing) return existing.id;
+  let code = 5180;
+  while (db.prepare("SELECT 1 FROM accounts WHERE company_id = ? AND account_code = ?").get(companyId, String(code))) code += 1;
+  return db.prepare(`
+    INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
+    VALUES (?, ?, 'Rounding Off', 'Expense', 'Debit', 0, 'active')
+  `).run(companyId, String(code)).lastInsertRowid;
 }
 
 function normalizeDuplicateKey(value) {

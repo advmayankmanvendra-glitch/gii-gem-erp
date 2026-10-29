@@ -145,7 +145,10 @@ export function createAccountingService(deps) {
     return record;
   }
 
-  function createBalancedVoucher(db, payload) {
+  // options.mirrorImbalanceMinor is for reverseVoucher only: a reversal that mirrors an
+  // older, unbalanced voucher line for line carries the opposite of that voucher's paise
+  // difference, so the pair nets to zero. The database guard checks the same.
+  function createBalancedVoucher(db, payload, options = {}) {
     const financialYear = assertOpenFinancialYear(db, payload.company_id, payload.voucher_date);
     const companyId = Number(payload.company_id || 0);
     const lines = (payload.lines || []).map((line) => ({
@@ -184,7 +187,9 @@ export function createAccountingService(deps) {
     if (lines.some((line, idx) => debitMinors[idx] === 0 && creditMinors[idx] === 0)) {
       throw new Error("Voucher line amount is less than one paisa. Enter amounts to two decimal places.");
     }
-    if (totalDebitMinor !== totalCreditMinor) {
+    const mirroredDifference = Number.isSafeInteger(options.mirrorImbalanceMinor) && options.mirrorImbalanceMinor !== 0
+      && totalDebitMinor - totalCreditMinor === options.mirrorImbalanceMinor;
+    if (totalDebitMinor !== totalCreditMinor && !mirroredDifference) {
       throw new Error(`Unbalanced voucher: debit ${rupees(totalDebitMinor).toFixed(2)} and credit ${rupees(totalCreditMinor).toFixed(2)} differ by ${rupees(Math.abs(totalDebitMinor - totalCreditMinor)).toFixed(2)}. Correct the voucher lines so debit equals credit to the paisa.`);
     }
 
@@ -462,6 +467,15 @@ export function createAccountingService(deps) {
 
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
+    // A rounding adjustment that corrected this voucher is reversed with it, in the same
+    // reversal voucher, so the pair still balances.
+    const adjustment = db.prepare("SELECT * FROM vouchers WHERE source_module = 'rounding_adjustment' AND source_id = ? AND status = 'Posted' AND is_deleted = 0").get(original.id);
+    const adjustmentLines = adjustment
+      ? db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(adjustment.id)
+      : [];
+    const reversedLines = [...lines, ...adjustmentLines];
+    // Amounts come from the paise columns, which are what the books hold.
+    const imbalanceMinor = reversedLines.reduce((sum, line) => sum + Number(line.credit_minor || 0) - Number(line.debit_minor || 0), 0);
     const reasonText = String(reason || "").trim() || "Reversed by user";
     const today = localBusinessDate();
     // The reversal is dated today (in the open year) unless the original is later
@@ -476,15 +490,16 @@ export function createAccountingService(deps) {
         narration: `Reversal of ${original.voucher_number} - ${reasonText}`,
         source_module: "voucher_reversal",
         source_id: original.id,
-        lines: lines.map((line) => ({
+        lines: reversedLines.map((line) => ({
           account_id: line.account_id,
-          debit: Number(line.credit || 0),
-          credit: Number(line.debit || 0),
+          debit: rupees(line.credit_minor),
+          credit: rupees(line.debit_minor),
           narration: `Reverse ${original.voucher_number}`,
           linked_party_type: line.linked_party_type,
           linked_party_id: line.linked_party_id
         }))
-      });
+      }, { mirrorImbalanceMinor: adjustment ? 0 : imbalanceMinor });
+      if (adjustment) db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(`Reversed with ${original.voucher_number}`, reversalDate, adjustment.id);
 
       db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, reversed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .run(reasonText, reversalDate, userId && db.prepare("SELECT 1 FROM users WHERE id = ?").get(userId) ? userId : null, original.id);

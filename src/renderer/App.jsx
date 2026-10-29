@@ -90,7 +90,7 @@ import { AllocationWorkflowScreen } from "./features/accounting/AllocationWorkfl
 import { BankStatementScreen } from "./features/accounting/BankStatementScreen.jsx";
 import { confirmAction, postedProtectionOptions, deleteConfirmOptions, postConfirmOptions, approveConfirmOptions, reversalConfirmOptions, isRecordLocked } from "./utils/actionUtils.js";
 import { normalizeStatusClass } from "./utils/fileParsers.js";
-import { KEY_LAYOUT_EVENT, KEY_LAYOUT_TALLY, handleTallyKey, readKeyLayout, saveKeyLayout } from "./config/keyLayout.js";
+import { KEY_LAYOUT_EVENT, KEY_LAYOUT_TALLY, desktopCommandKeyEvent, handleTallyKey, readKeyLayout, saveKeyLayout } from "./config/keyLayout.js";
 
 const fallbackApi = createBrowserFallbackApi(businessVoucherPreview);
 const api = resolveApi(fallbackApi);
@@ -723,6 +723,11 @@ function App() {
     if (confirmDialog || globalSearchOpen || shortcutHelpOpen || userPreferencesOpen || contextHelpOpen || firstTourOpen) return;
     if (!command) return;
 
+    // The desktop shell turns plain function keys and Alt + letter into commands before
+    // the page sees them, so the Tally layout is applied here as well as on keydown.
+    const tallyKey = keyLayout === KEY_LAYOUT_TALLY ? desktopCommandKeyEvent(command) : null;
+    if (tallyKey && handleTallyKey(tallyKey, { openVoucher: openVoucherShortcut, notify })) return;
+
     if (/^f[2-9]$/.test(command) && handleModuleFunctionKey(command.toUpperCase())) return;
 
     const quickViews = {
@@ -816,7 +821,7 @@ function App() {
       unsubscribeDesktopShortcut?.();
       window.removeEventListener("gii-gem-print-preview", handlePrintPreviewRequest);
     };
-  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, currentTitle, breadcrumb, view, effectiveView, navigationHistory]);
+  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, currentTitle, breadcrumb, view, effectiveView, navigationHistory, keyLayout]);
 
   async function createBackupFromShortcut() {
     const confirmed = await confirmAction({

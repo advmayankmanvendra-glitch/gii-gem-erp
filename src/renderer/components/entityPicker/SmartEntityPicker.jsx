@@ -49,12 +49,14 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
   useEffect(() => {
     function onQuickCreateEvent() {
       if (!onQuickCreate || !config?.quickCreateType) return;
-      if (!triggerRef.current?.contains(document.activeElement)) return;
+      // The trigger, or this picker's open list (Alt + C in the Tally key layout).
+      const inList = open && document.activeElement?.closest?.(".entity-picker-modal");
+      if (!triggerRef.current?.contains(document.activeElement) && !inList) return;
       handleQuickCreate();
     }
     window.addEventListener("gii-gem-quick-create", onQuickCreateEvent);
     return () => window.removeEventListener("gii-gem-quick-create", onQuickCreateEvent);
-  }, [onQuickCreate, config]);
+  }, [onQuickCreate, config, open]);
 
   const handleOpen = useCallback(() => {
     if (disabled) return;

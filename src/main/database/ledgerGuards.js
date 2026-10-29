@@ -15,8 +15,19 @@
 //   the older, unbalanced voucher it names, and that difference must be at most
 //   one rupee.
 //
-// Operational reset and the one-time money backfill run inside a maintenance
-// window: a ledger_maintenance row written and removed within the same transaction.
+// - A reversal of an older, unbalanced voucher may mirror it exactly, so the pair nets
+//   to zero.
+// - Every line and ledger entry must carry rupee columns equal to its paise / 100, so
+//   the paise columns the guards check are the amounts the books show.
+//
+// Operational reset runs inside a maintenance window: a ledger_maintenance row written
+// and removed within the same transaction.
+//
+// The guards are dropped when the app opens a database and created again, from this
+// file, once migrations have run. So migrations run unguarded on every database (as
+// they do on a new one), and a changed rule here reaches every existing database on its
+// next start. A migration that edits posted accounting needs nothing special; any other
+// code that must do so uses withLedgerMaintenance inside a transaction.
 
 export const LEDGER_GUARD_TRIGGERS = [
   "trg_ledger_guard_voucher_insert",
@@ -30,6 +41,13 @@ export const LEDGER_GUARD_TRIGGERS = [
   "trg_ledger_guard_entry_update",
   "trg_ledger_guard_entry_delete"
 ];
+
+// Columns of a posted voucher that may still change: its status (Posted to Reversed only)
+// and the reversal and approval details. Every other column is fixed once posted;
+// scripts/audit/ledger-guards.test.mjs fails when a new vouchers column is not placed in
+// one list or the other.
+export const POSTED_VOUCHER_EDITABLE_COLUMNS = ["status", "reversal_reason", "reversal_date", "reversed_by", "approval_status", "updated_at"];
+export const POSTED_VOUCHER_FIXED_COLUMNS = ["id", "company_id", "voucher_number", "voucher_date", "voucher_type", "narration", "source_module", "source_id", "created_at", "deleted_at", "deleted_by", "is_deleted", "financial_year_id"];
 
 export const ROUNDING_ADJUSTMENT_SOURCE = "rounding_adjustment";
 export const ROUNDING_ADJUSTMENT_LIMIT_MINOR = 100;
@@ -54,6 +72,22 @@ function lockedVoucher(voucherExpression) {
   return `EXISTS (SELECT 1 FROM vouchers WHERE id = ${voucherExpression} AND status IN ('Posted', 'Reversed'))`;
 }
 
+// Older, unbalanced voucher the given one corrects (rounding adjustment) or mirrors
+// (reversal): it must be posted, of the same company, and its lines must agree with its
+// ledger entries.
+function correctableOriginal(newRow, extra) {
+  return `EXISTS (
+              SELECT 1 FROM vouchers original
+              WHERE original.id = ${newRow}.source_id
+                AND original.company_id = ${newRow}.company_id
+                AND original.status IN ('Posted', 'Reversed')
+                AND COALESCE(original.source_module, '') NOT IN ('${ROUNDING_ADJUSTMENT_SOURCE}', 'voucher_reversal')
+                AND ${voucherImbalance("original.id")} = ${entryImbalance("original.id")}
+                AND ${voucherImbalance("original.id")} + ${voucherImbalance(`${newRow}.id`)} = 0
+                ${extra}
+            )`;
+}
+
 function triggerSql() {
   return [
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_insert
@@ -65,7 +99,7 @@ function triggerSql() {
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_post
       BEFORE UPDATE OF status ON vouchers
-      WHEN NEW.status = 'Posted' AND OLD.status NOT IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("NEW.company_id")}
+      WHEN NEW.status IN ('Posted', 'Reversed') AND OLD.status NOT IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("NEW.company_id")}
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: a voucher needs at least one line before it can be posted.')
         WHERE NOT EXISTS (SELECT 1 FROM voucher_lines WHERE voucher_id = NEW.id);
@@ -73,19 +107,14 @@ function triggerSql() {
         WHERE ${voucherImbalance("NEW.id")} <> ${entryImbalance("NEW.id")}
           OR (SELECT COALESCE(SUM(debit_minor), 0) FROM voucher_lines WHERE voucher_id = NEW.id)
              <> (SELECT COALESCE(SUM(debit_minor), 0) FROM ledger_entries WHERE voucher_id = NEW.id AND COALESCE(is_deleted, 0) = 0);
+        SELECT RAISE(ABORT, 'Ledger guard: a line or ledger entry has rupee and paise amounts that differ. Posting was refused.')
+        WHERE EXISTS (SELECT 1 FROM voucher_lines WHERE voucher_id = NEW.id AND (debit <> debit_minor / 100.0 OR credit <> credit_minor / 100.0))
+          OR EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND (debit <> debit_minor / 100.0 OR credit <> credit_minor / 100.0));
         SELECT RAISE(ABORT, 'Ledger guard: debit and credit do not balance to the paisa. Posting was refused.')
         WHERE ${voucherImbalance("NEW.id")} <> 0
           AND NOT (
             COALESCE(NEW.source_module, '') = '${ROUNDING_ADJUSTMENT_SOURCE}'
-            AND EXISTS (
-              SELECT 1 FROM vouchers original
-              WHERE original.id = NEW.source_id
-                AND original.company_id = NEW.company_id
-                AND original.status IN ('Posted', 'Reversed')
-                AND COALESCE(original.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'
-                AND ${voucherImbalance("original.id")} + ${voucherImbalance("NEW.id")} = 0
-                AND ABS(${voucherImbalance("original.id")}) BETWEEN 1 AND ${ROUNDING_ADJUSTMENT_LIMIT_MINOR}
-            )
+            AND ${correctableOriginal("NEW", `AND ABS(${voucherImbalance("original.id")}) BETWEEN 1 AND ${ROUNDING_ADJUSTMENT_LIMIT_MINOR}`)}
             AND NOT EXISTS (
               SELECT 1 FROM vouchers other
               WHERE other.id <> NEW.id
@@ -94,6 +123,10 @@ function triggerSql() {
                 AND other.status IN ('Posted', 'Reversed')
                 AND COALESCE(other.is_deleted, 0) = 0
             )
+          )
+          AND NOT (
+            COALESCE(NEW.source_module, '') = 'voucher_reversal'
+            AND ${correctableOriginal("NEW", "")}
           );
       END`,
 
@@ -102,7 +135,11 @@ function triggerSql() {
       WHEN OLD.status IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("OLD.company_id")}
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: a posted voucher cannot be edited. Reverse it and post a corrected voucher instead.')
-        WHERE NEW.company_id IS NOT OLD.company_id
+        WHERE NEW.id IS NOT OLD.id
+          OR NEW.company_id IS NOT OLD.company_id
+          OR NEW.created_at IS NOT OLD.created_at
+          OR NEW.deleted_at IS NOT OLD.deleted_at
+          OR NEW.deleted_by IS NOT OLD.deleted_by
           OR NEW.voucher_number IS NOT OLD.voucher_number
           OR NEW.voucher_date IS NOT OLD.voucher_date
           OR NEW.voucher_type IS NOT OLD.voucher_type
@@ -172,43 +209,58 @@ function tableExists(db, name) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 }
 
-// Creates the maintenance table and any missing trigger. Runs on every start, so a
-// trigger that was dropped outside the app is put back before anything is posted.
-export function ensureLedgerGuards(db) {
-  if (!["vouchers", "voucher_lines", "ledger_entries"].every((name) => tableExists(db, name))) return [];
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ledger_maintenance (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      company_id INTEGER NOT NULL DEFAULT 0,
-      reason TEXT NOT NULL,
-      opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  // The guards sum a voucher's lines and ledger entries on every posting; without these
-  // indexes each posting would read the whole table. The last one serves the running
-  // balance lookup made for every ledger entry.
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_voucher_lines_voucher ON voucher_lines (voucher_id);
-    CREATE INDEX IF NOT EXISTS idx_ledger_entries_voucher ON ledger_entries (voucher_id);
-    CREATE INDEX IF NOT EXISTS idx_ledger_entries_company_account ON ledger_entries (company_id, account_id, id);
-  `);
-  // A maintenance row only lives inside its own transaction. One left behind (a crash
-  // between statements outside a transaction) would switch the guards off, so clear it.
-  db.prepare("DELETE FROM ledger_maintenance").run();
-  const existing = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().map((row) => row.name));
-  const created = [];
-  triggerSql().forEach((sql, index) => {
-    const name = LEDGER_GUARD_TRIGGERS[index];
-    if (existing.has(name)) return;
-    db.exec(sql);
-    created.push(name);
-  });
-  return created;
+function expectedTriggers() {
+  return triggerSql().map((sql, index) => ({ name: LEDGER_GUARD_TRIGGERS[index], sql }));
 }
 
+function normalizedSql(sql) {
+  return String(sql || "").replace(/IF NOT EXISTS\s+/i, "").replace(/\s+/g, " ").trim();
+}
+
+// Removes every ledger guard. initializeDatabase calls this before migrations run.
+export function dropLedgerGuards(db) {
+  const names = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_ledger_guard%'").all().map((row) => row.name);
+  names.forEach((name) => db.exec(`DROP TRIGGER IF EXISTS "${name.replace(/"/g, '""')}"`));
+  return names;
+}
+
+// Creates the maintenance table, the indexes the guards use, and every guard from the
+// current rules (replacing older versions). Runs on every start.
+export function ensureLedgerGuards(db) {
+  if (!["vouchers", "voucher_lines", "ledger_entries"].every((name) => tableExists(db, name))) return [];
+  return db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ledger_maintenance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL,
+        opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    // The guards sum a voucher's lines and ledger entries on every posting; without these
+    // indexes each posting would read the whole table. The last one serves the running
+    // balance lookup made for every ledger entry.
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_voucher_lines_voucher ON voucher_lines (voucher_id);
+      CREATE INDEX IF NOT EXISTS idx_ledger_entries_voucher ON ledger_entries (voucher_id);
+      CREATE INDEX IF NOT EXISTS idx_ledger_entries_company_account ON ledger_entries (company_id, account_id, id);
+    `);
+    // A maintenance row only lives inside its own transaction. One left behind would
+    // switch the guards off, so clear it.
+    db.prepare("DELETE FROM ledger_maintenance").run();
+    dropLedgerGuards(db);
+    expectedTriggers().forEach(({ sql }) => db.exec(sql));
+    return LEDGER_GUARD_TRIGGERS.slice();
+  })();
+}
+
+// Guards that are absent or differ from the current rules (for example after a backup
+// from elsewhere was restored with altered triggers). Empty when all is in place.
 export function missingLedgerGuards(db) {
-  const existing = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().map((row) => row.name));
-  return LEDGER_GUARD_TRIGGERS.filter((name) => !existing.has(name));
+  const existing = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'").all().map((row) => [row.name, row.sql]));
+  return expectedTriggers()
+    .filter(({ name, sql }) => !existing.has(name) || normalizedSql(existing.get(name)) !== normalizedSql(sql))
+    .map(({ name }) => name);
 }
 
 // Runs fn with the guards opened for one company (0 = every company). The caller must

@@ -1,3 +1,6 @@
+// Shared by the main process and the screens (through src/renderer/utils/money.js), so
+// it must stay free of imports other than src/main/domain/invoiceMath.js and must not use
+// Node or Electron APIs.
 export const CURRENCY = "INR";
 export const MINOR_UNITS = 100;
 export const MAX_SAFE_AMOUNT = Number.MAX_SAFE_INTEGER / MINOR_UNITS;
@@ -22,14 +25,17 @@ export function roundMoney(value) {
   return parseMoneyToMinor(Number(value || 0)) / MINOR_UNITS;
 }
 
-// Rupee amounts as stored in the legacy REAL columns, converted to whole paise.
-// Blank and non-numeric values count as zero, as `Number(x || 0)` did before.
+// Rupee amounts (stored values, or what was typed in an amount box) converted to whole
+// paise. Blank and non-numeric values count as zero, as `Number(x || 0)` did before, so
+// this is not a validator: use parseMoneyToMinor where bad input must be refused.
 export function paise(value) {
   if (value === null || value === undefined || value === "") return 0;
   if (typeof value === "number") return Number.isFinite(value) ? parseMoneyToMinor(value) : 0;
   const cleaned = String(value).replace(/[₹,\s]/g, "");
-  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return 0;
-  return parseMoneyToMinor(cleaned);
+  if (/^-?\d+(\.\d+)?$/.test(cleaned)) return parseMoneyToMinor(cleaned);
+  // Forms such as ".5" or "1e3" that a number box can hold.
+  const number = Number(cleaned);
+  return cleaned && Number.isFinite(number) ? parseMoneyToMinor(number) : 0;
 }
 
 // Whole paise back to a rupee number that prints exactly to two decimals.

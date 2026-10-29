@@ -9,7 +9,8 @@ export const ROUNDING_OFF_ACCOUNT = "Rounding Off";
 // entries disagree with their lines, and old rupee columns that disagree with their
 // paise twins. It changes nothing. An old voucher that is off by up to one rupee can
 // be corrected by a separate, clearly labelled rounding adjustment journal; the old
-// voucher itself is never rewritten.
+// voucher itself is never rewritten. A larger difference is cleared by reversing the
+// voucher (the reversal mirrors it exactly) and posting a corrected one.
 export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNumber, postLedgerEntry, financialYearForDate }) {
   function hasWholePaise(value) {
     const scaled = Number(value || 0) * 100;
@@ -20,32 +21,58 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     return companyId ? { sql: ` AND ${alias}.company_id = ?`, params: [Number(companyId)] } : { sql: "", params: [] };
   }
 
-  function adjustmentFor(db, voucherId) {
+  function correctionsOf(db, voucherId) {
     return db.prepare(`
-      SELECT id, voucher_number, voucher_date FROM vouchers
-      WHERE source_module = ? AND source_id = ? AND status IN ('Posted', 'Reversed') AND is_deleted = 0
-      ORDER BY id LIMIT 1
-    `).get(ROUNDING_ADJUSTMENT_SOURCE, voucherId) || null;
+      SELECT v.id, v.voucher_number, v.source_module,
+        (SELECT COALESCE(SUM(debit_minor), 0) - COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = v.id) imbalance_minor
+      FROM vouchers v
+      WHERE v.source_id = ? AND v.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', 'voucher_reversal')
+        AND v.status IN ('Posted', 'Reversed') AND v.is_deleted = 0
+      ORDER BY v.id
+    `).all(voucherId);
   }
 
+  function linesAgreeWithLedger(db, voucherId) {
+    const row = db.prepare(`
+      SELECT (SELECT COALESCE(SUM(debit_minor), 0) - COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) lines,
+        (SELECT COALESCE(SUM(debit_minor), 0) - COALESCE(SUM(credit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger
+    `).get(voucherId, voucherId);
+    return row.lines === row.ledger;
+  }
+
+  // Posted vouchers whose lines do not balance. A rounding adjustment, and a reversal
+  // that mirrors an unbalanced voucher, are one-sided by design and appear only as the
+  // correction of the voucher they name.
   function unbalancedVouchers(db, companyId) {
     const filter = companyFilter(companyId);
-    return db.prepare(`
-      SELECT v.id, v.company_id, v.voucher_number, v.voucher_date, v.voucher_type, v.status,
+    const rows = db.prepare(`
+      SELECT v.id, v.company_id, v.voucher_number, v.voucher_date, v.voucher_type, v.status, v.source_module, v.source_id,
         COALESCE(SUM(vl.debit_minor), 0) total_debit_minor, COALESCE(SUM(vl.credit_minor), 0) total_credit_minor
       FROM vouchers v
       JOIN voucher_lines vl ON vl.voucher_id = v.id
-      WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')
-        AND COALESCE(v.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'${filter.sql}
+      WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')${filter.sql}
       GROUP BY v.id
       HAVING total_debit_minor <> total_credit_minor
       ORDER BY v.voucher_date, v.id
-    `).all(...filter.params).map((row) => {
-      const differenceMinor = Number(row.total_debit_minor) - Number(row.total_credit_minor);
-      const adjustment = adjustmentFor(db, row.id);
+    `).all(...filter.params);
+    const byId = new Map(rows.map((row) => [row.id, Number(row.total_debit_minor) - Number(row.total_credit_minor)]));
+    return rows.filter((row) => {
+      if (row.source_module === ROUNDING_ADJUSTMENT_SOURCE) return false;
+      if (row.source_module === "voucher_reversal" && byId.has(row.source_id)) return byId.get(row.id) + byId.get(row.source_id) !== 0;
+      return true;
+    }).map((row) => {
+      const differenceMinor = byId.get(row.id);
+      const corrections = correctionsOf(db, row.id);
+      const adjustment = corrections.find((item) => item.source_module === ROUNDING_ADJUSTMENT_SOURCE);
+      const reversal = corrections.find((item) => item.source_module === "voucher_reversal");
+      const settled = corrections.length > 0 && differenceMinor + corrections.reduce((sum, item) => sum + Number(item.imbalance_minor), 0) === 0;
       const year = financialYearForDate(db, row.company_id, row.voucher_date);
       let reason = "";
-      if (adjustment) reason = `Already corrected by rounding adjustment ${adjustment.voucher_number}.`;
+      if (settled && reversal) reason = `Reversed by ${reversal.voucher_number}; the pair nets to zero.`;
+      else if (settled) reason = `Already corrected by rounding adjustment ${adjustment.voucher_number}.`;
+      else if (adjustment) reason = `Rounding adjustment ${adjustment.voucher_number} exists but does not settle it. Export a support bundle and share it.`;
+      else if (!linesAgreeWithLedger(db, row.id)) reason = "Its ledger entries do not agree with its lines. Export a support bundle and share it.";
+      else if (row.status !== "Posted") reason = "It is already reversed.";
       else if (Math.abs(differenceMinor) > ROUNDING_ADJUSTMENT_LIMIT_MINOR) reason = "The difference is more than one rupee, so it is not rounding. Reverse the voucher and post a corrected one.";
       else if (!year) reason = "No financial year covers this voucher's date.";
       else if (year.status === "Closed" || year.status === "Locked") reason = `Financial year ${year.financial_year_name} is ${year.status.toLowerCase()}. Reopen it to post the adjustment in the same period.`;
@@ -61,6 +88,8 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
         difference: rupees(differenceMinor),
         difference_minor: differenceMinor,
         adjusted_by: adjustment?.voucher_number || null,
+        reversed_by: reversal?.voucher_number || null,
+        settled,
         adjustable: !reason,
         reason
       };
@@ -128,7 +157,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       if (fractional.length) subPaisa.push(entry(fractional));
     }
     const missingGuards = missingLedgerGuards(db);
-    const openVouchers = unbalanced.filter((row) => !row.adjusted_by);
+    const openVouchers = unbalanced.filter((row) => !row.settled);
     return {
       generated_at: new Date().toISOString(),
       company_id: companyId ? Number(companyId) : null,
@@ -176,11 +205,10 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(adjustmentId);
       auditLog(db, {
         company_id: original.company_id,
-        user_id: payload.userId || null,
         action: "rounding adjustment posted",
         table_name: "vouchers",
         record_id: adjustmentId,
-        new_value: JSON.stringify({ voucherNumber, correctsVoucher: original.voucher_number, difference: row.difference, account: ROUNDING_OFF_ACCOUNT })
+        new_value: JSON.stringify({ voucherNumber, correctsVoucher: original.voucher_number, correctsVoucherId: original.id, difference: row.difference, account: ROUNDING_OFF_ACCOUNT })
       });
       return db.prepare("SELECT * FROM vouchers WHERE id = ?").get(adjustmentId);
     })();

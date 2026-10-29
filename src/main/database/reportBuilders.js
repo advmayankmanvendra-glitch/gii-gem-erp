@@ -6,12 +6,13 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     return roundMoney(value);
   }
 
+  // The paise columns are the books; the rupee columns only mirror them.
   function minorAgg(prefix, column) {
-    return `COALESCE(SUM(${prefix}.${column}_minor), CAST(ROUND(COALESCE(SUM(${prefix}.${column}), 0) * 100) AS INTEGER))`;
+    return `COALESCE(SUM(${prefix}.${column}_minor), 0)`;
   }
 
   function minorVal(table, column) {
-    return `COALESCE(${table}.${column}_minor, CAST(ROUND(COALESCE(${table}.${column}, 0) * 100) AS INTEGER))`;
+    return `COALESCE(${table}.${column}_minor, 0)`;
   }
 
   function ageBucket(days) {
@@ -198,7 +199,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
            JOIN supply_orders soip ON soip.id = prp.order_id
            WHERE spa.supplier_payment_id = sp.id)
         ) order_number,
-        vl.debit, vl.credit, vl.narration
+        vl.debit_minor / 100.0 debit, vl.credit_minor / 100.0 credit, vl.narration
       FROM voucher_lines vl
       JOIN vouchers v ON v.id = vl.voucher_id
       JOIN accounts a ON a.id = vl.account_id
@@ -667,8 +668,8 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
           ELSE 0
         END taxable,
         CASE
-          WHEN @direction = 'output' THEN le.credit - le.debit
-          ELSE le.debit - le.credit
+          WHEN @direction = 'output' THEN (le.credit_minor - le.debit_minor) / 100.0
+          ELSE (le.debit_minor - le.credit_minor) / 100.0
         END gst_amount,
         CASE
           WHEN i.id IS NOT NULL THEN i.gst_rate

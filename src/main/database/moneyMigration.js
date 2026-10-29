@@ -75,7 +75,9 @@ export function backfillAll(db) {
 
 export function reconcile(db, tableName, legacyCol, shadowCol) {
   const disagreements = [];
-  for (const row of db.prepare(`SELECT id, ${legacyCol} AS legacy, ${shadowCol} AS minor FROM ${tableName}`).iterate()) {
+  // SQLite narrows the rows to those whose rupee value is not exactly paise / 100; the
+  // app's rounding then decides which of them really disagree.
+  for (const row of db.prepare(`SELECT id, ${legacyCol} AS legacy, ${shadowCol} AS minor FROM ${tableName} WHERE COALESCE(${legacyCol}, 0) <> COALESCE(${shadowCol}, 0) / 100.0`).iterate()) {
     const diff = legacyMinor(row.legacy) - Number(row.minor || 0);
     if (diff !== 0) disagreements.push({ ...row, diff });
   }

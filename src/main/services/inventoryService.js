@@ -340,7 +340,7 @@ export function createInventoryService(deps) {
   }
 
   function isGrniClearedForCompany(db, companyId) {
-    const grniRow = db.prepare("SELECT SUM(le.debit - le.credit) net FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = ? AND a.account_name = 'Goods Received Not Invoiced' AND a.is_deleted = 0").get(companyId);
+    const grniRow = db.prepare("SELECT SUM(le.debit_minor - le.credit_minor) net FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = ? AND a.account_name = 'Goods Received Not Invoiced' AND a.is_deleted = 0").get(companyId);
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
@@ -742,7 +742,7 @@ export function createInventoryService(deps) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     return db.prepare(`
       SELECT le.entry_date, v.voucher_number, v.source_module, v.source_id, a.account_name,
-        le.debit cogs_value, le.credit, v.narration
+        le.debit_minor / 100.0 cogs_value, le.credit_minor / 100.0 credit, v.narration
       FROM ledger_entries le
       JOIN accounts a ON a.id = le.account_id
       JOIN vouchers v ON v.id = le.voucher_id
