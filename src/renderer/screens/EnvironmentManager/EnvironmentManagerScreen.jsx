@@ -892,6 +892,13 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
           <div className="reset-error" style={{ marginTop: 12 }}>
             <p><strong>{resetStep === "blocked" ? "Reset Blocked" : "Reset Failed"}</strong></p>
             <p>{resetError}</p>
+            {resetStep === "blocked" && resetDependencies?.blocked?.length > 0 && (
+              <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
+                {resetDependencies.blocked.map((b, i) => (
+                  <li key={i}>{b.reason || `${b.table} (${b.module}): ${b.rowCount} row(s)`}{b.sampleIds?.length ? ` (row ids ${b.sampleIds.join(", ")})` : ""}</li>
+                ))}
+              </ul>
+            )}
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               {resetStep === "error" && (
                 <button type="button" className="secondary-btn" onClick={handleRollback} disabled={resetRollbackLoading}>

@@ -159,7 +159,8 @@ test("a record outside the company that points at its order blocks the reset up 
   assert.equal(reset.analyzeDependencies(db, 1).total.blocked, 1);
   const backups = () => fs.readdirSync(path.join(root, "backups")).length;
   const before = backups();
-  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /procurement_plans/);
+  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /procurement_plans.*row ids/);
+  assert.equal(reset.blockingReferences(db, "1 OR 1=1").length, 0, "a non-integer company id is ignored");
   assert.equal(backups(), before, "refused before any backup was taken");
 });
 
@@ -171,6 +172,20 @@ test("a reset purchase order can be converted again", () => {
   insert(db, "purchase_orders", { company_id: 1, po_number: "PO-conv", po_date: "2026-04-04", work_order_id: order, converted_to_work_order: 1, status: "converted" });
   reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
   assert.deepEqual(db.prepare("SELECT status, work_order_id, converted_to_work_order FROM purchase_orders WHERE po_number = 'PO-conv'").get(), { status: "draft", work_order_id: null, converted_to_work_order: 0 });
+});
+
+test("a reset keeps a pipeline link to another company's order", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const other = secondCompany(db);
+  const order = db.prepare("SELECT * FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get();
+  const { id: _id, order_number: _n, ...copy } = order;
+  const otherOrder = insert(db, "supply_orders", { ...copy, company_id: other, order_number: "OTHER-Q" });
+  const supplier = db.prepare("SELECT id FROM suppliers ORDER BY id LIMIT 1").get().id;
+  insert(db, "quotations", { company_id: 1, quotation_number: "QT-cross", supplier_id: supplier, quotation_date: "2026-04-02", supply_order_id: otherOrder });
+  reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(db.prepare("SELECT supply_order_id FROM quotations WHERE quotation_number = 'QT-cross'").get().supply_order_id, otherOrder);
 });
 
 test("a preview for a company that does not exist is refused", () => {

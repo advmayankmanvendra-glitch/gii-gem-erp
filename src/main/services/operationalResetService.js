@@ -90,7 +90,7 @@ const UNLINK_ON_RESET = [
 // Old broken links elsewhere in the database are not counted.
 export function blockingReferences(db, companyId) {
   const id = Number(companyId || 0);
-  if (!id) return [];
+  if (!Number.isSafeInteger(id) || id <= 0) return [];
   const tableNames = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name).filter((n) => !n.startsWith("sqlite_"));
   const cleared = new Set([...RESET_TABLES.map((r) => r.table), ...YEAR_END_TABLES]);
   const hasCompany = (table) => db.prepare(`PRAGMA table_info("${table}")`).all().some((c) => c.name === "company_id");
@@ -112,14 +112,17 @@ export function blockingReferences(db, companyId) {
       }
       const where = [`"${fk.from}" IN (${deletedRows(fk.table)})`, ...survives].join(" AND ");
       const count = db.prepare(`SELECT COUNT(*) c FROM "${table}" WHERE ${where}`).get().c;
-      if (count > 0) out.push({ table, column: fk.from, parent: fk.table, count });
+      if (count > 0) {
+        const sampleIds = db.prepare(`SELECT rowid id FROM "${table}" WHERE ${where} ORDER BY rowid LIMIT 5`).all().map((r) => r.id);
+        out.push({ table, column: fk.from, parent: fk.table, count, sampleIds });
+      }
     }
   }
   return out;
 }
 
 function describeBlockingReferences(refs) {
-  return refs.map((r) => `${r.count} ${r.table} row(s) (column ${r.column}) still point at ${r.parent} rows of this company`).join("; ");
+  return refs.map((r) => `${r.count} ${r.table} row(s) (column ${r.column}, row ids ${r.sampleIds.join(", ")}${r.count > r.sampleIds.length ? ", ..." : ""}) still point at ${r.parent} rows of this company`).join("; ");
 }
 
 
@@ -211,7 +214,7 @@ export function analyzeDependencies(db, companyId = null) {
   if (Number(companyId || 0)) {
     const refs = blockingReferences(db, companyId);
     const legacy = analyzeDependencies(db);
-    const blocked = refs.map((r) => ({ table: r.table, rowCount: r.count, module: "Links", reason: `${r.count} row(s) in ${r.table}.${r.column} point at ${r.parent} rows this reset deletes`, orphans: [{ table: r.table, column: r.column, orphanCount: r.count }] }));
+    const blocked = refs.map((r) => ({ table: r.table, rowCount: r.count, module: "Links", sampleIds: r.sampleIds, reason: `${r.count} row(s) in ${r.table}.${r.column} point at ${r.parent} rows this reset deletes`, orphans: [{ table: r.table, column: r.column, orphanCount: r.count }] }));
     const warnings = [...legacy.blocked, ...legacy.warnings].map((w) => ({ ...w, note: "Already broken before the reset; it does not block the reset." }));
     return {
       safe: legacy.safe,
@@ -401,6 +404,11 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   const existingIssues = new Set(db.prepare("PRAGMA foreign_key_check").all().map(issueKey));
   runWithForeignKeysDisabled(db, () => {
     db.transaction(() => {
+      UNLINK_ON_RESET.forEach(({ table, column, set }) => {
+        if (!tables.has(table)) return;
+        // Runs before the orders are deleted. Only links to this company's orders are cleared; a link to another company's order stays.
+        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND "${column}" IN (SELECT id FROM supply_orders WHERE company_id = ?)`).run(company.id, company.id);
+      });
       // Children first, while their parents still exist to identify the company.
       Object.entries(CHILD_TABLE_PARENTS).forEach(([table, rule]) => {
         if (!tables.has(table) || !tables.has(rule.parent)) return;
@@ -414,10 +422,6 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
         if (!cols.includes("company_id")) continue;
         db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       }
-      UNLINK_ON_RESET.forEach(({ table, set }) => {
-        if (!tables.has(table)) return;
-        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ?`).run(company.id);
-      });
       YEAR_END_TABLES.forEach((table) => {
         if (tables.has(table)) db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       });
