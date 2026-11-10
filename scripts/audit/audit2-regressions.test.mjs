@@ -571,3 +571,21 @@ test("219b2d3+1 round: a csv cell past Excel's limit and an oversized reply are 
   assert.throws(() => m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${"a\n".repeat(4000)}`)), /more than one import can hold|more text than one import can hold/);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });
+
+test("Profit Simulator: the scenario is calculated in the main process from the profitability report", async () => {
+  const sim = await service("profitSimulatorService.js");
+  const rows = [
+    { billingValue: 1000, purchaseValue: 600, grossMargin: 400, gstInputLoss: 0, totalExpenses: 100, employeeIncentive: 30, netCompanyProfit: 270 },
+    { billingValue: 500, inventoryCostBasis: 300, purchaseValue: 350, grossMargin: 200, gstInputLoss: 10, totalExpenses: 50, employeeIncentive: 14, netCompanyProfit: 126 }
+  ];
+  const { baseline, scenario } = sim.profitSimulation(rows, {});
+  assert.equal(baseline.billingValue, 1500);
+  assert.equal(baseline.purchaseValue, 900, "the inventory cost basis wins over the purchase value");
+  assert.equal(scenario.billing, 1500);
+  assert.equal(scenario.netProfit, 1500 - 900 - 10 - 150, "no adjustment: billing less cost, GST loss and expenses");
+  const raised = sim.simulateScenario(baseline, { billingAdjustment: 10, incentivePercent: 5000 });
+  assert.ok(Math.abs(raised.billing - 1650) < 1e-6);
+  assert.ok(Math.abs(raised.netProfit) < 1e-6, "an incentive above 100% is held at 100%");
+  const db = fresh();
+  assert.ok(Array.isArray(sim.profitSimulation(m.orderProfitability(db, { company_id: 1 }), {}).rows));
+});

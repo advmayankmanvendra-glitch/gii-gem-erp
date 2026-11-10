@@ -138,6 +138,7 @@ import {
 } from "./services/cracService.js";
 import { getPaymentReadinessReport, getOrdersBilledWithoutCrac, getPaymentDelayedOrders } from "./services/paymentReadinessService.js";
 import { computeOrderClosure, markOrderOperationallyClosed, getClosurePendingOrders } from "./services/orderClosureService.js";
+import { profitSimulation } from "./services/profitSimulatorService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 import { searchEntities, SUPPORTED_ENTITY_TYPES } from "./services/entitySearchService.js";
 import { createDesktopSessionService } from "./services/desktopSessionService.js";
@@ -843,6 +844,8 @@ function registerIpc() {
   handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
   handle("references:list", (_event, filters) => referenceData(db, filters));
   handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
+  // What-if figures for the Profit Simulator; reads the same report, saves nothing.
+  handle("profitability:simulate", (_event, filters, params) => profitSimulation(orderProfitability(db, filters) || [], params || {}));
   handle("accounting:data", (_event, filters) => {
     const data = accountingData(db, filters);
     // The audit trail is a report; roles without report access do not receive it.

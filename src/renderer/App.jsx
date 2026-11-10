@@ -54,6 +54,7 @@ import { buildOperationsData, buildOperationsAttentionRows, filterOperationsAtte
 import { InventoryDashboardPanel, InventoryReadOnlyReportPanel } from "./components/inventoryReports/index.jsx";
 import { AccountingControlReportTable, FinancialControlOverview, LockedYearControlNotice } from "./components/accountingControls/index.jsx";
 import { StockAdjustmentControlPanel, validateStockAdjustmentDraft } from "./features/inventory/StockAdjustmentControlPanel.jsx";
+import { ProfitSimulatorScreen } from "./screens/ProfitSimulatorScreen.jsx";
 import { AllCompaniesReadOnlyScreen } from "./screens/AllCompaniesReadOnlyScreen.jsx";
 import { BankRowsTable } from "./screens/BankRowsTable.jsx";
 import { DashboardScreen } from "./screens/DashboardScreen.jsx";
@@ -1331,6 +1332,7 @@ function App() {
             {effectiveView === "orders_drilldown" && <OrdersDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "treasury_drilldown" && <TreasuryDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "gst_drilldown" && <GstDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
+            {effectiveView === "profit_simulator" && <ProfitSimulatorScreen notify={notify} companyContext={companyContext} apiClient={api} />}
             {effectiveView === "stock_drilldown" && <StockDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "trial_balance_drilldown" && <TrialBalanceDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "unposted_drilldown" && <UnpostedDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}

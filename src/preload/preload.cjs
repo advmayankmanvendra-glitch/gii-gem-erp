@@ -19,6 +19,7 @@ const api = {
   getDashboardCounts: (filters) => ipcRenderer.invoke("dashboard:counts", filters),
   getReferences: (filters) => ipcRenderer.invoke("references:list", filters),
   getProfitability: (filters) => ipcRenderer.invoke("profitability:list", filters),
+  simulateProfit: (filters, params) => ipcRenderer.invoke("profitability:simulate", filters, params),
   getAccountingData: (filters) => ipcRenderer.invoke("accounting:data", filters),
   getAccountMappingRegistry: (filters) => ipcRenderer.invoke("account-mapping:registry", filters),
   getAccountClassifications: (filters) => ipcRenderer.invoke("account-mapping:classifications", filters),

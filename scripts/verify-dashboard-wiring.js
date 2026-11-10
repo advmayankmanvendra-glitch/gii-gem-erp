@@ -74,7 +74,7 @@ try {
   const rendererService = source("src/renderer/features/dashboards/dashboardService.js");
   const dashboardScreen = source("src/renderer/screens/DashboardScreen.jsx");
   check("Dashboard count API is exposed through preload", preload.includes('getDashboardCounts: (filters) => ipcRenderer.invoke("dashboard:counts", filters)'));
-  check("Dashboard count IPC handler exists in main", main.includes('ipcMain.handle("dashboard:counts"'));
+  check("Dashboard count IPC handler exists in main", /(ipcMain\.handle|\bhandle)\("dashboard:counts"/.test(main));
   check("Accounting read API is exposed through preload", preload.includes('getAccountingData: (filters) => ipcRenderer.invoke("accounting:data", filters)'));
   check("Treasury no longer depends on an unexposed bank-ledger API", !rendererService.includes("getBankLedgers"));
   check("Renderer passes selected dates to Dashboard API", rendererService.includes("filters.date_from") && rendererService.includes("filters.date_to"));
