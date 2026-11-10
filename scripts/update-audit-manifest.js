@@ -20,10 +20,29 @@ export function archiveFiles(base = root) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  // Files already listed keep their recorded checksum: a changed or removed report is
+  // refused, so this script can only add new reports, never bless an edit to an old one.
+  // A missing or unreadable manifest is refused too (it would make every report look new),
+  // unless --init is given to build the first one.
+  let previous = [];
+  try { previous = JSON.parse(readFileSync(join(root, folder, "manifest.json"), "utf8")).entries || []; } catch (error) {
+    if (!process.argv.includes("--init")) {
+      console.error(`Refused: ${folder}/manifest.json could not be read (${error.message}). Restore it from git; use --init only to build the first manifest.`);
+      process.exit(1);
+    }
+  }
+  const recorded = new Map(previous.map((entry) => [entry.path, entry]));
   const entries = archiveFiles().map((path) => {
     const bytes = readFileSync(join(root, path));
     return { path, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex").toUpperCase() };
   });
+  const present = new Set(entries.map((entry) => entry.path));
+  const changed = entries.filter((entry) => recorded.has(entry.path) && recorded.get(entry.path).sha256 !== entry.sha256).map((entry) => entry.path);
+  const removed = previous.filter((entry) => !present.has(entry.path)).map((entry) => entry.path);
+  if (changed.length || removed.length) {
+    console.error(`Refused: preserved reports must not change. Changed: ${changed.join(", ") || "none"}. Removed: ${removed.join(", ") || "none"}. Restore them from git (git checkout -- <file>), and add a later audit as a new file instead.`);
+    process.exit(1);
+  }
   const manifest = {
     manifestVersion: "1.0.0",
     purpose: "Checksums of the preserved in-house audit reports (October to November 2026). A report is never edited after it is preserved; a later audit is added as a new file.",

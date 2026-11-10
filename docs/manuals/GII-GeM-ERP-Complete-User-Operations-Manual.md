@@ -1314,8 +1314,8 @@ Press **`/`** (slash key) to open a screen-specific shortcut overlay showing the
 1. Go to **Inventory > Stock Returns** with Return Type = "Supplier Return".
 2. Select the procurement record and item.
 3. Enter quantity, condition, and reason.
-4. Save and post.
-5. Issue a Debit Note to adjust the payable.
+4. Save and post. Posting reduces Goods Received Not Invoiced for goods not yet billed and Trade Payables for billed goods, at the supplier's own price; any gap to average stock cost goes to Purchase Price Variance.
+5. Do not also issue a Debit Note for the same goods: the posted return has already adjusted the payable. Use a Debit Note only for a price or GST correction the return does not cover.
 
 ### 10.7 Inter-Branch Transfers
 

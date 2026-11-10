@@ -157,7 +157,7 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
     ORDER BY a.id
     LIMIT 10
   `).all(...params).map((row) => row.voucher_number);
-  checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open Health > Money integrity. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
+  checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced or not matching their ledger entries: ${unbalanced.join(", ")}` : "All posted vouchers balance and match their ledger entries.", "Open Health > Money integrity, which says what is wrong with each voucher. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
 
   const stockCompany = companyId ? " AND company_id = ?" : "";
   // Item opening stock is not in stock_ledger; it sits in the item's default

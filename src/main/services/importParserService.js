@@ -284,6 +284,8 @@ export function createImportParserService() {
   const MAX_UNCHECKED_PART_BYTES = 4 * 1024 * 1024;
   const MAX_CELL_CHARS = 32767;
   const MAX_SHEET_CHARS = 64 * 1024 * 1024;
+  // Stored characters of the sheet's own values that carry XML entities (&amp; and the like).
+  const MAX_INLINE_ENTITY_CHARS = 16 * 1024 * 1024;
 
   function assertImportSize(buffer) {
     if (buffer.length > MAX_IMPORT_BYTES) {
@@ -324,8 +326,16 @@ export function createImportParserService() {
         const dataStart = entry.localHeaderOffset + 30 + localNameLength + localExtraLength;
         const compressed = buffer.slice(dataStart, dataStart + entry.compressedSize);
         let data;
+        // Bytes the inflater actually used: padding after the end of the stream does not count,
+        // so a part cannot dodge the expansion check by declaring a larger compressed size.
+        let consumed = compressed.length;
         try {
-          data = entry.method === 0 ? compressed : zlib.inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES });
+          if (entry.method === 0) data = compressed;
+          else {
+            const inflated = zlib.inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES, info: true });
+            data = inflated.buffer;
+            consumed = Math.min(compressed.length, Number(inflated.engine?.bytesWritten ?? compressed.length));
+          }
         } catch (error) {
           if (error?.code === "ERR_BUFFER_TOO_LARGE" || /too large|maxOutputLength/i.test(String(error?.message))) {
             throw new Error("Import refused: a part of this .xlsx expands to more than 64 MB. Save the sheet again from Excel (or as CSV) and retry.");
@@ -334,8 +344,8 @@ export function createImportParserService() {
         }
         // Real sheets compress about 10 to 20 times. A part that expands hundreds of times is
         // built to make the app spend seconds reading text that a few KB can describe.
-        if (data.length > MAX_UNCHECKED_PART_BYTES && data.length > compressed.length * MAX_XLSX_EXPANSION) {
-          throw new Error(`Import refused: a part of this .xlsx expands ${Math.round(data.length / Math.max(compressed.length, 1))} times when opened, far more than a real sheet. Save the sheet again from Excel (or as CSV) and retry.`);
+        if (data.length > MAX_UNCHECKED_PART_BYTES && data.length > consumed * MAX_XLSX_EXPANSION) {
+          throw new Error(`Import refused: a part of this .xlsx expands ${Math.round(data.length / Math.max(consumed, 1))} times when opened, far more than a real sheet. Save the sheet again from Excel (or as CSV) and retry.`);
         }
         totalBytes += data.length;
         if (totalBytes > MAX_XLSX_TOTAL_BYTES) {
@@ -393,10 +403,10 @@ export function createImportParserService() {
         if (type !== "s" && raw.length > MAX_CELL_CHARS * 6) throw cellTooLong();
         // Values written in the sheet itself share the same stored-text budget as the
         // workbook's shared text, so entity-heavy cells cannot add seconds of decoding.
-        if (type !== "s") {
+        if (type !== "s" && raw.includes("&")) {
           inlineRawChars += raw.length;
-          if (inlineRawChars > MAX_SHEET_CHARS) {
-            throw new Error("Import refused: the sheet's own text values hold more than 67 million characters as stored. Split it into smaller files, or save it as CSV, and import again.");
+          if (inlineRawChars > MAX_INLINE_ENTITY_CHARS) {
+            throw new Error("Import refused: the sheet's own text values hold more than 16 million stored characters of special-character codes. Save the sheet again from Excel (or as CSV) and import again.");
           }
         }
         const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);

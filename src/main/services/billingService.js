@@ -1,5 +1,9 @@
 import { roundMoney, sumRupees, subtractRupees } from "../domain/money.js";
 import { invoiceLineAmounts } from "../domain/invoiceMath.js";
+import { expenseFormulaAmount } from "../domain/expenseFormula.js";
+
+export { expenseFormulaAmount };
+
 
 export function createBillingService(deps) {
   const {
@@ -191,17 +195,10 @@ export function createBillingService(deps) {
     const amountReceived = sumRupees(payments.map((row) => row.payment_amount));
     const grossMargin = subtractRupees(billingValue, inventoryCostBasis);
     const gstInputLoss = roundMoney(grossMargin * gstRate);
-    const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
-    const dynamicExpenses = expenses.map((expense) => {
-      let amount = Number(expense.fixed_amount || 0);
-      if (expense.calculation_method === "percentage_gross") {
-        amount = billingValue * (Number(expense.percentage || 0) / 100);
-      }
-      if (expense.calculation_method === "percentage_taxable") {
-        amount = taxableValue * (Number(expense.percentage || 0) / 100);
-      }
-      return { ...expense, amount: roundMoney(amount) };
-    });
+    const dynamicExpenses = expenses.map((expense) => ({
+      ...expense,
+      amount: roundMoney(expenseFormulaAmount(expense, { taxableValue: billingValue, grossValue: invoiceGrossValue }))
+    }));
     const totalExpenses = sumRupees(dynamicExpenses.map((row) => row.amount));
     const initialProfit = sumRupees([grossMargin, -gstInputLoss, -totalExpenses]);
     const incentivePercentage = Number(order.incentive_percentage || 0) / 100;

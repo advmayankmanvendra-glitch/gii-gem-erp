@@ -3,7 +3,7 @@ import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createInventoryService(deps) {
   const {
-    auditLog, activeRowClause, accountId, createBalancedVoucher,
+    auditLog, activeRowClause, accountId, createBalancedVoucher, ensurePurchasePriceVarianceAccount,
     autoReserveOrderStock, listRecords, referenceData, reverseVoucher
   } = deps;
 
@@ -349,31 +349,70 @@ export function createInventoryService(deps) {
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
-  // How much of a supplier return clears Goods Received Not Invoiced: the value of this
-  // item's receipts from the supplier (on the order, when given) that no posted bill
-  // covers yet, less what earlier returns already took out of GRNI. The rest of the
-  // return reduces Trade Payables, because those goods were billed.
-  // Returns are not linked to a specific receipt, so this is judged per item, supplier
-  // and order rather than per receipt.
-  function returnGrniPortion(db, row, retValue) {
-    if (!row.supplier_id) return isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
+  // Splits a supplier return between Goods Received Not Invoiced and Trade Payables, each at
+  // the supplier's own price (owner decision CV, 10 Nov 2026 IST):
+  // - GRNI first: the quantity of this item's receipts from the supplier (on the order, when
+  //   given) that no posted bill covers yet, oldest receipt first, each at its own price.
+  //   What earlier returns already cleared from GRNI is taken off those receipts first.
+  // - Trade Payables: the rest, from the billed receipts in the same way, after what earlier
+  //   returns already took off Trade Payables; past every receipt, at the stock's average cost.
+  // Stock leaves at the warehouse average cost. The gap between that and the two amounts
+  // above is a purchase price variance, not money the supplier owes or is owed.
+  // Returns are not linked to a specific receipt (decision C2: keep the pool), so this is
+  // judged per item, supplier and order rather than per receipt.
+  function supplierReturnSplit(db, row, quantity, retValue) {
+    if (!row.supplier_id) {
+      const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
+      return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0 };
+    }
     const orderId = row.order_id || null;
-    const unbilledValue = Number(db.prepare(`
-      SELECT COALESCE(SUM(sl.value_minor), 0) / 100.0 value FROM stock_inwards si
+    const receiptLots = (billed) => db.prepare(`
+      SELECT sl.inward_quantity quantity, sl.value_minor / 100.0 value FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
-        AND (? IS NULL OR si.order_id = ?) AND p.id IS NULL
-    `).get(row.company_id, row.supplier_id, row.item_id, orderId, orderId)?.value || 0);
-    const alreadyReturned = Number(db.prepare(`
+        AND (? IS NULL OR si.order_id = ?) AND p.id IS ${billed ? "NOT NULL" : "NULL"}
+      ORDER BY si.inward_date, si.id, sl.id
+    `).all(row.company_id, row.supplier_id, row.item_id, orderId, orderId)
+      .map((lot) => ({ quantity: Number(lot.quantity || 0), rate: Number(lot.quantity || 0) > 0 ? Number(lot.value || 0) / Number(lot.quantity) : 0 }))
+      .filter((lot) => lot.quantity > 0);
+    const earlier = (accountName) => Number(db.prepare(`
       SELECT COALESCE(SUM(vl.debit_minor), 0) / 100.0 value FROM stock_returns sr
       JOIN vouchers v ON v.source_module = 'stock_returns' AND v.source_id = sr.id AND COALESCE(v.is_deleted, 0) = 0 AND v.status = 'Posted'
       JOIN voucher_lines vl ON vl.voucher_id = v.id
-      JOIN accounts a ON a.id = vl.account_id AND a.account_name = 'Goods Received Not Invoiced'
+      JOIN accounts a ON a.id = vl.account_id AND a.account_name = ?
       WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
         AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ?)
-    `).get(row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.value || 0);
-    return roundMoney(Math.min(retValue, Math.max(0, unbilledValue - alreadyReturned)));
+    `).get(accountName, row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.value || 0);
+    // Takes value already returned off the oldest lots, then takes up to `wanted` units at each lot's price.
+    const takeFrom = (lots, alreadyValue, wanted) => {
+      let skip = alreadyValue;
+      let left = wanted;
+      let value = 0;
+      for (const lot of lots) {
+        let available = lot.quantity;
+        if (skip > 0.005) {
+          const skipped = Math.min(available, skip / lot.rate);
+          available -= skipped;
+          skip -= skipped * lot.rate;
+        }
+        if (available <= 1e-9 || left <= 1e-9) continue;
+        const taken = Math.min(available, left);
+        value += taken * lot.rate;
+        left -= taken;
+      }
+      return { quantity: wanted - left, value };
+    };
+    const grni = takeFrom(receiptLots(false), earlier("Goods Received Not Invoiced"), quantity);
+    const billed = takeFrom(receiptLots(true), earlier("Trade Payables"), quantity - grni.quantity);
+    const averageRate = quantity > 0 ? retValue / quantity : 0;
+    const beyondReceipts = Math.max(0, quantity - grni.quantity - billed.quantity);
+    const grniPortion = roundMoney(grni.value);
+    const payablesPortion = roundMoney(billed.value + beyondReceipts * averageRate);
+    // The three debits must add up to the Inventory credit, roundMoney(retValue), to the paisa.
+    const creditMinor = Math.round(roundMoney(retValue) * 100);
+    const varianceMinor = creditMinor - Math.round(grniPortion * 100) - Math.round(payablesPortion * 100);
+    return { grniPortion, payablesPortion, variance: varianceMinor / 100 };
   }
 
   function postStockReturn(db, id) {
@@ -403,8 +442,9 @@ export function createInventoryService(deps) {
         source_module: "stock_returns",
         source_id: row.id
       });
-      const grniPortion = isDepartmentReturn ? 0 : returnGrniPortion(db, row, roundMoney(retValue));
-      const payablesPortion = isDepartmentReturn ? 0 : roundMoney(roundMoney(retValue) - grniPortion);
+      const split = isDepartmentReturn ? { grniPortion: 0, payablesPortion: 0, variance: 0 } : supplierReturnSplit(db, row, Number(row.quantity || 0), roundMoney(retValue));
+      const { grniPortion, payablesPortion, variance } = split;
+      const varianceAccount = variance !== 0 ? ensurePurchasePriceVarianceAccount(db, row.company_id) : null;
       // A return worth under half a paisa rounds to zero and needs no voucher.
       const retVoucher = roundMoney(retValue) > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
@@ -419,7 +459,10 @@ export function createInventoryService(deps) {
         ] : [
           ...(payablesPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Trade Payables"), debit: payablesPortion, credit: 0 }] : []),
           ...(grniPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: grniPortion, credit: 0 }] : []),
-          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: payablesPortion + grniPortion }
+          // Stock is cheaper or dearer at average cost than the supplier's price: the gap.
+          ...(variance > 0 ? [{ account_id: varianceAccount, debit: variance, credit: 0 }] : []),
+          ...(variance < 0 ? [{ account_id: varianceAccount, debit: 0, credit: -variance }] : []),
+          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: roundMoney(retValue) }
         ]
       }) : null;
       db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(retVoucher?.id || null, id);

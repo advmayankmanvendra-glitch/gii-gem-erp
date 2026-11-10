@@ -704,17 +704,17 @@
       "lineNumber": 278,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items"],
-      "writesToTables": ["stock_ledger", "stock_returns", "audit_log"],
-      "voucherTypeCreated": null,
-      "debitAccounts": null,
-      "creditAccounts": null,
-      "transactionBoundary": "db.transaction() - stock ledger + status update",
-      "auditImpact": false,
-      "reportImpact": null,
+      "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
+      "voucherTypeCreated": "journal",
+      "debitAccounts": ["Goods Received Not Invoiced", "Trade Payables", "Purchase Price Variance", "Inventory"],
+      "creditAccounts": ["Inventory", "Cost of Goods Sold", "Purchase Price Variance"],
+      "transactionBoundary": "db.transaction() - stock ledger + Journal voucher + status update",
+      "auditImpact": true,
+      "reportImpact": ["Trial Balance", "Balance Sheet", "Profit and Loss", "Stock Summary"],
       "workflowStage": null,
-      "relatedDG1Tables": ["stock_returns", "stock_ledger", "items"],
+      "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Returns can be Department (inward) or Supplier (outward); no accounting voucher created"
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable; no separate Debit Note for the same goods."
     },
     {
       "functionName": "postWarehouseTransfer",
@@ -1761,9 +1761,9 @@
     },
     {
       "gapId": "KG4-GAP-002",
-      "description": "Stock adjustments, stock returns, and warehouse transfers do not create accounting vouchers. Their financial impact is tracked only via weighted average cost recalculations.",
-      "impact": "Inventory valuation changes are not independently audit-trailed through ledger_entries",
-      "workaround": "Valuation impact captured via weighted average cost formula on subsequent outward posting"
+      "description": "Closed by FSR-2A4 (PR #4): stock adjustments, stock returns and warehouse transfers now post Journal vouchers. The rest of this graph is brought up to date in KG-4 v1.1 after the branch convergence (see docs/audit/in-house-audits-2026-10/2026-11-10-convergence/).",
+      "impact": "Until KG-4 v1.1, other entries of this graph may still describe stock movements without their vouchers",
+      "workaround": "Read src/main/services/inventoryService.js and docs/architecture/fsr-2a4-perpetual-inventory-policy.md for the current postings"
     },
     {
       "gapId": "KG4-GAP-003",

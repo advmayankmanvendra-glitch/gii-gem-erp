@@ -193,6 +193,40 @@ function firstPayload(args) {
   return args.find((arg) => arg && typeof arg === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(arg))) || {};
 }
 
+// Context for health records (support bundle, verification snapshot). They name the
+// signed-in user, never one the screen supplies, and keep only the company fields the
+// health code reads, cut to a small size, so a screen cannot write large or forged entries.
+function signedInHealthContext(context) {
+  // Only the fields the health code reads are kept.
+  const plain = {};
+  if (context && typeof context === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(context))) {
+    for (const key of ["company_id", "companyId", "company_name", "company_scope"]) {
+      const value = context[key];
+      if (["string", "number", "boolean"].includes(typeof value) || value === null) plain[key] = typeof value === "string" ? value.slice(0, 200) : value;
+    }
+  }
+  const actor = ambientActor();
+  return {
+    ...plain,
+    user_id: actor?.id || null, userId: undefined,
+    user_name: actor?.id ? db.prepare("SELECT username FROM users WHERE id = ?").get(actor.id)?.username || "" : "", userName: undefined,
+    role: actor?.role || "", userRole: undefined,
+    dbName: DB_NAME
+  };
+}
+
+// What the screen sends for a support bundle (Safe Mode's crash list, the checks it saw),
+// kept for support but without user fields and within 1 MB, so a call cannot fill the disk.
+const MAX_SCREEN_CONTEXT_BYTES = 1024 * 1024;
+function boundedScreenContext(context) {
+  if (!context || typeof context !== "object") return null;
+  const { user_id, userId, user_name, userName, role, userRole, ...rest } = context;
+  let text;
+  try { text = JSON.stringify(rest); } catch { return { omitted: "The screen's details could not be read." }; }
+  if (!text || Buffer.byteLength(text, "utf8") > MAX_SCREEN_CONTEXT_BYTES) return { omitted: "The screen's details were larger than 1 MB and were left out." };
+  return JSON.parse(text);
+}
+
 // The audit trail is a report; roles without report access do not receive it. Admins
 // (who hold settings rather than view_reports) keep it.
 function seesAuditTrail(actor) {
@@ -316,7 +350,9 @@ function guarded(permission, moduleName, handler) {
       user_id: session.user_id
     });
     const safeArgs = args.map((arg) => withActor(arg, user));
-    recordGrant(user, permission, moduleName, payload);
+    // The grant row takes its company from the first argument only, so an extra argument
+    // from a screen cannot set the company recorded in the audit trail.
+    recordGrant(user, permission, moduleName, firstPayload(args.slice(0, 1)));
     return runAsActor(user, () => handler(...safeArgs));
   };
 }
@@ -331,9 +367,12 @@ function recordGrant(user, permission, moduleName, payload = {}) {
   runAsActor(user, () => auditLog(db, { company_id: payload.company_id || null, user_id: user.id, action: "permission_granted", module: moduleName, table_name: "system", new_value: JSON.stringify({ permission, module: moduleName }) }));
 }
 
-function sessionGuarded(permission, moduleName, handler) {
+// A read-only channel ({ readOnly: true }) is still permission-checked, but records no
+// grant row: only uses that can change something are written to the audit trail.
+function sessionGuarded(permission, moduleName, handler, { readOnly = false } = {}) {
   return (event, ...args) => {
-    const payload = firstPayload(args);
+    // The same argument the handler receives, so the check and the grant row name its company.
+    const payload = firstPayload(args.slice(0, 1));
     const user = desktopSessions.requirePermission(
       db,
       event.sender.id,
@@ -344,25 +383,12 @@ function sessionGuarded(permission, moduleName, handler) {
         table_name: moduleName
       }
     );
-    recordGrant(user, permission, moduleName, payload);
+    if (!readOnly) recordGrant(user, permission, moduleName, payload);
     // Handlers take (payload, actor). Only the first argument is passed on, so an extra
     // argument from a screen can never take the actor's place.
     return handler(args[0], {
       user_id: user.id,
       user_role: user.role
-    });
-  };
-}
-
-function sessionRequired(handler) {
-  return (event, ...args) => {
-    const session = desktopSessions.getSession(event.sender.id);
-    if (!session) {
-      throw new Error("Your desktop session is not signed in. Please sign in again.");
-    }
-    return handler(...args, {
-      user_id: session.user_id,
-      user_role: session.role
     });
   };
 }
@@ -865,7 +891,7 @@ function registerIpc() {
         ...row,
         has_recovery_secret: Boolean(db.prepare("SELECT recovery_secret_hash FROM users WHERE id = ?").get(row.id)?.recovery_secret_hash)
       }));
-    })(event);
+    }, { readOnly: true })(event);
   });
 
   handle("meta:masters", () => MASTER_TABLES);
@@ -884,25 +910,25 @@ function registerIpc() {
     "account-mapping:registry",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingRegistry(db, filters)
-    ))
+    ), { readOnly: true })
   );
   handle(
     "account-mapping:classifications",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountClassifications(db, filters)
-    ))
+    ), { readOnly: true })
   );
   handle(
     "account-mapping:coverage",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingCoverage(db, filters)
-    ))
+    ), { readOnly: true })
   );
   handle(
     "account-mapping:review-queue",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
       getAccountMappingReviewQueue(db, filters)
-    ))
+    ), { readOnly: true })
   );
   handle(
     "account-mapping:assign",
@@ -1191,7 +1217,7 @@ function registerIpc() {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME, verifyAuditChain });
   });
   handle("health:support-bundle", (_event, context) => {
-    const healthContext = { ...context, dbName: DB_NAME };
+    const healthContext = { ...signedInHealthContext(context), screenContext: boundedScreenContext(context) };
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
@@ -1216,9 +1242,7 @@ function registerIpc() {
     return getVerificationConsoleState(runtimeDataRoot);
   });
   handle("health:verification-snapshot", (_event, context) => {
-    // The snapshot names the signed-in user, never one the screen supplies.
-    const actor = ambientActor();
-    const healthContext = { ...context, user_id: actor?.id || null, userId: undefined, user_name: actor?.id ? db.prepare("SELECT username FROM users WHERE id = ?").get(actor.id)?.username || "" : "", userName: undefined, role: actor?.role || "", dbName: DB_NAME };
+    const healthContext = signedInHealthContext(context);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
   });

@@ -21,12 +21,13 @@ import { createSchemaFunctions } from "./schemaDefinitions.js";
 import { createSeedData } from "./seedData.js";
 import {
   FSR2B1_MIGRATION_NAME,
+  DEFAULT_REPORTING_PROFILE,
   applyAccountMappingRegistryMigration,
   ensureAccountMappingRegistry
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
-import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectCount } from "./ledgerGuards.js";
+import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectIds } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -36,6 +37,7 @@ import { createImportParserService } from "../services/importParserService.js";
 import { createDocumentService } from "../services/documentService.js";
 import { createAuthService } from "../services/authService.js";
 import { createBillingService } from "../services/billingService.js";
+import { expenseFormulaAmount } from "../domain/expenseFormula.js";
 import { createDashboardService } from "../services/dashboardService.js";
 import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
@@ -281,7 +283,7 @@ export function initializeDatabase(root = projectRoot()) {
   // Migrations run with the ledger guards off; they are put back, current, at the end.
   const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
   const repairPending = existingBooks && !migrationApplied(db, UPGRADE_REPAIR_MIGRATION);
-  const countedBefore = existingBooks ? ledgerDefectCount(db) : null;
+  const countedBefore = existingBooks ? ledgerDefectIds(db) : null;
   const plantedBefore = existingBooks ? dropUnexpectedLedgerTriggers(db) : [];
   if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
@@ -701,15 +703,27 @@ const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 // mismatched posted vouchers than there were before, that is recorded in the audit log
 // (the Money integrity check in Health Center lists the vouchers themselves). Start-up is
 // not refused, so the owner can still open the books to correct them.
+// defectsBefore: the voucher ids ledgerDefectIds listed before migrations and seeding (a
+// count is also accepted). Any voucher listed now and not then is recorded, so fixing one
+// voucher cannot hide breaking another.
 export function recordStartupLedgerCheck(db, defectsBefore) {
-  if (defectsBefore === null) return;
-  const defectsAfter = ledgerDefectCount(db);
-  if (defectsAfter === null || defectsAfter <= defectsBefore) return;
-  console.error(`Ledger check: start-up left ${defectsAfter - defectsBefore} more unbalanced posted voucher(s).`);
+  if (defectsBefore === null || defectsBefore === undefined) return;
+  const after = ledgerDefectIds(db);
+  if (after === null) return;
+  let added;
+  if (Array.isArray(defectsBefore)) {
+    const before = new Set(defectsBefore);
+    added = after.filter((id) => !before.has(id));
+  } else {
+    added = after.length > Number(defectsBefore) ? after.slice(Number(defectsBefore)) : [];
+  }
+  if (!added.length) return;
+  const beforeCount = Array.isArray(defectsBefore) ? defectsBefore.length : Number(defectsBefore);
+  console.error(`Ledger check: start-up left ${added.length} new unbalanced or mismatched posted voucher(s).`);
   auditLog(db, {
     action: "ledger_startup_check_failed",
     table_name: "vouchers",
-    new_value: JSON.stringify({ unbalanced_before: defectsBefore, unbalanced_after: defectsAfter })
+    new_value: JSON.stringify({ unbalanced_before: beforeCount, unbalanced_after: after.length, new_voucher_ids: added.slice(0, 50) })
   });
 }
 
@@ -774,42 +788,47 @@ function seedFinancialYears(db) {
   });
 }
 
+// Gives documents saved before posting statuses existed a status from their vouchers.
+// It runs on every start, so it only fills a blank or Draft status: a Reversed, Error or
+// Posted document keeps its status (a reversed invoice still has its original voucher).
 function backfillPostingStatuses(db) {
+  const unset = "COALESCE(NULLIF(posting_status, ''), 'Draft') = 'Draft'";
   [
     ["invoices", "billing"],
     ["procurements", "procurement"],
     ["payments", "payment"]
   ].forEach(([table, sourceModule]) => {
+    const posted = `EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = '${sourceModule}' AND v.source_id = ${table}.id AND v.is_deleted = 0 AND v.status = 'Posted')`;
     db.prepare(`
       UPDATE ${table}
-      SET posting_status = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN 'Posted'
-        ELSE COALESCE(NULLIF(posting_status, ''), 'Draft')
-      END,
-      approval_status = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN 'Approved'
-        ELSE COALESCE(NULLIF(approval_status, ''), 'Draft')
-      END,
-      posted_at = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN COALESCE(posted_at, CURRENT_TIMESTAMP)
-        ELSE posted_at
-      END,
-      locked_at = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN COALESCE(locked_at, CURRENT_TIMESTAMP)
-        ELSE locked_at
-      END
-      WHERE is_deleted = 0
-    `).run(sourceModule, sourceModule, sourceModule, sourceModule);
+      SET posting_status = 'Posted',
+        approval_status = 'Approved',
+        posted_at = COALESCE(posted_at, CURRENT_TIMESTAMP),
+        locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP)
+      WHERE is_deleted = 0 AND ${unset} AND ${posted}
+    `).run();
+    db.prepare(`UPDATE ${table} SET posting_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(posting_status, '') = ''`).run();
+    db.prepare(`UPDATE ${table} SET approval_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(approval_status, '') = ''`).run();
   });
+
+  // Supplier payments (ACC-3 audit F4): a payment with a posted voucher and no status
+  // could neither hold an advance nor be posted again.
+  db.prepare(`
+    UPDATE supplier_payments SET posting_status = 'Posted'
+    WHERE COALESCE(is_deleted, 0) = 0 AND ${unset}
+      AND EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = 'supplier_payment' AND v.source_id = supplier_payments.id AND v.is_deleted = 0 AND v.status = 'Posted')
+  `).run();
+  db.prepare("UPDATE supplier_payments SET posting_status = 'Draft' WHERE COALESCE(is_deleted, 0) = 0 AND COALESCE(posting_status, '') = ''").run();
 
   db.prepare(`
     UPDATE expense_entries
-    SET posting_status = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN 'Posted' ELSE COALESCE(NULLIF(posting_status, ''), 'Draft') END,
-      approval_status = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN 'Approved' ELSE COALESCE(NULLIF(approval_status, ''), 'Draft') END,
-      posted_at = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN COALESCE(posted_at, CURRENT_TIMESTAMP) ELSE posted_at END,
-      locked_at = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN COALESCE(locked_at, CURRENT_TIMESTAMP) ELSE locked_at END
-    WHERE is_deleted = 0
+    SET posting_status = 'Posted', approval_status = 'Approved',
+      posted_at = COALESCE(posted_at, CURRENT_TIMESTAMP), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP)
+    WHERE is_deleted = 0 AND ${unset}
+      AND EXISTS (SELECT 1 FROM vouchers v WHERE v.id = expense_entries.voucher_id AND v.is_deleted = 0 AND v.status = 'Posted')
   `).run();
+  db.prepare("UPDATE expense_entries SET posting_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(posting_status, '') = ''").run();
+  db.prepare("UPDATE expense_entries SET approval_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(approval_status, '') = ''").run();
 }
 
 function seedAccounts(db, companyId = null) {
@@ -829,6 +848,7 @@ function seedAccounts(db, companyId = null) {
       `).run({ company_id: company.id, account_code, account_name, account_type, normal_balance, opening_balance });
     });
     ensureRoundingOffAccount(db, company.id);
+    ensurePurchasePriceVarianceAccount(db, company.id);
   });
 }
 
@@ -844,6 +864,41 @@ function ensureRoundingOffAccount(db, companyId) {
     INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
     VALUES (?, ?, 'Rounding Off', 'Expense', 'Debit', 0, 'active')
   `).run(companyId, String(code)).lastInsertRowid;
+}
+
+export const PURCHASE_PRICE_VARIANCE_ACCOUNT = "Purchase Price Variance";
+
+// The ledger a supplier return's price gap posts to (owner decision CV, 10 Nov 2026 IST).
+// Added only when the company has none: an existing ledger with this name is reused, and a
+// code already in use by a ledger the user created is never taken over (first free code
+// from 5065 upward). It is reported under Purchases.
+export function ensurePurchasePriceVarianceAccount(db, companyId) {
+  const name = PURCHASE_PRICE_VARIANCE_ACCOUNT;
+  const existing = db.prepare("SELECT id, account_type FROM accounts WHERE company_id = ? AND LOWER(TRIM(account_name)) = LOWER(?) AND is_deleted = 0 ORDER BY id LIMIT 1").get(companyId, name);
+  if (existing && existing.account_type !== "Expense") {
+    throw new Error(`The ledger "${name}" exists as ${existing.account_type}, but a purchase price variance is an expense. Rename that ledger in Accounting > Ledgers, then post again.`);
+  }
+  let id = existing?.id;
+  if (!id) {
+    let code = 5065;
+    while (db.prepare("SELECT 1 FROM accounts WHERE company_id = ? AND account_code = ?").get(companyId, String(code))) code += 1;
+    id = Number(db.prepare(`
+      INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
+      VALUES (?, ?, ?, 'Expense', 'Debit', 0, 'active')
+    `).run(companyId, String(code), name).lastInsertRowid);
+    auditLog(db, { company_id: companyId, action: "system_ledger_created", table_name: "accounts", record_id: id, new_value: JSON.stringify({ account_code: String(code), account_name: name, reason: "Owner decision CV: purchase price variance" }) });
+  }
+  const registryReady = db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name IN ('account_groups', 'account_group_assignments')").get().n === 2;
+  if (registryReady) {
+    db.prepare(`
+      INSERT INTO account_group_assignments (company_id, account_id, account_group_id, effective_from, status, provenance, change_reason)
+      SELECT a.company_id, a.id, g.id, ?, 'active', 'SYSTEM_SEED', 'Owner decision CV: purchase price variance reported under Purchases'
+      FROM accounts a JOIN account_groups g ON g.group_code = 'PURCHASES'
+      WHERE a.id = ? AND a.account_type = g.account_type
+        AND NOT EXISTS (SELECT 1 FROM account_group_assignments existing WHERE existing.account_id = a.id)
+    `).run(DEFAULT_REPORTING_PROFILE.effectiveFrom, id);
+  }
+  return id;
 }
 
 function normalizeDuplicateKey(value) {
@@ -1559,12 +1614,10 @@ function postExpenseEntry(db, expenseId) {
   // Same formula as the profitability engine (billingService calculateProfitability),
   // which only lists expenses already posted, so it is applied here directly.
   const profit = order ? calculateProfitability(db, order) : null;
-  const billingValue = Number(profit?.billingValue || 0);
-  const gstRate = Number(profit?.gstRate || 0) / 100;
-  const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
-  let calculated = Number(expense.fixed_amount || 0);
-  if (expense.calculation_method === "percentage_gross") calculated = billingValue * (Number(expense.percentage || 0) / 100);
-  if (expense.calculation_method === "percentage_taxable") calculated = taxableValue * (Number(expense.percentage || 0) / 100);
+  const calculated = expenseFormulaAmount(expense, {
+    taxableValue: Number(profit?.billingValue || 0),
+    grossValue: Number(profit?.invoiceGrossValue || 0)
+  });
   const amount = roundMoney(Number(expense.expense_amount || 0) || calculated);
   if (amount <= 0) {
     throw new Error(`Expense ${expense.expense_head_name} (entry ${expense.id}) has no amount to post. ${String(expense.calculation_method || "").startsWith("percentage") ? "A percentage expense is calculated on the order's posted invoices; post the sales invoice first." : "Enter the expense amount on the entry, then post."}`);
@@ -1961,7 +2014,7 @@ const {
   reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn,
   mirrorStockForSource
 } = createInventoryService({
-    auditLog, activeRowClause, accountId, createBalancedVoucher,
+    auditLog, activeRowClause, accountId, createBalancedVoucher, ensurePurchasePriceVarianceAccount,
     autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData,
     reverseVoucher
   });

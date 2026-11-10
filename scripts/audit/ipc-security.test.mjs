@@ -406,9 +406,17 @@ test("SEC-1: an allowed high-impact action is recorded with the signed-in admin"
     assert.equal(row?.username, "admin", "the grant names the signed-in admin, not the id the screen sent");
     assert.match(row.new_value, /system_reset/);
   } finally { db.close(); }
-  // Channels behind the session guard record their grants too.
+  // Channels behind the session guard record their grants too, for writes only: a read
+  // (opening the mapping panel, listing users) is checked but writes no grant row.
   const mark = (() => { const side2 = side(); try { return side2.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id; } finally { side2.close(); } })();
   await call(admin, "account-mapping:registry", { company_id: 1 });
+  await call(admin, "account-mapping:coverage", { company_id: 1 });
+  await call(admin, "auth:list-users");
+  const db1 = side();
+  try {
+    assert.equal(db1.prepare("SELECT COUNT(*) c FROM audit_log WHERE id > ? AND action = 'permission_granted'").get(mark).c, 0, "reads write no grant rows");
+  } finally { db1.close(); }
+  await call(admin, "account-mapping:assign", { company_id: 1 });
   const db2 = side();
   try {
     const grant = db2.prepare("SELECT a.new_value, u.username FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.id > ? AND a.action = 'permission_granted' ORDER BY a.id LIMIT 1").get(mark);
@@ -432,4 +440,22 @@ test("SEC-1: imports, bank preview and feedback export need their permission; th
   assert.ok((await call(admin, "accounting:data", { company_id: 1 })).ok.auditLog.length > 0, "an admin does");
   const parsed = await call(deo, "imports:parse-buffer", "a.csv", new Uint8Array(Buffer.from("supplier_name\nX\n")));
   assert.deepEqual(parsed.ok, [{ supplier_name: "X" }], "byte arrays pass through the actor stamp unchanged");
+});
+
+test("605a873 round: a support bundle names the signed-in user and stays small whatever the screen sends", async () => {
+  const admin = await adminWindow();
+  const big = "x".repeat(300000);
+  const context = { user_id: 999, user_name: "forged", company_id: 1, crashes: [{ message: "kept" }] };
+  for (let i = 0; i < 10; i += 1) context[`${big}${i}`] = big;
+  const result = await call(admin, "health:support-bundle", context);
+  assert.ok(result.ok?.filePath, result.err);
+  const bundle = JSON.parse(fs.readFileSync(result.ok.filePath, "utf8"));
+  assert.ok(result.ok.size < 2 * 1024 * 1024, `bundle is ${result.ok.size} bytes`);
+  const users = side();
+  try { assert.equal(bundle.context.user_id, users.prepare("SELECT id FROM users WHERE username = 'admin'").get().id); } finally { users.close(); }
+  assert.equal(bundle.context.user_name, "admin");
+  assert.match(JSON.stringify(bundle.context.screenContext), /larger than 1 MB/);
+  const small = await call(admin, "health:support-bundle", { source: "safe_mode", crashes: [{ message: "kept" }] });
+  const kept = JSON.parse(fs.readFileSync(small.ok.filePath, "utf8"));
+  assert.equal(kept.context.screenContext.crashes[0].message, "kept", "Safe Mode's crash list is still in the bundle");
 });

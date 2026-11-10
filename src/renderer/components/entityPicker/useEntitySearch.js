@@ -20,6 +20,7 @@ export function useEntitySearch(api, entityType, options = {}) {
     // so the input, the results and the next page all use the same term.
     if (!append) {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
       setQuery(String(searchTerm ?? ""));
     }
 
@@ -51,12 +52,14 @@ export function useEntitySearch(api, entityType, options = {}) {
     setQuery(value);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
+      debounceTimer.current = null;
       search(value, { limit: 50, offset: 0 });
     }, 150);
   }, [search]);
 
   const loadMore = useCallback(() => {
-    if (loading || !hasMore) return;
+    // While a typed search is still waiting to run, the list belongs to the old term.
+    if (loading || !hasMore || debounceTimer.current) return;
     search(query, { append: true, limit: 50, offset: results.length });
   }, [loading, hasMore, search, query, results.length]);
 
