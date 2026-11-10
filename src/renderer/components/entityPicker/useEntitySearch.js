@@ -20,6 +20,7 @@ export function useEntitySearch(api, entityType, options = {}) {
     // so the input, the results and the next page all use the same term.
     if (!append) {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
       setQuery(String(searchTerm ?? ""));
     }
 

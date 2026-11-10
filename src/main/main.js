@@ -191,12 +191,14 @@ function firstPayload(args) {
 }
 
 // Context for health records (support bundle, verification snapshot). They name the
-// signed-in user, never one the screen supplies, and keep only small plain values from
-// the screen, so a screen cannot write large or forged entries into them.
+// signed-in user, never one the screen supplies, and keep only the company fields the
+// health code reads, cut to a small size, so a screen cannot write large or forged entries.
 function signedInHealthContext(context) {
+  // Only the fields the health code reads are kept.
   const plain = {};
   if (context && typeof context === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(context))) {
-    for (const [key, value] of Object.entries(context).slice(0, 50)) {
+    for (const key of ["company_id", "companyId", "company_name", "company_scope"]) {
+      const value = context[key];
       if (["string", "number", "boolean"].includes(typeof value) || value === null) plain[key] = typeof value === "string" ? value.slice(0, 200) : value;
     }
   }
@@ -208,6 +210,18 @@ function signedInHealthContext(context) {
     role: actor?.role || "", userRole: undefined,
     dbName: DB_NAME
   };
+}
+
+// What the screen sends for a support bundle (Safe Mode's crash list, the checks it saw),
+// kept for support but without user fields and within 1 MB, so a call cannot fill the disk.
+const MAX_SCREEN_CONTEXT_BYTES = 1024 * 1024;
+function boundedScreenContext(context) {
+  if (!context || typeof context !== "object") return null;
+  const { user_id, userId, user_name, userName, role, userRole, ...rest } = context;
+  let text;
+  try { text = JSON.stringify(rest); } catch { return { omitted: "The screen's details could not be read." }; }
+  if (!text || Buffer.byteLength(text, "utf8") > MAX_SCREEN_CONTEXT_BYTES) return { omitted: "The screen's details were larger than 1 MB and were left out." };
+  return JSON.parse(text);
 }
 
 // The audit trail is a report; roles without report access do not receive it. Admins
@@ -333,7 +347,9 @@ function guarded(permission, moduleName, handler) {
       user_id: session.user_id
     });
     const safeArgs = args.map((arg) => withActor(arg, user));
-    recordGrant(user, permission, moduleName, payload);
+    // The grant row takes its company from the first argument only, so an extra argument
+    // from a screen cannot set the company recorded in the audit trail.
+    recordGrant(user, permission, moduleName, firstPayload(args.slice(0, 1)));
     return runAsActor(user, () => handler(...safeArgs));
   };
 }
@@ -1176,7 +1192,7 @@ function registerIpc() {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME, verifyAuditChain });
   });
   handle("health:support-bundle", (_event, context) => {
-    const healthContext = signedInHealthContext(context);
+    const healthContext = { ...signedInHealthContext(context), screenContext: boundedScreenContext(context) };
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);

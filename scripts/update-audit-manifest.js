@@ -22,8 +22,15 @@ export function archiveFiles(base = root) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // Files already listed keep their recorded checksum: a changed or removed report is
   // refused, so this script can only add new reports, never bless an edit to an old one.
+  // A missing or unreadable manifest is refused too (it would make every report look new),
+  // unless --init is given to build the first one.
   let previous = [];
-  try { previous = JSON.parse(readFileSync(join(root, folder, "manifest.json"), "utf8")).entries || []; } catch { previous = []; }
+  try { previous = JSON.parse(readFileSync(join(root, folder, "manifest.json"), "utf8")).entries || []; } catch (error) {
+    if (!process.argv.includes("--init")) {
+      console.error(`Refused: ${folder}/manifest.json could not be read (${error.message}). Restore it from git; use --init only to build the first manifest.`);
+      process.exit(1);
+    }
+  }
   const recorded = new Map(previous.map((entry) => [entry.path, entry]));
   const entries = archiveFiles().map((path) => {
     const bytes = readFileSync(join(root, path));

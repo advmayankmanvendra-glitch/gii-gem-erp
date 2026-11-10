@@ -12,6 +12,7 @@ export const app = {
   setPath: noop,
   getPath: () => process.env.GII_GEM_ERP_DATA_ROOT,
   getVersion: () => "0.0.0-test",
+  getName: () => "gii-gem-erp-test",
   getAppPath: () => process.cwd(),
   requestSingleInstanceLock: () => true,
   on: noop,

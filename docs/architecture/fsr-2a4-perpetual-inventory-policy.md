@@ -70,27 +70,20 @@ Dr Inventory                          (return quantity × WAC)
 - Rate from current WAC at time of return
 - Source table: `stock_returns` with return_type = 'Department'
 
-### 6. Supplier Return — Before Invoice (GRNI uncleared)
+### 6. Supplier Return (updated 10 Nov 2026 IST, owner decision CV)
 
 ```
-Dr Goods Received Not Invoiced        (return quantity × WAC)
+Dr Goods Received Not Invoiced        (unbilled quantity × supplier's unbilled receipt price)
+Dr Trade Payables                     (billed quantity × supplier's billed receipt price)
+Dr/Cr Purchase Price Variance         (the gap to average cost; Dr when stock cost more)
     Cr Inventory                      (return quantity × WAC)
 ```
 
-- Reverses the original stock inward
-- Rate from current WAC at time of return
-- Source table: `stock_returns` with return_type = 'Supplier'
-
-### 6a. Supplier Return — After Invoice (GRNI cleared)
-
-```
-Dr Trade Payables                     (return quantity × WAC)
-    Cr Inventory                      (return quantity × WAC)
-```
-
-- Used when company-level GRNI balance >= 0 (i.e., GRNI has been cleared by invoice)
-- Reverses the original stock inward through Trade Payables
-- Rate from current WAC at time of return
+- The return is judged per item, supplier and order (owner decision C2: no link to a single receipt).
+- GRNI is cleared first, for the quantity of this supplier's receipts that no posted bill covers yet, less what earlier returns already cleared. The rest of the quantity comes off Trade Payables at the supplier's billed receipt price; with no billed receipt, at WAC.
+- Stock always leaves at WAC. The difference between WAC and the supplier's own price goes to the **Purchase Price Variance** ledger (reported under Purchases; created per company, first free code from 5065).
+- A return with no supplier clears GRNI while the company's GRNI balance is not yet cleared, else Trade Payables, at WAC, with no variance.
+- The return itself reduces Trade Payables for the billed part. **Do not also post a Debit Note for the same goods**, or the payable is reduced twice.
 - Source table: `stock_returns` with return_type = 'Supplier'
 
 ### 7. Stock Adjustment — Increase
