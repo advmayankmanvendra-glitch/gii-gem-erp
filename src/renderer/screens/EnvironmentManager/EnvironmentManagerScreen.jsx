@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
 
 const ENVIRONMENT_TYPES = ["Development", "Testing", "Training", "Production", "Migration"];
@@ -194,6 +194,12 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   const resetCompanyMissing = !companyContext?.company_id;
   const resetCompanyMessage = "Select one company in the company switcher (top bar) first. A reset clears one company at a time, and the All Companies view has no single company to clear.";
   const resetPreviewPayload = () => ({ company_id: companyContext?.company_id });
+  // The company selected right now. A preview answer that arrives after a company
+  // switch belongs to the old company and is thrown away.
+  const currentCompanyRef = useRef(companyContext?.company_id);
+  currentCompanyRef.current = companyContext?.company_id;
+  const isStaleFor = (requestedCompanyId) => String(requestedCompanyId || "") !== String(currentCompanyRef.current || "");
+  const previewMatchesCompany = Boolean(resetPreview?.company?.id) && String(resetPreview.company.id) === String(companyContext?.company_id || "");
 
   const handlePreview = async () => {
     if (resetCompanyMissing) {
@@ -205,7 +211,9 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
     setResetResult(null);
     setResetError(null);
     try {
-      const result = await apiClient.previewReset(resetPreviewPayload());
+      const requested = resetPreviewPayload();
+      const result = await apiClient.previewReset(requested);
+      if (isStaleFor(requested.company_id)) return;
       setResetPreview(result);
     } catch (error) {
       setResetError(error.message || "Preview failed");
@@ -215,12 +223,12 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   };
 
   const handleExecute = async () => {
-    if (resetConfirm !== "RESET") return;
+    if (resetConfirm !== "RESET" || !previewMatchesCompany) return;
     setResetStep("executing");
     setResetLoading(true);
     setResetError(null);
     try {
-      const result = await apiClient.executeReset({ company_id: resetPreview?.company?.id || companyContext?.company_id, confirm_text: resetConfirm });
+      const result = await apiClient.executeReset({ company_id: resetPreview.company.id, confirm_text: resetConfirm });
       setResetResult(result);
       setResetPreview(null);
       setResetConfirm("");
@@ -278,7 +286,9 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
         setResetStep("blocked");
       } else {
         setResetStep("preview");
-        const preview = await apiClient.previewReset(resetPreviewPayload());
+        const requested = resetPreviewPayload();
+        const preview = await apiClient.previewReset(requested);
+        if (isStaleFor(requested.company_id)) return;
         setResetPreview(preview);
       }
     } catch (error) {
@@ -290,12 +300,12 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   };
 
   const handleEnhancedExecute = async () => {
-    if (resetConfirm !== "RESET") return;
+    if (resetConfirm !== "RESET" || !previewMatchesCompany) return;
     setResetStep("executing");
     setResetLoading(true);
     setResetError(null);
     try {
-      const resetPayload = { company_id: resetPreview?.company?.id || companyContext?.company_id, confirm_text: resetConfirm };
+      const resetPayload = { company_id: resetPreview.company.id, confirm_text: resetConfirm };
       const result = await apiClient.executeEnhancedReset?.(resetPayload) || await apiClient.executeReset(resetPayload);
       setResetResult(result);
       setResetZeroState(result.zeroState);
@@ -344,7 +354,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   // so start the workflow again.
   const previewCompanyId = resetPreview?.company?.id;
   useEffect(() => {
-    if (previewCompanyId && ["preview", "dependencies", "warning", "backup"].includes(resetStep) && String(previewCompanyId) !== String(companyContext?.company_id || "")) {
+    if (["preview", "dependencies", "warning", "backup"].includes(resetStep) && (!previewCompanyId || String(previewCompanyId) !== String(companyContext?.company_id || ""))) {
       handleResetComplete();
       setResetError("The company was changed, so the reset was started again. Preview the newly selected company first.");
     }
@@ -811,7 +821,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
                   type="button"
                   className="danger-btn"
                   onClick={handleEnhancedExecute}
-                  disabled={resetConfirm !== "RESET" || resetLoading || resetPreview?.blockingReferences?.length > 0 || resetPreview?.unclassifiedTables?.length > 0}
+                  disabled={resetConfirm !== "RESET" || resetLoading || resetPreview?.blockingReferences?.length > 0 || resetPreview?.unclassifiedTables?.length > 0 || !previewMatchesCompany}
                 >
                   {resetLoading ? "Executing..." : "Execute Reset"}
                 </button>

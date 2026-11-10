@@ -430,8 +430,10 @@ function findLatestUpdateInstaller(updateFolder, manifest) {
     const named = fs.existsSync(installerPath)
       ? { fileName, installerPath, version: parseUpdateVersion(fileName), source: "manifest" }
       : { fileName, installerPath: "", version: parseUpdateVersion(fileName), source: "manifest", missing: true };
-    // An old latest.json must not hide a newer Setup installer copied in later.
-    if (folderBest && (named.missing || !named.version || compareUpdateVersions(folderBest.version, named.version) > 0)) return folderBest;
+    // Only a Setup installer can update the app, and an old latest.json must not
+    // hide a newer Setup installer copied in later.
+    const namedIsSetup = /^GII-GeM-ERP-Setup-.+-x64\.exe$/i.test(fileName);
+    if (folderBest && (!namedIsSetup || named.missing || !named.version || compareUpdateVersions(folderBest.version, named.version) > 0)) return folderBest;
     return named;
   }
   return folderBest;
@@ -1386,7 +1388,8 @@ function registerIpc() {
   }));
 
   handle("reset:analyze-dependencies", (_event, payload = {}) => {
-    return analyzeDependencies(db, Number(payload?.company_id || 0) || null);
+    const companyId = Number(payload?.company_id || 0);
+    return analyzeDependencies(db, Number.isSafeInteger(companyId) && companyId > 0 ? companyId : null);
   });
 
   handle("reset:execute-enhanced", guarded("system_reset", "operational_reset", (payload = {}) => {

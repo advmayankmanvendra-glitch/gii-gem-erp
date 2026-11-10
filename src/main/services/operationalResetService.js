@@ -77,10 +77,10 @@ const YEAR_END_TABLES = ["carry_forward_entries", "year_end_closings"];
 // orders a reset deletes are cleared instead, so the records stay and the foreign
 // key check passes.
 const UNLINK_ON_RESET = [
-  { table: "quotations", column: "supply_order_id", set: "supply_order_id = NULL" },
-  { table: "negotiations", column: "supply_order_id", set: "supply_order_id = NULL" },
+  { table: "quotations", column: "supply_order_id", parent: "supply_orders", set: "supply_order_id = NULL" },
+  { table: "negotiations", column: "supply_order_id", parent: "supply_orders", set: "supply_order_id = NULL" },
   // A purchase order whose work order is gone can be converted again.
-  { table: "purchase_orders", column: "work_order_id", set: "work_order_id = NULL, converted_to_work_order = 0, status = CASE WHEN status = 'converted' THEN 'draft' ELSE status END" }
+  { table: "purchase_orders", column: "work_order_id", parent: "supply_orders", set: "work_order_id = NULL, converted_to_work_order = 0, status = CASE WHEN status = 'converted' THEN 'draft' ELSE status END" }
 ];
 
 // Rows that will SURVIVE a reset of this company but point at rows it deletes
@@ -107,7 +107,7 @@ export function blockingReferences(db, companyId) {
       if (cleared.has(table)) {
         if (table === "voucher_lines") survives.push(`voucher_id NOT IN (SELECT id FROM "vouchers" WHERE company_id = ${id})`);
         else if (hasCompany(table)) survives.push(`(company_id IS NULL OR company_id <> ${id})`);
-      } else if (UNLINK_ON_RESET.some((u) => u.table === table && u.column === fk.from) && hasCompany(table)) {
+      } else if (UNLINK_ON_RESET.some((u) => u.table === table && u.column === fk.from && u.parent === fk.table) && hasCompany(table)) {
         survives.push(`(company_id IS NULL OR company_id <> ${id})`);
       }
       const where = [`"${fk.from}" IN (${deletedRows(fk.table)})`, ...survives].join(" AND ");
@@ -404,10 +404,10 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   const existingIssues = new Set(db.prepare("PRAGMA foreign_key_check").all().map(issueKey));
   runWithForeignKeysDisabled(db, () => {
     db.transaction(() => {
-      UNLINK_ON_RESET.forEach(({ table, column, set }) => {
+      UNLINK_ON_RESET.forEach(({ table, column, parent, set }) => {
         if (!tables.has(table)) return;
         // Runs before the orders are deleted. Only links to this company's orders are cleared; a link to another company's order stays.
-        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND "${column}" IN (SELECT id FROM supply_orders WHERE company_id = ?)`).run(company.id, company.id);
+        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND "${column}" IN (SELECT id FROM "${parent}" WHERE company_id = ?)`).run(company.id, company.id);
       });
       // Children first, while their parents still exist to identify the company.
       Object.entries(CHILD_TABLE_PARENTS).forEach(([table, rule]) => {
