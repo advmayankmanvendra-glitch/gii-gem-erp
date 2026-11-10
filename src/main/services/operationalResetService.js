@@ -11,7 +11,9 @@ const PRESERVED_TABLES = new Set([
   "architecture_documents", "audit_log", "import_templates",
   // Import history has no company column, so it cannot be cleared for one company.
   "import_batches", "import_batch_records",
-  "account_group_assignments", "feedback_log"
+  "account_group_assignments", "feedback_log",
+  // Pre-sales pipeline: kept, with its links to deleted orders cleared (UNLINK_ON_RESET).
+  "leads", "requirement_queries", "quotations", "negotiations", "purchase_orders"
 ]);
 
 const RESET_TABLES = [
@@ -59,15 +61,10 @@ const RESET_TABLES = [
   { table: "supplier_advances", module: "Payables" },
   { table: "allocation_audit", module: "Receivables" },
   { table: "approval_queue", module: "Approvals" },
-  // Pre-sales and follow-up records point at supply orders, delivery challans and
-  // vouchers. If they stayed behind, the foreign key check refused the whole reset.
+  // Order follow-ups point at supply orders and delivery challans. If they stayed
+  // behind, the foreign key check refused the whole reset.
   { table: "installations", module: "Operations" },
   { table: "procurement_plans", module: "Procurement" },
-  { table: "purchase_orders", module: "CRM" },
-  { table: "negotiations", module: "CRM" },
-  { table: "quotations", module: "CRM" },
-  { table: "requirement_queries", module: "CRM" },
-  { table: "leads", module: "CRM" },
   // Opening balances are posted together with their own opening voucher, which the
   // reset removes with every other voucher.
   { table: "opening_balances", module: "Accounting" }
@@ -75,6 +72,16 @@ const RESET_TABLES = [
 
 // Year-end records are removed with the transactions; they are not listed in the preview.
 const YEAR_END_TABLES = ["carry_forward_entries", "year_end_closings"];
+
+// The pre-sales pipeline (leads to purchase orders) is kept. Its links to the
+// orders a reset deletes are cleared instead, so the records stay and the foreign
+// key check passes.
+const UNLINK_ON_RESET = [
+  { table: "quotations", set: "supply_order_id = NULL" },
+  { table: "negotiations", set: "supply_order_id = NULL" },
+  { table: "purchase_orders", set: "work_order_id = NULL, converted_to_work_order = 0" }
+];
+
 
 // Every table with a company column must be either cleared or kept on purpose.
 // A new table that is neither is reported, so a reset can never silently skip it.
@@ -122,6 +129,7 @@ export function previewReset(db, companyId = null) {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
   const id = Number(companyId || 0) || null;
   const company = id ? db.prepare("SELECT id, company_name FROM companies WHERE id = ?").get(id) : null;
+  if (id && !company) throw new OperationalResetError(`Preview refused: company #${id} does not exist. Select a valid company and retry.`);
   const counts = [];
   let totalOperational = 0;
   for (const { table, module } of RESET_TABLES) {
@@ -227,7 +235,10 @@ export function rebuildZeroState(db, companyId = null) {
     { key: "invoices", label: "Invoices", table: "invoices" },
     { key: "procurements", label: "Procurements", table: "procurements" },
     { key: "supplyOrders", label: "Supply orders", table: "supply_orders" },
-    { key: "orderItems", label: "Order items", table: "order_items" }
+    { key: "orderItems", label: "Order items", table: "order_items" },
+    { key: "openingBalances", label: "Opening balances", table: "opening_balances" },
+    { key: "installations", label: "Installations", table: "installations" },
+    { key: "procurementPlans", label: "Procurement plans", table: "procurement_plans" }
   ];
 
   for (const check of zeroChecks) {
@@ -307,6 +318,10 @@ function companyRowCount(db, table, companyId) {
 function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, module = "operational_reset" } = {}) {
   const company = resolveResetCompany(db, companyId);
   assertResetConfirmation(company, confirmText);
+  const unclassified = unclassifiedCompanyTables(db);
+  if (unclassified.length) {
+    throw new OperationalResetError(`Reset refused: these tables hold company data but the reset does not know whether to clear or keep them: ${unclassified.join(", ")}. Nothing was changed. Report this so the reset can be updated.`);
+  }
   const backup = createBackup(runtimeRoot, db, "pre_reset");
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name));
   const before = [];
@@ -332,6 +347,10 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
         if (!cols.includes("company_id")) continue;
         db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       }
+      UNLINK_ON_RESET.forEach(({ table, set }) => {
+        if (!tables.has(table)) return;
+        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ?`).run(company.id);
+      });
       YEAR_END_TABLES.forEach((table) => {
         if (tables.has(table)) db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       });

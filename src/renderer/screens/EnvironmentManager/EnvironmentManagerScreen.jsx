@@ -784,7 +784,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
 
             <div className="reset-confirm-section" style={{ marginTop: 12 }}>
               <p className="reset-warning">
-                This removes every transaction of <strong>{companyContext?.company_name || "the selected company"}</strong> only (masters, users and chart of accounts are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
+                This removes every transaction of <strong>{companyContext?.company_name || "the selected company"}</strong> only, including posted opening balances (masters, users, chart of accounts and the leads-to-purchase-order pipeline are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
               </p>
               <input
                 type="text"

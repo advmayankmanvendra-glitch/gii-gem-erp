@@ -48,8 +48,8 @@ export function checkGoLivePreconditions(db, runtimeRoot, currentEnv, companyId 
   return { allPassed, issues };
 }
 
-export function previewGoLiveReset(db, runtimeRoot) {
-  const preview = previewReset(db);
+export function previewGoLiveReset(db, runtimeRoot, companyId = null) {
+  const preview = previewReset(db, companyId);
   const deps = analyzeDependencies(db);
   return { preview, dependencies: deps };
 }

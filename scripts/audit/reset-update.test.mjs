@@ -50,7 +50,7 @@ function secondCompany(db) {
   return insert(db, "companies", { company_name: "Second Test Co" });
 }
 
-test("a reset clears a company whose order is linked from CRM records and a posted opening balance", () => {
+test("a reset clears a company whose order is linked from pipeline records and a posted opening balance", () => {
   const root = freshRoot();
   let db = m.initializeDatabase(root);
   handles.push(db);
@@ -67,10 +67,17 @@ test("a reset clears a company whose order is linked from CRM records and a post
   assert.equal(result.after.totalOperational, 0);
   assert.equal(result.before.totalOperational, preview.totalOperational, "the preview counts exactly the rows the reset clears");
   assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
-  for (const table of ["vouchers", "voucher_lines", "ledger_entries", "supply_orders", "purchase_orders", "quotations", "negotiations", "installations", "procurement_plans", "requirement_queries", "leads", "opening_balances"]) {
+  for (const table of ["vouchers", "voucher_lines", "ledger_entries", "supply_orders", "installations", "procurement_plans", "opening_balances"]) {
     const where = table === "voucher_lines" ? "voucher_id IN (SELECT id FROM vouchers WHERE company_id = 1)" : "company_id = 1";
     assert.equal(db.prepare(`SELECT COUNT(*) c FROM ${table} WHERE ${where}`).get().c, 0, `${table} is empty after the reset`);
   }
+
+  // The pre-sales pipeline is kept, with its links to the deleted orders cleared.
+  for (const table of ["leads", "requirement_queries", "quotations", "negotiations", "purchase_orders"]) {
+    assert.equal(db.prepare(`SELECT COUNT(*) c FROM ${table} WHERE company_id = 1`).get().c, 1, `${table} is kept`);
+  }
+  assert.deepEqual(db.prepare("SELECT work_order_id, converted_to_work_order FROM purchase_orders WHERE company_id = 1").get(), { work_order_id: null, converted_to_work_order: 0 });
+  assert.equal(db.prepare("SELECT supply_order_id FROM quotations WHERE company_id = 1").get().supply_order_id, null);
 
   // The reset survives a restart (the app reopens the database after a reset).
   db.close();
@@ -87,18 +94,45 @@ test("a reset leaves every other company untouched", () => {
   const other = secondCompany(db);
   const order = db.prepare("SELECT * FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get();
   const { id: _id, order_number: _n, ...copy } = order;
-  insert(db, "supply_orders", { ...copy, company_id: other, order_number: "OTHER-1" });
+  const otherOrder = insert(db, "supply_orders", { ...copy, company_id: other, order_number: "OTHER-1" });
+  insert(db, "procurement_plans", { company_id: other, plan_number: "PP-other", plan_date: "2026-04-05", order_id: otherOrder });
   insert(db, "leads", { company_id: other, lead_number: "L-other", title: "Other lead" });
   const before = reset.previewReset(db, other).totalOperational;
   assert.ok(before >= 2);
   reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
   assert.equal(reset.previewReset(db, other).totalOperational, before);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM leads WHERE company_id = ?").get(other).c, 1);
 });
 
 test("every table with a company column is either cleared or kept on purpose", () => {
   const db = m.initializeDatabase(freshRoot());
   handles.push(db);
   assert.deepEqual(reset.unclassifiedCompanyTables(db), []);
+});
+
+test("every table the reset clears can be scoped to one company", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  const preview = reset.previewReset(db, 1);
+  for (const { table } of preview.operational) {
+    const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map((c) => c.name);
+    assert.ok(cols.includes("company_id") || table === "voucher_lines", `${table} has a company column or a parent mapping`);
+  }
+});
+
+test("a reset refuses when a company table is neither cleared nor kept", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  db.exec("CREATE TABLE future_things (id INTEGER PRIMARY KEY, company_id INTEGER)");
+  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /future_things/);
+  assert.ok(db.prepare("SELECT COUNT(*) c FROM supply_orders WHERE company_id = 1").get().c > 0, "nothing was cleared");
+});
+
+test("a preview for a company that does not exist is refused", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  assert.throws(() => reset.previewReset(db, 999), /does not exist/);
 });
 
 test("the preview in the All Companies view says it covers every company", () => {

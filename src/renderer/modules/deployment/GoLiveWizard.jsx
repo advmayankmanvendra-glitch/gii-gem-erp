@@ -100,7 +100,7 @@ function GoLiveWizard({ apiClient, companyContext }) {
   const step3CreateBackup = async () => {
     setLoading(true);
     try {
-      const preview = await apiClient.previewGoLive();
+      const preview = await apiClient.previewGoLive({ company_id: companyContext?.company_id });
       setPreviewData(preview);
       const result = await apiClient.executeGoLive({ company_id: companyContext?.company_id, confirm_text: confirmText });
       setBackupInfo(result.backup);
@@ -273,7 +273,7 @@ function GoLiveWizard({ apiClient, companyContext }) {
         <section className="panel" style={{ padding: "var(--spacing-md)", marginBottom: "var(--spacing-sm)" }}>
           <h3 style={{ margin: "0 0 var(--spacing-sm)", fontSize: "0.9rem" }}>Step 2: Final Confirmation</h3>
           <p style={{ fontSize: "0.85rem", marginBottom: "var(--spacing-sm)" }}>
-            You are about to initialize GII GeM ERP for production. The following will be removed: operational transactions, demo vouchers, demo invoices, demo payments, demo stock movements, demo allocations, demo imports. The following will be preserved: companies, ledgers, chart of accounts, suppliers, departments, items, banks, users, financial years, configuration.
+            You are about to initialize GII GeM ERP for production. The following will be removed for the selected company: all vouchers, invoices, payments, stock movements, allocations, supply orders, installations, procurement plans and posted opening balances (re-enter opening balances after go-live). The following will be preserved: companies, ledgers, chart of accounts, suppliers, departments, items, banks, users, financial years, configuration, import history, and the leads-to-purchase-order pipeline (its links to deleted orders are cleared).
           </p>
           <p style={{ fontSize: "0.85rem", fontWeight: 600 }}>Type <code>GO-LIVE</code> to confirm:</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

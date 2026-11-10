@@ -427,8 +427,8 @@ function findLatestUpdateInstaller(updateFolder, manifest) {
     const fileName = path.basename(manifestFileName);
     const installerPath = path.join(updateFolder, fileName);
     return fs.existsSync(installerPath)
-      ? { fileName, installerPath, version: manifest.version || parseUpdateVersion(fileName), source: "manifest" }
-      : { fileName, installerPath: "", version: manifest.version || parseUpdateVersion(fileName), source: "manifest", missing: true };
+      ? { fileName, installerPath, version: parseUpdateVersion(fileName), source: "manifest" }
+      : { fileName, installerPath: "", version: parseUpdateVersion(fileName), source: "manifest", missing: true };
   }
 
   const candidates = fs.readdirSync(updateFolder)
@@ -457,7 +457,15 @@ function getUpdateStatus() {
   const manifest = safeReadUpdateManifest(manifestPath);
   const candidate = findLatestUpdateInstaller(updateFolder, manifest?.error ? null : manifest);
   const currentVersion = app.getVersion();
-  const latestVersion = manifest?.version || candidate?.version || "";
+  // The installer's own file name is the one version source for both the status and
+  // the install, so latest.json cannot make an old or renamed EXE look newer.
+  const latestVersion = candidate?.version || "";
+  const manifestMismatch = manifest?.version && candidate?.version && compareUpdateVersions(manifest.version, candidate.version) !== 0
+    ? `latest.json says ${manifest.version} but the installer file name says ${candidate.version}; the file name is used.`
+    : "";
+  const unnamedInstaller = candidate?.fileName && !candidate.version
+    ? `${candidate.fileName} is not named GII-GeM-ERP-Setup-<version>-x64.exe, so it is not offered as an update.`
+    : "";
   const comparison = latestVersion ? compareUpdateVersions(latestVersion, currentVersion) : null;
   return {
     currentVersion,
@@ -473,7 +481,7 @@ function getUpdateStatus() {
     installerFileName: candidate?.fileName || "",
     installerPath: candidate?.installerPath || "",
     installerMissing: Boolean(candidate?.missing),
-    manifestError: manifest?.error || "",
+    manifestError: manifest?.error || unnamedInstaller || manifestMismatch || "",
     source: candidate?.source || "none"
   };
 }
@@ -1204,13 +1212,16 @@ function registerIpc() {
       throw new Error("This is a portable EXE. It runs on its own and does not update the installed ERP. Put the GII-GeM-ERP-Setup-<version>-x64.exe installer in the update folder instead.");
     }
     const selectedVersion = parseUpdateVersion(path.basename(selectedInstaller));
-    if (selectedVersion && compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
+    if (!selectedVersion || !/^GII-GeM-ERP-Setup-/i.test(path.basename(selectedInstaller))) {
+      throw new Error("Only an installer named GII-GeM-ERP-Setup-<version>-x64.exe can be installed, so its version can be checked. Rename or replace the file and try again. Nothing was started.");
+    }
+    if (compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
       throw new Error(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
     }
     // Back up the books before anything is replaced, then hand over to the installer.
     const backup = await createLiveBackup(db, runtimeDataRoot);
-    auditLog(db, { action: "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), fromVersion: app.getVersion(), backup: backup?.fileName || null }) });
     const failureReason = await shell.openPath(selectedInstaller);
+    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, failure: failureReason || null }) });
     if (failureReason) throw new Error(failureReason);
     // The installer cannot replace the program files or the database while the ERP
     // is still running, so close it. The window's close handler asks "exit?" and
@@ -1314,8 +1325,8 @@ function registerIpc() {
     return checkGoLivePreconditions(db, runtimeDataRoot, envConfig?.environment || "development", Number(payload?.company_id || 0) || null);
   });
 
-  handle("go-live:preview", () => {
-    return previewGoLive(db, runtimeDataRoot);
+  handle("go-live:preview", (_event, payload = {}) => {
+    return previewGoLive(db, runtimeDataRoot, Number(payload?.company_id || 0) || null);
   });
 
   handle("go-live:execute", guarded("system_reset", "go_live", (payload = {}) => {

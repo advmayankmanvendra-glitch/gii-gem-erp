@@ -162,7 +162,7 @@ const api = {
   executeEnhancedReset: (payload) => ipcRenderer.invoke("reset:execute-enhanced", payload && typeof payload === "object" ? payload : {}),
   rollbackReset: (backup) => ipcRenderer.invoke("reset:rollback", { backup }),
   checkGoLivePreconditions: (payload) => ipcRenderer.invoke("go-live:preconditions", payload),
-  previewGoLive: () => ipcRenderer.invoke("go-live:preview"),
+  previewGoLive: (payload) => ipcRenderer.invoke("go-live:preview", payload && typeof payload === "object" ? payload : {}),
   executeGoLive: (payload) => ipcRenderer.invoke("go-live:execute", payload && typeof payload === "object" ? payload : {}),
   verifyGoLive: (goLiveId) => ipcRenderer.invoke("go-live:verify", { goLiveId }),
   completeGoLive: (goLiveId, verification) => ipcRenderer.invoke("go-live:complete", { goLiveId, verification }),
