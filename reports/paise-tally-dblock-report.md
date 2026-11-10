@@ -29,8 +29,9 @@ Approved by the owner on 29 Oct 2026: "All approved for this fixing" (covers the
 
 - New table `ledger_maintenance` (maintenance window for trusted repair code; rows live only inside one transaction). Registered in the database graph (DG-1, 74 tables). Only `ledgerGuards.js` writes it; a test enforces that.
 - 11 triggers `trg_ledger_guard_*`, dropped before migrations and recreated at the end of every start, so a changed rule reaches every existing database and a tampered trigger is replaced.
-- 4 indexes for the trigger lookups: voucher lines by voucher, ledger entries by voucher, ledger entries by company and account, and vouchers by source (to find a voucher's corrections).
-- Start-up counts unbalanced or mismatched posted vouchers before and after the work it does with the guards off (migrations, seeding). A rise is written to the audit log as `ledger_startup_check_failed`; start-up is not refused, so the books can still be opened and corrected.
+- 5 indexes for the trigger lookups: voucher lines by voucher, ledger entries by voucher, ledger entries by company and account, ledger entries by voucher line, and vouchers by source (to find a voucher's corrections).
+- Start-up counts unbalanced or mismatched posted vouchers before and after the work it does with the guards off (migrations, seeding), in one grouped pass that needs no index. A rise is written to the audit log as `ledger_startup_check_failed` and shown in Health Center; start-up is not refused, so the books can still be opened and corrected. A database that does not yet have the paise columns cannot be counted before its upgrade, so the comparison starts from the next start.
+- Any other trigger on the ledger tables is removed at start-up and logged (`ledger_unexpected_triggers_removed`); while the app runs, the money integrity check reports one.
 - A "Rounding Off" account per company (reuses an existing one; otherwise the first free code from 5180 upward, so it never takes over an existing 5180).
 - No existing row is changed by this work. Migration 036 (from PR #4) backfills the paise columns.
 
@@ -38,10 +39,10 @@ Approved by the owner on 29 Oct 2026: "All approved for this fixing" (covers the
 
 | Channel | Permission | Purpose |
 |---|---|---|
-| `money:integrity` | view_reports | Money integrity report (trial balance in paise, unbalanced vouchers, line/ledger mismatches, rupee/paise mismatches, sub-paisa legacy amounts, missing guards) |
+| `money:integrity` | any signed-in user | Money integrity report (trial balance in paise, unbalanced vouchers, line/ledger mismatches, rupee/paise mismatches, sub-paisa legacy amounts, missing or unexpected guards, open maintenance windows, drafts holding ledger entries) |
 | `money:rounding-adjustment` | post | Posts one rounding adjustment for a named older voucher |
 
-Both are bound to the signed-in session; a viewer is refused (`scripts/audit/ipc-security.test.mjs`).
+Both need a signed-in session. Any signed-in user can run the check, like the other Health Center checks; a viewer is refused the rounding adjustment (`scripts/audit/ipc-security.test.mjs`).
 
 ## Proof
 
@@ -106,6 +107,27 @@ The three own audits on the new head found, and this round fixed with tests:
 Left as it is: the supplier payable SQL still adds REAL rupee columns, because the procurement, allocation and advance tables have no paise columns yet. That is a separate change.
 
 After the fixes: `npm run test:integrity` 132 + 20 tests pass; all 2 lakh amounts posted again with trial balance difference 0.00 and 0 problems; an older-format database (made with the base `219b2d3`, with a voucher off by one paisa) was upgraded on a copy with all 11 guards and 4 indexes in place, settled by `RNDADJ-00001`, trial balance 0.00, and no start-up audit row on a second start; in the desktop app at 1440×900 and 800×600, Health Center showed the result and, with a stray maintenance row, the warning that protection is switched off. Evidence in project files `audits/2026-10-29-paise-proof/` (`full-run-round2.log`, `rehearsal-on-copy-round2.json`, `smoke-round2/`).
+
+## Round 3 (10 Nov 2026 IST): own audits on 2b0f979 and Copilot's first review
+
+PR #4's head `a97daf4` was merged in first; the two conflicts were import lines only.
+
+Copilot reviewed for the first time and raised eight findings; the three own audits raised the rest. All were fixed with tests:
+
+- **Posting now checks each ledger entry against its line.** Every line must have exactly one ledger entry with the same account and amounts, in the voucher's company, and every line's account must belong to that company. Before, only the totals were compared.
+- **Paise must be whole numbers.** SQLite would store 0.5 in an integer column; posting now refuses it.
+- **Corrections are stricter.** A rounding adjustment must be one line on the company's Rounding Off ledger; a one-sided reversal must mirror the original line for line. Lines and ledger must agree on debit and credit totals separately, not only on the net difference.
+- **Maintenance windows stay inside their company.** A window for one company can no longer move a posted voucher to another company, or add or move ledger entries onto another company's voucher; the same-company rule for entries holds even inside a window.
+- **A trigger the app did not create on the ledger tables** is removed at start-up and logged, and the money integrity check reports one found while the app runs.
+- **Unposted vouchers holding ledger entries** are reported by the integrity check, since some reports read entries without checking the voucher's status.
+- **Start-up check.** The count is one grouped pass that needs no index (20,000 vouchers: well under a second, where the first version took about a minute on an older database), it only hides a "no such column" error, it does not compare on the start that runs migration 036 (which can uncover older defects), and a failure shows in Health Center.
+- **Integrity report.** It now lists vouchers whose entries do not match their lines, and a stored amount with a fraction of a paisa counts as harmless only when it rounds to its paise value. The Error Console's voucher check also flags lines that disagree with the ledger, so it agrees with the integrity check.
+- **Stock.** A receipt worth less than half a paisa no longer picks up the item's average cost.
+- **Screens.** The Money integrity panel clears its result when the company changes and ignores an older answer that arrives late. Alt+C inside a picker now uses the name just typed.
+
+Left as it is: GST registers, the GST summary, the GRNI check and two health totals read ledger entries without checking the voucher's status. After this change only an interrupted posting could leave entries on a draft, and the integrity check now reports that case; changing those reports is a separate change.
+
+After the fixes: `npm run test:integrity` 153 + 20 tests pass; `vite build`, `lint:syntax` and the database-graph check pass; the older-format database was upgraded on a copy again with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row.
 
 ## Restore point
 

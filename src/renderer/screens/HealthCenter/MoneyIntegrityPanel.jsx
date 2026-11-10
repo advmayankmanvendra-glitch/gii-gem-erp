@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const amount = (value) => Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -9,20 +9,26 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(null);
+  // Only the newest request may set the report, so a slow answer for the company shown
+  // before cannot replace the current one.
+  const requestRef = useRef(0);
 
   const load = async () => {
     if (typeof apiClient?.getMoneyIntegrity !== "function") return;
+    const request = ++requestRef.current;
     setLoading(true);
     try {
-      setReport(await apiClient.getMoneyIntegrity({ company_id: context?.company_id }));
+      const result = await apiClient.getMoneyIntegrity({ company_id: context?.company_id });
+      if (request === requestRef.current) setReport(result);
     } catch (error) {
+      if (request === requestRef.current) setReport(null);
       notify?.(`Money integrity check could not run: ${error.message}. Refresh the Health Center; if it repeats, export a support bundle.`, "error");
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [context?.company_id]);
+  useEffect(() => { setReport(null); load(); }, [context?.company_id]);
 
   const adjust = async (row) => {
     const confirmed = window.confirm(`Post a rounding adjustment of ${amount(Math.abs(row.difference))} for ${row.voucher_number}? It is a separate journal to the Rounding Off account, dated ${row.voucher_date}. ${row.voucher_number} itself stays as it is.`);
@@ -46,6 +52,9 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const mirrors = report?.mirror_mismatches || [];
   const guards = report?.missing_guards || [];
   const maintenance = report?.open_maintenance || [];
+  const unexpectedTriggers = report?.unexpected_triggers || [];
+  const draftEntries = report?.draft_entries || [];
+  const startupFailure = report?.last_startup_check_failure || null;
   const subPaisa = report?.sub_paisa_legacy || [];
   // All Companies View is read-only: an adjustment is posted only with one company selected.
   const canAdjust = Boolean(context?.company_id) && context?.company_scope !== "all";
@@ -131,6 +140,9 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
 
       {guards.length ? <p><strong>Database protection is missing ({guards.length} rule(s)). Restart the app to put it back.</strong></p> : null}
       {maintenance.length ? <p><strong>Database protection is switched off by {maintenance.length} open maintenance window(s). Restart the app to close them.</strong></p> : null}
+      {unexpectedTriggers.length ? <p><strong>The database holds {unexpectedTriggers.length} trigger(s) on the accounting tables that the app did not create ({unexpectedTriggers.join(", ")}). Restart the app to remove them, then re-check.</strong></p> : null}
+      {draftEntries.length ? <p><strong>{draftEntries.length} unposted voucher(s) hold ledger entries ({draftEntries.slice(0, 5).map((row) => row.voucher_number).join(", ")}). Post or delete them; until then some reports may count their amounts.</strong></p> : null}
+      {startupFailure ? <p>Last start-up check ({startupFailure.created_at}) found more unbalanced posted vouchers after the upgrade than before it. The list above shows the vouchers to correct.</p> : null}
     </section>
   );
 }

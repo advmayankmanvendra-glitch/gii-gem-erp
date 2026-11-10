@@ -55,8 +55,11 @@ export function createInventoryService(deps) {
     const outwardQuantity = Number(payload.outward_quantity || 0);
     const nextQuantity = balanceBefore.quantity + inwardQuantity - outwardQuantity;
     if (nextQuantity < -0.0001) throw new Error("Stock cannot go negative");
-    const rate = Number(payload.rate || balanceBefore.rate || 0);
-    const valueMinor = paise(payload.value || (inwardQuantity || outwardQuantity) * rate);
+    // An explicit 0 rate or value (a receipt worth less than half a paisa) stays 0; only a
+    // missing one falls back to the current average cost.
+    const given = (field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== "";
+    const rate = Number(given("rate") ? payload.rate : (balanceBefore.rate || 0));
+    const valueMinor = paise(given("value") ? payload.value : (inwardQuantity || outwardQuantity) * rate);
     const value = rupees(valueMinor);
     const prevValueMinor = Number(balanceBefore.value_minor || 0);
     const nextValueMinor = Math.max(0, prevValueMinor + (inwardQuantity ? valueMinor : -valueMinor));

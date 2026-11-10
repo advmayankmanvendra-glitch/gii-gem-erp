@@ -56,7 +56,7 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
     }
     window.addEventListener("gii-gem-quick-create", onQuickCreateEvent);
     return () => window.removeEventListener("gii-gem-quick-create", onQuickCreateEvent);
-  }, [onQuickCreate, config, open]);
+  }, [onQuickCreate, config, open, searchApi.query]);
 
   const handleOpen = useCallback(() => {
     if (disabled) return;

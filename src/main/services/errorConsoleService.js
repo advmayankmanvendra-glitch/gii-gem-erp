@@ -149,10 +149,13 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
       GROUP BY v.id
     )
     SELECT a.voucher_number FROM imbalance a
-    WHERE a.diff <> 0
-      AND COALESCE(a.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'
-      AND a.diff + COALESCE((SELECT SUM(c.diff) FROM imbalance c WHERE c.source_id = a.id AND c.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}')), 0) <> 0
-      AND NOT (a.source_module = '${VOUCHER_REVERSAL_SOURCE}' AND a.diff + COALESCE((SELECT o.diff FROM imbalance o WHERE o.id = a.source_id), 0) = 0)
+    WHERE (a.diff <> 0
+        AND COALESCE(a.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'
+        AND a.diff + COALESCE((SELECT SUM(c.diff) FROM imbalance c WHERE c.source_id = a.id AND c.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}')), 0) <> 0
+        AND NOT (a.source_module = '${VOUCHER_REVERSAL_SOURCE}' AND a.diff + COALESCE((SELECT o.diff FROM imbalance o WHERE o.id = a.source_id), 0) = 0))
+      -- Lines that disagree with the ledger entries are reported too, as the money
+      -- integrity check does.
+      OR a.diff <> (SELECT COALESCE(SUM(vl.debit_minor), 0) - COALESCE(SUM(vl.credit_minor), 0) FROM voucher_lines vl WHERE vl.voucher_id = a.id)
     LIMIT 10
   `).all(...params).map((row) => row.voucher_number);
   checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open Health > Money integrity. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));

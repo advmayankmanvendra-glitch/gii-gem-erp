@@ -280,7 +280,8 @@ export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
   // Migrations run with the ledger guards off; they are put back, current, at the end.
   const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
-  const defectsBefore = existingBooks ? ledgerDefectCount(db) : null;
+  const repairPending = existingBooks && !migrationApplied(db, UPGRADE_REPAIR_MIGRATION);
+  const countedBefore = existingBooks ? ledgerDefectCount(db) : null;
   if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
   migrate(db);
@@ -288,8 +289,14 @@ export function initializeDatabase(root = projectRoot()) {
   seed(db);
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
-  ensureLedgerGuards(db);
-  recordStartupLedgerCheck(db, defectsBefore);
+  const guards = ensureLedgerGuards(db);
+  if (guards.droppedUnexpected?.length) {
+    console.error(`Ledger check: removed ${guards.droppedUnexpected.length} trigger(s) on the accounting tables that the app did not create.`);
+    auditLog(db, { action: "ledger_unexpected_triggers_removed", table_name: "vouchers", new_value: JSON.stringify({ triggers: guards.droppedUnexpected }) });
+  }
+  // Migration 036 fills paise columns that older rows left at 0, which can show defects
+  // that were already there; that start sets the baseline instead of comparing.
+  recordStartupLedgerCheck(db, repairPending ? null : countedBefore);
   return db;
 }
 
@@ -688,7 +695,6 @@ export function migrate(db) {
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 
-// Copy an existing database aside before migrations that have not run on it yet.
 // Start-up work above runs with the ledger guards off. If it left more unbalanced or
 // mismatched posted vouchers than there were before, that is recorded in the audit log
 // (the Money integrity check in Health Center lists the vouchers themselves). Start-up is
@@ -705,6 +711,12 @@ export function recordStartupLedgerCheck(db, defectsBefore) {
   });
 }
 
+function migrationApplied(db, name) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()) return false;
+  return Boolean(db.prepare("SELECT 1 FROM schema_migrations WHERE migration_name = ?").get(name));
+}
+
+// Copy an existing database aside before migrations that have not run on it yet.
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
   if (!hasMigrations) return null;

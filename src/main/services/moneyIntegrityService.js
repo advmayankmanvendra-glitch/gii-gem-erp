@@ -1,8 +1,8 @@
 import { reconcileAll } from "../database/moneyMigration.js";
-import { missingLedgerGuards, openLedgerMaintenance, ROUNDING_ADJUSTMENT_LIMIT_MINOR, ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { missingLedgerGuards, openLedgerMaintenance, unexpectedLedgerTriggers, ROUNDING_ADJUSTMENT_LIMIT_MINOR, ROUNDING_ADJUSTMENT_SOURCE, ROUNDING_OFF_ACCOUNT_NAME, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
 import { rupees } from "../domain/money.js";
 
-export const ROUNDING_OFF_ACCOUNT = "Rounding Off";
+export const ROUNDING_OFF_ACCOUNT = ROUNDING_OFF_ACCOUNT_NAME;
 
 // The money integrity check looks for amounts that are off by paise in books written
 // before amounts were kept exact: unbalanced posted vouchers, vouchers whose ledger
@@ -32,12 +32,32 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     `).all(voucherId);
   }
 
+  // Debit and credit totals are compared separately, and every line must have exactly one
+  // ledger entry with its account and amounts.
   function linesAgreeWithLedger(db, voucherId) {
     const row = db.prepare(`
-      SELECT (SELECT COALESCE(SUM(debit_minor), 0) - COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) lines,
-        (SELECT COALESCE(SUM(debit_minor), 0) - COALESCE(SUM(credit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger
+      SELECT (SELECT COALESCE(SUM(debit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) line_debit,
+        (SELECT COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) line_credit,
+        (SELECT COALESCE(SUM(debit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger_debit,
+        (SELECT COALESCE(SUM(credit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger_credit
+    `).get(voucherId, voucherId, voucherId, voucherId);
+    return row.line_debit === row.ledger_debit && row.line_credit === row.ledger_credit && entriesMatchLines(db, voucherId);
+  }
+
+  function entriesMatchLines(db, voucherId) {
+    return !db.prepare(`
+      SELECT 1 FROM voucher_lines l
+      WHERE l.voucher_id = ?
+        AND (SELECT COUNT(*) FROM ledger_entries e
+             WHERE e.voucher_line_id = l.id AND COALESCE(e.is_deleted, 0) = 0
+               AND e.account_id = l.account_id AND e.debit_minor = l.debit_minor AND e.credit_minor = l.credit_minor) <> 1
+         OR (SELECT COUNT(*) FROM ledger_entries e WHERE e.voucher_line_id = l.id AND COALESCE(e.is_deleted, 0) = 0) <> 1
+      UNION ALL
+      SELECT 1 FROM ledger_entries e
+      WHERE e.voucher_id = ? AND COALESCE(e.is_deleted, 0) = 0
+        AND NOT EXISTS (SELECT 1 FROM voucher_lines l WHERE l.id = e.voucher_line_id AND l.voucher_id = e.voucher_id)
+      LIMIT 1
     `).get(voucherId, voucherId);
-    return row.lines === row.ledger;
   }
 
   // Posted vouchers whose lines do not balance. A rounding adjustment, and a reversal
@@ -47,7 +67,8 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
   function unbalancedVouchers(db, companyId, voucherId = null) {
     const filter = companyFilter(companyId);
     if (voucherId) {
-      filter.sql += " AND (v.id = ? OR v.id = (SELECT source_id FROM vouchers WHERE id = ?))";
+      // The voucher itself, and the original it mirrors when it is a reversal.
+      filter.sql += ` AND (v.id = ? OR v.id = (SELECT source_id FROM vouchers WHERE id = ? AND source_module = '${VOUCHER_REVERSAL_SOURCE}'))`;
       filter.params.push(Number(voucherId), Number(voucherId));
     }
     const rows = db.prepare(`
@@ -112,7 +133,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       FROM vouchers v
       WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')${filter.sql}
     `).all(...filter.params)
-      .filter((row) => row.line_debit_minor !== row.ledger_debit_minor || row.line_credit_minor !== row.ledger_credit_minor)
+      .filter((row) => row.line_debit_minor !== row.ledger_debit_minor || row.line_credit_minor !== row.ledger_credit_minor || !entriesMatchLines(db, row.id))
       .map((row) => ({
         id: row.id,
         voucher_number: row.voucher_number,
@@ -149,8 +170,11 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     const mirrors = [];
     const subPaisa = [];
     for (const col of reconcileAll(db)) {
-      const fractional = col.disagreements.filter((row) => !hasWholePaise(row.legacy));
-      const real = col.disagreements.filter((row) => hasWholePaise(row.legacy));
+      // Only a stored amount that rounds to its paise value is harmless residue; any larger
+      // gap is a real mismatch even when the stored amount has a fraction of a paisa.
+      const residue = (row) => !hasWholePaise(row.legacy) && Math.abs(Number(row.legacy || 0) * 100 - Number(row.minor || 0)) < 1;
+      const fractional = col.disagreements.filter(residue);
+      const real = col.disagreements.filter((row) => !residue(row));
       const entry = (rows) => ({
         table: col.table,
         column: col.legacy,
@@ -162,20 +186,35 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       if (fractional.length) subPaisa.push(entry(fractional));
     }
     const missingGuards = missingLedgerGuards(db);
+    const unexpectedTriggers = unexpectedLedgerTriggers(db);
+    // A draft holds ledger entries only inside the transaction that posts it; one left
+    // over would show in reports that read entries without checking the voucher status.
+    const draftFilter = companyFilter(companyId);
+    const draftEntries = db.prepare(`
+      SELECT v.id, v.company_id, v.voucher_number, v.voucher_date, COUNT(e.id) entries
+      FROM vouchers v JOIN ledger_entries e ON e.voucher_id = v.id AND COALESCE(e.is_deleted, 0) = 0
+      WHERE v.status NOT IN ('Posted', 'Reversed') AND v.is_deleted = 0${draftFilter.sql}
+      GROUP BY v.id ORDER BY v.id
+    `).all(...draftFilter.params);
+    const startupCheck = db.prepare("SELECT created_at, new_value FROM audit_log WHERE action = 'ledger_startup_check_failed' ORDER BY id DESC LIMIT 1").get() || null;
     // An open maintenance row switches the guards off; outside a running repair there is none.
     const openMaintenance = openLedgerMaintenance(db);
     const openVouchers = unbalanced.filter((row) => !row.settled);
     return {
       generated_at: new Date().toISOString(),
       company_id: companyId ? Number(companyId) : null,
-      ok: trialBalance.difference_minor === 0 && !openVouchers.length && !mismatches.length && !mirrors.length && !missingGuards.length && !openMaintenance.length,
+      ok: trialBalance.difference_minor === 0 && !openVouchers.length && !mismatches.length && !mirrors.length && !missingGuards.length && !openMaintenance.length
+        && !unexpectedTriggers.length && !draftEntries.length,
       trial_balance: trialBalance,
       unbalanced_vouchers: unbalanced,
       line_ledger_mismatches: mismatches,
       mirror_mismatches: mirrors,
       sub_paisa_legacy: subPaisa,
       missing_guards: missingGuards,
-      open_maintenance: openMaintenance
+      open_maintenance: openMaintenance,
+      unexpected_triggers: unexpectedTriggers,
+      draft_entries: draftEntries,
+      last_startup_check_failure: startupCheck
     };
   }
 
