@@ -13,6 +13,8 @@ const PRESERVED_TABLES = new Set([
   // Import history has no company column, so it cannot be cleared for one company.
   "import_batches", "import_batch_records",
   "account_group_assignments", "feedback_log",
+  // Transient guard-window rows (ledgerGuards.js); the reset itself opens one.
+  "ledger_maintenance",
   // Pre-sales pipeline: kept, with its links to deleted orders cleared (UNLINK_ON_RESET).
   "leads", "requirement_queries", "quotations", "negotiations", "purchase_orders"
 ]);
