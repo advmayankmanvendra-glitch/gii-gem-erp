@@ -127,7 +127,7 @@ Copilot reviewed for the first time and raised eight findings; the three own aud
 
 Left as it is: GST registers, the GST summary, the GRNI check and two health totals read ledger entries without checking the voucher's status. After this change only an interrupted posting could leave entries on a draft, and the integrity check now reports that case; changing those reports is a separate change.
 
-After the fixes: `npm run test:integrity` 153 + 20 tests pass; `vite build`, `lint:syntax` and the database-graph check pass; the older-format database was upgraded on a copy again with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row.
+After the fixes and the merge of PR #4 head `3c12e50`: `npm run test:integrity` 159 + 23 tests pass; all 2 lakh amounts posted again with trial balance difference 0.00 and 0 problems; `vite build`, `lint:syntax` and the database-graph check pass; the older-format database was upgraded on a copy again with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row.
 
 ## Restore point
 
