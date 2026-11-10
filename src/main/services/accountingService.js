@@ -1,3 +1,4 @@
+import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
 import { parseMoneyToMinor, roundMoney, rupees, sumRupees, subtractRupees } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
@@ -456,31 +457,47 @@ export function createAccountingService(deps) {
     if (original.status !== "Posted") {
       throw new Error(`Only posted vouchers can be reversed. ${original.voucher_number} is ${original.status || "not posted"}; edit or delete the draft instead.`);
     }
-    if (original.source_module === "rounding_adjustment") {
+    if (original.source_module === ROUNDING_ADJUSTMENT_SOURCE) {
       throw new Error(`${original.voucher_number} is a rounding adjustment and cannot be reversed. It only corrects a paise difference in the older voucher it names.`);
     }
-    if (original.source_module === "voucher_reversal") {
+    if (original.source_module === VOUCHER_REVERSAL_SOURCE) {
       throw new Error(`${original.voucher_number} is itself a reversal and cannot be reversed. Post a fresh voucher for the correct entry instead.`);
     }
-    const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = 'voucher_reversal' AND source_id = ? AND is_deleted = 0").get(original.id);
+    const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0").get(VOUCHER_REVERSAL_SOURCE, original.id);
     if (existingReversal) throw new Error("Voucher reversal already exists");
 
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
     // A rounding adjustment that corrected this voucher is reversed with it, in the same
     // reversal voucher, so the pair still balances.
-    const adjustment = db.prepare("SELECT * FROM vouchers WHERE source_module = 'rounding_adjustment' AND source_id = ? AND status = 'Posted' AND is_deleted = 0").get(original.id);
+    const adjustment = db.prepare("SELECT * FROM vouchers WHERE source_module = ? AND source_id = ? AND status = 'Posted' AND is_deleted = 0").get(ROUNDING_ADJUSTMENT_SOURCE, original.id);
     const adjustmentLines = adjustment
       ? db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(adjustment.id)
       : [];
-    const reversedLines = [...lines, ...adjustmentLines];
+    // Lines worth less than a paisa on both sides hold nothing in the books and would make
+    // an empty reversal line, so they are left out.
+    const reversedLines = [...lines, ...adjustmentLines]
+      .filter((line) => Number(line.debit_minor || 0) !== 0 || Number(line.credit_minor || 0) !== 0);
+    if (!reversedLines.length) throw new Error(`${original.voucher_number} has no amounts to reverse`);
     // Amounts come from the paise columns, which are what the books hold.
     const imbalanceMinor = reversedLines.reduce((sum, line) => sum + Number(line.credit_minor || 0) - Number(line.debit_minor || 0), 0);
     const reasonText = String(reason || "").trim() || "Reversed by user";
     const today = localBusinessDate();
+    const mirrorImbalanceMinor = adjustment ? 0 : imbalanceMinor;
     // The reversal is dated today (in the open year) unless the original is later
     // than today; the original stays in its own period, so closed years never change.
-    const reversalDate = original.voucher_date > today ? original.voucher_date : today;
+    // An older unbalanced voucher is mirrored on its own date instead, so the two cancel
+    // inside one year and neither year's trial balance is left off by the difference.
+    const reversalDate = mirrorImbalanceMinor !== 0
+      ? original.voucher_date
+      : (original.voucher_date > today ? original.voucher_date : today);
+    if (mirrorImbalanceMinor !== 0) {
+      try {
+        assertOpenFinancialYear(db, original.company_id, reversalDate);
+      } catch (error) {
+        throw new Error(`${original.voucher_number} is out of balance by ${rupees(Math.abs(mirrorImbalanceMinor)).toFixed(2)} and must be reversed on its own date (${reversalDate}), but that year is not open: ${error.message}`);
+      }
+    }
 
     const reversal = db.transaction(() => {
       const reversalVoucher = createBalancedVoucher(db, {
@@ -488,7 +505,7 @@ export function createAccountingService(deps) {
         voucher_date: reversalDate,
         voucher_type: "Journal",
         narration: `Reversal of ${original.voucher_number} - ${reasonText}`,
-        source_module: "voucher_reversal",
+        source_module: VOUCHER_REVERSAL_SOURCE,
         source_id: original.id,
         lines: reversedLines.map((line) => ({
           account_id: line.account_id,
@@ -498,7 +515,7 @@ export function createAccountingService(deps) {
           linked_party_type: line.linked_party_type,
           linked_party_id: line.linked_party_id
         }))
-      }, { mirrorImbalanceMinor: adjustment ? 0 : imbalanceMinor });
+      }, { mirrorImbalanceMinor });
       if (adjustment) db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(`Reversed with ${original.voucher_number}`, reversalDate, adjustment.id);
 
       db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, reversed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
@@ -549,7 +566,7 @@ export function createAccountingService(deps) {
         db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'supplier' AND procurement_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
           .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Purchase reversed: ${reasonText}`));
       }
-      if (original.source_module.startsWith("stock_") && source) {
+      if (source && original.source_module.startsWith("stock_")) {
         mirrorStockForSource(db, source.table, original.source_id, reversalVoucher.id, reasonText);
         db.prepare(`UPDATE ${source.table} SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(original.source_id);
       }
@@ -566,7 +583,7 @@ export function createAccountingService(deps) {
           bank_account_id: row.bank_account_id,
           transaction_date: reversalVoucher.voucher_date,
           transaction_type: "Voucher Reversal",
-          source_module: "voucher_reversal",
+          source_module: VOUCHER_REVERSAL_SOURCE,
           source_id: original.id,
           voucher_id: reversalVoucher.id,
           debit: Number(row.credit || 0),

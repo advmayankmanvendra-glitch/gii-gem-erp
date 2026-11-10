@@ -114,17 +114,23 @@ export function compareMoney(a, b) {
   return Number(a) - Number(b);
 }
 
+// Rounds a value already in paise to a whole paisa, half away from zero (the same rule
+// as parseMoneyToMinor), so -2.5 paise becomes -3, not -2 as Math.round gives.
+function roundMinorHalfAway(raw) {
+  return Math.sign(raw) * Math.round(Math.abs(raw));
+}
+
 export function multiplyRateByQuantity(rate, quantity) {
   const qty = Number(quantity || 0);
   const raw = rate * qty;
-  const resultMinor = Math.round(raw);
+  const resultMinor = roundMinorHalfAway(raw);
   if (!Number.isSafeInteger(resultMinor)) throw new Error("Multiplication result exceeds safe range");
   return resultMinor;
 }
 
 export function calculatePercentage(amountMinor, ratePct) {
   const raw = amountMinor * ratePct / 100;
-  const resultMinor = Math.round(raw);
+  const resultMinor = roundMinorHalfAway(raw);
   if (!Number.isSafeInteger(resultMinor)) throw new Error("Percentage result exceeds safe range");
   return resultMinor;
 }
@@ -137,7 +143,7 @@ export function allocateMoney(total, shares) {
   let allocated = 0;
   const results = shareValues.map(share => {
     const raw = totalMinor * share / totalShares;
-    return Math.round(raw);
+    return roundMinorHalfAway(raw);
   });
   allocated = results.reduce((a, b) => a + b, 0);
   let remainder = totalMinor - allocated;
@@ -180,7 +186,7 @@ export function convertMinorToLegacyMajor(value) {
 }
 
 export function roundToMinor(value) {
-  return Math.round(Number(value || 0) * MINOR_UNITS);
+  return paise(value);
 }
 
 export function exactEqual(a, b) {

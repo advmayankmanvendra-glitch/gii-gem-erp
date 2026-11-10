@@ -187,7 +187,9 @@ export function createInventoryService(deps) {
     const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
     ensureStockNotPosted(row);
     if (Number(row.quantity || 0) <= 0) throw new Error("Inward quantity must be positive");
-    const value = Number(row.landed_cost || 0) || Number(row.quantity || 0) * Number(row.rate || 0);
+    // Rounded to the paisa, as the books hold it: a receipt worth less than half a paisa
+    // posts no voucher, rather than a voucher of 0.00 lines.
+    const value = roundMoney(Number(row.landed_cost || 0) || Number(row.quantity || 0) * Number(row.rate || 0));
     const tx = db.transaction(() => {
       insertStockLedger(db, {
         company_id: row.company_id,

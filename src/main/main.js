@@ -917,7 +917,12 @@ function registerIpc() {
   // Read-only, like the other Health Center checks: any signed-in user may run it.
   handle("money:integrity", (event, payload = {}) => {
     sessionUser(event);
-    return moneyIntegrityReport(db, Number(payload?.company_id || 0) || null);
+    // No company id means All Companies View; anything else must be a real company id.
+    const raw = payload?.company_id;
+    if (raw === undefined || raw === null || raw === "") return moneyIntegrityReport(db, null);
+    const companyId = Number(raw);
+    if (!Number.isInteger(companyId) || companyId <= 0) throw new Error("Money integrity check: the company id is not valid. Select a company and try again.");
+    return moneyIntegrityReport(db, companyId);
   });
   handle("money:rounding-adjustment", guarded("post", "vouchers", (payload = {}) => postRoundingAdjustment(db, { ...payload, userId: actorId() })));
   handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));

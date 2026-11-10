@@ -1,3 +1,4 @@
+import { rupeesEqual, sumRupees } from "../../../utils/money.js";
 export function voucherPlainLanguage(kind) {
   const notes = {
     receipt: "Match department receipts against open invoices and statutory deductions.",
@@ -94,9 +95,9 @@ export function businessVoucherValidationMessages({ form, selectedInvoice, selec
     if (!form.item_id) messages.push({ severity: "error", message: "Sales stock issue requires an item." });
     if (!form.warehouse_id) messages.push({ severity: "error", message: "Sales stock issue requires a warehouse." });
   }
-  const debit = previewLines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-  const credit = previewLines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-  if (previewLines.length && Math.round(debit * 100) !== Math.round(credit * 100)) {
+  const debit = sumRupees(previewLines.map((line) => line.debit));
+  const credit = sumRupees(previewLines.map((line) => line.credit));
+  if (previewLines.length && !rupeesEqual(debit, credit)) {
     messages.push({ severity: "error", message: "Accounting preview is not balanced. Review voucher values before saving." });
   }
   return messages;

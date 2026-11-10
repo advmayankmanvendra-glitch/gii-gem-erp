@@ -10901,6 +10901,38 @@
       "accountingProtected": false,
       "notes": "Optional delivery-stage installation tracking. Document evidence remains in the document workflow.",
       "knownGaps": []
+    },
+    {
+      "id": "ledger_maintenance",
+      "tableName": "ledger_maintenance",
+      "title": "Ledger Maintenance Windows",
+      "category": "Accounting Core",
+      "status": "active",
+      "sourceFile": "src/main/database/ledgerGuards.js",
+      "schemaVersion": "guards",
+      "owningModule": "accounting",
+      "relatedWorkflowStage": null,
+      "relatedScreen": "screens/HealthCenter/MoneyIntegrityPanel.jsx",
+      "primaryKey": "id",
+      "columns": [
+        { "name": "id", "type": "INTEGER", "pk": true, "nullable": false, "default": null, "description": "Primary key" },
+        { "name": "company_id", "type": "INTEGER", "pk": false, "nullable": false, "default": 0, "description": "Company whose ledger guards are open; 0 opens them for every company" },
+        { "name": "reason", "type": "TEXT", "pk": false, "nullable": false, "default": null, "description": "Why the window was opened (for example operational_reset)" },
+        { "name": "opened_at", "type": "TEXT", "pk": false, "nullable": false, "default": "CURRENT_TIMESTAMP", "description": "When the window was opened" }
+      ],
+      "foreignKeys": [],
+      "indexes": [],
+      "hasSoftDelete": false,
+      "hasPostingStatus": false,
+      "hasApprovalStatus": false,
+      "hasAuditImpact": false,
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "genericCrudAllowed": false,
+      "accountingProtected": true,
+      "notes": "A row switches the ledger guard triggers off for one company (or all) and lives only inside one transaction opened by withLedgerMaintenance in ledgerGuards.js. Start-up deletes any row left behind, and the Money integrity check reports open rows.",
+      "knownGaps": []
     }
   ],
   "relationships": [
@@ -13010,12 +13042,12 @@
     "cascadeBehavior": "ON DELETE CASCADE is explicitly set only for supply_ordersâ†’order_items and a few others â€” most FK cascade behavior is application-managed"
   },
   "statistics": {
-    "totalTables": 73,
+    "totalTables": 74,
     "totalRelationships": 57,
     "totalServiceModules": 15,
     "totalPostingFunctions": 22,
     "totalReportSources": 26,
-    "totalAccountingProtectedTables": 21,
+    "totalAccountingProtectedTables": 22,
     "totalWorkflowMappings": 10,
     "totalKnownGaps": 7,
     "totalAuditMappings": 16,
@@ -13026,7 +13058,7 @@
   "metadata": {
     "generationTool": "Manual curation",
     "generationCommand": "N/A (hand-authored)",
-    "lastValidated": "2026-07-29",
+    "lastValidated": "2026-11-10",
     "validationMethod": "npm run verify:database-graph"
   }
 }

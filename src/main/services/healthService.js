@@ -170,7 +170,7 @@ function accountingBalanceCheck(db) {
     difference === 0 ? "pass" : "fail",
     difference === 0 ? "normal" : "critical",
     `Debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}, difference ${difference.toFixed(2)}.`,
-    Math.abs(difference) <= 0.01 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
+    difference === 0 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
     { debit, credit, difference }
   );
 }

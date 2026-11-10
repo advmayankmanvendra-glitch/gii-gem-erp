@@ -26,7 +26,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
-import { dropLedgerGuards, ensureLedgerGuards } from "./ledgerGuards.js";
+import { dropLedgerGuards, ensureLedgerGuards, ledgerDefectCount } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -279,7 +279,9 @@ export const WRITE_POLICY = {
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
   // Migrations run with the ledger guards off; they are put back, current, at the end.
-  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get()) dropLedgerGuards(db);
+  const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
+  const defectsBefore = existingBooks ? ledgerDefectCount(db) : null;
+  if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
   migrate(db);
   ensureAuditChain(db);
@@ -287,6 +289,7 @@ export function initializeDatabase(root = projectRoot()) {
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   ensureLedgerGuards(db);
+  recordStartupLedgerCheck(db, defectsBefore);
   return db;
 }
 
@@ -686,6 +689,22 @@ export function migrate(db) {
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 
 // Copy an existing database aside before migrations that have not run on it yet.
+// Start-up work above runs with the ledger guards off. If it left more unbalanced or
+// mismatched posted vouchers than there were before, that is recorded in the audit log
+// (the Money integrity check in Health Center lists the vouchers themselves). Start-up is
+// not refused, so the owner can still open the books to correct them.
+export function recordStartupLedgerCheck(db, defectsBefore) {
+  if (defectsBefore === null) return;
+  const defectsAfter = ledgerDefectCount(db);
+  if (defectsAfter === null || defectsAfter <= defectsBefore) return;
+  console.error(`Ledger check: start-up left ${defectsAfter - defectsBefore} more unbalanced posted voucher(s).`);
+  auditLog(db, {
+    action: "ledger_startup_check_failed",
+    table_name: "vouchers",
+    new_value: JSON.stringify({ unbalanced_before: defectsBefore, unbalanced_after: defectsAfter })
+  });
+}
+
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
   if (!hasMigrations) return null;

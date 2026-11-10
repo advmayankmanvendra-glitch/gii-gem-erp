@@ -469,3 +469,134 @@ test("a rounding adjustment needs one selected company, so All Companies View st
   }
   assert.ok(m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id }).id);
 });
+
+test("UPDATE OR REPLACE cannot move a voucher or line onto a posted one", () => {
+  const db = fresh();
+  const posted = postBalanced(db);
+  const postedLine = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id LIMIT 1").get(posted.id);
+  const draft = insertDraft(db, "DRAFT-U");
+  const draftLine = addLine(db, draft, "Cash", 100, 0, { ledger: false });
+
+  assert.throws(() => db.prepare("UPDATE OR REPLACE vouchers SET id = ? WHERE id = ?").run(posted.id, draft), GUARD, "onto a posted id");
+  assert.throws(() => db.prepare("UPDATE OR REPLACE vouchers SET voucher_number = ? WHERE id = ?").run(posted.voucher_number, draft), GUARD, "onto a posted number");
+  assert.throws(() => db.prepare("UPDATE OR REPLACE voucher_lines SET id = ? WHERE id = ?").run(postedLine.id, draftLine), GUARD, "a line onto a posted line's id");
+
+  assert.equal(db.prepare("SELECT status FROM vouchers WHERE id = ?").get(posted.id).status, "Posted");
+  assert.equal(db.prepare("SELECT voucher_id FROM voucher_lines WHERE id = ?").get(postedLine.id).voucher_id, posted.id);
+  // Ordinary edits of a draft still work.
+  assert.doesNotThrow(() => db.prepare("UPDATE vouchers SET voucher_number = 'DRAFT-U2' WHERE id = ?").run(draft));
+});
+
+test("a maintenance window for one company cannot move lines or entries into another company's books", () => {
+  const db = fresh();
+  const posted = postBalanced(db);
+  const other = Number(db.prepare("INSERT INTO companies (company_name) VALUES ('Window Co')").run().lastInsertRowid);
+  const otherDraft = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status) VALUES (?, 'W-1', ?, 'Journal', 'Draft')").run(other, DATE).lastInsertRowid;
+  const otherLine = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, 1, 0, 100, 0)")
+    .run(otherDraft, account(db, "Cash")).lastInsertRowid;
+  const entry = db.prepare("SELECT id FROM ledger_entries WHERE voucher_id = ? LIMIT 1").get(posted.id);
+
+  assert.throws(() => db.transaction(() => guards.withLedgerMaintenance(db, other, "test: other company", () => {
+    db.prepare("UPDATE voucher_lines SET voucher_id = ? WHERE id = ?").run(posted.id, otherLine);
+  }))(), GUARD, "a line moved onto company 1's posted voucher");
+  assert.throws(() => db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: company 1", () => {
+    db.prepare("UPDATE ledger_entries SET company_id = ? WHERE id = ?").run(other, entry.id);
+  }))(), GUARD, "an entry moved to a company whose books are not open");
+  assert.throws(() => db.transaction(() => guards.withLedgerMaintenance(db, 0, "test: zero", () => null))(), /needs a company id/);
+  assert.throws(() => db.transaction(() => guards.withLedgerMaintenance(db, undefined, "test: missing", () => null))(), /needs a company id/);
+});
+
+test("an unbalanced older voucher is reversed on its own date, and refused when that year is closed", () => {
+  const db = fresh();
+  const id = legacyUnbalanced(db, "OLD-DATED", 150000, 149500);
+  const reversal = m.reverseVoucher(db, id, "wrong amounts");
+  assert.equal(reversal.voucher_date, DATE, "the mirror stays in the original's year");
+
+  const closed = legacyUnbalanced(db, "OLD-CLOSED", 150000, 149500);
+  db.prepare("UPDATE financial_years SET status = 'Closed' WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").run(DATE, DATE);
+  assert.throws(() => m.reverseVoucher(db, closed, "too late"), /must be reversed on its own date/);
+  assert.equal(db.prepare("SELECT status FROM vouchers WHERE id = ?").get(closed).status, "Posted");
+});
+
+test("the database refuses a correction dated in another financial year", () => {
+  const db = fresh();
+  const original = legacyUnbalanced(db, "OLD-YEAR", 10003, 10000);
+  const id = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, source_module, source_id) VALUES (1, 'REV-NEXT-YEAR', '2027-07-01', 'Journal', 'Draft', 'voucher_reversal', ?)")
+    .run(original).lastInsertRowid;
+  addLine(db, id, "Rounding Off", 0, 3);
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(id), /do not balance/);
+});
+
+test("a voucher holding a line of zero paise can still be reversed", () => {
+  const db = fresh();
+  const id = db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: zero line", () => {
+    const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+    const voucher = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id) VALUES (1, 'OLD-ZERO', ?, 'Journal', 'Posted', ?)").run(DATE, year.id).lastInsertRowid;
+    addLine(db, voucher, "Cash", 10000, 0);
+    addLine(db, voucher, "Capital", 0, 10000);
+    addLine(db, voucher, "Rounding Off", 0, 0);
+    return voucher;
+  }))();
+  const reversal = m.reverseVoucher(db, id, "zero line");
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM voucher_lines WHERE voucher_id = ?").get(reversal.id).c, 2);
+  assert.equal(m.moneyIntegrityReport(db, 1).trial_balance.difference, 0);
+});
+
+test("a stock receipt worth less than a paisa posts without a voucher", () => {
+  const db = fresh();
+  const wh = m.createRecord(db, "warehouses", { company_id: 1, warehouse_name: "Tiny WH", status: "active" }).id;
+  const item = m.createRecord(db, "items", { item_name: "Tiny Widget", unit: "Nos", status: "active", gst_rate: 0, opening_stock: 0, opening_rate: 0, opening_value: 0, default_warehouse_id: wh }).id;
+  const tiny = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: DATE, purchase_invoice_number: "TINY-1", quantity: 1, rate: 0.004, landed_cost: 0 });
+  const posted = m.postStockInward(db, tiny.id);
+  assert.equal(posted.posting_status, "Posted");
+  assert.equal(posted.voucher_id, null);
+  const small = m.createRecord(db, "stock_inwards", { company_id: 1, item_id: item, warehouse_id: wh, inward_date: DATE, purchase_invoice_number: "TINY-2", quantity: 3, rate: 0.335, landed_cost: 0 });
+  const voucher = db.prepare("SELECT SUM(debit_minor) d, SUM(credit_minor) c FROM voucher_lines WHERE voucher_id = ?").get(m.postStockInward(db, small.id).voucher_id);
+  assert.deepEqual(voucher, { d: 101, c: 101 }, "1.005 rounds half away from zero to 1.01");
+});
+
+test("start-up records a rise in unbalanced posted vouchers left by work done with the guards off", () => {
+  const db = fresh();
+  assert.equal(guards.ledgerDefectCount(db), 0);
+  const before = guards.ledgerDefectCount(db);
+  legacyUnbalanced(db, "OLD-STARTUP", 10001, 10000);
+  assert.equal(guards.ledgerDefectCount(db), 1);
+  m.recordStartupLedgerCheck(db, before);
+  const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'ledger_startup_check_failed' ORDER BY id DESC LIMIT 1").get();
+  assert.deepEqual(JSON.parse(row.new_value), { unbalanced_before: 0, unbalanced_after: 1 });
+  m.recordStartupLedgerCheck(db, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'ledger_startup_check_failed'").get().c, 1, "no row when nothing grew");
+});
+
+test("only ledgerGuards.js writes the maintenance table", () => {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(m?js|jsx)$/.test(entry.name) && !full.endsWith(path.join("database", "ledgerGuards.js"))
+        && /(INSERT\s+INTO|DELETE\s+FROM|UPDATE)\s+ledger_maintenance/i.test(fs.readFileSync(full, "utf8"))) offenders.push(path.relative(REPO, full));
+    }
+  };
+  walk(path.join(REPO, "src"));
+  assert.deepEqual(offenders, []);
+});
+
+test("Health Center and Error Console agree on whether the vouchers balance", () => {
+  const db = fresh();
+  const agree = (expectOk) => {
+    const report = m.moneyIntegrityReport(db, 1);
+    const check = bookIntegrityChecks(db, 1).find((c) => c.id === "voucher_balance");
+    assert.equal(report.unbalanced_vouchers.every((row) => row.settled || row.reversed_by || row.adjusted_by), expectOk);
+    assert.equal(check.status === "pass", expectOk);
+  };
+  agree(true);
+  const id = legacyUnbalanced(db, "OLD-AGREE", 10002, 10000);
+  agree(false);
+  m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id });
+  agree(true);
+  const big = legacyUnbalanced(db, "OLD-AGREE-2", 150000, 149000);
+  agree(false);
+  m.reverseVoucher(db, big, "agree");
+  agree(true);
+});

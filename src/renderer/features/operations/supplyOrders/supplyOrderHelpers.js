@@ -1,4 +1,4 @@
-import { sumRupees } from "../../../utils/money.js";
+import { addRupees, roundMoney, sumRupees } from "../../../utils/money.js";
 export function blankSupplyOrderItem() {
   return {
     _key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -29,8 +29,9 @@ export function calculatedSupplyOrderLine(line = {}, references) {
   const quantity = Number(line.quantity || 0);
   const rate = Number(line.quoted_rate || line.rate || 0);
   const gstRate = Number(line.gst_rate === "" || line.gst_rate === undefined ? (item?.gst_rate || 0) : line.gst_rate);
-  const taxable = Math.round(quantity * rate * 100) / 100;
-  const gstAmount = Math.round((taxable * gstRate / 100) * 100) / 100;
+  // Same rounding as the saved order (crudHelpers.js): half a paisa away from zero.
+  const taxable = roundMoney(quantity * rate);
+  const gstAmount = roundMoney(taxable * gstRate / 100);
   return {
     ...line,
     item_description: line.item_description || item?.item_name || "",
@@ -41,7 +42,7 @@ export function calculatedSupplyOrderLine(line = {}, references) {
     gst_rate: line.gst_rate === "" || line.gst_rate === undefined ? (item?.gst_rate ?? "") : line.gst_rate,
     taxable_value: taxable,
     gst_amount: gstAmount,
-    gross_value: Math.round((taxable + gstAmount) * 100) / 100
+    gross_value: addRupees(taxable, gstAmount)
   };
 }
 

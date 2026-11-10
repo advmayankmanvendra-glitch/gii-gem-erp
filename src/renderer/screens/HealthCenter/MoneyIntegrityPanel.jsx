@@ -45,6 +45,7 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const mismatches = report?.line_ledger_mismatches || [];
   const mirrors = report?.mirror_mismatches || [];
   const guards = report?.missing_guards || [];
+  const maintenance = report?.open_maintenance || [];
   const subPaisa = report?.sub_paisa_legacy || [];
   // All Companies View is read-only: an adjustment is posted only with one company selected.
   const canAdjust = Boolean(context?.company_id) && context?.company_scope !== "all";
@@ -129,6 +130,7 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
       ) : null}
 
       {guards.length ? <p><strong>Database protection is missing ({guards.length} rule(s)). Restart the app to put it back.</strong></p> : null}
+      {maintenance.length ? <p><strong>Database protection is switched off by {maintenance.length} open maintenance window(s). Restart the app to close them.</strong></p> : null}
     </section>
   );
 }
