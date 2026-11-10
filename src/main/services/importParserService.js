@@ -21,8 +21,15 @@ export function createImportParserService() {
   // limits) would block the app for minutes; real import sheets are far below them.
   const MAX_IMPORT_COLUMNS = 500;
   const MAX_IMPORT_ROWS = 200000;
-  const MAX_IMPORT_VALUES = 12000000;
+  const MAX_IMPORT_VALUES = 6000000;
   const MAX_HEADER_SEARCH_ROWS = 50;
+  // Every record repeats each header name as its key, so long names multiply the reply
+  // the screen receives by the row count. Real column names are short.
+  const MAX_HEADER_CHARS = 100;
+  const MAX_KEY_CHARS = 128 * 1024 * 1024;
+  // Titles that mark the header row of an XLSX import sheet.
+  const HEADER_TITLES = new Set(["supplier_name", "beneficiary_account_name", "item_name", "order_number", "company_name"]);
+  const HEADER_TITLE_MAX_CHARS = Math.max(...[...HEADER_TITLES].map((title) => title.length));
 
   function tooManyRows() {
     return new Error(`Import refused: the sheet has more than ${MAX_IMPORT_ROWS.toLocaleString("en-IN")} rows. Split it into smaller files and import them one by one.`);
@@ -37,7 +44,12 @@ export function createImportParserService() {
     if (headerEntries.length > MAX_IMPORT_COLUMNS) {
       throw new Error(`Import refused: the header row has ${headerEntries.length} columns; the limit is ${MAX_IMPORT_COLUMNS}. Delete the unused columns and import again.`);
     }
-    if (rows.length > MAX_IMPORT_ROWS || headerEntries.length * rows.length > MAX_IMPORT_VALUES) {
+    const longHeader = headerEntries.find(([header]) => header.length > MAX_HEADER_CHARS);
+    if (longHeader) {
+      throw new Error(`Import refused: column ${longHeader[1] + 1} has a header of ${longHeader[0].length} characters; the limit is ${MAX_HEADER_CHARS}. Shorten the column titles in the first row and import again.`);
+    }
+    const keyChars = headerEntries.reduce((sum, [header]) => sum + header.length, 0);
+    if (rows.length > MAX_IMPORT_ROWS || headerEntries.length * rows.length > MAX_IMPORT_VALUES || keyChars * rows.length > MAX_KEY_CHARS) {
       throw new Error(`Import refused: the sheet has ${rows.length} rows of ${headerEntries.length} columns, more than one import can read safely. Split it into smaller files and import them one by one.`);
     }
     return rows.map((cells) => Object.fromEntries(headerEntries.map(([header, index]) => [header, cells[index] ?? ""])));
@@ -78,8 +90,14 @@ export function createImportParserService() {
   }
 
   function parseDelimited(text, delimiter) {
-    if ((text.match(/\n/g)?.length || 0) > MAX_IMPORT_ROWS + 1) throw tooManyRows();
-    const rows = text.split(/\r?\n/).map((line) => line.split(delimiter).map((cell) => cell.trim())).filter((row) => row.some(Boolean));
+    // Blank lines are skipped, so only filled rows count toward the row limit.
+    const rows = [];
+    for (const line of text.split(/\r?\n/)) {
+      const row = line.split(delimiter).map((cell) => cell.trim());
+      if (!row.some(Boolean)) continue;
+      rows.push(row);
+      if (rows.length > MAX_IMPORT_ROWS + 1) throw tooManyRows();
+    }
     const headers = (rows.shift() || []).map(normalizeHeader);
     return toRecords(namedColumns(headers), rows);
   }
@@ -155,6 +173,10 @@ export function createImportParserService() {
   function parseSharedStrings(xml) {
     const strings = [];
     forEachElement(xml, "si", (_attrs, body) => {
+      // A sheet cannot use more distinct strings than it has cells.
+      if (strings.length >= MAX_XLSX_CELLS) {
+        throw new Error("Import refused: the workbook lists more than 2,000,000 text values. Save the sheet again from Excel, or split it into smaller files, and retry.");
+      }
       const parts = [];
       forEachElement(body, "t", (_tAttrs, text) => parts.push(text));
       strings.push(decodeXml(parts.join("")));
@@ -290,15 +312,15 @@ export function createImportParserService() {
       }
       if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
     });
-    // The header is near the top; looking further only costs time on a crafted sheet.
-    const headerIndex = matrix.slice(0, MAX_HEADER_SEARCH_ROWS).findIndex((row) => {
-      const normalized = row.map(normalizeHeader);
-      return normalized.includes("supplier_name") ||
-        normalized.includes("beneficiary_account_name") ||
-        normalized.includes("item_name") ||
-        normalized.includes("order_number") ||
-        normalized.includes("company_name");
-    });
+    // The header row is the first row holding one of these titles. Cells are already
+    // trimmed, so a longer cell cannot be one of them and is skipped without work.
+    const isHeaderRow = (row) => row.some((cell) => cell.length <= HEADER_TITLE_MAX_CHARS && HEADER_TITLES.has(normalizeHeader(cell)));
+    const headerIndex = matrix.findIndex(isHeaderRow);
+    // Title rows above the header are expected, but a header this far down is more likely
+    // a second table; reading it silently would map the wrong rows.
+    if (headerIndex >= MAX_HEADER_SEARCH_ROWS) {
+      throw new Error(`Import refused: the header row (with supplier_name, item_name, order_number or company_name) is row ${headerIndex + 1} of the filled rows; it must be within the first ${MAX_HEADER_SEARCH_ROWS}. Delete the title rows above the header and import again.`);
+    }
     const sourceRows = headerIndex >= 0 ? matrix.slice(headerIndex) : matrix;
     const headers = (sourceRows.shift() || []).map(normalizeHeader);
     return toRecords(namedColumns(headers), sourceRows);

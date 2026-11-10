@@ -4,7 +4,9 @@
 //
 // The check runs in crudHelpers on the row that is actually written (after field
 // aliases are mapped and missing fields are filled), so it cannot be side-stepped
-// by sending a field under another name or by leaving it out.
+// by sending a field under another name or by leaving it out. The values are
+// normalized (normalizeBankFields) at the start of crudHelpers.cleanPayload, before
+// the combined bank text is built; the guard only checks.
 
 const BANK_FIELDS = {
   companies: ["bank_name", "account_number", "ifsc"],
@@ -28,13 +30,38 @@ function text(value) {
   return String(value ?? "").replace(EDGE_SPACE, "");
 }
 
-// Bank values are stored without surrounding spaces, line breaks or invisible characters,
-// so a padded account number or IFSC cannot be saved as a "different" value.
-export function trimBankFields(table, row) {
-  for (const field of BANK_FIELDS[table] || []) {
-    if (row && typeof row[field] === "string") row[field] = row[field].replace(EDGE_SPACE, "");
+// One rule for "the same bank value": surrounding spaces, line breaks and invisible
+// characters do not make a value different.
+export function sameBankValue(a, b) {
+  return text(a) === text(b);
+}
+
+function fieldLabel(field) {
+  return field.replace(/^supplier_|^beneficiary_/, "").replaceAll("_", " ");
+}
+
+// One bank value as it is stored: text without surrounding spaces or invisible characters.
+// A whole number is turned into its digits (SQLite would otherwise store 1234 as "1234.0").
+// A fraction, a number too large to hold every digit, true/false or an object is refused,
+// because an account number or IFSC typed that way has already lost its exact digits.
+export function normalizeBankValue(field, value) {
+  if (value === undefined || value === null) return value;
+  if (typeof value === "string") return value.replace(EDGE_SPACE, "");
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
+  throw new Error(`Bank ${fieldLabel(field)} must be entered as text, for example "012345678901". The value sent (${typeof value === "object" ? "a list or object" : String(value)}) cannot be saved exactly. Type the ${fieldLabel(field)} again in the form and save. Nothing was changed.`);
+}
+
+// Normalizes the bank fields of a payload before anything is built from them (for example
+// the combined supplier bank text). extraKeys are other names the same values may arrive
+// under. Returns a new object; the caller's payload is not changed.
+export function normalizeBankFields(table, payload = {}, extraKeys = []) {
+  const keys = [...(BANK_FIELDS[table] || []), ...extraKeys];
+  if (!keys.length || !payload) return payload;
+  const normalized = { ...payload };
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) normalized[key] = normalizeBankValue(key, normalized[key]);
   }
-  return row;
+  return normalized;
 }
 
 // Returns [{ field, oldValue, newValue }] for every bank field this write sets or changes.
@@ -49,7 +76,7 @@ export function bankDetailChanges(table, row, oldRecord = null) {
   if (!oldRecord && !GATED_ON_CREATE.has(table)) return [];
   return fields
     .filter((field) => Object.prototype.hasOwnProperty.call(row, field))
-    .filter((field) => text(row[field]) !== text(oldRecord?.[field]))
+    .filter((field) => !sameBankValue(row[field], oldRecord?.[field]))
     .map((field) => ({ field, oldValue: oldRecord?.[field] ?? null, newValue: row[field] ?? null }));
 }
 

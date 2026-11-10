@@ -1,3 +1,5 @@
+import { normalizeBankFields, sameBankValue } from "../services/bankDetailsPolicy.js";
+
 export function createCrudHelpers({
   ALL_TABLES,
   WRITE_POLICY,
@@ -86,7 +88,7 @@ export function createCrudHelpers({
       // The combined bank text is rebuilt when one of its parts is sent with a new value
       // and the text itself is not sent; a part resent unchanged keeps the stored text.
       // An alias counts only when the column itself was not sent (the column wins).
-      const differs = (field, key) => String(payload[key] ?? "").trim() !== String(oldRecord[field] ?? "").trim();
+      const differs = (field, key) => !sameBankValue(payload[key], oldRecord[field]);
       const partChanged = SUPPLIER_BANK_PARTS.some((field) => (sent(field)
         ? differs(field, field)
         : SUPPLIER_UPDATE_ALIASES[field].some((alias) => hasValue(payload[alias]) && differs(field, alias))));
@@ -100,7 +102,7 @@ export function createCrudHelpers({
   function supplierBankPartsChanged(merged, oldRecord) {
     if (!oldRecord) return true;
     const next = normalizePayloadForTable("suppliers", merged, { composeBankText: false });
-    return SUPPLIER_BANK_PARTS.some((field) => String(next[field] ?? "").trim() !== String(oldRecord[field] ?? "").trim());
+    return SUPPLIER_BANK_PARTS.some((field) => !sameBankValue(next[field], oldRecord[field]));
   }
 
   function normalizePayloadForTable(table, payload = {}, { composeBankText = true } = {}) {
@@ -120,21 +122,27 @@ export function createCrudHelpers({
     }
     normalized.supplier_account_name ||= normalized.supplier_name || "";
     normalized.status ||= "active";
-    if (composeBankText && !normalized.bank_details && (normalized.supplier_account_number || normalized.supplier_bank_name || normalized.supplier_bank_ifsc_code || normalized.supplier_branch)) {
+    if (composeBankText && !hasValue(normalized.bank_details) && SUPPLIER_BANK_PARTS.some((field) => hasValue(normalized[field]))) {
+      const part = (value) => (hasValue(value) ? value : "-");
       normalized.bank_details = [
-        `Account Name: ${normalized.supplier_account_name || "-"}`,
-        `Account Number: ${normalized.supplier_account_number || "-"}`,
-        `Bank: ${normalized.supplier_bank_name || "-"}`,
-        `IFSC: ${normalized.supplier_bank_ifsc_code || "-"}`,
-        `Branch: ${normalized.supplier_branch || "-"}`
+        `Account Name: ${part(normalized.supplier_account_name)}`,
+        `Account Number: ${part(normalized.supplier_account_number)}`,
+        `Bank: ${part(normalized.supplier_bank_name)}`,
+        `IFSC: ${part(normalized.supplier_bank_ifsc_code)}`,
+        `Branch: ${part(normalized.supplier_branch)}`
       ].join("; ");
     }
     if (!normalized.contact_details && normalized.supplier_contact) normalized.contact_details = normalized.supplier_contact;
     return normalized;
   }
 
+  // Names a supplier bank value may arrive under besides its own column.
+  const SUPPLIER_BANK_ALIASES = SUPPLIER_BANK_PARTS.flatMap((field) => SUPPLIER_FIELD_ALIASES[field] || []);
+
   function cleanPayload(table, payload, options) {
     assertTable(table);
+    // Bank values are normalized first, so the combined bank text is built from clean parts.
+    payload = normalizeBankFields(table, payload, table === "suppliers" ? SUPPLIER_BANK_ALIASES : []);
     payload = normalizePayloadForTable(table, payload, options);
     const allowed = ALL_TABLES[table].fields;
     const cleaned = {};

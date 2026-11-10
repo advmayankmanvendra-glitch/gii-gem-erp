@@ -398,6 +398,9 @@ export function createBankReconciliationService(deps) {
       remarks: payload.remarks || null,
       created_by: payload.created_by || null
     });
+    // The general audit trail also records every proposal write, so the go-live rollback
+    // guard and the audit report see it.
+    auditLog(db, { company_id: payload.company_id, user_id: payload.created_by || null, action: `voucher proposal ${String(payload.action || "").toLowerCase()}`, table_name: "voucher_proposals", record_id: payload.proposal_id || null, old_value: payload.old_value || null, new_value: payload.new_value || null });
   }
 
   // A proposal may only point at ledgers and documents of its own company.

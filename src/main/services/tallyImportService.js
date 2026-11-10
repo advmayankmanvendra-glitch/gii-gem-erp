@@ -422,10 +422,24 @@ export function createTallyImportService(deps) {
     return parseTallyStockItemsXml(xmlText, path.basename(filePath));
   }
 
+  const MAX_TALLY_PREVIEW_FILES = 20;
+
   function previewTallyMasterMigration(db, files = [], context = {}) {
     enforcePermission(db, "import", { ...context, module: "tally_migration_assistant", table_name: "imports" });
-    const sourceFiles = Array.isArray(files) ? files.filter((file) => file?.filePath) : [];
+    // Each file is read and parsed in full, so the same file picked twice is read once and
+    // one preview takes at most MAX_TALLY_PREVIEW_FILES files.
+    const seen = new Set();
+    const sourceFiles = (Array.isArray(files) ? files : []).filter((file) => {
+      if (!file?.filePath) return false;
+      const key = path.resolve(String(file.filePath));
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (!sourceFiles.length) throw new Error("Select at least one Tally export file for migration preview");
+    if (sourceFiles.length > MAX_TALLY_PREVIEW_FILES) {
+      throw new Error(`Preview refused: ${sourceFiles.length} files were selected; one preview reads at most ${MAX_TALLY_PREVIEW_FILES}. Preview them in smaller batches.`);
+    }
 
     const aggregate = {
       companies: [], ledgers: [], ledgerGroups: [], units: [],

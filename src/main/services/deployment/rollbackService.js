@@ -49,7 +49,7 @@ export function executeAutoRollback(runtimeRoot, goLiveEntry, reason) {
     }
     const pendingFile = path.join(runtimeRoot, "database", "pending_restore.json");
     if (fs.existsSync(pendingFile)) {
-      return { success: false, reason: "Pending restore already queued", goLiveEntry };
+      return { success: false, reason: "Rollback refused: a restore is already queued. Restart the app to apply it, or cancel it in Backup & Restore, then retry. Nothing was changed.", goLiveEntry };
     }
     restoreBackup(targetBackup, runtimeRoot);
     return {

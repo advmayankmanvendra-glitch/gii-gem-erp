@@ -32,11 +32,17 @@ export function computeOrderClosure(db, orderId) {
  * Mark supply order as operationally closed.
  * @param {object} db - SQLite database handle
  * @param {number} orderId - Supply order ID
+ * @param {function} audit - audit writer, called inside the transaction
  */
-export function markOrderOperationallyClosed(db, orderId) {
-  const closure = computeOrderClosure(db, orderId);
-  if (!closure.ready) throw new Error("Order closure checklist is not complete");
-  db.prepare("UPDATE supply_orders SET operationally_closed = 1, operationally_closed_at = CURRENT_TIMESTAMP, closure_percentage = 100, closure_checklist = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(closure.checks), orderId);
+export function markOrderOperationallyClosed(db, orderId, audit = () => {}) {
+  db.transaction(() => {
+    const closure = computeOrderClosure(db, orderId);
+    if (!closure.ready) throw new Error("Order closure checklist is not complete");
+    db.prepare("UPDATE supply_orders SET operationally_closed = 1, operationally_closed_at = CURRENT_TIMESTAMP, closure_percentage = 100, closure_checklist = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(closure.checks), orderId);
+    // Audited in the same transaction; the go-live rollback guard relies on this row.
+    const order = db.prepare("SELECT company_id FROM supply_orders WHERE id = ?").get(orderId);
+    audit({ company_id: order?.company_id || null, action: "order_operationally_closed", module: "crac", table_name: "supply_orders", record_id: Number(orderId) || null, new_value: JSON.stringify({ checks: closure.checks }) });
+  })();
 }
 
 /**

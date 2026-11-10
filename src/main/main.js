@@ -876,7 +876,7 @@ function registerIpc() {
   handle("bank:post-approved", guarded("post", "bank_statement_imports", (importId) => postApprovedBankImport(db, importId, actorId())));
   handle("voucher-proposals:data", (_event, filters) => voucherProposalData(db, filters));
   handle("voucher-proposals:generate", guarded("approve", "voucher_proposals", (importId) => generateVoucherProposalsForImport(db, importId, actorId())));
-  handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, payload)));
+  handle("voucher-proposals:update", guarded("edit", "voucher_proposals", (proposalId, payload) => updateVoucherProposal(db, proposalId, { ...(payload || {}), user_id: actorId() })));
   handle("voucher-proposals:approve", guarded("approve", "voucher_proposals", (proposalId, _userId, remarks) => approveVoucherProposal(db, proposalId, actorId(), remarks)));
   handle("voucher-proposals:reject", guarded("approve", "voucher_proposals", (proposalId, _userId, reason) => rejectVoucherProposal(db, proposalId, actorId(), reason)));
   handle("voucher-proposals:create-draft", guarded("create", "voucher_proposals", (proposalId) => createDraftVoucherFromProposal(db, proposalId, actorId())));
@@ -1310,7 +1310,13 @@ function registerIpc() {
 
   handle("go-live:rollback", guarded("restore_backup", "go_live", ({ goLiveId, reason } = {}) => {
     const userId = actorId();
-    assertGoLiveRollbackSafe(db, runtimeDataRoot, goLiveId);
+    // A refusal comes back in the same shape as a failed rollback, so the screen shows it
+    // the same way.
+    try {
+      assertGoLiveRollbackSafe(db, runtimeDataRoot, goLiveId);
+    } catch (error) {
+      return { rollbackResult: { success: false, reason: error.message }, reason };
+    }
     const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
     auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason, success: result?.rollbackResult?.success }) });
     return result;
@@ -1355,25 +1361,17 @@ function registerIpc() {
 
   handle("crac:list", (_event, filters) => listCracRecords(db, filters));
   handle("crac:get", (_event, id) => getCracRecord(db, id));
-  // CRAC writes bypass crudHelpers, so they are audited here; the go-live rollback guard
-  // relies on every record write leaving an audit row.
-  const auditCrac = (action, id, result) => {
-    auditLog(db, { action, module: "crac", table_name: "crac_records", record_id: Number(id || result?.id || 0) || null, new_value: JSON.stringify(result ?? null) });
-    return result;
-  };
-  handle("crac:create", guarded("create", "crac_records", (payload) => auditCrac("crac_created", null, createCracRecord(db, payload))));
-  handle("crac:update", guarded("edit", "crac_records", (id, payload) => auditCrac("crac_updated", id, updateCracRecord(db, id, payload))));
-  handle("crac:delete", guarded("delete", "crac_records", (id) => auditCrac("crac_deleted", id, deleteCracRecord(db, id, actorId()))));
+  // CRAC services audit their own writes inside the write's transaction.
+  const auditEntry = (entry) => auditLog(db, entry);
+  handle("crac:create", guarded("create", "crac_records", (payload) => createCracRecord(db, { ...(payload || {}), created_by: actorId() }, auditEntry)));
+  handle("crac:update", guarded("edit", "crac_records", (id, payload) => updateCracRecord(db, id, payload || {}, auditEntry)));
+  handle("crac:delete", guarded("delete", "crac_records", (id) => deleteCracRecord(db, id, actorId(), auditEntry)));
   handle("crac:stats", (_event, filters) => getCracStats(db, Number(filters?.company_id || 0)));
   handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
   handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
   handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
   handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
-  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => {
-    const result = markOrderOperationallyClosed(db, orderId);
-    auditLog(db, { action: "order_operationally_closed", module: "crac", table_name: "supply_orders", record_id: Number(orderId) || null, new_value: JSON.stringify(result ?? null) });
-    return result;
-  }));
+  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId, auditEntry)));
   handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 
   handle("feedback:submit", (event, payload = {}) => {
