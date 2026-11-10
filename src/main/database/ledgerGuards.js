@@ -7,7 +7,10 @@
 //   refused unless: it has lines; its lines balance to the paisa; every line has exactly
 //   one active ledger entry with the line's account and paise amounts, and no entry names
 //   anything else; every line account, entry account and entry belongs to the voucher's
-//   company; paise amounts are whole numbers; and rupee columns equal paise / 100.
+//   company; every entry carries the voucher's date; the voucher is not deleted and has
+//   no deleted entries; paise amounts are whole numbers; and rupee columns equal
+//   paise / 100.
+// - A posted voucher becomes Reversed only once its reversal voucher is posted.
 // - A Posted or Reversed voucher cannot be deleted, and only its status may change
 //   (Posted to Reversed, with the reversal details). Its lines cannot be added,
 //   changed or removed.
@@ -21,10 +24,13 @@
 //     company's active Expense ledger "Rounding Off" that exactly cancels a difference
 //     of at most one rupee;
 //   - a reversal (source_module 'voucher_reversal') that mirrors the original exactly,
-//     each non-zero original line used once with debit and credit swapped, so the pair
-//     nets to zero.
-// - Any other trigger on these tables, or whose SQL names them, is dropped at start-up
-//   and logged.
+//     each non-zero original line used once with debit and credit swapped and no zero
+//     lines, so the pair nets to zero.
+// - INSERT OR REPLACE and UPDATE OR REPLACE cannot overwrite a posted row unless a window
+//   is open for that row's own company, and a voucher cannot move to another company
+//   away from its lines' accounts or its entries.
+// - Any other trigger on these tables, or whose SQL names them (TEMP triggers included),
+//   is dropped at start-up and logged.
 //
 // Operational reset runs inside a maintenance window: a ledger_maintenance row written
 // and removed within the same transaction.
@@ -143,6 +149,7 @@ function correctableOriginal(newRow, extra) {
 function mirrorsOriginal(newRow) {
   return `(SELECT COUNT(*) FROM voucher_lines WHERE voucher_id = ${newRow}.id)
               = (SELECT COUNT(*) FROM voucher_lines WHERE voucher_id = ${newRow}.source_id AND (debit_minor <> 0 OR credit_minor <> 0))
+            AND NOT EXISTS (SELECT 1 FROM voucher_lines z WHERE z.voucher_id = ${newRow}.id AND z.debit_minor = 0 AND z.credit_minor = 0)
             AND NOT EXISTS (
               SELECT 1 FROM voucher_lines r
               WHERE r.voucher_id = ${newRow}.id
@@ -161,13 +168,16 @@ function triggerSql() {
     // SQLite's replace deletion does not run the delete guards.
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_insert
       BEFORE INSERT ON vouchers
-      WHEN NOT ${maintenanceOpen("NEW.company_id")}
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: a voucher must be saved as Draft and then posted, so the database can check that it balances.')
-        WHERE NEW.status IN ('Posted', 'Reversed');
+        WHERE NEW.status IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("NEW.company_id")};
+        -- The window that matters is the one for the posted row being replaced.
         SELECT RAISE(ABORT, 'Ledger guard: a posted voucher cannot be replaced. Reverse it instead.')
-        WHERE EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.id AND status IN ('Posted', 'Reversed'))
-          OR EXISTS (SELECT 1 FROM vouchers WHERE company_id = NEW.company_id AND voucher_number = NEW.voucher_number AND status IN ('Posted', 'Reversed'));
+        WHERE EXISTS (
+          SELECT 1 FROM vouchers x
+          WHERE (x.id = NEW.id OR (x.company_id = NEW.company_id AND x.voucher_number = NEW.voucher_number))
+            AND x.status IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("x.company_id")}
+        );
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_post
@@ -176,6 +186,12 @@ function triggerSql() {
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: a voucher needs at least one line before it can be posted.')
         WHERE NOT EXISTS (SELECT 1 FROM voucher_lines WHERE voucher_id = NEW.id);
+        SELECT RAISE(ABORT, 'Ledger guard: a deleted voucher cannot be posted.')
+        WHERE COALESCE(NEW.is_deleted, 0) <> 0;
+        SELECT RAISE(ABORT, 'Ledger guard: a voucher with deleted ledger entries cannot be posted. Remove them first.')
+        WHERE EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND COALESCE(is_deleted, 0) <> 0);
+        SELECT RAISE(ABORT, 'Ledger guard: every ledger entry must carry the voucher''s date. Posting was refused.')
+        WHERE EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND entry_date IS NOT NEW.voucher_date);
         SELECT RAISE(ABORT, 'Ledger guard: the voucher lines and ledger entries do not agree. Posting was refused.')
         WHERE ${voucherImbalance("NEW.id")} <> ${entryImbalance("NEW.id")}
           OR (SELECT COALESCE(SUM(debit_minor), 0) FROM voucher_lines WHERE voucher_id = NEW.id)
@@ -234,17 +250,35 @@ function triggerSql() {
         WHERE ${POSTED_VOUCHER_FIXED_COLUMNS.map((column) => `NEW.${column} IS NOT OLD.${column}`).join("\n          OR ")}
           OR (OLD.status = 'Reversed' AND NEW.status IS NOT 'Reversed')
           OR (OLD.status = 'Posted' AND NEW.status NOT IN ('Posted', 'Reversed'));
+        -- A voucher is marked Reversed only once its reversal is posted (for a rounding
+        -- adjustment, the reversal of the voucher it corrects).
+        SELECT RAISE(ABORT, 'Ledger guard: a voucher can be marked Reversed only after its reversal voucher is posted.')
+        WHERE OLD.status = 'Posted' AND NEW.status = 'Reversed'
+          AND NOT EXISTS (
+            SELECT 1 FROM vouchers r
+            WHERE r.source_module = '${VOUCHER_REVERSAL_SOURCE}' AND r.status = 'Posted' AND COALESCE(r.is_deleted, 0) = 0
+              AND r.company_id = OLD.company_id
+              AND (r.source_id = OLD.id OR (COALESCE(OLD.source_module, '') = '${ROUNDING_ADJUSTMENT_SOURCE}' AND r.source_id = OLD.source_id))
+          );
       END`,
 
     // UPDATE OR REPLACE that moves any voucher onto a posted voucher's id or number would
     // delete the posted one without running the delete guard.
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_replace
       BEFORE UPDATE OF id, company_id, voucher_number ON vouchers
-      WHEN NOT ${maintenanceOpen("NEW.company_id")}
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: a posted voucher cannot be replaced. Reverse it instead.')
-        WHERE EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.id AND id <> OLD.id AND status IN ('Posted', 'Reversed'))
-          OR EXISTS (SELECT 1 FROM vouchers WHERE company_id = NEW.company_id AND voucher_number = NEW.voucher_number AND id <> OLD.id AND status IN ('Posted', 'Reversed'));
+        WHERE EXISTS (
+          SELECT 1 FROM vouchers x
+          WHERE (x.id = NEW.id OR (x.company_id = NEW.company_id AND x.voucher_number = NEW.voucher_number))
+            AND x.id <> OLD.id AND x.status IN ('Posted', 'Reversed') AND NOT ${maintenanceOpen("x.company_id")}
+        );
+        -- Even inside a window, a voucher cannot leave its lines' accounts or its entries
+        -- in another company.
+        SELECT RAISE(ABORT, 'Ledger guard: a voucher cannot move to another company while its lines or ledger entries belong to this one.')
+        WHERE NEW.company_id IS NOT OLD.company_id
+          AND (EXISTS (SELECT 1 FROM voucher_lines l JOIN accounts a ON a.id = l.account_id WHERE l.voucher_id = OLD.id AND a.company_id IS NOT NEW.company_id)
+            OR EXISTS (SELECT 1 FROM ledger_entries e WHERE e.voucher_id = OLD.id AND e.company_id IS NOT NEW.company_id));
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_voucher_delete
@@ -260,8 +294,8 @@ function triggerSql() {
       BEGIN
         ${accountOfCompanyCheck("NEW.account_id", lineCompany("NEW.voucher_id"))}
         SELECT RAISE(ABORT, 'Ledger guard: lines cannot be added to or replaced on a posted voucher.')
-        WHERE (${lockedVoucher("NEW.voucher_id")} OR EXISTS (SELECT 1 FROM voucher_lines old WHERE old.id = NEW.id AND ${lockedVoucher("old.voucher_id")}))
-          AND NOT ${maintenanceOpen(lineCompany("NEW.voucher_id"))};
+        WHERE (${lockedVoucher("NEW.voucher_id")} AND NOT ${maintenanceOpen(lineCompany("NEW.voucher_id"))})
+          OR EXISTS (SELECT 1 FROM voucher_lines old WHERE old.id = NEW.id AND ${lockedVoucher("old.voucher_id")} AND NOT ${maintenanceOpen(lineCompany("old.voucher_id"))});
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_line_update
@@ -269,9 +303,9 @@ function triggerSql() {
       BEGIN
         ${accountOfCompanyCheck("NEW.account_id", lineCompany("NEW.voucher_id"))}
         SELECT RAISE(ABORT, 'Ledger guard: lines of a posted voucher cannot be changed. Reverse the voucher instead.')
-        WHERE (${lockedVoucher("OLD.voucher_id")} OR ${lockedVoucher("NEW.voucher_id")}
-            OR EXISTS (SELECT 1 FROM voucher_lines other WHERE other.id = NEW.id AND other.id <> OLD.id AND ${lockedVoucher("other.voucher_id")}))
-          AND NOT (${maintenanceOpen(lineCompany("OLD.voucher_id"))} AND ${maintenanceOpen(lineCompany("NEW.voucher_id"))});
+        WHERE ((${lockedVoucher("OLD.voucher_id")} OR ${lockedVoucher("NEW.voucher_id")})
+            AND NOT (${maintenanceOpen(lineCompany("OLD.voucher_id"))} AND ${maintenanceOpen(lineCompany("NEW.voucher_id"))}))
+          OR EXISTS (SELECT 1 FROM voucher_lines other WHERE other.id = NEW.id AND other.id <> OLD.id AND ${lockedVoucher("other.voucher_id")} AND NOT ${maintenanceOpen(lineCompany("other.voucher_id"))});
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_line_delete
@@ -289,14 +323,16 @@ function triggerSql() {
         WHERE NOT EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.voucher_id AND company_id = NEW.company_id)
           OR NOT EXISTS (SELECT 1 FROM accounts WHERE id = NEW.account_id AND company_id = NEW.company_id)
           OR (NOT ${maintenanceOpen("NEW.company_id")}
-            AND (${lockedVoucher("NEW.voucher_id")} OR EXISTS (SELECT 1 FROM ledger_entries old WHERE old.id = NEW.id)));
+            AND (${lockedVoucher("NEW.voucher_id")} OR COALESCE(NEW.is_deleted, 0) <> 0))
+          OR EXISTS (SELECT 1 FROM ledger_entries old WHERE old.id = NEW.id AND NOT ${maintenanceOpen("old.company_id")});
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_entry_update
       BEFORE UPDATE ON ledger_entries
       BEGIN
         SELECT RAISE(ABORT, 'Ledger guard: ledger entries cannot be changed. Post a reversal or correction voucher instead.')
-        WHERE NOT (${maintenanceOpen("OLD.company_id")} AND ${maintenanceOpen("NEW.company_id")});
+        WHERE NOT (${maintenanceOpen("OLD.company_id")} AND ${maintenanceOpen("NEW.company_id")})
+          OR EXISTS (SELECT 1 FROM ledger_entries other WHERE other.id = NEW.id AND other.id <> OLD.id AND NOT ${maintenanceOpen("other.company_id")});
         SELECT RAISE(ABORT, 'Ledger guard: ledger entries can only belong to a voucher and an account of the same company.')
         WHERE NOT EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.voucher_id AND company_id = NEW.company_id)
           OR NOT EXISTS (SELECT 1 FROM accounts WHERE id = NEW.account_id AND company_id = NEW.company_id);
@@ -371,13 +407,13 @@ export function ensureLedgerGuards(db) {
 // so a migration that renames or drops a column the guards use fails at start-up instead
 // of on the next posting.
 export const LEDGER_GUARD_COMPILE_STATEMENTS = [
-  "INSERT INTO vouchers SELECT * FROM vouchers WHERE 0",
+  "INSERT INTO vouchers (id) SELECT id FROM vouchers WHERE 0",
   "UPDATE vouchers SET status = status, id = id, company_id = company_id, voucher_number = voucher_number WHERE 0",
   "DELETE FROM vouchers WHERE 0",
-  "INSERT INTO voucher_lines SELECT * FROM voucher_lines WHERE 0",
+  "INSERT INTO voucher_lines (id) SELECT id FROM voucher_lines WHERE 0",
   "UPDATE voucher_lines SET id = id WHERE 0",
   "DELETE FROM voucher_lines WHERE 0",
-  "INSERT INTO ledger_entries SELECT * FROM ledger_entries WHERE 0",
+  "INSERT INTO ledger_entries (id) SELECT id FROM ledger_entries WHERE 0",
   "UPDATE ledger_entries SET id = id WHERE 0",
   "DELETE FROM ledger_entries WHERE 0"
 ];
@@ -400,10 +436,11 @@ export function compileLedgerGuards(db) {
 //   line_debit_minor, line_credit_minor     totals of its lines
 //   entry_debit_minor, entry_credit_minor   totals of its active ledger entries
 //   bad_lines     lines without exactly one active entry with the line's account and
-//                 amounts, or whose account belongs to another company
-//   stray_entries active entries that name no line of this voucher, or whose account or
-//                 company is not the voucher's company
-//   mismatch      1 when any of the above disagree
+//                 amounts, or whose account belongs to another company or is deleted
+//   stray_entries active entries that name no line of this voucher, whose account or
+//                 company is not the voucher's company, whose account is deleted, or
+//                 whose date is not the voucher's date
+//   mismatch      1 when any of the above disagree, or the voucher has no lines
 // Every part is a grouped pass, so a whole-book report reads each table once.
 export function voucherLedgerCheckSql(scopeSql) {
   return `
@@ -417,7 +454,7 @@ export function voucherLedgerCheckSql(scopeSql) {
       SELECT l.voucher_id, l.id, l.debit_minor, l.credit_minor,
         COUNT(e.id) entries,
         SUM(CASE WHEN e.account_id = l.account_id AND e.debit_minor = l.debit_minor AND e.credit_minor = l.credit_minor THEN 1 ELSE 0 END) matching,
-        MAX(CASE WHEN a.company_id IS sv.company_id THEN 0 ELSE 1 END) foreign_account
+        MAX(CASE WHEN a.company_id IS sv.company_id AND COALESCE(a.is_deleted, 0) = 0 THEN 0 ELSE 1 END) foreign_account
       FROM voucher_lines l
       JOIN sv ON sv.id = l.voucher_id
       LEFT JOIN accounts a ON a.id = l.account_id
@@ -431,7 +468,8 @@ export function voucherLedgerCheckSql(scopeSql) {
     ),
     entry_sums AS (
       SELECT e.voucher_id, SUM(e.debit_minor) debit_minor, SUM(e.credit_minor) credit_minor,
-        SUM(CASE WHEN l.id IS NULL OR e.company_id IS NOT sv.company_id OR a.company_id IS NOT sv.company_id THEN 1 ELSE 0 END) stray_entries
+        SUM(CASE WHEN l.id IS NULL OR e.company_id IS NOT sv.company_id OR a.company_id IS NOT sv.company_id
+          OR COALESCE(a.is_deleted, 0) <> 0 OR e.entry_date IS NOT sv.voucher_date THEN 1 ELSE 0 END) stray_entries
       FROM ledger_entries e
       JOIN sv ON sv.id = e.voucher_id
       LEFT JOIN voucher_lines l ON l.id = e.voucher_line_id AND l.voucher_id = e.voucher_id
@@ -446,7 +484,8 @@ export function voucherLedgerCheckSql(scopeSql) {
         COALESCE(ls.bad_lines, 0) bad_lines, COALESCE(es.stray_entries, 0) stray_entries,
         CASE WHEN COALESCE(ls.debit_minor, 0) <> COALESCE(es.debit_minor, 0)
           OR COALESCE(ls.credit_minor, 0) <> COALESCE(es.credit_minor, 0)
-          OR COALESCE(ls.bad_lines, 0) > 0 OR COALESCE(es.stray_entries, 0) > 0 THEN 1 ELSE 0 END mismatch
+          OR COALESCE(ls.bad_lines, 0) > 0 OR COALESCE(es.stray_entries, 0) > 0
+          OR ls.voucher_id IS NULL THEN 1 ELSE 0 END mismatch
       FROM sv
       LEFT JOIN line_sums ls ON ls.voucher_id = sv.id
       LEFT JOIN entry_sums es ON es.voucher_id = sv.id
@@ -467,17 +506,26 @@ export function missingLedgerGuards(db) {
 export function unexpectedLedgerTriggers(db) {
   const tables = new Set(LEDGER_TABLES);
   const mentions = new RegExp(`\\b(${LEDGER_TABLES.join("|")})\\b`, "i");
-  return db.prepare("SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger'").all()
-    .filter((row) => !LEDGER_GUARD_TRIGGERS.includes(row.name))
+  // TEMP triggers live only on this connection but still fire on the main tables.
+  const rows = [
+    ...db.prepare("SELECT 'main' schema, name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger'").all(),
+    ...db.prepare("SELECT 'temp' schema, name, tbl_name, sql FROM sqlite_temp_master WHERE type = 'trigger'").all()
+  ];
+  return rows
+    .filter((row) => row.schema === "temp" || !LEDGER_GUARD_TRIGGERS.includes(row.name))
     .filter((row) => tables.has(String(row.tbl_name || "").toLowerCase()) || mentions.test(String(row.sql || "")))
-    .map((row) => row.name);
+    .map((row) => (row.schema === "temp" ? `temp.${row.name}` : row.name));
 }
 
 // Drops the triggers unexpectedLedgerTriggers lists. Start-up calls it before migrations,
 // so a planted trigger never runs while the guards are off, and again with the guards.
 export function dropUnexpectedLedgerTriggers(db) {
   const names = unexpectedLedgerTriggers(db);
-  names.forEach((name) => db.exec(`DROP TRIGGER IF EXISTS "${name.replace(/"/g, '""')}"`));
+  names.forEach((name) => {
+    const temp = name.startsWith("temp.");
+    const bare = temp ? name.slice(5) : name;
+    db.exec(`DROP TRIGGER IF EXISTS ${temp ? "temp" : "main"}."${bare.replace(/"/g, '""')}"`);
+  });
   return names;
 }
 
@@ -506,27 +554,35 @@ export function openLedgerMaintenance(db) {
   return db.prepare("SELECT id, company_id, reason, opened_at FROM ledger_maintenance ORDER BY id").all();
 }
 
-// Counts posted vouchers whose lines do not balance, or whose lines and ledger entries
-// disagree (by voucherLedgerCheckSql). Start-up runs migrations and seeding with the guards off, so the count is
-// taken before and after and a rise is recorded. Returns null on a database that does not
-// have the paise columns yet (an older copy before its upgrade).
-export function ledgerDefectCount(db) {
-  // Unbalanced vouchers (other than the one-sided corrections) plus vouchers whose lines and
-  // ledger entries disagree, by the shared check above. Originals already settled by a
-  // correction are still counted; only a rise matters. Grouped passes only, so it needs no
-  // index: it also runs before start-up has created the guard indexes on an older database.
+// Posted vouchers whose lines do not balance, or whose lines and ledger entries disagree
+// (by voucherLedgerCheckSql). A rounding adjustment or one-sided reversal is left out only
+// when it nets to zero with the original it names. Start-up runs migrations and seeding
+// with the guards off, so the ids are taken before and after, and any new one is recorded.
+// Returns null on a database that does not have the paise columns yet (an older copy
+// before its upgrade). Grouped passes only, so it needs no index: it also runs before
+// start-up has created the guard indexes on an older database. Originals already settled
+// by a correction are still listed; only a new id matters.
+export function ledgerDefectIds(db) {
   try {
-    return Number(db.prepare(`
+    return db.prepare(`
       ${voucherLedgerCheckSql("SELECT id FROM vouchers")}
-      SELECT COUNT(*) total FROM checked
-      WHERE mismatch = 1
-        OR (line_debit_minor <> line_credit_minor
-          AND COALESCE(source_module, '') NOT IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}'))
-    `).get().total);
+      SELECT c.id FROM checked c
+      WHERE c.mismatch = 1
+        OR (c.line_debit_minor <> c.line_credit_minor
+          AND NOT (COALESCE(c.source_module, '') IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}')
+            AND EXISTS (SELECT 1 FROM checked o WHERE o.id = c.source_id AND o.company_id = c.company_id
+              AND (o.line_debit_minor - o.line_credit_minor) + (c.line_debit_minor - c.line_credit_minor) = 0)))
+      ORDER BY c.id
+    `).all().map((row) => row.id);
   } catch (error) {
-    // An older database without the paise or line-link columns cannot be counted until
+    // An older database without the paise or line-link columns cannot be checked until
     // migrations add them; any other error is real.
     if (/no such column/i.test(String(error?.message))) return null;
     throw error;
   }
+}
+
+export function ledgerDefectCount(db) {
+  const ids = ledgerDefectIds(db);
+  return ids === null ? null : ids.length;
 }

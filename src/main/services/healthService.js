@@ -157,7 +157,9 @@ function accountingBalanceCheck(db) {
       "Review database schema compatibility before using accounting reports."
     );
   }
-  const totals = safeGet(db, "SELECT COALESCE(SUM(debit_minor), 0) / 100.0 AS debit, COALESCE(SUM(credit_minor), 0) / 100.0 AS credit FROM ledger_entries");
+  const totals = safeGet(db, `SELECT COALESCE(SUM(le.debit_minor), 0) / 100.0 AS debit, COALESCE(SUM(le.credit_minor), 0) / 100.0 AS credit
+    FROM ledger_entries le JOIN vouchers v ON v.id = le.voucher_id
+    WHERE COALESCE(le.is_deleted, 0) = 0 AND COALESCE(v.is_deleted, 0) = 0 AND v.status IN ('Posted', 'Reversed')`);
   if (!totals.ok) {
     return check("accounting_balance", "Ledger Entry Balance", "fail", "critical", totals.error, "Run verify:accounting and review database errors.");
   }

@@ -26,7 +26,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
-import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectCount } from "./ledgerGuards.js";
+import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectIds } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -281,7 +281,7 @@ export function initializeDatabase(root = projectRoot()) {
   // Migrations run with the ledger guards off; they are put back, current, at the end.
   const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
   const repairPending = existingBooks && !migrationApplied(db, UPGRADE_REPAIR_MIGRATION);
-  const countedBefore = existingBooks ? ledgerDefectCount(db) : null;
+  const countedBefore = existingBooks ? ledgerDefectIds(db) : null;
   const plantedBefore = existingBooks ? dropUnexpectedLedgerTriggers(db) : [];
   if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
@@ -701,15 +701,27 @@ const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 // mismatched posted vouchers than there were before, that is recorded in the audit log
 // (the Money integrity check in Health Center lists the vouchers themselves). Start-up is
 // not refused, so the owner can still open the books to correct them.
+// defectsBefore: the voucher ids ledgerDefectIds listed before migrations and seeding (a
+// count is also accepted). Any voucher listed now and not then is recorded, so fixing one
+// voucher cannot hide breaking another.
 export function recordStartupLedgerCheck(db, defectsBefore) {
-  if (defectsBefore === null) return;
-  const defectsAfter = ledgerDefectCount(db);
-  if (defectsAfter === null || defectsAfter <= defectsBefore) return;
-  console.error(`Ledger check: start-up left ${defectsAfter - defectsBefore} more unbalanced posted voucher(s).`);
+  if (defectsBefore === null || defectsBefore === undefined) return;
+  const after = ledgerDefectIds(db);
+  if (after === null) return;
+  let added;
+  if (Array.isArray(defectsBefore)) {
+    const before = new Set(defectsBefore);
+    added = after.filter((id) => !before.has(id));
+  } else {
+    added = after.length > Number(defectsBefore) ? after.slice(Number(defectsBefore)) : [];
+  }
+  if (!added.length) return;
+  const beforeCount = Array.isArray(defectsBefore) ? defectsBefore.length : Number(defectsBefore);
+  console.error(`Ledger check: start-up left ${added.length} new unbalanced or mismatched posted voucher(s).`);
   auditLog(db, {
     action: "ledger_startup_check_failed",
     table_name: "vouchers",
-    new_value: JSON.stringify({ unbalanced_before: defectsBefore, unbalanced_after: defectsAfter })
+    new_value: JSON.stringify({ unbalanced_before: beforeCount, unbalanced_after: after.length, new_voucher_ids: added.slice(0, 50) })
   });
 }
 
