@@ -60,7 +60,7 @@ function ResetPreviewTable({ title, data }) {
   );
 }
 
-function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }) {
+function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, onDataReset }) {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState([]);
@@ -189,13 +189,23 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
     } catch { /* ignore */ }
   };
 
+  // A reset clears one company. In the All Companies view there is no company to clear,
+  // so say so up front instead of failing at the last step.
+  const resetCompanyMissing = !companyContext?.company_id;
+  const resetCompanyMessage = "Select one company in the company switcher (top bar) first. A reset clears one company at a time, and the All Companies view has no single company to clear.";
+  const resetPreviewPayload = () => ({ company_id: companyContext?.company_id });
+
   const handlePreview = async () => {
+    if (resetCompanyMissing) {
+      setResetError(resetCompanyMessage);
+      return;
+    }
     setResetStep("preview");
     setResetLoading(true);
     setResetResult(null);
     setResetError(null);
     try {
-      const result = await apiClient.previewReset();
+      const result = await apiClient.previewReset(resetPreviewPayload());
       setResetPreview(result);
     } catch (error) {
       setResetError(error.message || "Preview failed");
@@ -215,6 +225,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
       setResetPreview(null);
       setResetConfirm("");
       setResetStep("completed");
+      onDataReset?.();
       load();
     } catch (error) {
       setResetError(error.message || "Reset execution failed");
@@ -225,6 +236,10 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
   };
 
   const handleEnhancedResetStart = () => {
+    if (resetCompanyMissing) {
+      setResetError(resetCompanyMessage);
+      return;
+    }
     setResetStep("warning");
     setResetWarningAck(false);
     setResetBackupInfo(null);
@@ -263,7 +278,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
         setResetStep("blocked");
       } else {
         setResetStep("preview");
-        const preview = await apiClient.previewReset();
+        const preview = await apiClient.previewReset(resetPreviewPayload());
         setResetPreview(preview);
       }
     } catch (error) {
@@ -286,6 +301,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
       setResetZeroState(result.zeroState);
       setResetConfirm("");
       setResetStep("verification");
+      onDataReset?.();
       load();
     } catch (error) {
       setResetError(error.message || "Enhanced reset execution failed");
@@ -759,7 +775,10 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext }
         {resetStep === "preview" && resetPreview && !resetResult && (
           <div className="reset-preview" style={{ marginTop: 12 }}>
             <h4>Reset Preview</h4>
-            <p><strong>Total operational rows: {resetPreview.totalOperational}</strong></p>
+            <p><strong>{resetPreview.company ? `Rows to clear for ${resetPreview.company.name}` : "Total operational rows (all companies)"}: {resetPreview.totalOperational}</strong></p>
+            {resetPreview.unclassifiedTables?.length > 0 && (
+              <p className="reset-warning">These tables hold company data but are neither cleared nor kept by the reset: {resetPreview.unclassifiedTables.join(", ")}. Report this before resetting.</p>
+            )}
             <ResetPreviewTable title="Tables to Clear" data={resetPreview.operational} />
             <ResetPreviewTable title="Preserved Tables" data={resetPreview.preserved} />
 

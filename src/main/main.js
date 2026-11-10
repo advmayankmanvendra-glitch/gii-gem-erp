@@ -108,6 +108,7 @@ import {
   previewImportRollback
 } from "./database/init.js";
 import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
+import { compareUpdateVersions, isPortableInstaller } from "./services/updateVersion.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -391,17 +392,6 @@ function parseUpdateVersion(fileName = "") {
   return match?.[1] || "";
 }
 
-function compareUpdateVersions(left = "", right = "") {
-  const leftParts = String(left).match(/\d+/g)?.map(Number) || [0];
-  const rightParts = String(right).match(/\d+/g)?.map(Number) || [0];
-  const length = Math.max(leftParts.length, rightParts.length);
-  for (let index = 0; index < length; index += 1) {
-    const delta = (leftParts[index] || 0) - (rightParts[index] || 0);
-    if (delta !== 0) return delta;
-  }
-  return String(left).localeCompare(String(right));
-}
-
 function safeReadUpdateManifest(manifestPath) {
   try {
     if (!fs.existsSync(manifestPath)) return null;
@@ -442,7 +432,7 @@ function findLatestUpdateInstaller(updateFolder, manifest) {
   }
 
   const candidates = fs.readdirSync(updateFolder)
-    .filter((fileName) => /^GII-GeM-ERP-(?:Setup|Portable)-.+-x64\.exe$/i.test(fileName))
+    .filter((fileName) => /^GII-GeM-ERP-Setup-.+-x64\.exe$/i.test(fileName))
     .map((fileName) => {
       const installerPath = path.join(updateFolder, fileName);
       const stats = fs.statSync(installerPath);
@@ -468,10 +458,15 @@ function getUpdateStatus() {
   const candidate = findLatestUpdateInstaller(updateFolder, manifest?.error ? null : manifest);
   const currentVersion = app.getVersion();
   const latestVersion = manifest?.version || candidate?.version || "";
+  const comparison = latestVersion ? compareUpdateVersions(latestVersion, currentVersion) : null;
   return {
     currentVersion,
     latestVersion,
-    updateAvailable: Boolean(candidate?.installerPath && latestVersion && compareUpdateVersions(latestVersion, currentVersion) > 0),
+    updateAvailable: Boolean(candidate?.installerPath && latestVersion && comparison > 0),
+    // Same version as the running app: installing it changes nothing you can see.
+    sameVersion: Boolean(candidate?.installerPath && comparison === 0),
+    olderVersion: Boolean(candidate?.installerPath && comparison !== null && comparison < 0),
+    portableNotSupported: isPortableInstaller(candidate?.fileName),
     updateFolder,
     manifestPath,
     releaseNotes: updateReleaseNotes(manifest, candidate),
@@ -1205,10 +1200,27 @@ function registerIpc() {
     const installer = enforcePermission(db, "settings", { module: "updates", table_name: "updates", user_id: sessionUser(event).user_id });
     const status = getUpdateStatus();
     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
-    auditLog(db, { action: "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: path.basename(selectedInstaller) });
+    if (isPortableInstaller(selectedInstaller)) {
+      throw new Error("This is a portable EXE. It runs on its own and does not update the installed ERP. Put the GII-GeM-ERP-Setup-<version>-x64.exe installer in the update folder instead.");
+    }
+    const selectedVersion = parseUpdateVersion(path.basename(selectedInstaller));
+    if (selectedVersion && compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
+      throw new Error(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
+    }
+    // Back up the books before anything is replaced, then hand over to the installer.
+    const backup = await createLiveBackup(db, runtimeDataRoot);
+    auditLog(db, { action: "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), fromVersion: app.getVersion(), backup: backup?.fileName || null }) });
     const failureReason = await shell.openPath(selectedInstaller);
     if (failureReason) throw new Error(failureReason);
-    return { success: true, installerPath: selectedInstaller };
+    // The installer cannot replace the program files or the database while the ERP
+    // is still running, so close it. The window's close handler asks "exit?" and
+    // cancels a plain quit, so destroy the windows first; before-quit then closes
+    // the database cleanly.
+    setTimeout(() => {
+      BrowserWindow.getAllWindows().forEach((win) => win.destroy());
+      app.quit();
+    }, 1500);
+    return { success: true, installerPath: selectedInstaller, backup: backup?.fileName || null, closing: true };
   });
 
   handle("environment:info", (_event, context) => {
@@ -1343,8 +1355,9 @@ function registerIpc() {
 
   handle("certificate:generate", guarded("system_reset", "go_live", () => generateCertificate(db, runtimeDataRoot)));
 
-  handle("reset:preview", () => {
-    return previewReset(db);
+  handle("reset:preview", (_event, payload = {}) => {
+    // Count only the company the reset will clear, so the preview matches the result.
+    return previewReset(db, Number(payload?.company_id || 0) || null);
   });
 
   handle("reset:execute", guarded("system_reset", "operational_reset", (payload = {}) => {

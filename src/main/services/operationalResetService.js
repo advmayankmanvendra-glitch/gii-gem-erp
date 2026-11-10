@@ -8,7 +8,10 @@ const PRESERVED_TABLES = new Set([
   "government_departments", "suppliers", "items", "banks",
   "employees", "expense_heads", "warehouses", "credit_terms",
   "settings", "help_content", "email_templates", "print_templates",
-  "architecture_documents", "audit_log", "import_templates"
+  "architecture_documents", "audit_log", "import_templates",
+  // Import history has no company column, so it cannot be cleared for one company.
+  "import_batches", "import_batch_records",
+  "account_group_assignments", "feedback_log"
 ]);
 
 const RESET_TABLES = [
@@ -49,16 +52,38 @@ const RESET_TABLES = [
   { table: "bank_reconciliation_matches", module: "Bank" },
   { table: "bank_statement_entries", module: "Bank" },
   { table: "bank_statement_imports", module: "Bank" },
-  { table: "import_batches", module: "Import" },
-  { table: "import_batch_records", module: "Import" },
   { table: "crac_records", module: "CRAC" },
   { table: "documents", module: "Operations" },
   { table: "advance_adjustments", module: "Receivables" },
   { table: "advance_receipts", module: "Receivables" },
   { table: "supplier_advances", module: "Payables" },
   { table: "allocation_audit", module: "Receivables" },
-  { table: "approval_queue", module: "Approvals" }
+  { table: "approval_queue", module: "Approvals" },
+  // Pre-sales and follow-up records point at supply orders, delivery challans and
+  // vouchers. If they stayed behind, the foreign key check refused the whole reset.
+  { table: "installations", module: "Operations" },
+  { table: "procurement_plans", module: "Procurement" },
+  { table: "purchase_orders", module: "CRM" },
+  { table: "negotiations", module: "CRM" },
+  { table: "quotations", module: "CRM" },
+  { table: "requirement_queries", module: "CRM" },
+  { table: "leads", module: "CRM" },
+  // Opening balances are posted together with their own opening voucher, which the
+  // reset removes with every other voucher.
+  { table: "opening_balances", module: "Accounting" }
 ];
+
+// Year-end records are removed with the transactions; they are not listed in the preview.
+const YEAR_END_TABLES = ["carry_forward_entries", "year_end_closings"];
+
+// Every table with a company column must be either cleared or kept on purpose.
+// A new table that is neither is reported, so a reset can never silently skip it.
+export function unclassifiedCompanyTables(db) {
+  const known = new Set([...PRESERVED_TABLES, ...RESET_TABLES.map((row) => row.table), ...YEAR_END_TABLES]);
+  return db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name)
+    .filter((name) => !known.has(name) && !name.startsWith("sqlite_"))
+    .filter((name) => db.prepare(`PRAGMA table_info("${name}")`).all().some((col) => col.name === "company_id"));
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -91,23 +116,37 @@ function runWithForeignKeysDisabled(db, callback) {
   }
 }
 
-export function previewReset(db) {
+// With a company id, counts exactly the rows a reset of that company deletes.
+// Without one (All Companies view), counts every company and says so.
+export function previewReset(db, companyId = null) {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+  const id = Number(companyId || 0) || null;
+  const company = id ? db.prepare("SELECT id, company_name FROM companies WHERE id = ?").get(id) : null;
   const counts = [];
   let totalOperational = 0;
   for (const { table, module } of RESET_TABLES) {
     if (!tables.has(table)) continue;
-    const count = activeCount(db, table);
+    const count = company ? companyRowCount(db, table, company.id) : activeCount(db, table);
     if (count > 0) totalOperational += count;
     counts.push({ table, module, count });
   }
   const preservedCounts = [];
   for (const table of PRESERVED_TABLES) {
     if (!tables.has(table)) continue;
-    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
+    const hasCompany = db.prepare(`PRAGMA table_info("${table}")`).all().some((col) => col.name === "company_id");
+    const row = company && hasCompany
+      ? db.prepare(`SELECT COUNT(*) count FROM "${table}" WHERE company_id = ?`).get(company.id)
+      : db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
     preservedCounts.push({ table, count: Number(row?.count || 0) });
   }
-  return { operational: counts, preserved: preservedCounts, totalOperational };
+  return {
+    scope: company ? "company" : "all",
+    company: company ? { id: company.id, name: company.company_name } : null,
+    operational: counts,
+    preserved: preservedCounts,
+    totalOperational,
+    unclassifiedTables: unclassifiedCompanyTables(db)
+  };
 }
 
 export function analyzeDependencies(db) {
@@ -233,8 +272,7 @@ export function rebuildZeroState(db, companyId = null) {
 
 // Tables that belong to a company only through their parent row.
 const CHILD_TABLE_PARENTS = {
-  voucher_lines: { column: "voucher_id", parent: "vouchers" },
-  import_batch_records: { column: "batch_id", parent: "import_batches" }
+  voucher_lines: { column: "voucher_id", parent: "vouchers" }
 };
 
 function resolveResetCompany(db, companyId) {
@@ -294,8 +332,9 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
         if (!cols.includes("company_id")) continue;
         db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       }
-      if (tables.has("carry_forward_entries")) db.prepare("DELETE FROM carry_forward_entries WHERE company_id = ?").run(company.id);
-      if (tables.has("year_end_closings")) db.prepare("DELETE FROM year_end_closings WHERE company_id = ?").run(company.id);
+      YEAR_END_TABLES.forEach((table) => {
+        if (tables.has(table)) db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
+      });
       assertNoForeignKeyIssues(db);
       // The audit row is written in the same transaction, so a reset never lands without
       // its record (the go-live rollback guard relies on it).

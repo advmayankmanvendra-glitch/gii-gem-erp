@@ -156,7 +156,7 @@ const api = {
   switchEnvironment: (environment) => ipcRenderer.invoke("environment:switch-type", { environment }),
   openBackupFolder: () => ipcRenderer.invoke("backup:open-folder"),
   generateCertificate: () => ipcRenderer.invoke("certificate:generate"),
-  previewReset: () => ipcRenderer.invoke("reset:preview"),
+  previewReset: (payload) => ipcRenderer.invoke("reset:preview", payload && typeof payload === "object" ? payload : {}),
   executeReset: (payload) => ipcRenderer.invoke("reset:execute", payload && typeof payload === "object" ? payload : {}),
   analyzeResetDependencies: () => ipcRenderer.invoke("reset:analyze-dependencies"),
   executeEnhancedReset: (payload) => ipcRenderer.invoke("reset:execute-enhanced", payload && typeof payload === "object" ? payload : {}),
