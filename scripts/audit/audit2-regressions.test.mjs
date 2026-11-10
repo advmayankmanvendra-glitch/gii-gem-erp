@@ -930,3 +930,69 @@ test("605a873 round: GRNI is priced from what earlier returns left, oldest recei
   assert.equal(Math.round((balance(db, "Goods Received Not Invoiced") - before.grni) * 100) / 100, 0, "every unbilled unit returned: GRNI is back to where it was");
   assert.equal(Math.round((balance(db, "Purchase Price Variance") - before.ppv) * 100) / 100, 0, "no variance when stock cost equals the supplier's prices");
 });
+
+test("dc030e6 round: a same-name ledger of the wrong type never stops the books opening; only the return refuses", () => {
+  const root = freshRoot();
+  let db = m.initializeDatabase(root);
+  db.prepare("DELETE FROM account_group_assignments WHERE account_id IN (SELECT id FROM accounts WHERE company_id = 1 AND account_name = 'Purchase Price Variance')").run();
+  db.prepare("UPDATE accounts SET account_type = 'Liability', normal_balance = 'Credit' WHERE company_id = 1 AND account_name = 'Purchase Price Variance'").run();
+  db.close();
+  db = m.initializeDatabase(root);
+  handles.push(db);
+  assert.throws(() => m.ensurePurchasePriceVarianceAccount(db, 1), /Chart of Accounts/);
+});
+
+test("dc030e6 round: billed goods come off Trade Payables at the supplier's rate, not landed cost, and free receipts cost nothing", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Landed");
+  const order = newOrder(db, "A2-LANDED");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-LC", purchase_value: 1000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-LC", quantity: 10, rate: 100, landed_cost: 100 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const tp = balance(db, "Trade Payables");
+  m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-02", quantity: 2 }).id);
+  assert.equal(Math.round((balance(db, "Trade Payables") - tp) * 100) / 100, 200, "2 units at the supplier's 100, freight not charged back");
+  m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-03", quantity: 3 }).id);
+  assert.equal(Math.round((balance(db, "Trade Payables") - tp) * 100) / 100, 500, "an earlier return used up its own billed units");
+  const free = widget(db, "A2 Free");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-FREE", quantity: 5, rate: 0, landed_cost: 0 }).id);
+  assert.doesNotThrow(() => m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, return_date: "2026-07-03", quantity: 2 }).id));
+  assert.equal(balance(db, "Goods Received Not Invoiced"), grni);
+});
+
+test("dc030e6 round: support bundles keep only the newest twenty", async () => {
+  const bundles = await service("supportBundleService.js");
+  const root = freshRoot();
+  for (let i = 0; i < 23; i += 1) bundles.createSupportBundle(null, root, {}, {}, { n: i });
+  const folder = path.join(root, "exports", "support-bundles");
+  assert.equal(fs.readdirSync(folder).length, 20);
+  assert.match(bundles.boundedScreenContext({ user_id: 9, crashes: [1], big: "x".repeat(2 * 1024 * 1024) }), /larger than 1 MB/);
+  assert.deepEqual(JSON.parse(bundles.boundedScreenContext({ user_id: 9, user_name: "x", crashes: [1] })), { crashes: [1] });
+  // Deep nesting stays one compact text in the file, so it cannot expand when written.
+  const nested = "[".repeat(300) + "]".repeat(300);
+  const written = bundles.createSupportBundle(null, root, {}, {}, { screenContextJson: bundles.boundedScreenContext({ deep: JSON.parse(nested) }) });
+  assert.ok(written.size < 64 * 1024, `bundle is ${written.size} bytes`);
+});
+
+test("dc030e6 round: returns with and without an order never clear the same units twice, and the supplier ledger shows the return", async () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 NoOrder");
+  const order = newOrder(db, "A2-NOORDER");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-NO-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-02", quantity: 5 }).id);
+  m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-03", quantity: 5 }).id);
+  assert.ok(balance(db, "Goods Received Not Invoiced") - grni <= 0.005, "GRNI is never cleared past what was received");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-NO-B", purchase_value: 500, purchase_gst: 0 });
+  const b = widget(db, "A2 NoOrder Billed");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-NO-B", quantity: 5, rate: 100, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-04", quantity: 1 });
+  m.postStockReturn(db, ret.id);
+  const line = db.prepare("SELECT vl.linked_party_type, vl.linked_party_id FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id WHERE v.source_module = 'stock_returns' AND v.source_id = ? AND a.account_name = 'Trade Payables'").get(ret.id);
+  assert.deepEqual({ ...line }, { linked_party_type: "supplier", linked_party_id: 1 });
+  const bundles = await service("supportBundleService.js");
+  const kept = JSON.parse(bundles.boundedScreenContext({ crashes: [{ message: "boom" }], big: "x".repeat(2 * 1024 * 1024) }));
+  assert.equal(kept.crashes[0].message, "boom", "Safe Mode's crash list survives an oversized context");
+});

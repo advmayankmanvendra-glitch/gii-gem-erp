@@ -797,7 +797,9 @@ function seedAccounts(db, companyId = null) {
           updated_at = CURRENT_TIMESTAMP
       `).run({ company_id: company.id, account_code, account_name, account_type, normal_balance, opening_balance });
     });
-    ensurePurchasePriceVarianceAccount(db, company.id);
+    // At start-up a same-name ledger of the wrong type must not stop the books opening; the
+    // return that needs the variance ledger refuses with guidance instead.
+    ensurePurchasePriceVarianceAccount(db, company.id, { refuseWrongType: false });
   });
 }
 
@@ -807,11 +809,12 @@ export const PURCHASE_PRICE_VARIANCE_ACCOUNT = "Purchase Price Variance";
 // Added only when the company has none: an existing ledger with this name is reused, and a
 // code already in use by a ledger the user created is never taken over (first free code
 // from 5065 upward). It is reported under Purchases.
-export function ensurePurchasePriceVarianceAccount(db, companyId) {
+export function ensurePurchasePriceVarianceAccount(db, companyId, { refuseWrongType = true } = {}) {
   const name = PURCHASE_PRICE_VARIANCE_ACCOUNT;
-  const existing = db.prepare("SELECT id, account_type FROM accounts WHERE company_id = ? AND LOWER(TRIM(account_name)) = LOWER(?) AND is_deleted = 0 ORDER BY id LIMIT 1").get(companyId, name);
+  const existing = db.prepare("SELECT id, account_type FROM accounts WHERE company_id = ? AND LOWER(TRIM(account_name)) = LOWER(?) AND is_deleted = 0 ORDER BY (account_type = 'Expense') DESC, id LIMIT 1").get(companyId, name);
   if (existing && existing.account_type !== "Expense") {
-    throw new Error(`The ledger "${name}" exists as ${existing.account_type}, but a purchase price variance is an expense. Rename that ledger in Accounting > Ledgers, then post again.`);
+    if (!refuseWrongType) return null;
+    throw new Error(`The ledger "${name}" exists as ${existing.account_type}, but a purchase price variance is an expense. Rename that ledger in Accounting > Books & Ledgers > Chart of Accounts, then post the return again.`);
   }
   let id = existing?.id;
   if (!id) {

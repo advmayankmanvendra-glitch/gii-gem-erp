@@ -179,7 +179,7 @@ try {
     SELECT COUNT(*) count FROM accounts a
     JOIN account_group_assignments x ON x.account_id = a.id AND x.provenance = 'SYSTEM_SEED'
     JOIN account_groups g ON g.id = x.account_group_id AND g.group_code = 'PURCHASES'
-    WHERE a.account_name = 'Purchase Price Variance' AND a.account_type = 'Expense' AND COALESCE(a.is_deleted, 0) = 0
+    WHERE LOWER(TRIM(a.account_name)) = 'purchase price variance' AND a.account_type = 'Expense' AND COALESCE(a.is_deleted, 0) = 0
   `).get().count;
   check("Each company has one Purchase Price Variance ledger under Purchases", varianceMapped === companyCount, `mapped=${varianceMapped}, companies=${companyCount}`);
   const expectedDefaultMappings = defaultAccountMappingEntries().length + companyCount;

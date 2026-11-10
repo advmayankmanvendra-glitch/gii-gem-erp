@@ -1,8 +1,6 @@
 import { roundMoney } from "../domain/money.js";
 import { expenseFormulaAmount } from "../domain/expenseFormula.js";
 
-export { expenseFormulaAmount };
-
 
 export function createBillingService(deps) {
   const {
