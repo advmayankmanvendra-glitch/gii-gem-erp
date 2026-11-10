@@ -1,5 +1,6 @@
 import { parseMoneyToMinor, minorToMajor, roundMoney, addRupees, subtractRupees, sumRupees, rupeesEqual } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
+import { VOUCHER_REVERSAL_SOURCE } from "./ledgerGuards.js";
 
 export function createReportBuilders({ activeRowClause, creditDueDate, allocationStatus, daysBetween, financialYearForDate }) {
   function round2(value) {
@@ -427,12 +428,19 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     const receivableLedger = partyLedger.filter((row) => row.party_type === "department").reduce((sum, row) => addRupees(sum, row.debit, -Number(row.credit || 0)), 0);
     const payableLedger = partyLedger.filter((row) => row.party_type === "supplier").reduce((sum, row) => addRupees(sum, row.credit, -Number(row.debit || 0)), 0);
     const receivables = billWiseReceivableReport(db, companyId).reduce((sum, row) => addRupees(sum, row.balance_outstanding), 0);
-    const payables = billWisePayableReport(db, companyId).reduce((sum, row) => addRupees(sum, row.balance_due), 0);
+    // A supplier return debits the supplier's ledger on account (it is not linked to one bill),
+    // so it is taken off the bill-wise total before the two are compared; a reversed return nets out.
+    const supplierRows = partyLedger.filter((row) => row.party_type === "supplier");
+    const returnVoucherIds = new Set(supplierRows.filter((row) => row.source_module === "stock_returns").map((row) => Number(row.voucher_id)));
+    const supplierReturnCredits = supplierRows
+      .filter((row) => row.source_module === "stock_returns" || (row.source_module === VOUCHER_REVERSAL_SOURCE && returnVoucherIds.has(Number(row.source_id))))
+      .reduce((sum, row) => addRupees(sum, row.debit, -Number(row.credit || 0)), 0);
+    const payables = subtractRupees(billWisePayableReport(db, companyId).reduce((sum, row) => addRupees(sum, row.balance_due), 0), supplierReturnCredits);
     const receiptAllocations = paymentAllocationReport(db, companyId).reduce((sum, row) => addRupees(sum, row.allocated_amount, row.tds_deducted, row.gst_tds_deducted, row.other_deductions), 0);
     const supplierAllocations = supplierPaymentAllocationReport(db, companyId).reduce((sum, row) => addRupees(sum, row.allocated_amount), 0);
     return [
       { id: "receivable", party_type: "Department", validation: "Department ledger agrees with receivables", check_scope: "Trade Receivables ledger vs bill-wise receivable balance", ledger_balance: receivableLedger, subledger_balance: receivables, difference: subtractRupees(receivableLedger, receivables), possible_issue: "Unposted invoice, unallocated receipt, wrong department link or manual journal posted to Trade Receivables", recommended_action: "Drill into Department Ledger and Bill-wise Receivable", status: Math.abs(receivableLedger - receivables) <= 1 ? "Matched" : "Mismatch" },
-      { id: "payable", party_type: "Supplier", validation: "Supplier ledger agrees with payables", check_scope: "Trade Payables ledger vs bill-wise payable balance", ledger_balance: payableLedger, subledger_balance: payables, difference: subtractRupees(payableLedger, payables), possible_issue: "Unposted purchase, unallocated supplier payment, wrong supplier link or manual journal posted to Trade Payables", recommended_action: "Drill into Supplier Ledger and Bill-wise Payable", status: Math.abs(payableLedger - payables) <= 1 ? "Matched" : "Mismatch" },
+      { id: "payable", party_type: "Supplier", validation: "Supplier ledger agrees with payables", check_scope: "Trade Payables ledger vs bill-wise payable balance, less supplier returns held on account", ledger_balance: payableLedger, subledger_balance: payables, difference: subtractRupees(payableLedger, payables), possible_issue: "Unposted purchase, unallocated supplier payment, wrong supplier link or manual journal posted to Trade Payables", recommended_action: "Drill into Supplier Ledger and Bill-wise Payable", status: Math.abs(payableLedger - payables) <= 1 ? "Matched" : "Mismatch" },
       { id: "receipt_allocations", party_type: "Department", validation: "Receipt allocations captured", check_scope: "Receipt allocations, TDS, GST TDS and other deductions", ledger_balance: receiptAllocations, subledger_balance: receiptAllocations, difference: 0, possible_issue: "Receipt saved without allocation or statutory deductions entered on wrong invoice", recommended_action: "Drill into Receipt Allocation and Unallocated Receipts", status: "Captured" },
       { id: "supplier_allocations", party_type: "Supplier", validation: "Supplier payment allocations captured", check_scope: "Supplier payment allocation against purchase bills", ledger_balance: supplierAllocations, subledger_balance: supplierAllocations, difference: 0, possible_issue: "Supplier payment saved without bill allocation or advance incorrectly adjusted", recommended_action: "Drill into Supplier Allocation and Unallocated Supplier Payments", status: "Captured" }
     ];

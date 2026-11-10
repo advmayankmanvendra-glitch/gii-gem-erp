@@ -351,72 +351,67 @@ export function createInventoryService(deps) {
 
   // Splits a supplier return between Goods Received Not Invoiced and Trade Payables, each at
   // the supplier's own price (owner decision CV, 10 Nov 2026 IST):
-  // - GRNI first: the quantity of this item's receipts from the supplier (on the order, when
-  //   given) that no posted bill covers yet, oldest receipt first, each at its own price.
-  //   What earlier returns already cleared from GRNI is taken off those receipts first.
-  // - Trade Payables: the rest, from the billed receipts in the same way, after what earlier
-  //   returns already took off Trade Payables; past every receipt, at the stock's average cost.
+  // - The supplier's receipts of this item are lots, oldest first. A return on an order uses
+  //   that order's receipts; a return with no order may use any of them.
+  // - Earlier posted returns are replayed by quantity, in date order, against the same lots, so
+  //   units one return used are never used again, whichever orders the returns name.
+  // - This return then uses what is left: receipts no posted bill covers first (GRNI, at the
+  //   stock value of the receipt), then billed receipts (Trade Payables, at the supplier's
+  //   rate). Free (zero-price) receipts are used last. Past every receipt, Trade Payables at
+  //   the stock's average cost.
   // Stock leaves at the warehouse average cost. The gap between that and the two amounts
   // above is a purchase price variance, not money the supplier owes or is owed.
-  // Returns are not linked to a specific receipt (decision C2: keep the pool), so this is
-  // judged per item, supplier and order rather than per receipt. A return with no order may
-  // have used any order's receipts, so it counts against an order's return as well; that can
-  // leave value that is not used up, never the same units cleared twice.
+  // Returns are not linked to a specific receipt (decision C2: keep the pool), so a bill
+  // posted after an earlier return is judged as it stands today.
   function supplierReturnSplit(db, row, quantity, retValue) {
     if (!row.supplier_id) {
       const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
       return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0 };
     }
-    const orderId = row.order_id || null;
     // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
-    // supplier at the supplier's own rate, without freight or other landed cost.
-    const receiptLots = (billed) => db.prepare(`
-      SELECT sl.inward_quantity quantity, ${billed ? "sl.inward_quantity * COALESCE(si.rate, 0)" : "sl.value_minor / 100.0"} value FROM stock_inwards si
+    // supplier at the supplier's own rate, without freight or other landed cost (or at its
+    // stock value when the receipt carries no rate).
+    const lots = db.prepare(`
+      SELECT si.order_id, sl.inward_quantity quantity, p.id IS NOT NULL billed,
+        CASE WHEN p.id IS NOT NULL AND COALESCE(si.rate, 0) > 0 THEN sl.inward_quantity * si.rate ELSE sl.value_minor / 100.0 END value
+      FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
-        AND (? IS NULL OR si.order_id = ?) AND p.id IS ${billed ? "NOT NULL" : "NULL"}
       ORDER BY si.inward_date, si.id, sl.id
-    `).all(row.company_id, row.supplier_id, row.item_id, orderId, orderId)
-      .map((lot) => ({ quantity: Number(lot.quantity || 0), rate: Number(lot.quantity || 0) > 0 ? Number(lot.value || 0) / Number(lot.quantity) : 0 }))
-      .filter((lot) => lot.quantity > 0)
-      // Free (zero-price) receipts go last: what they gave up cannot be traced by value, so
-      // they are only used once every priced receipt is used up, when nothing is left owed.
-      .sort((a, b) => Number(a.rate <= 0) - Number(b.rate <= 0));
-    const earlier = (accountName) => Number(db.prepare(`
-      SELECT COALESCE(SUM(vl.debit_minor), 0) / 100.0 value FROM stock_returns sr
-      JOIN vouchers v ON v.source_module = 'stock_returns' AND v.source_id = sr.id AND COALESCE(v.is_deleted, 0) = 0 AND v.status = 'Posted'
-      JOIN voucher_lines vl ON vl.voucher_id = v.id
-      JOIN accounts a ON a.id = vl.account_id AND a.account_name = ?
-      WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
-        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ? OR sr.order_id IS NULL)
-    `).get(accountName, row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.value || 0);
-    // Takes value already returned off the oldest lots, then takes up to `wanted` units at each lot's price.
-    const takeFrom = (lots, alreadyValue, wanted) => {
-      let skip = alreadyValue;
+    `).all(row.company_id, row.supplier_id, row.item_id)
+      .map((lot) => ({ orderId: lot.order_id || null, billed: Boolean(lot.billed), left: Number(lot.quantity || 0), rate: Number(lot.quantity || 0) > 0 ? Number(lot.value || 0) / Number(lot.quantity) : 0 }))
+      .filter((lot) => lot.left > 0);
+    // Unbilled before billed, and free receipts last within each.
+    const rank = (lot) => (lot.billed ? 2 : 0) + (lot.rate <= 0 ? 1 : 0);
+    const ordered = lots.map((lot, index) => ({ lot, index })).sort((a, b) => rank(a.lot) - rank(b.lot) || a.index - b.index).map(({ lot }) => lot);
+    const take = (orderId, wanted) => {
       let left = wanted;
-      let value = 0;
-      for (const lot of lots) {
-        let available = lot.quantity;
-        // A free (zero-price) receipt holds no value for earlier returns to have used up.
-        if (skip > 0.005 && lot.rate > 0) {
-          const skipped = Math.min(available, skip / lot.rate);
-          available -= skipped;
-          skip -= skipped * lot.rate;
-        }
-        if (available <= 1e-9 || left <= 1e-9) continue;
-        const taken = Math.min(available, left);
-        value += taken * lot.rate;
-        left -= taken;
+      const taken = { grniValue: 0, billedValue: 0, quantity: 0 };
+      for (const lot of ordered) {
+        if (left <= 1e-9) break;
+        if (orderId && lot.orderId !== orderId) continue;
+        const units = Math.min(lot.left, left);
+        if (units <= 1e-9) continue;
+        lot.left -= units;
+        left -= units;
+        taken.quantity += units;
+        if (lot.billed) taken.billedValue += units * lot.rate; else taken.grniValue += units * lot.rate;
       }
-      return { quantity: wanted - left, value };
+      return taken;
     };
-    const grni = takeFrom(receiptLots(false), earlier("Goods Received Not Invoiced"), quantity);
-    const billed = takeFrom(receiptLots(true), earlier("Trade Payables"), quantity - grni.quantity);
+    const earlierReturns = db.prepare(`
+      SELECT order_id, quantity FROM stock_returns
+      WHERE company_id = ? AND supplier_id = ? AND item_id = ? AND return_type = 'Supplier' AND id <> ?
+        AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0
+      ORDER BY return_date, id
+    `).all(row.company_id, row.supplier_id, row.item_id, row.id);
+    for (const earlier of earlierReturns) take(earlier.order_id || null, Number(earlier.quantity || 0));
+    const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
-    const beyondReceipts = Math.max(0, quantity - grni.quantity - billed.quantity);
-    const grniPortion = roundMoney(grni.value);
-    const payablesPortion = roundMoney(billed.value + beyondReceipts * averageRate);
+    const beyondReceipts = Math.max(0, quantity - mine.quantity);
+    const grniPortion = roundMoney(mine.grniValue);
+    const payablesPortion = roundMoney(mine.billedValue + beyondReceipts * averageRate);
     // The three debits must add up to the Inventory credit, roundMoney(retValue), to the paisa.
     const creditMinor = Math.round(roundMoney(retValue) * 100);
     const varianceMinor = creditMinor - Math.round(grniPortion * 100) - Math.round(payablesPortion * 100);

@@ -1041,9 +1041,11 @@ function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, vouch
     inward_date: guidedVoucher.voucher_date,
     purchase_invoice_number: payload.purchase_invoice_number || voucher.voucher_number,
     quantity: accepted,
-    rate: Number(payload.rate || payload.purchase_rate || payload.purchase_value || 0) / (accepted || 1),
+    // "Receipt Rate" is per unit; only the bill's total purchase value is shared over the units.
+    rate: Number(payload.rate || payload.purchase_rate || 0) || Number(payload.purchase_value || payload.taxable_value || 0) / (accepted || 1),
     gst_rate: Number(payload.gst_rate || 0),
-    landed_cost: Number(payload.landed_cost || payload.purchase_value || 0),
+    // The receipt carries the voucher's taxable value, the amount the voucher put into GRNI.
+    landed_cost: Number(payload.landed_cost || payload.purchase_value || payload.taxable_value || 0),
     serial_number: payload.serial_number || "",
     batch_number: payload.batch_number || "",
     remarks: `Auto GRN ${grnNumber}`

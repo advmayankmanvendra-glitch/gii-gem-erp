@@ -359,7 +359,7 @@
     {
       "functionName": "createBalancedVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 110,
+      "lineNumber": 152,
       "serviceModule": "accountingService",
       "readsFromTables": ["vouchers", "financial_years"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -377,7 +377,7 @@
     {
       "functionName": "createManualVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 151,
+      "lineNumber": 234,
       "serviceModule": "accountingService",
       "readsFromTables": ["accounts", "financial_years"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "cash_bank_ledger"],
@@ -395,7 +395,7 @@
     {
       "functionName": "postSalesVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 421,
+      "lineNumber": 633,
       "serviceModule": "accountingService",
       "readsFromTables": ["invoices", "supply_orders", "invoice_items", "financial_years", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "receivables", "audit_log"],
@@ -413,7 +413,7 @@
     {
       "functionName": "postPurchaseVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 457,
+      "lineNumber": 674,
       "serviceModule": "accountingService",
       "readsFromTables": ["procurements", "procurement_items", "financial_years", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -431,7 +431,7 @@
     {
       "functionName": "postReceiptVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 490,
+      "lineNumber": 731,
       "serviceModule": "accountingService",
       "readsFromTables": ["payments", "invoices", "financial_years", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "payment_allocations", "cash_bank_ledger", "audit_log"],
@@ -449,7 +449,7 @@
     {
       "functionName": "postSupplierPaymentVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 530,
+      "lineNumber": 800,
       "serviceModule": "accountingService",
       "readsFromTables": ["supplier_payments", "financial_years", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "cash_bank_ledger", "audit_log"],
@@ -467,7 +467,7 @@
     {
       "functionName": "postGuidedVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 258,
+      "lineNumber": 341,
       "serviceModule": "accountingService",
       "readsFromTables": ["guided_vouchers", "financial_years", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -485,7 +485,7 @@
     {
       "functionName": "reverseVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 316,
+      "lineNumber": 453,
       "serviceModule": "accountingService",
       "readsFromTables": ["vouchers", "voucher_lines", "cash_bank_ledger", "financial_years"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "cash_bank_ledger", "receivables", "payment_allocations", "supplier_payment_allocations", "invoices", "procurements", "payments", "supplier_payments", "expense_entries", "audit_log"],
@@ -503,7 +503,7 @@
     {
       "functionName": "createOpeningBalance",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 837,
+      "lineNumber": 1152,
       "serviceModule": "accountingService",
       "readsFromTables": ["opening_balances", "accounts", "financial_years"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -521,7 +521,7 @@
     {
       "functionName": "createPartyOpeningBalance",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 765,
+      "lineNumber": 1074,
       "serviceModule": "accountingService",
       "readsFromTables": ["opening_balances", "accounts", "financial_years"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -539,7 +539,7 @@
     {
       "functionName": "postExpenseAccrualsForOrder",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1333,
+      "lineNumber": 1655,
       "serviceModule": "init",
       "readsFromTables": ["expense_entries", "expense_heads", "supply_orders", "employees", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "expense_entries", "audit_log"],
@@ -557,7 +557,7 @@
     {
       "functionName": "postLedgerEntry",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1025,
+      "lineNumber": 1277,
       "serviceModule": "init",
       "readsFromTables": ["ledger_entries", "accounts"],
       "writesToTables": ["ledger_entries"],
@@ -575,7 +575,7 @@
     {
       "functionName": "updateCashBankLedger",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1037,
+      "lineNumber": 1292,
       "serviceModule": "init",
       "readsFromTables": ["cash_bank_ledger"],
       "writesToTables": ["cash_bank_ledger"],
@@ -593,7 +593,7 @@
     {
       "functionName": "upsertReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1367,
+      "lineNumber": 1663,
       "serviceModule": "init",
       "readsFromTables": ["supply_orders", "receivables"],
       "writesToTables": ["receivables"],
@@ -611,7 +611,7 @@
     {
       "functionName": "refreshReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1392,
+      "lineNumber": 1688,
       "serviceModule": "init",
       "readsFromTables": ["receivables", "payment_allocations", "advance_adjustments"],
       "writesToTables": ["receivables"],
@@ -629,7 +629,7 @@
     {
       "functionName": "markPosted",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1118,
+      "lineNumber": 1375,
       "serviceModule": "init",
       "readsFromTables": ["vouchers"],
       "writesToTables": ["invoices", "procurements", "payments", "supplier_payments", "expense_entries"],
@@ -647,7 +647,7 @@
     {
       "functionName": "postStockOutward",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 182,
+      "lineNumber": 242,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_outwards", "stock_ledger", "items", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "stock_ledger", "stock_reservations", "audit_log"],
@@ -665,7 +665,7 @@
     {
       "functionName": "postStockInward",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 149,
+      "lineNumber": 189,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_inwards", "stock_ledger", "items", "serial_numbers", "batches"],
       "writesToTables": ["stock_ledger", "serial_numbers", "batches", "stock_inwards", "audit_log"],
@@ -683,7 +683,7 @@
     {
       "functionName": "postStockAdjustment",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 281,
+      "lineNumber": 291,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_adjustments", "stock_ledger", "items"],
       "writesToTables": ["stock_ledger", "stock_adjustments", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -701,7 +701,7 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 409,
+      "lineNumber": 421,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -714,12 +714,12 @@
       "workflowStage": null,
       "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). A return with no order counts against later returns on any order. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity, so no receipt unit is returned twice; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
     },
     {
       "functionName": "postWarehouseTransfer",
       "sourceFile": "src/main/services/operationsService.js",
-      "lineNumber": 140,
+      "lineNumber": 146,
       "serviceModule": "operationsService",
       "readsFromTables": ["warehouse_transfers", "items", "stock_ledger"],
       "writesToTables": ["stock_ledger", "warehouse_transfers", "audit_log"],
@@ -737,7 +737,7 @@
     {
       "functionName": "confirmDeliveryChallan",
       "sourceFile": "src/main/services/operationsService.js",
-      "lineNumber": 91,
+      "lineNumber": 97,
       "serviceModule": "operationsService",
       "readsFromTables": ["delivery_challans", "delivery_challan_items", "stock_ledger", "items"],
       "writesToTables": ["stock_outwards", "stock_ledger", "delivery_challans", "delivery_challan_items", "audit_log"],
@@ -755,7 +755,7 @@
     {
       "functionName": "postBusinessTransaction",
       "sourceFile": "src/main/services/operationsService.js",
-      "lineNumber": 224,
+      "lineNumber": 234,
       "serviceModule": "operationsService",
       "readsFromTables": ["invoices", "procurements", "payments", "expense_entries", "supply_orders"],
       "writesToTables": null,

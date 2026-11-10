@@ -979,12 +979,26 @@ test("dc030e6 round: support bundles keep only the newest twenty", async () => {
   for (let i = 0; i < 23; i += 1) bundles.createSupportBundle(null, root, {}, {}, { n: i });
   const folder = path.join(root, "exports", "support-bundles");
   assert.equal(fs.readdirSync(folder).length, 20);
-  assert.match(bundles.boundedScreenContext({ user_id: 9, crashes: [1], big: "x".repeat(2 * 1024 * 1024) }), /larger than 1 MB/);
+  assert.match(bundles.boundedScreenContext({ user_id: 9, crashes: [1], big: "x".repeat(2 * 1024 * 1024) }), /\(cut\)/);
+  const many = {};
+  for (let i = 0; i < 100; i += 1) many[`k${i}`] = "x".repeat(19000);
+  assert.match(bundles.boundedScreenContext(many), /larger than 1 MB/);
   assert.deepEqual(JSON.parse(bundles.boundedScreenContext({ user_id: 9, user_name: "x", crashes: [1] })), { crashes: [1] });
   // Deep nesting stays one compact text in the file, so it cannot expand when written.
   const nested = "[".repeat(300) + "]".repeat(300);
   const written = bundles.createSupportBundle(null, root, {}, {}, { screenContextJson: bundles.boundedScreenContext({ deep: JSON.parse(nested) }) });
   assert.ok(written.size < 64 * 1024, `bundle is ${written.size} bytes`);
+});
+
+test("d661346 round: a huge sparse list or typed array in a support bundle request returns at once", async () => {
+  const bundles = await service("supportBundleService.js");
+  const started = Date.now();
+  const sparse = bundles.boundedScreenContext({ crashes: new Array(1e8) });
+  const typed = bundles.boundedScreenContext({ blob: new Uint8Array(20 * 1024 * 1024), crashes: [{ message: "kept" }] });
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.ok(Buffer.byteLength(sparse) < 64 * 1024);
+  assert.deepEqual(JSON.parse(typed), { crashes: [{ message: "kept" }] });
+  assert.equal(bundles.boundedScreenContext(new Uint8Array(10)), null);
 });
 
 test("dc030e6 round: returns with and without an order never clear the same units twice, and the supplier ledger shows the return", async () => {
@@ -1007,4 +1021,71 @@ test("dc030e6 round: returns with and without an order never clear the same unit
   const bundles = await service("supportBundleService.js");
   const kept = JSON.parse(bundles.boundedScreenContext({ crashes: [{ message: "boom" }], big: "x".repeat(2 * 1024 * 1024) }));
   assert.equal(kept.crashes[0].message, "boom", "Safe Mode's crash list survives an oversized context");
+});
+
+test("d661346 round: returns are replayed by quantity, so a no-order return never hides another order's receipt", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Replay");
+  const o1 = newOrder(db, "A2-RP-1");
+  const o2 = newOrder(db, "A2-RP-2");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  const payables = balance(db, "Trade Payables");
+  const inward = (order, n) => m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: `A2-RP-${n}`, quantity: 10, rate: 100, landed_cost: 0 }).id);
+  inward(o1, 1);
+  inward(o2, 2);
+  const ret = (order, date) => m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", ...(order ? { order_id: order } : {}), supplier_id: 1, item_id: item, warehouse_id: wh, return_date: date, quantity: 10 }).id);
+  ret(null, "2026-07-02");
+  ret(o2, "2026-07-03");
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "both receipts are cleared from GRNI");
+  assert.equal(balance(db, "Trade Payables") - payables, 0, "nothing is charged to the supplier for goods never billed");
+});
+
+test("d661346 round: a free receipt is used once, and a billed receipt with no rate returns at its stock value", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Free Once");
+  const order = newOrder(db, "A2-FREE-ONCE");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-FO-1", quantity: 5, rate: 0, landed_cost: 0 }).id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-FO-2", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  for (const [date, quantity] of [["2026-07-03", 5], ["2026-07-04", 5], ["2026-07-05", 5]]) {
+    m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: date, quantity }).id);
+  }
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "the paid receipt is cleared in full once");
+
+  const b = widget(db, "A2 No Rate");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-NR-B", purchase_value: 800, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-NR-B", quantity: 10, rate: 0, landed_cost: 800 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-06", quantity: 10 });
+  m.postStockReturn(db, ret.id);
+  const tp = db.prepare("SELECT COALESCE(SUM(vl.debit), 0) d FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id WHERE v.source_module = 'stock_returns' AND v.source_id = ? AND a.account_name = 'Trade Payables'").get(ret.id).d;
+  assert.ok(tp > 0, "the billed receipt is returned against Trade Payables, not all to variance");
+});
+
+test("d661346 round: a billed supplier return keeps party reconciliation matched", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Recon");
+  const order = newOrder(db, "A2-RECON");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-RC-B", purchase_value: 1000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-RC-B", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const payable = () => m.accountingData(db, { company_id: 1 }).partyReconciliation.find((row) => row.id === "payable");
+  const before = payable();
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-02", quantity: 4 });
+  m.postStockReturn(db, ret.id);
+  const after = payable();
+  assert.equal(after.difference, before.difference, "the return moves the ledger and the comparison together");
+  assert.equal(after.status, before.status);
+});
+
+test("d661346 round: a purchase voucher's receipt rate is per unit", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Guided Rate");
+  const bank = db.prepare("SELECT id FROM accounts WHERE company_id = 1 AND account_name LIKE '%Bank%' AND is_deleted = 0 ORDER BY id LIMIT 1").get()?.id;
+  const guided = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "purchase", voucher_date: "2026-07-01", supplier_id: 1, bank_account_id: bank, purchase_invoice_number: "A2-GR-1", taxable_value: 1000, gst_rate: 0, item_id: item, warehouse_id: wh, quantity: 10, accepted_quantity: 10, rate: 100, narration: "rate only" });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, guided.id, step, 1);
+  m.postGuidedVoucher(db, guided.id, 1);
+  const inward = db.prepare("SELECT rate FROM stock_inwards WHERE item_id = ? ORDER BY id DESC LIMIT 1").get(item);
+  assert.equal(Number(inward.rate), 100);
+  assert.equal(m.stockBalance ? m.stockBalance(db, 1, item, wh).value : 1000, 1000, "10 units at 100 are stock worth 1,000");
 });
