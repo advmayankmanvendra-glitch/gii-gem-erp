@@ -1,5 +1,5 @@
 import { reconcileAll } from "../database/moneyMigration.js";
-import { missingLedgerGuards, openLedgerMaintenance, unexpectedLedgerTriggers, ROUNDING_ADJUSTMENT_LIMIT_MINOR, ROUNDING_ADJUSTMENT_SOURCE, ROUNDING_OFF_ACCOUNT_NAME, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { missingLedgerGuards, openLedgerMaintenance, unexpectedLedgerTriggers, voucherLedgerCheckSql, ROUNDING_ADJUSTMENT_LIMIT_MINOR, ROUNDING_ADJUSTMENT_SOURCE, ROUNDING_OFF_ACCOUNT_NAME, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
 import { rupees } from "../domain/money.js";
 
 export const ROUNDING_OFF_ACCOUNT = ROUNDING_OFF_ACCOUNT_NAME;
@@ -33,31 +33,10 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
   }
 
   // Debit and credit totals are compared separately, and every line must have exactly one
-  // ledger entry with its account and amounts.
+  // ledger entry with its account and amounts (the shared check in ledgerGuards.js).
   function linesAgreeWithLedger(db, voucherId) {
-    const row = db.prepare(`
-      SELECT (SELECT COALESCE(SUM(debit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) line_debit,
-        (SELECT COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = ?) line_credit,
-        (SELECT COALESCE(SUM(debit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger_debit,
-        (SELECT COALESCE(SUM(credit_minor), 0) FROM ledger_entries WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0) ledger_credit
-    `).get(voucherId, voucherId, voucherId, voucherId);
-    return row.line_debit === row.ledger_debit && row.line_credit === row.ledger_credit && entriesMatchLines(db, voucherId);
-  }
-
-  function entriesMatchLines(db, voucherId) {
-    return !db.prepare(`
-      SELECT 1 FROM voucher_lines l
-      WHERE l.voucher_id = ?
-        AND (SELECT COUNT(*) FROM ledger_entries e
-             WHERE e.voucher_line_id = l.id AND COALESCE(e.is_deleted, 0) = 0
-               AND e.account_id = l.account_id AND e.debit_minor = l.debit_minor AND e.credit_minor = l.credit_minor) <> 1
-         OR (SELECT COUNT(*) FROM ledger_entries e WHERE e.voucher_line_id = l.id AND COALESCE(e.is_deleted, 0) = 0) <> 1
-      UNION ALL
-      SELECT 1 FROM ledger_entries e
-      WHERE e.voucher_id = ? AND COALESCE(e.is_deleted, 0) = 0
-        AND NOT EXISTS (SELECT 1 FROM voucher_lines l WHERE l.id = e.voucher_line_id AND l.voucher_id = e.voucher_id)
-      LIMIT 1
-    `).get(voucherId, voucherId);
+    const row = db.prepare(`${voucherLedgerCheckSql("SELECT ?")} SELECT mismatch FROM checked`).get(Number(voucherId));
+    return !row || row.mismatch === 0;
   }
 
   // Posted vouchers whose lines do not balance. A rounding adjustment, and a reversal
@@ -125,23 +104,17 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
   function lineLedgerMismatches(db, companyId) {
     const filter = companyFilter(companyId);
     return db.prepare(`
-      SELECT v.id, v.voucher_number, v.voucher_date,
-        (SELECT COALESCE(SUM(debit_minor), 0) FROM voucher_lines WHERE voucher_id = v.id) line_debit_minor,
-        (SELECT COALESCE(SUM(credit_minor), 0) FROM voucher_lines WHERE voucher_id = v.id) line_credit_minor,
-        (SELECT COALESCE(SUM(debit_minor), 0) FROM ledger_entries WHERE voucher_id = v.id AND COALESCE(is_deleted, 0) = 0) ledger_debit_minor,
-        (SELECT COALESCE(SUM(credit_minor), 0) FROM ledger_entries WHERE voucher_id = v.id AND COALESCE(is_deleted, 0) = 0) ledger_credit_minor
-      FROM vouchers v
-      WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')${filter.sql}
+      ${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${filter.sql}`)}
+      SELECT * FROM checked WHERE mismatch = 1 ORDER BY id
     `).all(...filter.params)
-      .filter((row) => row.line_debit_minor !== row.ledger_debit_minor || row.line_credit_minor !== row.ledger_credit_minor || !entriesMatchLines(db, row.id))
       .map((row) => ({
         id: row.id,
         voucher_number: row.voucher_number,
         voucher_date: row.voucher_date,
         lines_debit: rupees(row.line_debit_minor),
         lines_credit: rupees(row.line_credit_minor),
-        ledger_debit: rupees(row.ledger_debit_minor),
-        ledger_credit: rupees(row.ledger_credit_minor)
+        ledger_debit: rupees(row.entry_debit_minor),
+        ledger_credit: rupees(row.entry_credit_minor)
       }));
   }
 

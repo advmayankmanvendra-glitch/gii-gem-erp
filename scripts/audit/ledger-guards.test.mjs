@@ -505,8 +505,9 @@ test("a maintenance window for one company cannot move lines or entries into ano
   const posted = postBalanced(db);
   const other = Number(db.prepare("INSERT INTO companies (company_name) VALUES ('Window Co')").run().lastInsertRowid);
   const otherDraft = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status) VALUES (?, 'W-1', ?, 'Journal', 'Draft')").run(other, DATE).lastInsertRowid;
+  const otherCash = db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, status) VALUES (?, '1001', 'Window Cash', 'Asset', 'Debit', 'active')").run(other).lastInsertRowid;
   const otherLine = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, 1, 0, 100, 0)")
-    .run(otherDraft, account(db, "Cash")).lastInsertRowid;
+    .run(otherDraft, otherCash).lastInsertRowid;
   const entry = db.prepare("SELECT id FROM ledger_entries WHERE voucher_id = ? LIMIT 1").get(posted.id);
 
   assert.throws(() => db.transaction(() => guards.withLedgerMaintenance(db, other, "test: other company", () => {
@@ -769,4 +770,157 @@ test("a stock receipt worth less than half a paisa adds no value to stock", () =
   const balance = m.stockBalance(db, 1, item, wh);
   assert.equal(balance.quantity, 2);
   assert.equal(balance.value, 100, "the tiny receipt adds no value, not the average cost");
+});
+
+test("a planted trigger is found whatever table it is on or however the table is spelt", () => {
+  const root = freshRoot();
+  let db = open(root);
+  db.exec("CREATE TRIGGER zz_case AFTER UPDATE OF status ON Vouchers BEGIN SELECT 1; END");
+  db.exec("CREATE TRIGGER zz_foreign AFTER INSERT ON audit_log BEGIN UPDATE ledger_entries SET account_id = account_id WHERE 0; END");
+  assert.deepEqual(guards.unexpectedLedgerTriggers(db).sort(), ["zz_case", "zz_foreign"]);
+  assert.equal(m.moneyIntegrityReport(db, 1).ok, false);
+  db.close();
+  db = open(root);
+  assert.deepEqual(guards.unexpectedLedgerTriggers(db), []);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'zz_%'").get().c, 0);
+  assert.ok(db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_%mapping%'").get().c > 0, "the app's own other triggers stay");
+});
+
+test("a one-sided reversal must use each original line exactly once", () => {
+  const db = fresh();
+  const original = db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: multi-line older voucher", () => {
+    const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+    const id = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id, source_module) VALUES (1, 'OLD-MULTI', ?, 'Journal', 'Posted', ?, 'legacy')").run(DATE, year.id).lastInsertRowid;
+    addLine(db, id, "Cash", 10000, 0);
+    addLine(db, id, "Capital", 0, 10000);
+    addLine(db, id, "Purchase", 5000, 0);
+    addLine(db, id, "Sales", 0, 5000);
+    addLine(db, id, "Trade Receivables", 1, 0);
+    return id;
+  }))();
+  const reversal = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, source_module, source_id) VALUES (1, 'REV-DUP', ?, 'Journal', 'Draft', 'voucher_reversal', ?)").run(DATE, original).lastInsertRowid;
+  addLine(db, reversal, "Cash", 0, 10000);
+  addLine(db, reversal, "Capital", 10000, 0);
+  addLine(db, reversal, "Cash", 0, 10000);
+  addLine(db, reversal, "Capital", 10000, 0);
+  addLine(db, reversal, "Trade Receivables", 0, 1);
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(reversal), /do not balance/);
+  // Remove the refused draft (its ledger entries can only go inside a window).
+  db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: remove refused draft", () => {
+    db.prepare("DELETE FROM ledger_entries WHERE voucher_id = ?").run(reversal);
+    db.prepare("DELETE FROM voucher_lines WHERE voucher_id = ?").run(reversal);
+    db.prepare("DELETE FROM vouchers WHERE id = ?").run(reversal);
+  }))();
+  assert.ok(m.reverseVoucher(db, original, "proper mirror").id, "the app's own mirror reversal still posts");
+});
+
+test("a rounding adjustment needs the active Rounding Off expense ledger, and windows keep accounts in their company", () => {
+  const db = fresh();
+  const small = legacyUnbalanced(db, "OLD-RO", 10003, 10000);
+  const fakeRounding = db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, status, is_deleted) VALUES (1, '9990', 'Rounding Off', 'Asset', 'Debit', 'inactive', 1)").run().lastInsertRowid;
+  const adj = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, source_module, source_id) VALUES (1, 'ADJ-FAKE', ?, 'Journal', 'Draft', 'rounding_adjustment', ?)").run(DATE, small).lastInsertRowid;
+  const line = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, 0, 0.03, 0, 3)").run(adj, fakeRounding).lastInsertRowid;
+  db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+    VALUES (1, ?, ?, ?, ?, 0, 0.03, 0, 0, 3, 0)`).run(adj, line, fakeRounding, DATE);
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(adj), /do not balance/);
+
+  const posted = postBalanced(db);
+  const other = Number(db.prepare("INSERT INTO companies (company_name) VALUES ('Account Co')").run().lastInsertRowid);
+  const otherAccount = db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, status) VALUES (?, '1001', 'Other Cash', 'Asset', 'Debit', 'active')").run(other).lastInsertRowid;
+  const inWindow = (fn) => db.transaction(() => guards.withLedgerMaintenance(db, 1, "test", fn))();
+  assert.throws(() => inWindow(() => db.prepare("UPDATE voucher_lines SET account_id = ? WHERE voucher_id = ?").run(otherAccount, posted.id)), GUARD);
+  assert.throws(() => inWindow(() => db.prepare("UPDATE ledger_entries SET account_id = ? WHERE voucher_id = ?").run(otherAccount, posted.id)), GUARD);
+});
+
+test("a draft with lines and no ledger entries (as Bank Reconciliation leaves) does not upset the report or adjustments", () => {
+  const db = fresh();
+  postBalanced(db);
+  const id = legacyUnbalanced(db, "OLD-DRAFTCASE", 10001, 10000);
+  // Drafts in this company and in another one, with lines but no ledger entries yet.
+  addLine(db, insertDraft(db, "BR-DRAFT-1"), "Cash", 5000, 0, { ledger: false });
+  const other = Number(db.prepare("INSERT INTO companies (company_name) VALUES ('Draft Co')").run().lastInsertRowid);
+  const otherAccount = db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, status) VALUES (?, '1001', 'Draft Cash', 'Asset', 'Debit', 'active')").run(other).lastInsertRowid;
+  const otherDraft = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status) VALUES (?, 'BR-DRAFT-2', ?, 'Journal', 'Draft')").run(other, DATE).lastInsertRowid;
+  db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, 50, 0, 5000, 0)").run(otherDraft, otherAccount);
+
+  const report = m.moneyIntegrityReport(db, 1);
+  assert.deepEqual(report.line_ledger_mismatches, []);
+  assert.equal(report.unbalanced_vouchers.find((row) => row.id === id).adjustable, true);
+  assert.ok(m.postRoundingAdjustment(db, { company_id: 1, voucher_id: id }).id);
+  assert.equal(m.moneyIntegrityReport(db, 1).ok, true);
+  assert.equal(m.moneyIntegrityReport(db, null).line_ledger_mismatches.length, 0);
+});
+
+test("Health Center, Error Console and the start-up count flag the same line/ledger defects", () => {
+  const cases = {
+    "balanced lines with no ledger entries": (db, id) => {
+      addLine(db, id, "Cash", 1000, 0, { ledger: false });
+      addLine(db, id, "Capital", 0, 1000, { ledger: false });
+    },
+    "entries doubled on both sides (same net)": (db, id) => {
+      addLine(db, id, "Cash", 1000, 0, { ledgerDebitMinor: 2000 });
+      addLine(db, id, "Capital", 0, 1000, { ledgerCreditMinor: 2000 });
+    },
+    "entries on swapped accounts": (db, id) => {
+      const cash = addLine(db, id, "Cash", 1000, 0, { ledger: false });
+      const capital = addLine(db, id, "Capital", 0, 1000, { ledger: false });
+      const entry = db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+        VALUES (1, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0)`);
+      entry.run(id, cash, account(db, "Capital"), DATE, 10, 0, 1000, 0);
+      entry.run(id, capital, account(db, "Cash"), DATE, 0, 10, 0, 1000);
+    },
+    "one line with two entries, the other with none": (db, id) => {
+      const cash = addLine(db, id, "Cash", 1000, 0);
+      addLine(db, id, "Capital", 0, 1000, { ledger: false });
+      db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+        VALUES (1, ?, ?, ?, ?, 0, 10, 0, 0, 1000, 0)`).run(id, cash, account(db, "Capital"), DATE);
+    }
+  };
+  for (const [name, build] of Object.entries(cases)) {
+    const db = fresh();
+    postBalanced(db);
+    assert.equal(guards.ledgerDefectCount(db), 0, `${name}: clean before`);
+    db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: older books", () => {
+      const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+      const id = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id, source_module) VALUES (1, 'OLD-BAD', ?, 'Journal', 'Posted', ?, 'legacy')").run(DATE, year.id).lastInsertRowid;
+      build(db, id);
+    }))();
+    const report = m.moneyIntegrityReport(db, 1);
+    assert.equal(report.ok, false, `${name}: Health Center`);
+    assert.deepEqual(report.line_ledger_mismatches.map((row) => row.voucher_number), ["OLD-BAD"], `${name}: Health Center lists it`);
+    assert.equal(bookIntegrityChecks(db, 1).find((c) => c.id === "voucher_balance").status, "fail", `${name}: Error Console`);
+    assert.equal(guards.ledgerDefectCount(db), 1, `${name}: start-up count`);
+  }
+});
+
+test("a guard that no longer fits the schema fails at start-up, not on the next posting", () => {
+  const db = fresh();
+  db.exec("ALTER TABLE ledger_entries RENAME COLUMN voucher_line_id TO line_ref");
+  assert.throws(() => guards.ensureLedgerGuards(db), /Ledger guard does not fit the current schema/);
+});
+
+test("the integrity report reads the books in grouped passes (20,000 vouchers)", () => {
+  const db = fresh();
+  const cash = account(db, "Cash");
+  const capital = account(db, "Capital");
+  const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+  // Written directly inside a window: posting 20,000 vouchers one by one would time the
+  // posting path, not the report.
+  db.transaction(() => guards.withLedgerMaintenance(db, 1, "test: bulk books", () => {
+    const voucher = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id, source_module) VALUES (1, ?, ?, 'Journal', 'Posted', ?, 'manual')");
+    const line = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?, ?)");
+    const entry = db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+      VALUES (1, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0)`);
+    for (let i = 0; i < 20000; i += 1) {
+      const id = voucher.run(`BULK-${i}`, DATE, year.id).lastInsertRowid;
+      entry.run(id, line.run(id, cash, 1, 0, 100, 0).lastInsertRowid, cash, DATE, 1, 0, 100, 0);
+      entry.run(id, line.run(id, capital, 0, 1, 0, 100).lastInsertRowid, capital, DATE, 0, 1, 0, 100);
+    }
+  }))();
+  const started = Date.now();
+  const report = m.moneyIntegrityReport(db, 1);
+  const elapsed = Date.now() - started;
+  assert.deepEqual(report.line_ledger_mismatches, []);
+  // Generous for slow machines; the per-voucher version took minutes here.
+  assert.ok(elapsed < 20000, `report took ${elapsed} ms`);
 });

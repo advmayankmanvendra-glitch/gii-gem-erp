@@ -26,7 +26,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
-import { dropLedgerGuards, ensureLedgerGuards, ledgerDefectCount } from "./ledgerGuards.js";
+import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectCount } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -282,6 +282,7 @@ export function initializeDatabase(root = projectRoot()) {
   const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
   const repairPending = existingBooks && !migrationApplied(db, UPGRADE_REPAIR_MIGRATION);
   const countedBefore = existingBooks ? ledgerDefectCount(db) : null;
+  const plantedBefore = existingBooks ? dropUnexpectedLedgerTriggers(db) : [];
   if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
   migrate(db);
@@ -290,9 +291,10 @@ export function initializeDatabase(root = projectRoot()) {
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   const guards = ensureLedgerGuards(db);
-  if (guards.droppedUnexpected?.length) {
-    console.error(`Ledger check: removed ${guards.droppedUnexpected.length} trigger(s) on the accounting tables that the app did not create.`);
-    auditLog(db, { action: "ledger_unexpected_triggers_removed", table_name: "vouchers", new_value: JSON.stringify({ triggers: guards.droppedUnexpected }) });
+  const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
+  if (removed.length) {
+    console.error(`Ledger check: removed ${removed.length} trigger(s) touching the accounting tables that the app did not create.`);
+    auditLog(db, { action: "ledger_unexpected_triggers_removed", table_name: "vouchers", new_value: JSON.stringify({ triggers: removed }) });
   }
   // Migration 036 fills paise columns that older rows left at 0, which can show defects
   // that were already there; that start sets the baseline instead of comparing.

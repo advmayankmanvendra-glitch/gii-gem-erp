@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE, voucherLedgerCheckSql } from "../database/ledgerGuards.js";
 
 // ERP error console: every failed backend action is journaled with who, where and
 // what to do next, and the console adds live integrity checks on the books.
@@ -142,20 +142,19 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
   // one-sided by design: a voucher counts as unbalanced only when it and the corrections
   // naming it do not net to zero.
   const unbalanced = db.prepare(`
-    WITH imbalance AS (
-      SELECT v.id, v.voucher_number, v.source_module, v.source_id, SUM(le.debit_minor) - SUM(le.credit_minor) diff
-      FROM vouchers v JOIN ledger_entries le ON le.voucher_id = v.id AND COALESCE(le.is_deleted, 0) = 0
-      WHERE v.is_deleted = 0 AND v.status IN ('Posted', 'Reversed')${companyClause}
-      GROUP BY v.id
+    ${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${companyClause}`)},
+    imbalance AS (
+      SELECT id, voucher_number, source_module, source_id, line_debit_minor - line_credit_minor diff, mismatch FROM checked
     )
     SELECT a.voucher_number FROM imbalance a
     WHERE (a.diff <> 0
         AND COALESCE(a.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'
         AND a.diff + COALESCE((SELECT SUM(c.diff) FROM imbalance c WHERE c.source_id = a.id AND c.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}')), 0) <> 0
         AND NOT (a.source_module = '${VOUCHER_REVERSAL_SOURCE}' AND a.diff + COALESCE((SELECT o.diff FROM imbalance o WHERE o.id = a.source_id), 0) = 0))
-      -- Lines that disagree with the ledger entries are reported too, as the money
-      -- integrity check does.
-      OR a.diff <> (SELECT COALESCE(SUM(vl.debit_minor), 0) - COALESCE(SUM(vl.credit_minor), 0) FROM voucher_lines vl WHERE vl.voucher_id = a.id)
+      -- Lines that disagree with the ledger entries are reported too, by the same check the
+      -- money integrity report uses.
+      OR a.mismatch = 1
+    ORDER BY a.id
     LIMIT 10
   `).all(...params).map((row) => row.voucher_number);
   checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced: ${unbalanced.join(", ")}` : "All posted vouchers balance.", "Open Health > Money integrity. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
