@@ -396,6 +396,15 @@ test("SEC-1: an allowed high-impact action is recorded with the signed-in admin"
     assert.equal(row?.username, "admin", "the grant names the signed-in admin, not the id the screen sent");
     assert.match(row.new_value, /system_reset/);
   } finally { db.close(); }
+  // Channels behind the session guard record their grants too.
+  const mark = (() => { const side2 = side(); try { return side2.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id; } finally { side2.close(); } })();
+  await call(admin, "account-mapping:registry", { company_id: 1 });
+  const db2 = side();
+  try {
+    const grant = db2.prepare("SELECT a.new_value, u.username FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.id > ? AND a.action = 'permission_granted' ORDER BY a.id LIMIT 1").get(mark);
+    assert.equal(grant?.username, "admin");
+    assert.match(grant.new_value, /account_mapping/);
+  } finally { db2.close(); }
 });
 
 test("SEC-1: imports, bank preview and feedback export need their permission; the audit trail is a report", async () => {
@@ -409,6 +418,8 @@ test("SEC-1: imports, bank preview and feedback export need their permission; th
   const accountant = await roleWindow("sec1-acct", "accountant");
   const full = await call(accountant, "accounting:data", { company_id: 1 });
   assert.ok(full.ok.auditLog.length > 0, "an accountant does");
+  const admin = await roleWindow("sec1-admin", "admin");
+  assert.ok((await call(admin, "accounting:data", { company_id: 1 })).ok.auditLog.length > 0, "an admin does");
   const parsed = await call(deo, "imports:parse-buffer", "a.csv", new Uint8Array(Buffer.from("supplier_name\nX\n")));
   assert.deepEqual(parsed.ok, [{ supplier_name: "X" }], "byte arrays pass through the actor stamp unchanged");
 });

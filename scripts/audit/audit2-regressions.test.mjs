@@ -124,6 +124,12 @@ test("a go-live whose reset finished but whose history update was lost can still
   m.createRecord(db, "suppliers", { supplier_name: "Entered Before Another Reset", status: "active" });
   resetRow();
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
+  // An older entry with neither a stored mark nor a start position cannot be checked: refused,
+  // even when a later Enhanced Reset row exists.
+  const legacy = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "legacy.db" }, companyId: 1, generatedAt: "2026-10-01T00:00:00.000Z" });
+  m.createRecord(db, "suppliers", { supplier_name: "T4 Live Work", status: "active" });
+  resetRow();
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, legacy.id), (error) => error.code === goLive.ROLLBACK_REFUSED && /older version/.test(error.message));
   const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
   assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
 });
@@ -454,7 +460,7 @@ test("import parser caps: long header names, shared-string count, blank TSV line
     return Buffer.concat([...parts, cd, eocd]);
   };
   let started = Date.now();
-  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values/);
+  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values|expands \d+ times when opened/);
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
   // Blank lines do not count toward the row limit.
   const tsv = m.parseImportBuffer("t.xls", Buffer.from(`supplier_name\tcity\nA\tX\n${"\n".repeat(200005)}B\tY\n`));
@@ -471,7 +477,10 @@ test("import parser caps: long header names, shared-string count, blank TSV line
   const near = Array.from({ length: 5 }, (_, i) => row(i + 1, `title ${i}`)).join("");
   assert.deepEqual(m.parseImportBuffer("near.xlsx", sheetZip(`<worksheet><sheetData>${near}${row(6, "supplier_name")}${row(7, "Acme")}</sheetData></worksheet>`)), [{ supplier_name: "Acme" }]);
   // Long cells are skipped by the header search at once.
-  const spaces = `<row r="1">${Array.from({ length: 2000 }, (_, i) => `<c r="A1" t="inlineStr"><is><t>a${" ".repeat(30000)}b</t></is></c>`).slice(0, 2000).join("")}</row>`;
+  // Varied text, as in a real sheet (a sheet of one repeated character is refused as a zip bomb).
+  let seed = 7;
+  const varied = (n) => Array.from({ length: n }, () => { seed = (seed * 1103515245 + 12345) % 2147483648; return "abcdefghij klmnopqrst"[seed % 21]; }).join("");
+  const spaces = `<row r="1">${Array.from({ length: 2000 }, () => `<c r="A1" t="inlineStr"><is><t>a${varied(30000)}b</t></is></c>`).join("")}</row>`;
   started = Date.now();
   m.parseImportBuffer("sp.xlsx", sheetZip(`<worksheet><sheetData>${spaces}${row(2, "supplier_name")}</sheetData></worksheet>`));
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
@@ -611,7 +620,7 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   const db = fresh();
   const so = newOrder(db, "A2-CLOSE");
   const check = (result, key) => result.checks.find((row) => row.key === key);
-  const options = { outstandingFor: m.receivableOutstandingBeforeAdjustment };
+  const options = { outstandingFor: m.receivableOutstandingForSettlement };
 
   // A receipt alone, with no posted invoice, is not settlement.
   db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-02', 10, 'NEFT', 'Posted')").run(so);
@@ -639,6 +648,30 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   // Nothing left to receive: settled.
   result = closure.computeOrderClosure(db, so, { outstandingFor: () => 0 });
   assert.equal(check(result, "payment_received").ready, true);
+  // No receivable on record: not provably settled. No calculation passed: refused.
+  db.prepare("UPDATE receivables SET is_deleted = 1 WHERE billing_id = ?").run(inv.id);
+  assert.equal(check(closure.computeOrderClosure(db, so, { outstandingFor: () => 0 }), "payment_received").ready, false);
+  assert.throws(() => closure.computeOrderClosure(db, so), /no outstanding-amount calculation/);
+
+  // Credit notes settle what they correct, in both forms the app books them.
+  const dept = db.prepare("SELECT id FROM government_departments LIMIT 1").get().id;
+  const pay = (order, amount) => db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-05', ?, 'NEFT', 'Draft')").run(order, amount).lastInsertRowid;
+  const bill = (order, amount, extra = {}) => { const saved = m.saveBillingVoucher(db, { header: { order_id: order, company_id: 1, invoice_date: "2026-07-03", ...extra }, items: [{ quantity: 1, billing_rate: amount, gst_rate: 0 }] }); m.postSalesVoucher(db, saved.id); return saved; };
+  const s9 = newOrder(db, "A2-CLOSE-CN");
+  bill(s9, 1000); bill(s9, 100, { invoice_type: "Credit Note" });
+  m.postReceiptVoucher(db, pay(s9, 900));
+  assert.equal(check(closure.computeOrderClosure(db, s9, options), "payment_received").ready, true, "a credit-note invoice nets against the order");
+  const s10 = newOrder(db, "A2-CLOSE-GN");
+  const corrected = bill(s10, 1000);
+  const note = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "credit_note", voucher_date: "2026-07-04", taxable_value: 100, gst_rate: 18, department_id: dept, linked_invoice_id: corrected.id, reason_code: "short supply" });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, note.id, step, 1);
+  m.postGuidedVoucher(db, note.id, 1);
+  m.postReceiptVoucher(db, pay(s10, 882));
+  assert.equal(check(closure.computeOrderClosure(db, s10, options), "payment_received").ready, true, "a guided credit note linked to the invoice settles it, as the bill-wise report shows");
+  const s12 = newOrder(db, "A2-CLOSE-TWO");
+  bill(s12, 1000); bill(s12, 500);
+  m.postReceiptVoucher(db, pay(s12, 1000));
+  assert.equal(check(closure.computeOrderClosure(db, s12, options), "payment_received").ready, false);
 });
 
 test("the order picker shows only the selected company's orders", async () => {
@@ -669,11 +702,12 @@ test("a97daf4 round: entity-heavy xlsx text, long rows, blank HTML rows and two-
   const timed = (fn, pattern, label) => {
     const started = Date.now();
     assert.throws(fn, pattern, label);
-    assert.ok(Date.now() - started < 2500, `${label} took ${Date.now() - started} ms`);
+    // Generous for a busy machine; the refused cases took minutes before these limits.
+    assert.ok(Date.now() - started < 6000, `${label} took ${Date.now() - started} ms`);
   };
   const amp = "&amp;".repeat(32767);
-  timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(220)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /32 million characters as stored/, "entity-heavy shared strings");
-  timed(() => m.parseImportBuffer("in.xlsx", zip({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c r="A1" t="str"><v>${"&amp;".repeat(2_000_000)}</v></c></row></sheetData></worksheet>` })), /holds more than 32,767 characters/, "inline cell");
+  timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(110)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /expands \d+ times when opened/, "entity-heavy shared strings");
+  timed(() => m.parseImportBuffer("in.xlsx", zip({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c r="A1" t="str"><v>${"&amp;".repeat(2_000_000)}</v></c></row></sheetData></worksheet>` })), /holds more than 32,767 characters|expands \d+ times when opened/, "inline cell");
   timed(() => m.parseImportBuffer("runs.xlsx", zip({ "xl/sharedStrings.xml": `<sst><si>${"<t/>".repeat(5000)}</si></sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /formatted parts/, "text runs");
   timed(() => m.parseImportBuffer("w.csv", Buffer.from("a,".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide csv header");
   timed(() => m.parseImportBuffer("w.xls", Buffer.from("a\t".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide tsv header");

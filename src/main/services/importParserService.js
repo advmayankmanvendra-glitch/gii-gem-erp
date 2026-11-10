@@ -280,6 +280,8 @@ export function createImportParserService() {
   const MAX_XLSX_CELLS = 2000000;
   const MAX_SHARED_STRING_CHARS = 16 * 1024 * 1024;
   const MAX_TEXT_RUNS = 1000;
+  const MAX_XLSX_EXPANSION = 200;
+  const MAX_UNCHECKED_PART_BYTES = 4 * 1024 * 1024;
   const MAX_CELL_CHARS = 32767;
   const MAX_SHEET_CHARS = 64 * 1024 * 1024;
 
@@ -330,6 +332,11 @@ export function createImportParserService() {
           }
           throw new Error(`Import refused: the .xlsx file is damaged (${error.message}). Save it again from Excel and retry.`);
         }
+        // Real sheets compress about 10 to 20 times. A part that expands hundreds of times is
+        // built to make the app spend seconds reading text that a few KB can describe.
+        if (data.length > MAX_UNCHECKED_PART_BYTES && data.length > compressed.length * MAX_XLSX_EXPANSION) {
+          throw new Error(`Import refused: a part of this .xlsx expands ${Math.round(data.length / Math.max(compressed.length, 1))} times when opened, far more than a real sheet. Save the sheet again from Excel (or as CSV) and retry.`);
+        }
         totalBytes += data.length;
         if (totalBytes > MAX_XLSX_TOTAL_BYTES) {
           throw new Error("Import refused: this .xlsx expands to more than 128 MB. Split the sheet into smaller files and import them one by one.");
@@ -362,6 +369,7 @@ export function createImportParserService() {
     let cellCount = 0;
     let spreadCells = 0;
     let textChars = 0;
+    let inlineRawChars = 0;
     forEachElement(sheetXml, "row", (_rowAttrs, rowBody) => {
       const row = [];
       forEachElement(rowBody, "c", (attrs, body) => {
@@ -383,6 +391,14 @@ export function createImportParserService() {
         // too long to decode to that (6 characters per entity at most) is refused unread.
         const cellTooLong = () => new Error(`Import refused: cell ${ref}${/r="[A-Z]+(\d+)"/.exec(attrs)?.[1] || ""} holds more than 32,767 characters, Excel's limit for one cell. Save the sheet again from Excel and retry.`);
         if (type !== "s" && raw.length > MAX_CELL_CHARS * 6) throw cellTooLong();
+        // Values written in the sheet itself share the same stored-text budget as the
+        // workbook's shared text, so entity-heavy cells cannot add seconds of decoding.
+        if (type !== "s") {
+          inlineRawChars += raw.length;
+          if (inlineRawChars > MAX_SHEET_CHARS) {
+            throw new Error("Import refused: the sheet's own text values hold more than 67 million characters as stored. Split it into smaller files, or save it as CSV, and import again.");
+          }
+        }
         const value = type === "s" ? sharedStrings[Number(raw)] || "" : decodeXml(raw);
         if (value.length > MAX_CELL_CHARS) throw cellTooLong();
         textChars += value.length;

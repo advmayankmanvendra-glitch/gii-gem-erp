@@ -221,6 +221,16 @@ check("SmartEntityPicker calls canQuickCreate(..., role)", pickerSource.includes
 check("SmartEntityPicker listens for gii-gem-quick-create event", pickerSource.includes("gii-gem-quick-create"));
 check("SmartEntityPicker checks triggerRef contains activeElement", pickerSource.includes("triggerRef.current?.contains(document.activeElement)"));
 check("SmartEntityPicker imports useEffect and useRef", pickerSource.includes("useEffect") && pickerSource.includes("useRef"));
+// --- 16. Accessibility and query sync (Copilot review on PR #4) ---
+{
+  const dir = "src/renderer/components/entityPicker";
+  const rowSource = readFileSync(join(dir, "EntityPickerResultRow.jsx"), "utf8");
+  const inputSource = readFileSync(join(dir, "EntityPickerSearchInput.jsx"), "utf8");
+  const searchSource = readFileSync(join(dir, "useEntitySearch.js"), "utf8");
+  check("Result rows select on click, so keyboard and assistive activation work", rowSource.includes("onClick={() => onSelect(record)}") && !/onMouseDown=\{[^}]*onSelect/.test(rowSource));
+  check("Search box names its list and the highlighted result", inputSource.includes("aria-controls={listboxId}") && inputSource.includes("aria-activedescendant") && pickerSource.includes("activeOptionId="));
+  check("A new search sets the box text and drops a pending typed search", /if \(!append\) \{[\s\S]*?clearTimeout\(debounceTimer\.current\)[\s\S]*?setQuery\(/.test(searchSource));
+}
 // App.jsx no longer intercepts Alt+Insert when entity picker has focus
 check("App.jsx skips Alt+Insert when entity-picker-trigger has focus", appSource.includes(".entity-picker-trigger") && appSource.includes("altKey"));
 

@@ -11,6 +11,7 @@ import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { archiveFiles } from "./update-audit-manifest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(__dirname, "..");
@@ -340,6 +341,10 @@ export function collectGovernanceGraphRegistryFindings(root = DEFAULT_ROOT) {
     });
     check(listed.length > 0 && listed.length === preserved.count, `In-house audit manifest lists ${listed.length} preserved reports`, `In-house audit manifest count is ${listed.length}/${preserved.count}`);
     check(changed.length === 0, "Every preserved in-house audit report is present and unchanged", `Preserved audit report missing or changed: ${changed.map((entry) => entry.path).join(", ")}`);
+    // A report added without regenerating the manifest would not be protected.
+    const listedPaths = new Set(listed.map((entry) => entry.path));
+    const unlisted = archiveFiles(root).filter((path) => !listedPaths.has(path));
+    check(unlisted.length === 0, "Every file in the audit archive is in the manifest", `Not in the audit manifest (run node scripts/update-audit-manifest.js): ${unlisted.join(", ")}`);
   } catch (error) {
     fail(`In-house audit preservation check error: ${error.message}`);
   }

@@ -16,6 +16,12 @@ export function useEntitySearch(api, entityType, options = {}) {
     const currentId = ++requestId.current;
     const term = String(searchTerm || "").trim();
     const opts = { limit, offset, company_id: searchOptions.companyId };
+    // A new search (not "load more") sets the box's text and drops any pending typed search,
+    // so the input, the results and the next page all use the same term.
+    if (!append) {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      setQuery(String(searchTerm ?? ""));
+    }
 
     setLoading(true);
     setError(null);

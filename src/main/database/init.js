@@ -1440,6 +1440,16 @@ function supplierAdvanceAdjustedForProcurement(db, procurementId) {
   `).get(procurementId).value || 0);
 }
 
+// What is still to receive on one invoice, as the bill-wise receivables report shows it:
+// allocations and advance adjustments, less posted guided credit notes linked to it. A
+// credit note booked as its own invoice is a negative receivable and returns a negative figure.
+export function receivableOutstandingForSettlement(db, billingId) {
+  const receivable = db.prepare("SELECT company_id FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(billingId);
+  if (!receivable) return 0;
+  const notes = postedGuidedNoteAdjustments(db, receivable.company_id, "credit_note", "linked_invoice_id").get(Number(billingId)) || { amount: 0 };
+  return round2(receivableOutstandingBeforeAdjustment(db, billingId) - Number(notes.amount || 0));
+}
+
 export function receivableOutstandingBeforeAdjustment(db, billingId) {
   const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(billingId);
   if (!receivable) return 0;

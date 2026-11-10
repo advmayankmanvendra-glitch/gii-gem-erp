@@ -241,13 +241,19 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
     // The history update that stores the mark was lost (for example to a locked file).
     // The run's own reset row must exist (otherwise there is nothing to roll back); any
     // audited record write after the run started is work the rollback would erase.
+    // A run written before 2026-10-23 with no stored mark has no audit position either, so
+    // its own reset cannot be told apart from a later Enhanced Reset; work entered between
+    // the two would be erased. Such a run is refused.
+    if (!Number.isInteger(entry.auditIdAtStart)) {
+      throw rollbackRefused(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} was recorded by an older version without the marks needed to check for work entered after it. To return to the pre-go-live state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
+    }
     const reset = resetAuditIdFor(db, entry);
     if (!reset) {
       throw rollbackRefused(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
     }
     // Count from where the run started, not from the reset row: another reset that writes
     // the same kind of row must not hide work entered before it.
-    mark = { tables: {}, auditId: Number.isInteger(entry.auditIdAtStart) ? entry.auditIdAtStart : reset };
+    mark = { tables: {}, auditId: entry.auditIdAtStart };
     compared = [];
   }
   const grown = new Set(compared.filter((table) => now.tables[table] > Number(mark.tables[table] || 0)));

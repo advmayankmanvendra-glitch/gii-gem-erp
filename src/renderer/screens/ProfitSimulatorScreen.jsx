@@ -36,12 +36,20 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
   // The baseline and the scenario are calculated in the main process from the live
   // order profitability report; this screen only shows them.
   const [result, setResult] = useState(null);
+  const [loadError, setLoadError] = useState("");
   useEffect(() => {
     let current = true;
-    apiClient.simulateProfit(companyContext, params).then((data) => {
-      if (current) setResult(data);
-    }).catch((error) => notify(error.message, "error"));
-    return () => { current = false; };
+    // Each request reruns the profitability report, so typing waits for a short pause.
+    const timer = window.setTimeout(() => {
+      apiClient.simulateProfit(companyContext, params).then((data) => {
+        if (current) { setResult(data); setLoadError(""); }
+      }).catch((error) => {
+        if (!current) return;
+        setLoadError(error.message);
+        notify(error.message, "error");
+      });
+    }, 300);
+    return () => { current = false; window.clearTimeout(timer); };
   }, [companyContext?.company_id, companyContext?.company_scope, params]);
 
   useEffect(() => {
@@ -136,7 +144,9 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
         </div>
       )}
 
-      {!rows.length ? (
+      {loadError && !result ? (
+        <EmptyState title="Simulation not available" note={loadError} />
+      ) : !rows.length ? (
         <EmptyState title="No profitability data" note="Create orders, procurements, billing and expenses to generate profitability data for simulation." />
       ) : (
         <>
@@ -155,7 +165,7 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
                     onChange={(e) => updateParam(key, e.target.value)}
                     step={key === "incentivePercent" || key === "gstRateOverride" ? 0.25 : 1}
                     min={key === "incentivePercent" || key === "gstRateOverride" ? 0 : -100}
-                    max={100}
+                    max={key === "incentivePercent" || key === "gstRateOverride" ? 100 : 1000}
                   />
                   <small>{hint}</small>
                 </label>

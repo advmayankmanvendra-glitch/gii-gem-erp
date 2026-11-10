@@ -13,4 +13,4 @@ The reports are history. They describe the code at the commit named in each file
 | `2026-10-22-pr4-inhouse/` | The three audits (correctness, security, architecture) run on each PR #4 push, named `audit-<commit>-<kind>.md`. |
 | `tally-style-checks-2026-10-29.md` | Tally-style risk checks: paise money, keyboard-first entry, double entry that cannot break. |
 
-`manifest.json` records each report's size and SHA-256. `npm run verify:audit` checks that every listed report is present and unchanged. A report is never edited after it is added; a new audit is added as a new file and the manifest is regenerated.
+`manifest.json` records each report's size and SHA-256. `npm run verify:audit` checks that every listed report is present and unchanged, and that no file in this folder is missing from the manifest. A report is never edited after it is added; a new audit is added as a new file and the manifest is regenerated with `node scripts/update-audit-manifest.js`.

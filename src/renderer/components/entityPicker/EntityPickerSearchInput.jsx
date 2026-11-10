@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export function EntityPickerSearchInput({ placeholder, value, onChange, onKeyDown }) {
+export function EntityPickerSearchInput({ placeholder, value, onChange, onKeyDown, listboxId, activeOptionId }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -20,6 +20,8 @@ export function EntityPickerSearchInput({ placeholder, value, onChange, onKeyDow
       aria-expanded="true"
       aria-haspopup="listbox"
       aria-autocomplete="list"
+      aria-controls={listboxId}
+      aria-activedescendant={activeOptionId || undefined}
       autoComplete="off"
     />
   );
