@@ -357,7 +357,7 @@ function sheetZip(sheetXml) {
 test("an import with a crafted very wide header is refused quickly", () => {
   const header = Array.from({ length: 20000 }, (_, i) => `c${i}`).join(",");
   const started = Date.now();
-  assert.throws(() => m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${"x\n".repeat(4000)}`)), /the limit is 500/);
+  assert.throws(() => m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${"x\n".repeat(4000)}`)), /the limit is 500|more than 16,384 cells/);
   const html = `<table><tr><td>supplier_name</td></tr><tr><td>${"<".repeat(160000)}</td></tr></table>`;
   assert.equal(m.parseImportBuffer("lt.xls", Buffer.from(html)).length, 1);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
@@ -463,8 +463,11 @@ test("import parser caps: long header names, shared-string count, blank TSV line
   const title = Array.from({ length: 60 }, (_, i) => row(i + 1, `title ${i}`)).join("");
   const row2 = (r, a, b) => `<row r="${r}"><c r="A${r}" t="inlineStr"><is><t>${a}</t></is></c><c r="B${r}" t="inlineStr"><is><t>${b}</t></is></c></row>`;
   assert.throws(() => m.parseImportBuffer("far.xlsx", sheetZip(`<worksheet><sheetData>${title}${row2(61, "supplier_name", "city")}${row2(62, "Acme", "Pune")}</sheetData></worksheet>`)), /is Excel row 61/);
-  // A single data cell that reads like a title far down is data, not a header.
-  assert.equal(m.parseImportBuffer("data.xlsx", sheetZip(`<worksheet><sheetData>${title}${row(61, "item_name")}</sheetData></worksheet>`)).length, 60);
+  // In a sheet with wider rows, a lone cell far down that reads like a title is data.
+  const wide = Array.from({ length: 60 }, (_, i) => row2(i + 1, `date ${i}`, `amount ${i}`)).join("");
+  assert.equal(m.parseImportBuffer("data.xlsx", sheetZip(`<worksheet><sheetData>${wide}${row(61, "item_name")}</sheetData></worksheet>`)).length, 60);
+  // In a one-column sheet, a header has one cell, so a late one is refused, not misread.
+  assert.throws(() => m.parseImportBuffer("one.xlsx", sheetZip(`<worksheet><sheetData>${title}${row(61, "item_name")}${row(62, "Bolt")}</sheetData></worksheet>`)), /is Excel row 61/);
   const near = Array.from({ length: 5 }, (_, i) => row(i + 1, `title ${i}`)).join("");
   assert.deepEqual(m.parseImportBuffer("near.xlsx", sheetZip(`<worksheet><sheetData>${near}${row(6, "supplier_name")}${row(7, "Acme")}</sheetData></worksheet>`)), [{ supplier_name: "Acme" }]);
   // Long cells are skipped by the header search at once.
@@ -648,4 +651,61 @@ test("the order picker shows only the selected company's orders", async () => {
   const numbers = (companyId) => search.searchEntities(db, "supply_order", "A2-SCOPE", { company_id: companyId }).results.map((row) => row.order_number).sort();
   assert.deepEqual(numbers(1), ["A2-SCOPE-1"]);
   assert.deepEqual(numbers(other), ["A2-SCOPE-2"]);
+});
+
+test("a97daf4 round: entity-heavy xlsx text, long rows, blank HTML rows and two-byte titles are refused quickly", async () => {
+  const zip = (files) => {
+    const parts = []; const centrals = []; let offset = 0;
+    for (const [n, text] of Object.entries(files)) {
+      const name = Buffer.from(n); const data = zlib.deflateRawSync(Buffer.from(text));
+      const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(8, 8); local.writeUInt32LE(data.length, 18); local.writeUInt16LE(name.length, 26);
+      const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(8, 10); central.writeUInt32LE(data.length, 20); central.writeUInt16LE(name.length, 28); central.writeUInt32LE(offset, 42);
+      parts.push(local, name, data); centrals.push(central, name); offset += local.length + name.length + data.length;
+    }
+    const cd = Buffer.concat(centrals);
+    const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(centrals.length / 2, 8); eocd.writeUInt16LE(centrals.length / 2, 10); eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+    return Buffer.concat([...parts, cd, eocd]);
+  };
+  const timed = (fn, pattern, label) => {
+    const started = Date.now();
+    assert.throws(fn, pattern, label);
+    assert.ok(Date.now() - started < 2500, `${label} took ${Date.now() - started} ms`);
+  };
+  const amp = "&amp;".repeat(32767);
+  timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(220)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /32 million characters as stored/, "entity-heavy shared strings");
+  timed(() => m.parseImportBuffer("in.xlsx", zip({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c r="A1" t="str"><v>${"&amp;".repeat(2_000_000)}</v></c></row></sheetData></worksheet>` })), /holds more than 32,767 characters/, "inline cell");
+  timed(() => m.parseImportBuffer("runs.xlsx", zip({ "xl/sharedStrings.xml": `<sst><si>${"<t/>".repeat(5000)}</si></sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /formatted parts/, "text runs");
+  timed(() => m.parseImportBuffer("w.csv", Buffer.from("a,".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide csv header");
+  timed(() => m.parseImportBuffer("w.xls", Buffer.from("a\t".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide tsv header");
+  timed(() => m.parseImportBuffer("b.xls", Buffer.from("<tr><td>h</td></tr>" + "<tr></tr>".repeat(500_000))), /blank rows included/, "blank html rows");
+  assert.deepEqual(m.parseImportBuffer("u.xls", Buffer.from("<TABLE><TR><TH>supplier_name</TH><Th>City</Th></TR><tR><Td>Acme &amp; Co</Td><TD>Pune</TD></tR></TABLE>")), [{ supplier_name: "Acme & Co", city: "Pune" }]);
+  // Two-byte titles count two bytes a character toward the reply budget.
+  const titles = Array.from({ length: 500 }, (_, i) => (`h${i}_` + "あ".repeat(100)).slice(0, 100));
+  timed(() => m.parseImportBuffer("k.csv", Buffer.from(titles.join(",") + "\n" + "x\n".repeat(1500))), /column titles total/, "two-byte titles");
+  // Ordinary text with entities still decodes once and correctly.
+  const ok = zip({ "xl/sharedStrings.xml": "<sst><si><t>supplier_name</t></si><si><t>A &amp; B &lt;Pvt&gt; &quot;Ltd&quot; &apos;x&apos; &amp;amp;</t></si></sst>", "xl/worksheets/sheet1.xml": '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row><row r="2"><c r="A2" t="s"><v>1</v></c></row></sheetData></worksheet>' });
+  assert.deepEqual(m.parseImportBuffer("ok.xlsx", ok), [{ supplier_name: "A & B <Pvt> \"Ltd\" 'x' &amp;" }]);
+});
+
+test("a97daf4 round: Tally exports with unclosed tags are read in one pass, and a review edit never approves a proposal", async () => {
+  const db = fresh();
+  const root = freshRoot();
+  const admin = db.prepare("SELECT id FROM users ORDER BY id LIMIT 1").get();
+  const file = path.join(root, "unclosed.xml");
+  fs.writeFileSync(file, "<SVCURRENTCOMPANY>x".repeat(60000) + "<LEDGER NAME=\"Kept\"><PARENT>Sundry Debtors</PARENT></LEDGER>");
+  let started = Date.now();
+  m.previewTallyMasterMigration(db, [{ filePath: file }], { user_id: admin.id });
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  const ledgers = path.join(root, "ledgers.xml");
+  fs.writeFileSync(ledgers, `<ENVELOPE><SVCURRENTCOMPANY>Acme</SVCURRENTCOMPANY>${Array.from({ length: 3 }, (_, i) => `<LEDGER NAME="L${i}"><PARENT>Sundry Debtors</PARENT></LEDGER>`).join("")}<STOCKITEM NAME="Bolt"><RATEDETAILS.LIST><GSTRATEDUTYHEAD>IGST</GSTRATEDUTYHEAD><GSTRATE>18</GSTRATE></RATEDETAILS.LIST></STOCKITEM></ENVELOPE>`);
+  const preview = m.previewTallyMasterMigration(db, [{ filePath: ledgers }], { user_id: admin.id });
+  assert.ok(JSON.stringify(preview).includes("L2"), "ledgers are still read");
+
+  // Approval only through approve: a review edit that sends status "Approved" stays Needs Review.
+  db.pragma("foreign_keys = OFF");
+  const proposal = db.prepare("INSERT INTO voucher_proposals (company_id, bank_entry_id, transaction_date, suggested_voucher_type, status) VALUES (1, 1, '2026-06-01', 'Receipt', 'Suggested')").run().lastInsertRowid;
+  db.pragma("foreign_keys = ON");
+  m.updateVoucherProposal(db, proposal, { status: "Approved", narration: "edited", user_id: admin.id });
+  assert.equal(db.prepare("SELECT status FROM voucher_proposals WHERE id = ?").get(proposal).status, "Needs Review");
+  assert.throws(() => m.createDraftVoucherFromProposal(db, proposal, admin.id), /must be approved/);
 });

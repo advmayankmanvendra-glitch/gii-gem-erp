@@ -1328,7 +1328,8 @@ function registerIpc() {
     } catch (error) {
       // Only the guard's own refusals are answers; any other error is a fault and is thrown.
       if (error?.code !== ROLLBACK_REFUSED) throw error;
-      auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason: error.message }) });
+      // The id comes from the screen; only a short form of it is kept in the audit trail.
+      auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: error.message.slice(0, 500) }) });
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }
     const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
