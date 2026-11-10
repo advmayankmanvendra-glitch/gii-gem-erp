@@ -398,6 +398,9 @@ export function createBankReconciliationService(deps) {
       remarks: payload.remarks || null,
       created_by: payload.created_by || null
     });
+    // The general audit trail also records every proposal write, so the go-live rollback
+    // guard and the audit report see it.
+    auditLog(db, { company_id: payload.company_id, user_id: payload.created_by || null, action: `voucher proposal ${String(payload.action || "").toLowerCase().replace(/^proposal /, "")}`, table_name: "voucher_proposals", record_id: payload.proposal_id || null, old_value: payload.old_value || null, new_value: payload.new_value || null });
   }
 
   // A proposal may only point at ledgers and documents of its own company.
@@ -634,60 +637,69 @@ export function createBankReconciliationService(deps) {
   }
 
   function updateVoucherProposal(db, proposalId, payload = {}) {
+    // The proposal change and its audit rows are saved together or not at all.
     const proposal = getVoucherProposal(db, proposalId);
-    if (["Draft Voucher Created", "Posted"].includes(proposal.status)) throw new Error("Proposal cannot be edited after draft voucher creation");
-    const next = {
-      suggested_voucher_type: payload.suggested_voucher_type || proposal.suggested_voucher_type,
-      suggested_party_type: payload.suggested_party_type || proposal.suggested_party_type,
-      suggested_party_id: payload.suggested_party_id ? Number(payload.suggested_party_id) : proposal.suggested_party_id,
-      suggested_party_name: payload.suggested_party_name || proposal.suggested_party_name,
-      suggested_ledger_id: payload.suggested_ledger_id ? Number(payload.suggested_ledger_id) : proposal.suggested_ledger_id,
-      suggested_ledger_name: payload.suggested_ledger_name || proposal.suggested_ledger_name,
-      linked_invoice_id: payload.linked_invoice_id ? Number(payload.linked_invoice_id) : proposal.linked_invoice_id,
-      linked_procurement_id: payload.linked_procurement_id ? Number(payload.linked_procurement_id) : proposal.linked_procurement_id,
-      linked_order_id: payload.linked_order_id ? Number(payload.linked_order_id) : proposal.linked_order_id,
-      narration: payload.narration || proposal.narration,
-      remarks: payload.remarks || proposal.remarks,
-      status: payload.status || "Needs Review"
-    };
-    assertProposalLinksInCompany(db, proposal.company_id, next);
-    db.prepare(`
-      UPDATE voucher_proposals SET
-        suggested_voucher_type = @suggested_voucher_type,
-        suggested_party_type = @suggested_party_type,
-        suggested_party_id = @suggested_party_id,
-        suggested_party_name = @suggested_party_name,
-        suggested_ledger_id = @suggested_ledger_id,
-        suggested_ledger_name = @suggested_ledger_name,
-        linked_invoice_id = @linked_invoice_id,
-        linked_procurement_id = @linked_procurement_id,
-        linked_order_id = @linked_order_id,
-        narration = @narration,
-        remarks = @remarks,
-        status = @status,
-        reviewed_by = @reviewed_by,
-        reviewed_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = @id
-    `).run({ ...next, reviewed_by: payload.user_id || null, id: proposal.id });
-    proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Edited", created_by: payload.user_id || null, old_value: JSON.stringify(proposal), new_value: JSON.stringify(next), remarks: payload.remarks || null });
+    db.transaction(() => {
+      if (["Draft Voucher Created", "Posted"].includes(proposal.status)) throw new Error("Proposal cannot be edited after draft voucher creation");
+      const next = {
+        suggested_voucher_type: payload.suggested_voucher_type || proposal.suggested_voucher_type,
+        suggested_party_type: payload.suggested_party_type || proposal.suggested_party_type,
+        suggested_party_id: payload.suggested_party_id ? Number(payload.suggested_party_id) : proposal.suggested_party_id,
+        suggested_party_name: payload.suggested_party_name || proposal.suggested_party_name,
+        suggested_ledger_id: payload.suggested_ledger_id ? Number(payload.suggested_ledger_id) : proposal.suggested_ledger_id,
+        suggested_ledger_name: payload.suggested_ledger_name || proposal.suggested_ledger_name,
+        linked_invoice_id: payload.linked_invoice_id ? Number(payload.linked_invoice_id) : proposal.linked_invoice_id,
+        linked_procurement_id: payload.linked_procurement_id ? Number(payload.linked_procurement_id) : proposal.linked_procurement_id,
+        linked_order_id: payload.linked_order_id ? Number(payload.linked_order_id) : proposal.linked_order_id,
+        narration: payload.narration || proposal.narration,
+        remarks: payload.remarks || proposal.remarks,
+        status: payload.status || "Needs Review"
+      };
+      assertProposalLinksInCompany(db, proposal.company_id, next);
+      db.prepare(`
+        UPDATE voucher_proposals SET
+          suggested_voucher_type = @suggested_voucher_type,
+          suggested_party_type = @suggested_party_type,
+          suggested_party_id = @suggested_party_id,
+          suggested_party_name = @suggested_party_name,
+          suggested_ledger_id = @suggested_ledger_id,
+          suggested_ledger_name = @suggested_ledger_name,
+          linked_invoice_id = @linked_invoice_id,
+          linked_procurement_id = @linked_procurement_id,
+          linked_order_id = @linked_order_id,
+          narration = @narration,
+          remarks = @remarks,
+          status = @status,
+          reviewed_by = @reviewed_by,
+          reviewed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = @id
+      `).run({ ...next, reviewed_by: payload.user_id || null, id: proposal.id });
+      proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Edited", created_by: payload.user_id || null, old_value: JSON.stringify(proposal), new_value: JSON.stringify(next), remarks: payload.remarks || null });
+    })();
     return voucherProposalData(db, { company_id: proposal.company_id });
   }
 
   function approveVoucherProposal(db, proposalId, userId = null, remarks = "") {
+    // The proposal change and its audit rows are saved together or not at all.
     const proposal = getVoucherProposal(db, proposalId);
-    if (proposal.status === "Already Booked") throw new Error(`Bank line is already booked in the books (${proposal.remarks || "matched voucher"}). It is reconciled; approving it would book the money twice.`);
-    if (!["Suggested", "Needs Review", "Approved"].includes(proposal.status)) throw new Error("Only suggested or reviewed proposals can be approved");
-    db.prepare("UPDATE voucher_proposals SET status = 'Approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP, remarks = COALESCE(NULLIF(?, ''), remarks), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, remarks, proposal.id);
-    proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Approved", created_by: userId, remarks });
+    db.transaction(() => {
+      if (proposal.status === "Already Booked") throw new Error(`Bank line is already booked in the books (${proposal.remarks || "matched voucher"}). It is reconciled; approving it would book the money twice.`);
+      if (!["Suggested", "Needs Review", "Approved"].includes(proposal.status)) throw new Error("Only suggested or reviewed proposals can be approved");
+      db.prepare("UPDATE voucher_proposals SET status = 'Approved', approved_by = ?, approved_at = CURRENT_TIMESTAMP, remarks = COALESCE(NULLIF(?, ''), remarks), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, remarks, proposal.id);
+      proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Approved", created_by: userId, remarks });
+    })();
     return voucherProposalData(db, { company_id: proposal.company_id });
   }
 
   function rejectVoucherProposal(db, proposalId, userId = null, reason = "") {
+    // The proposal change and its audit rows are saved together or not at all.
     const proposal = getVoucherProposal(db, proposalId);
-    if (proposal.status === "Posted") throw new Error("Posted proposal cannot be rejected");
-    db.prepare("UPDATE voucher_proposals SET status = 'Rejected', rejected_by = ?, rejected_at = CURRENT_TIMESTAMP, rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, reason, proposal.id);
-    proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Rejected", created_by: userId, remarks: reason });
+    db.transaction(() => {
+      if (proposal.status === "Posted") throw new Error("Posted proposal cannot be rejected");
+      db.prepare("UPDATE voucher_proposals SET status = 'Rejected', rejected_by = ?, rejected_at = CURRENT_TIMESTAMP, rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, reason, proposal.id);
+      proposalAudit(db, { company_id: proposal.company_id, proposal_id: proposal.id, bank_entry_id: proposal.bank_entry_id, action: "Proposal Rejected", created_by: userId, remarks: reason });
+    })();
     return voucherProposalData(db, { company_id: proposal.company_id });
   }
 

@@ -13,10 +13,9 @@ export function StockDrilldown({ apiClient, companyContext, onNavigate }) {
     setLoading(true);
     setError(null);
     const filters = drilldownFilters(companyContext);
+    // Every figure shown comes from the dashboard counts.
     apiClient.getDashboardCounts(filters).then((counts) => {
-      return apiClient.getAccountingData(filters).then((accounting) => ({ counts, accounting }));
-    }).then((result) => {
-      setData(result);
+      setData({ counts });
       setLoading(false);
     }).catch((err) => {
       setError(err.message || "Could not load stock data. Check the selected company, then reopen this view from the Dashboard.");

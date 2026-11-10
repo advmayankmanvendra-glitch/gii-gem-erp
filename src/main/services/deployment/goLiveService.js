@@ -168,7 +168,9 @@ const ROLLBACK_ALLOWED_STATUSES = new Set(["in_progress", "failed", "rollback_fa
 // Tables whose rows are not books: logs, review trails and schema bookkeeping. A new
 // row in any other table, or an audited change to one, means real work was entered
 // after the go-live reset.
-const NOT_BOOK_TABLES = new Set(["audit_log", "schema_migrations", "feedback_log", "allocation_audit", "voucher_proposal_audit", "sqlite_sequence"]);
+// allocation_audit and voucher_proposal_audit are counted: the operational reset empties
+// them, and every allocation or bank-proposal change after it adds a row there.
+const NOT_BOOK_TABLES = new Set(["audit_log", "schema_migrations", "feedback_log", "sqlite_sequence"]);
 
 // Audit rows that record a look or a refusal, not a change; they must not block rollback.
 const READ_ONLY_AUDIT_ACTIONS = ["voucher drilldown access", "document view", "document download", "master_data_export", "master_data_template_download", "permission_denied", "bank_statement_direct_post_blocked"];
@@ -197,6 +199,7 @@ function resetAuditIdFor(db, entry) {
     `).get(entry.auditIdAtStart, GO_LIVE_RESET_MODULE, companyId, companyId)?.id || null;
   }
   // Entries written before 2026-10-23 have no audit position; fall back to the start time.
+  // Remove after 2027-01-31, when no such run can still be rolled back.
   const since = String(entry.generatedAt || "").slice(0, 19).replace("T", " ");
   if (!since) return null;
   return db.prepare(`
@@ -228,8 +231,8 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
     compared = Object.keys(mark.tables).filter((table) => table in now.tables);
   } else {
     // The history update that stores the mark was lost (for example to a locked file).
-    // The reset's own audit row in the database is the mark instead: any audited record
-    // write after it is work the rollback would erase.
+    // The run's own reset row must exist (otherwise there is nothing to roll back); any
+    // audited record write after the run started is work the rollback would erase.
     const reset = resetAuditIdFor(db, entry);
     if (!reset) {
       throw new Error(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
@@ -240,7 +243,7 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
     compared = [];
   }
   const grown = new Set(compared.filter((table) => now.tables[table] > Number(mark.tables[table] || 0)));
-  if (mark.auditId) {
+  if (mark.auditId != null) {
     // Edits and deletes add no rows, but every record write leaves an audit row naming its table.
     const tables = new Set(Object.keys(now.tables));
     db.prepare(`
