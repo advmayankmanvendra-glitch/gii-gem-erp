@@ -1312,10 +1312,10 @@ Press **`/`** (slash key) to open a screen-specific shortcut overlay showing the
 
 **Workflow:**
 1. Go to **Inventory > Stock Returns** with Return Type = "Supplier Return".
-2. Select the procurement record and item.
+2. Select the supplier, the order (if any) and the item. A return is not linked to one goods receipt; the app works from this supplier's receipts of the item on that order.
 3. Enter quantity, condition, and reason.
 4. Save and post. Posting reduces Goods Received Not Invoiced for goods not yet billed and Trade Payables for billed goods, at the supplier's own price; any gap to average stock cost goes to Purchase Price Variance.
-5. Do not also issue a Debit Note for the same goods: the posted return has already adjusted the payable. Use a Debit Note only for a price or GST correction the return does not cover.
+5. Do not also issue a Debit Note for the same goods value: the posted return has already reduced the payable by it. Posting the return does not reverse the input GST on billed goods; ask your accountant how to record that GST.
 
 ### 10.7 Inter-Branch Transfers
 

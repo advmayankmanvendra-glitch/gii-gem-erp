@@ -124,7 +124,7 @@ import {
   getMasterDataToolsHealth,
   previewMasterDataUpdate
 } from "./services/masterDataToolsService.js";
-import { createSupportBundle } from "./services/supportBundleService.js";
+import { boundedScreenContext, createSupportBundle } from "./services/supportBundleService.js";
 import { getVerificationConsoleState, recordVerificationSnapshot } from "./services/verificationService.js";
 import { PROFILES } from "./config/verificationConfig.js";
 import { calculateReadinessScore } from "./services/deployment/readinessService.js";
@@ -212,18 +212,6 @@ function signedInHealthContext(context) {
     role: actor?.role || "", userRole: undefined,
     dbName: DB_NAME
   };
-}
-
-// What the screen sends for a support bundle (Safe Mode's crash list, the checks it saw),
-// kept for support but without user fields and within 1 MB, so a call cannot fill the disk.
-const MAX_SCREEN_CONTEXT_BYTES = 1024 * 1024;
-function boundedScreenContext(context) {
-  if (!context || typeof context !== "object") return null;
-  const { user_id, userId, user_name, userName, role, userRole, ...rest } = context;
-  let text;
-  try { text = JSON.stringify(rest); } catch { return { omitted: "The screen's details could not be read." }; }
-  if (!text || Buffer.byteLength(text, "utf8") > MAX_SCREEN_CONTEXT_BYTES) return { omitted: "The screen's details were larger than 1 MB and were left out." };
-  return JSON.parse(text);
 }
 
 // The audit trail is a report; roles without report access do not receive it. Admins
@@ -349,9 +337,8 @@ function guarded(permission, moduleName, handler) {
       user_id: session.user_id
     });
     const safeArgs = args.map((arg) => withActor(arg, user));
-    // The grant row takes its company from the first argument only, so an extra argument
-    // from a screen cannot set the company recorded in the audit trail.
-    recordGrant(user, permission, moduleName, firstPayload(args.slice(0, 1)));
+    // The grant row names the same company the permission was checked against.
+    recordGrant(user, permission, moduleName, payload);
     return runAsActor(user, () => handler(...safeArgs));
   };
 }
@@ -1205,10 +1192,11 @@ function registerIpc() {
     return runHealthChecks(db, runtimeDataRoot, { ...context, dbName: DB_NAME, verifyAuditChain });
   });
   handle("health:support-bundle", (_event, context) => {
-    const healthContext = { ...signedInHealthContext(context), screenContext: boundedScreenContext(context) };
+    const healthContext = signedInHealthContext(context);
     const diagnostics = getHealthDiagnostics(db, runtimeDataRoot, healthContext);
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
-    return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, healthContext);
+    // The screen's own details go into the bundle once, as bounded compact text.
+    return createSupportBundle(db, runtimeDataRoot, diagnostics, checks, { ...healthContext, screenContextJson: boundedScreenContext(context) });
   });
   handle("health:error-console", (_event, context = {}) => {
     return errorConsoleState(db, runtimeDataRoot, { companyId: Number(context.company_id || 0) || null, verifyAuditChain });

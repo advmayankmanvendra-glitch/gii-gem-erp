@@ -1,6 +1,6 @@
 // Regenerates docs/audit/in-house-audits-2026-10/manifest.json after a new audit report is
 // added. Reports are never edited; this only records the size and SHA-256 of each file.
-// Usage: node scripts/update-audit-manifest.js
+// Usage: node scripts/update-audit-manifest.js   (add --init only to build the first manifest)
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
@@ -25,11 +25,15 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // A missing or unreadable manifest is refused too (it would make every report look new),
   // unless --init is given to build the first one.
   let previous = [];
-  try { previous = JSON.parse(readFileSync(join(root, folder, "manifest.json"), "utf8")).entries || []; } catch (error) {
+  try {
+    previous = JSON.parse(readFileSync(join(root, folder, "manifest.json"), "utf8")).entries;
+    if (!Array.isArray(previous) || previous.length === 0) throw new Error("it lists no reports");
+  } catch (error) {
     if (!process.argv.includes("--init")) {
       console.error(`Refused: ${folder}/manifest.json could not be read (${error.message}). Restore it from git; use --init only to build the first manifest.`);
       process.exit(1);
     }
+    previous = [];
   }
   const recorded = new Map(previous.map((entry) => [entry.path, entry]));
   const entries = archiveFiles().map((path) => {
