@@ -1,0 +1,14 @@
+# Desktop smoke test, acf6d02 (Electron 37, Linux, Xvfb)
+- Fresh data root; renderer built with vite (dist 2.35 MB main chunk).
+- Login admin/admin123 -> forced password change -> dashboard. No console errors.
+- First-run welcome modal shown; dismissed.
+- Sidebar crawl (accordion, every group and subgroup): 171 screens opened. Crashes/blank/click errors/console errors: 0.
+- Breadcrumb mismatches (2): [('Reports > GST & Tax', 'TDS Reconciliation', 'Dashboard > Operations > TDS Review'), ('Reports > GST & Tax', 'GST TDS Reconciliation', 'Dashboard > Operations > GST TDS Review')]
+- Screens that left a modal open: []
+- Workspace scroll reset: no screen opened scrolled.
+- Company context panel visible: "Gesture India Infrastructure", with All Companies View.
+- Settings > Create Backup: confirm dialog, backup file written, toast shown.
+- Logout -> wrong password shows "Invalid username or password" -> correct password logs back in.
+- Login screen still shows the hint "First internal login: admin / admin123" after the admin password was changed.
+- Main-process log: no errors besides headless dbus/gpu noise.
+- Not covered: Windows, printing to a real printer, file dialogs (import/restore pickers), posting flows through the UI.
