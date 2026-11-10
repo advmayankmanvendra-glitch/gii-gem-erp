@@ -362,3 +362,53 @@ test("an .xlsx with a cell past Excel's last column is refused quickly", async (
   assert.match(result.err || "", /beyond Excel's last column/);
   assert.ok(Date.now() - started < 2000);
 });
+
+// ---- SEC-1 session-bound authorization ----
+
+test("SEC-1: high-impact channels refuse every role below admin, and record who was refused", async () => {
+  const highImpact = [
+    ["certificate:generate", {}], ["go-live:execute", { company_id: 1 }], ["go-live:verify", { goLiveId: 1 }],
+    ["go-live:complete", { goLiveId: 1 }], ["go-live:rollback", { goLiveId: 1 }], ["reset:execute", { company_id: 1 }],
+    ["reset:execute-enhanced", { company_id: 1 }], ["reset:rollback", { backup: "x.db" }],
+    ["environment:set-profile", { profile: "Production" }], ["environment:switch-type", { environment: "Production" }]
+  ];
+  for (const role of ["viewer", "data_entry_operator", "accountant", "manager"]) {
+    const win = await roleWindow(`sec1-${role}`, role);
+    for (const [channel, payload] of highImpact) {
+      const result = await call(win, channel, { ...payload, user_id: 1, user_role: "super_admin" });
+      assert.match(result.err || "ran", /Permission denied/, `${role} ${channel}`);
+    }
+  }
+  const db = side();
+  try {
+    const denied = db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'permission_denied' AND user_id = (SELECT id FROM users WHERE username = 'sec1-manager')").get().c;
+    assert.ok(denied >= highImpact.length, `each refusal names the manager (${denied})`);
+  } finally { db.close(); }
+});
+
+test("SEC-1: an allowed high-impact action is recorded with the signed-in admin", async () => {
+  const admin = await adminWindow();
+  const before = (() => { const db = side(); try { return db.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id; } finally { db.close(); } })();
+  await call(admin, "environment:set-profile", { profile: "Development", user_id: 999 });
+  const db = side();
+  try {
+    const row = db.prepare("SELECT a.user_id, u.username, a.new_value FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.id > ? AND a.action = 'permission_granted' ORDER BY a.id LIMIT 1").get(before);
+    assert.equal(row?.username, "admin", "the grant names the signed-in admin, not the id the screen sent");
+    assert.match(row.new_value, /system_reset/);
+  } finally { db.close(); }
+});
+
+test("SEC-1: imports, bank preview and feedback export need their permission; the audit trail is a report", async () => {
+  const viewer = await roleWindow("sec1-viewer2", "viewer");
+  assert.match((await call(viewer, "bank:preview-import", { company_id: 1, rows: [] })).err || "", /Permission denied: import/);
+  assert.match((await call(viewer, "imports:parse-file", "x.csv")).err || "", /Permission denied: import/);
+  const deo = await roleWindow("sec1-deo", "data_entry_operator");
+  const data = await call(deo, "accounting:data", { company_id: 1 });
+  assert.ok(data.ok, data.err);
+  assert.deepEqual(data.ok.auditLog, [], "a data-entry user does not receive the audit trail");
+  const accountant = await roleWindow("sec1-acct", "accountant");
+  const full = await call(accountant, "accounting:data", { company_id: 1 });
+  assert.ok(full.ok.auditLog.length > 0, "an accountant does");
+  const parsed = await call(deo, "imports:parse-buffer", "a.csv", new Uint8Array(Buffer.from("supplier_name\nX\n")));
+  assert.deepEqual(parsed.ok, [{ supplier_name: "X" }], "byte arrays pass through the actor stamp unchanged");
+});

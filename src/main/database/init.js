@@ -1927,7 +1927,7 @@ const {
 } = createImportParserService();
 
 const {
-  hashPassword, verifyPassword, normalizeRole, enforcePermission,
+  hashPassword, verifyPassword, normalizeRole, enforcePermission, roleCan,
   authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
   userForPermission, setRecoverySecret, recoveryResetPassword, adminResetPassword
 } = createAuthService({
@@ -2087,7 +2087,7 @@ export {
 };
 
 export {
-  authenticate, changeUserPassword, enforcePermission,
+  authenticate, changeUserPassword, enforcePermission, roleCan,
   setRecoverySecret, recoveryResetPassword, adminResetPassword
 };
 

@@ -11,6 +11,8 @@ import {
   adjustSupplierAdvance,
   auditLog,
   runAsActor,
+  currentActor as ambientActor,
+  roleCan,
   enforceBankDetailPermission,
   verifyAuditChain,
   alertServiceWith,
@@ -228,16 +230,15 @@ function configureRuntimeStorage() {
   return { root: runtimeDataRoot, copiedDatabase };
 }
 
-// The signed-in user for the IPC call being handled right now. Handlers run
-// synchronously against better-sqlite3, so this is set for the duration of one
-// call only and never leaks between windows.
-let currentActor = null;
 // Files the user picked in a native file dialog during this run. Only these can
 // be read by path, so a screen cannot read arbitrary files from the disk.
 const selectedFiles = new Set();
 
+// The signed-in user for the IPC call being handled right now. There is one source:
+// handle() runs every signed-in call inside runAsActor (init.js AsyncLocalStorage), so
+// services, audit rows and this helper all see the same user, across awaits too.
 function actorId() {
-  return currentActor?.id || null;
+  return ambientActor()?.id || null;
 }
 
 // Alert passwords and tokens are kept only in the operating system's secure storage.
@@ -255,7 +256,11 @@ const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "importe
 // Overwrite every "who did this" field the screen sent with the signed-in user,
 // so the audit trail can never name somebody else.
 function withActor(value, user) {
+  // Only plain objects carry "who did this" fields; arrays, byte buffers and other
+  // objects pass through unchanged.
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
   const next = { ...value };
   ACTOR_FIELDS.forEach((field) => {
     if (field in next || field === "user_id") next[field] = user.id;
@@ -298,15 +303,16 @@ function guarded(permission, moduleName, handler) {
       user_id: session.user_id
     });
     const safeArgs = args.map((arg) => withActor(arg, user));
-    const previous = currentActor;
-    currentActor = user;
-    try {
-      return runAsActor(user, () => handler(...safeArgs));
-    } finally {
-      currentActor = previous;
+    // High-impact permissions record who was allowed, as refusals already do.
+    if (AUDITED_GRANTS.has(permission)) {
+      runAsActor(user, () => auditLog(db, { company_id: payload.company_id || null, user_id: user.id, action: "permission_granted", module: moduleName, table_name: "system", new_value: JSON.stringify({ permission, module: moduleName }) }));
     }
+    return runAsActor(user, () => handler(...safeArgs));
   };
 }
+
+// Permissions whose every use is recorded with the signed-in user (SEC-1).
+const AUDITED_GRANTS = new Set(["system_reset", "restore_backup", "settings", "financial_year_close", "financial_year_reopen", "account_mapping"]);
 
 function sessionGuarded(permission, moduleName, handler) {
   return (event, ...args) => {
@@ -837,7 +843,12 @@ function registerIpc() {
   handle("dashboard:counts", (_event, filters) => dashboardCounts(db, filters));
   handle("references:list", (_event, filters) => referenceData(db, filters));
   handle("profitability:list", (_event, filters) => orderProfitability(db, filters));
-  handle("accounting:data", (_event, filters) => accountingData(db, filters));
+  handle("accounting:data", (_event, filters) => {
+    const data = accountingData(db, filters);
+    // The audit trail is a report; roles without report access do not receive it.
+    const actor = ambientActor();
+    return actor && roleCan(actor.role, "view_reports") ? data : { ...data, auditLog: [] };
+  });
   handle(
     "account-mapping:registry",
     sessionGuarded("account_mapping", "account_mapping", (filters) => (
@@ -869,7 +880,7 @@ function registerIpc() {
     ))
   );
   handle("bank:data", (_event, filters) => bankStatementData(db, filters));
-  handle("bank:preview-import", (_event, payload) => previewBankStatementImport(db, payload));
+  handle("bank:preview-import", guarded("import", "bank_statement_imports", (payload) => previewBankStatementImport(db, payload)));
   handle("bank:create-import", guarded("import", "bank_statement_imports", (payload) => createBankStatementImport(db, payload)));
   handle("bank:status", guarded("approve", "bank_statement_imports", (importId, status, _userId, remarks) => updateBankImportStatus(db, importId, status, actorId(), remarks)));
   handle("bank:manual-match", guarded("edit", "bank_statement_entries", (entryId, payload) => manualBankEntryMatch(db, entryId, payload)));
@@ -919,17 +930,13 @@ function registerIpc() {
   handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
   handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
   handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
-  handle("imports:parse-file", (event, filePath) => {
-    enforcePermission(db, "import", { module: "imports", table_name: "imports", user_id: sessionUser(event).user_id });
+  handle("imports:parse-file", guarded("import", "imports", (filePath) => {
     if (!selectedFiles.has(path.resolve(String(filePath || "")))) {
       throw new Error("Import refused: choose the file with the Browse button first. Only files picked in the file dialog can be read.");
     }
     return parseImportFile(filePath);
-  });
-  handle("imports:parse-buffer", (event, fileName, bytes) => {
-    enforcePermission(db, "import", { module: "imports", table_name: "imports", user_id: sessionUser(event).user_id });
-    return parseImportBuffer(fileName, bytes);
-  });
+  }));
+  handle("imports:parse-buffer", guarded("import", "imports", (fileName, bytes) => parseImportBuffer(fileName, bytes)));
   handle("imports:select-file", async () => {
     const result = await dialog.showOpenDialog({
       title: "Select import file",
@@ -1329,9 +1336,7 @@ function registerIpc() {
     return getGoLiveHistory(runtimeDataRoot);
   });
 
-  handle("certificate:generate", () => {
-    return generateCertificate(db, runtimeDataRoot);
-  });
+  handle("certificate:generate", guarded("system_reset", "go_live", () => generateCertificate(db, runtimeDataRoot)));
 
   handle("reset:preview", () => {
     return previewReset(db);
@@ -1383,7 +1388,7 @@ function registerIpc() {
     return submitFeedback(db, { ...payload, user_id: session.user_id, user_name: session.username });
   });
   handle("feedback:list", (_event, filters) => listFeedback(db, filters));
-  handle("feedback:export", (_event, format) => exportFeedback(db, format));
+  handle("feedback:export", guarded("export", "feedback", (format) => exportFeedback(db, format)));
 }
 
 if (!hasSingleInstanceLock) {
