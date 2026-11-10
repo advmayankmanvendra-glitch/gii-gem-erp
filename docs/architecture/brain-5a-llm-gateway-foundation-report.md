@@ -61,3 +61,28 @@ No npm dependency was added. No database table or migration was added.
 - **5D** read-only ERP functions through SEC-1 and existing RBAC.
 - **5E** AG-1 graph registration of the LLM audit actions.
 - **5F** model routing tiers and cost governance.
+
+---
+
+# BRAIN-5B — Context & Evidence Assembler
+
+**Date:** 10 Nov 2026 (IST) · **Status:** IMPLEMENTED, NOT WIRED
+
+`src/main/services/llm/llmContextAssembler.js` decides what the model may see; `llmKnowledgeLoader.js` loads only the five graphs it needs (WG-1, KG-4, DG-1, KG-5, FF-1; AGENTS.md §25.2) and the same BRAIN-4 classifier/knowledge bridge and BRAIN-2 search the Ask ERP panel runs.
+
+Per question it builds at most 12 evidence items, each with a citable id:
+
+| Id prefix | From | Content |
+|---|---|---|
+| `BRAIN-4:answer` | BRAIN-4 knowledge bridge (FF-1 routing, BRAIN-2 search) | the existing source-backed answer |
+| `WG-1:<STAGE>` | workflow graph | upstream/downstream stages, ordering rules, impacts, required documents; named stages also bring their direct prerequisites |
+| `KG-4:<voucherType>` | voucher & accounting graph | debit/credit pattern, posting function, workflow stage |
+| `KG-5:<sectionId>` | manual graph | matching manual sections (≤3) |
+| `DG-1:<table>` | database graph | table purpose, stage, write protection — never row values |
+| `BRAIN-2:<sourceId>` | BRAIN-2 search | top hits that share a word with the question |
+
+Unsafe-action questions (BRAIN-4 classifier) and questions with no match get no evidence, so the provider is never called.
+
+**Packaging:** the main process now needs the graph JSON and the BRAIN-2/BRAIN-4 modules at run time, so `build.files` adds `src/renderer/knowledge/*.json`, `src/renderer/modules/erpBrain/**`, `src/renderer/modules/erpAssistant/**/*.js` and `src/renderer/modules/helpAssistant/contextualBrainHelp.js` (pure JS/JSON, no external imports — checked by tracing the import closure).
+
+**Verification:** `npm run test:llm-gateway` 20/20 (adds five 5B tests over the real graphs, including an end-to-end gateway run with the offline provider).

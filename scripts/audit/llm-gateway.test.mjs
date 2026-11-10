@@ -191,3 +191,53 @@ test("redactor keeps business words that merely contain secret-like letters", ()
   const { value } = redact({ shipping_address: "x", spinner: 1, account_number: "123", sessionToken: "t", gstin: "10AAAAA0000A1Z5" });
   assert.deepEqual(Object.keys(value).sort(), ["gstin", "shipping_address", "spinner"]);
 });
+
+// ---- BRAIN-5B: context & evidence assembler over the real graphs ----
+import { createContextAssembler } from "../../src/main/services/llm/llmContextAssembler.js";
+import { loadKnowledge } from "../../src/main/services/llm/llmKnowledgeLoader.js";
+
+const assemblerPromise = loadKnowledge(process.cwd()).then((knowledge) => createContextAssembler({ knowledge }));
+
+test("5B: workflow question pulls the stage, its prerequisites and the manual", async () => {
+  const assemble = await assemblerPromise;
+  const { intent, evidence } = await assemble({ question: "Why has a supply order not been invoiced?" });
+  const ids = evidence.map((item) => item.id);
+  assert.equal(intent, "workflow");
+  for (const id of ["WG-1:WORK_ORDER", "WG-1:SALES_INVOICE_GST_INVOICE", "WG-1:CRAC"]) assert.ok(ids.includes(id), `missing ${id}`);
+  assert.ok(ids.some((id) => id.startsWith("KG-5:")), "a KG-5 manual section is included");
+  assert.ok(evidence.length <= 12);
+  assert.ok(evidence.every((item) => item.summary.length <= 900 && item.id && item.source));
+});
+
+test("5B: accounting question pulls the KG-4 voucher pattern", async () => {
+  const assemble = await assemblerPromise;
+  const { evidence } = await assemble({ question: "What is the debit and credit for a sales invoice?" });
+  const sales = evidence.find((item) => item.id === "KG-4:sales");
+  assert.ok(sales, "KG-4 sales voucher present");
+  assert.match(sales.summary, /Trade Receivables/);
+});
+
+test("5B: unsafe or unknown questions get no evidence, so the model is never called", async () => {
+  const assemble = await assemblerPromise;
+  assert.equal((await assemble({ question: "post the invoice now" })).evidence.length, 0);
+  assert.equal((await assemble({ question: "What is the meaning of life?" })).evidence.length, 0);
+});
+
+test("5B: evidence carries graph knowledge only, never live record values", async () => {
+  const assemble = await assemblerPromise;
+  const { evidence } = await assemble({ question: "Why is the CRAC pending for delivery challan?" });
+  assert.ok(evidence.every((item) => /^(BRAIN-4|BRAIN-2|WG-1|KG-4|KG-5|DG-1):/.test(item.id)));
+});
+
+test("5B end to end: gateway + assembler + offline provider cite real graph ids", async () => {
+  const assemble = await assemblerPromise;
+  const dir = root();
+  const store = createLlmSettingsStore({ root: dir, ...fakeCrypto });
+  store.save({ enabled: true, provider: "offline-test", models: { medium: "m" } });
+  const provider = createOfflineTestProvider();
+  const gateway = createLlmGateway({ settingsStore: store, createProvider: () => provider, assembleContext: assemble, costTracker: createLlmCostTracker({ root: dir }), audit: createLlmAuditService({ db: {}, auditLog: () => ({ id: 1 }) }) });
+  const result = await gateway.ask({ question: "How do I create a procurement plan?", session });
+  assert.equal(result.status, "answered");
+  assert.equal(result.answer.insufficientEvidence, false);
+  assert.ok(result.sources.length >= 1);
+});
