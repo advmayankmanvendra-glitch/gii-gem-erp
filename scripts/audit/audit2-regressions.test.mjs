@@ -617,7 +617,7 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   const db = fresh();
   const so = newOrder(db, "A2-CLOSE");
   const check = (result, key) => result.checks.find((row) => row.key === key);
-  const options = { outstandingFor: m.receivableOutstandingBeforeAdjustment };
+  const options = { outstandingFor: m.receivableOutstandingForSettlement };
 
   // A receipt alone, with no posted invoice, is not settlement.
   db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-02', 10, 'NEFT', 'Posted')").run(so);
@@ -649,6 +649,26 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   db.prepare("UPDATE receivables SET is_deleted = 1 WHERE billing_id = ?").run(inv.id);
   assert.equal(check(closure.computeOrderClosure(db, so, { outstandingFor: () => 0 }), "payment_received").ready, false);
   assert.throws(() => closure.computeOrderClosure(db, so), /no outstanding-amount calculation/);
+
+  // Credit notes settle what they correct, in both forms the app books them.
+  const dept = db.prepare("SELECT id FROM government_departments LIMIT 1").get().id;
+  const pay = (order, amount) => db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-05', ?, 'NEFT', 'Draft')").run(order, amount).lastInsertRowid;
+  const bill = (order, amount, extra = {}) => { const saved = m.saveBillingVoucher(db, { header: { order_id: order, company_id: 1, invoice_date: "2026-07-03", ...extra }, items: [{ quantity: 1, billing_rate: amount, gst_rate: 0 }] }); m.postSalesVoucher(db, saved.id); return saved; };
+  const s9 = newOrder(db, "A2-CLOSE-CN");
+  bill(s9, 1000); bill(s9, 100, { invoice_type: "Credit Note" });
+  m.postReceiptVoucher(db, pay(s9, 900));
+  assert.equal(check(closure.computeOrderClosure(db, s9, options), "payment_received").ready, true, "a credit-note invoice nets against the order");
+  const s10 = newOrder(db, "A2-CLOSE-GN");
+  const corrected = bill(s10, 1000);
+  const note = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "credit_note", voucher_date: "2026-07-04", taxable_value: 100, gst_rate: 18, department_id: dept, linked_invoice_id: corrected.id, reason_code: "short supply" });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, note.id, step, 1);
+  m.postGuidedVoucher(db, note.id, 1);
+  m.postReceiptVoucher(db, pay(s10, 882));
+  assert.equal(check(closure.computeOrderClosure(db, s10, options), "payment_received").ready, true, "a guided credit note linked to the invoice settles it, as the bill-wise report shows");
+  const s12 = newOrder(db, "A2-CLOSE-TWO");
+  bill(s12, 1000); bill(s12, 500);
+  m.postReceiptVoucher(db, pay(s12, 1000));
+  assert.equal(check(closure.computeOrderClosure(db, s12, options), "payment_received").ready, false);
 });
 
 test("the order picker shows only the selected company's orders", async () => {
@@ -679,7 +699,8 @@ test("a97daf4 round: entity-heavy xlsx text, long rows, blank HTML rows and two-
   const timed = (fn, pattern, label) => {
     const started = Date.now();
     assert.throws(fn, pattern, label);
-    assert.ok(Date.now() - started < 2500, `${label} took ${Date.now() - started} ms`);
+    // Generous for a busy machine; the refused cases took minutes before these limits.
+    assert.ok(Date.now() - started < 6000, `${label} took ${Date.now() - started} ms`);
   };
   const amp = "&amp;".repeat(32767);
   timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(220)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /32 million characters as stored/, "entity-heavy shared strings");

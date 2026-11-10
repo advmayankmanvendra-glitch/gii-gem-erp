@@ -20,7 +20,12 @@ export function computeOrderClosure(db, orderId, { outstandingFor } = {}) {
   // left to receive. One receipt somewhere on the order is not proof of settlement.
   // A posted invoice with no receivable on record cannot be shown to be settled.
   const hasReceivable = db.prepare("SELECT 1 FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0");
-  const unsettled = posted.filter((invoice) => !hasReceivable.get(invoice.id) || Number(outstandingFor(db, invoice.id) || 0) > 0.005);
+  const missing = posted.filter((invoice) => !hasReceivable.get(invoice.id));
+  // Settlement is judged for the whole order, so a credit note booked as its own (negative)
+  // invoice nets against the invoice it corrects.
+  const outstanding = posted.map((invoice) => ({ invoice, amount: Number(outstandingFor(db, invoice.id) || 0) }));
+  const orderOutstanding = outstanding.reduce((sum, row) => sum + row.amount, 0);
+  const unsettled = orderOutstanding > 0.005 ? [...missing, ...outstanding.filter((row) => row.amount > 0.005 && !missing.includes(row.invoice)).map((row) => row.invoice)] : missing;
   // Open work on the order: invoices or receipts saved but not posted (or failed).
   const openInvoices = invoices.filter((invoice) => !["Posted", "Reversed", "Cancelled"].includes(invoice.posting_status || "Draft"));
   const openReceipts = db.prepare("SELECT COUNT(*) c FROM payments WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND COALESCE(posting_status, 'Draft') NOT IN ('Posted', 'Reversed', 'Cancelled')").get(orderId).c;

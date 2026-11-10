@@ -12,7 +12,7 @@ import {
   auditLog,
   runAsActor,
   currentActor as ambientActor,
-  receivableOutstandingBeforeAdjustment,
+  receivableOutstandingForSettlement,
   roleCan,
   enforceBankDetailPermission,
   verifyAuditChain,
@@ -334,7 +334,9 @@ function sessionGuarded(permission, moduleName, handler) {
       }
     );
     recordGrant(user, permission, moduleName, payload);
-    return handler(...args, {
+    // Handlers take (payload, actor). Only the first argument is passed on, so an extra
+    // argument from a screen can never take the actor's place.
+    return handler(args[0], {
       user_id: user.id,
       user_role: user.role
     });
@@ -854,9 +856,11 @@ function registerIpc() {
   handle("profitability:simulate", (_event, filters, params) => profitSimulation(orderProfitability(db, filters) || [], params || {}));
   handle("accounting:data", (_event, filters) => {
     const data = accountingData(db, filters);
-    // The audit trail is a report; roles without report access do not receive it.
+    // The audit trail is a report; roles without report access do not receive it. Admins
+    // (who hold settings rather than view_reports) keep it.
     const actor = ambientActor();
-    return actor && roleCan(actor.role, "view_reports") ? data : { ...data, auditLog: [] };
+    const seesAuditTrail = actor && (roleCan(actor.role, "view_reports") || roleCan(actor.role, "settings"));
+    return seesAuditTrail ? data : { ...data, auditLog: [] };
   });
   handle(
     "account-mapping:registry",
@@ -1388,7 +1392,7 @@ function registerIpc() {
   handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
   handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
   handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
-  const closureOptions = { outstandingFor: receivableOutstandingBeforeAdjustment };
+  const closureOptions = { outstandingFor: receivableOutstandingForSettlement };
   handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId, closureOptions));
   handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId, auditEntry, closureOptions)));
   handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));

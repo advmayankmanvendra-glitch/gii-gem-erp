@@ -418,6 +418,8 @@ test("SEC-1: imports, bank preview and feedback export need their permission; th
   const accountant = await roleWindow("sec1-acct", "accountant");
   const full = await call(accountant, "accounting:data", { company_id: 1 });
   assert.ok(full.ok.auditLog.length > 0, "an accountant does");
+  const admin = await roleWindow("sec1-admin", "admin");
+  assert.ok((await call(admin, "accounting:data", { company_id: 1 })).ok.auditLog.length > 0, "an admin does");
   const parsed = await call(deo, "imports:parse-buffer", "a.csv", new Uint8Array(Buffer.from("supplier_name\nX\n")));
   assert.deepEqual(parsed.ok, [{ supplier_name: "X" }], "byte arrays pass through the actor stamp unchanged");
 });
