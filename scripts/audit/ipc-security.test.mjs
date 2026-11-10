@@ -441,3 +441,21 @@ test("SEC-1: imports, bank preview and feedback export need their permission; th
   const parsed = await call(deo, "imports:parse-buffer", "a.csv", new Uint8Array(Buffer.from("supplier_name\nX\n")));
   assert.deepEqual(parsed.ok, [{ supplier_name: "X" }], "byte arrays pass through the actor stamp unchanged");
 });
+
+test("605a873 round: a support bundle names the signed-in user and stays small whatever the screen sends", async () => {
+  const admin = await adminWindow();
+  const big = "x".repeat(300000);
+  const context = { user_id: 999, user_name: "forged", company_id: 1, crashes: [{ message: "kept" }] };
+  for (let i = 0; i < 10; i += 1) context[`${big}${i}`] = big;
+  const result = await call(admin, "health:support-bundle", context);
+  assert.ok(result.ok?.filePath, result.err);
+  const bundle = JSON.parse(fs.readFileSync(result.ok.filePath, "utf8"));
+  assert.ok(result.ok.size < 2 * 1024 * 1024, `bundle is ${result.ok.size} bytes`);
+  const users = side();
+  try { assert.equal(bundle.context.user_id, users.prepare("SELECT id FROM users WHERE username = 'admin'").get().id); } finally { users.close(); }
+  assert.equal(bundle.context.user_name, "admin");
+  assert.match(JSON.stringify(bundle.context.screenContext), /larger than 1 MB/);
+  const small = await call(admin, "health:support-bundle", { source: "safe_mode", crashes: [{ message: "kept" }] });
+  const kept = JSON.parse(fs.readFileSync(small.ok.filePath, "utf8"));
+  assert.equal(kept.context.screenContext.crashes[0].message, "kept", "Safe Mode's crash list is still in the bundle");
+});

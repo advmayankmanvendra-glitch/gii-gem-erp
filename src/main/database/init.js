@@ -36,7 +36,8 @@ import { createTallyImportService } from "../services/tallyImportService.js";
 import { createImportParserService } from "../services/importParserService.js";
 import { createDocumentService } from "../services/documentService.js";
 import { createAuthService } from "../services/authService.js";
-import { createBillingService, expenseFormulaAmount } from "../services/billingService.js";
+import { createBillingService } from "../services/billingService.js";
+import { expenseFormulaAmount } from "../domain/expenseFormula.js";
 import { createDashboardService } from "../services/dashboardService.js";
 import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
@@ -787,42 +788,47 @@ function seedFinancialYears(db) {
   });
 }
 
+// Gives documents saved before posting statuses existed a status from their vouchers.
+// It runs on every start, so it only fills a blank or Draft status: a Reversed, Error or
+// Posted document keeps its status (a reversed invoice still has its original voucher).
 function backfillPostingStatuses(db) {
+  const unset = "COALESCE(NULLIF(posting_status, ''), 'Draft') = 'Draft'";
   [
     ["invoices", "billing"],
     ["procurements", "procurement"],
     ["payments", "payment"]
   ].forEach(([table, sourceModule]) => {
+    const posted = `EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = '${sourceModule}' AND v.source_id = ${table}.id AND v.is_deleted = 0 AND v.status = 'Posted')`;
     db.prepare(`
       UPDATE ${table}
-      SET posting_status = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN 'Posted'
-        ELSE COALESCE(NULLIF(posting_status, ''), 'Draft')
-      END,
-      approval_status = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN 'Approved'
-        ELSE COALESCE(NULLIF(approval_status, ''), 'Draft')
-      END,
-      posted_at = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN COALESCE(posted_at, CURRENT_TIMESTAMP)
-        ELSE posted_at
-      END,
-      locked_at = CASE
-        WHEN EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = ? AND v.source_id = ${table}.id AND v.is_deleted = 0) THEN COALESCE(locked_at, CURRENT_TIMESTAMP)
-        ELSE locked_at
-      END
-      WHERE is_deleted = 0
-    `).run(sourceModule, sourceModule, sourceModule, sourceModule);
+      SET posting_status = 'Posted',
+        approval_status = 'Approved',
+        posted_at = COALESCE(posted_at, CURRENT_TIMESTAMP),
+        locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP)
+      WHERE is_deleted = 0 AND ${unset} AND ${posted}
+    `).run();
+    db.prepare(`UPDATE ${table} SET posting_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(posting_status, '') = ''`).run();
+    db.prepare(`UPDATE ${table} SET approval_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(approval_status, '') = ''`).run();
   });
+
+  // Supplier payments (ACC-3 audit F4): a payment with a posted voucher and no status
+  // could neither hold an advance nor be posted again.
+  db.prepare(`
+    UPDATE supplier_payments SET posting_status = 'Posted'
+    WHERE COALESCE(is_deleted, 0) = 0 AND ${unset}
+      AND EXISTS (SELECT 1 FROM vouchers v WHERE v.source_module = 'supplier_payment' AND v.source_id = supplier_payments.id AND v.is_deleted = 0 AND v.status = 'Posted')
+  `).run();
+  db.prepare("UPDATE supplier_payments SET posting_status = 'Draft' WHERE COALESCE(is_deleted, 0) = 0 AND COALESCE(posting_status, '') = ''").run();
 
   db.prepare(`
     UPDATE expense_entries
-    SET posting_status = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN 'Posted' ELSE COALESCE(NULLIF(posting_status, ''), 'Draft') END,
-      approval_status = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN 'Approved' ELSE COALESCE(NULLIF(approval_status, ''), 'Draft') END,
-      posted_at = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN COALESCE(posted_at, CURRENT_TIMESTAMP) ELSE posted_at END,
-      locked_at = CASE WHEN COALESCE(voucher_id, 0) > 0 THEN COALESCE(locked_at, CURRENT_TIMESTAMP) ELSE locked_at END
-    WHERE is_deleted = 0
+    SET posting_status = 'Posted', approval_status = 'Approved',
+      posted_at = COALESCE(posted_at, CURRENT_TIMESTAMP), locked_at = COALESCE(locked_at, CURRENT_TIMESTAMP)
+    WHERE is_deleted = 0 AND ${unset}
+      AND EXISTS (SELECT 1 FROM vouchers v WHERE v.id = expense_entries.voucher_id AND v.is_deleted = 0 AND v.status = 'Posted')
   `).run();
+  db.prepare("UPDATE expense_entries SET posting_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(posting_status, '') = ''").run();
+  db.prepare("UPDATE expense_entries SET approval_status = 'Draft' WHERE is_deleted = 0 AND COALESCE(approval_status, '') = ''").run();
 }
 
 function seedAccounts(db, companyId = null) {
@@ -868,7 +874,11 @@ export const PURCHASE_PRICE_VARIANCE_ACCOUNT = "Purchase Price Variance";
 // from 5065 upward). It is reported under Purchases.
 export function ensurePurchasePriceVarianceAccount(db, companyId) {
   const name = PURCHASE_PRICE_VARIANCE_ACCOUNT;
-  let id = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = ? AND is_deleted = 0").get(companyId, name)?.id;
+  const existing = db.prepare("SELECT id, account_type FROM accounts WHERE company_id = ? AND LOWER(TRIM(account_name)) = LOWER(?) AND is_deleted = 0 ORDER BY id LIMIT 1").get(companyId, name);
+  if (existing && existing.account_type !== "Expense") {
+    throw new Error(`The ledger "${name}" exists as ${existing.account_type}, but a purchase price variance is an expense. Rename that ledger in Accounting > Ledgers, then post again.`);
+  }
+  let id = existing?.id;
   if (!id) {
     let code = 5065;
     while (db.prepare("SELECT 1 FROM accounts WHERE company_id = ? AND account_code = ?").get(companyId, String(code))) code += 1;
@@ -876,6 +886,7 @@ export function ensurePurchasePriceVarianceAccount(db, companyId) {
       INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
       VALUES (?, ?, ?, 'Expense', 'Debit', 0, 'active')
     `).run(companyId, String(code), name).lastInsertRowid);
+    auditLog(db, { company_id: companyId, action: "system_ledger_created", table_name: "accounts", record_id: id, new_value: JSON.stringify({ account_code: String(code), account_name: name, reason: "Owner decision CV: purchase price variance" }) });
   }
   const registryReady = db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name IN ('account_groups', 'account_group_assignments')").get().n === 2;
   if (registryReady) {

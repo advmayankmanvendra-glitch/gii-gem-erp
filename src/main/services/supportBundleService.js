@@ -24,6 +24,8 @@ function auditTail(db) {
   );
 }
 
+const MAX_SUPPORT_BUNDLES = 20;
+
 export function createSupportBundle(db, runtimeDataRoot, diagnostics, checks, context = {}) {
   const bundleFolder = path.join(runtimeDataRoot, "exports", "support-bundles");
   fs.mkdirSync(bundleFolder, { recursive: true });
@@ -42,6 +44,11 @@ export function createSupportBundle(db, runtimeDataRoot, diagnostics, checks, co
   };
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf8");
   const stat = fs.statSync(filePath);
+  // Only the newest bundles are kept, so repeated exports cannot fill the disk that holds the books.
+  try {
+    fs.readdirSync(bundleFolder).filter((name) => /^gii-gem-erp-support-bundle-.*\.json$/.test(name)).sort().reverse()
+      .slice(MAX_SUPPORT_BUNDLES).forEach((name) => fs.rmSync(path.join(bundleFolder, name), { force: true }));
+  } catch { /* clean-up is best effort; the new bundle is already written */ }
   return {
     success: true,
     fileName,
