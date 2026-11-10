@@ -124,6 +124,12 @@ test("a go-live whose reset finished but whose history update was lost can still
   m.createRecord(db, "suppliers", { supplier_name: "Entered Before Another Reset", status: "active" });
   resetRow();
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, lost.id), /suppliers changed after go-live/);
+  // An older entry with neither a stored mark nor a start position cannot be checked: refused,
+  // even when a later Enhanced Reset row exists.
+  const legacy = history.recordGoLiveEntry(root, { status: "in_progress", backup: { fileName: "legacy.db" }, companyId: 1, generatedAt: "2026-10-01T00:00:00.000Z" });
+  m.createRecord(db, "suppliers", { supplier_name: "T4 Live Work", status: "active" });
+  resetRow();
+  assert.throws(() => goLive.assertGoLiveRollbackSafe(db, root, legacy.id), (error) => error.code === goLive.ROLLBACK_REFUSED && /older version/.test(error.message));
   const failed = history.recordGoLiveEntry(root, { status: "failed", resetFailed: true, backup: { fileName: "x.db" }, failureReason: "disk full" });
   assert.match(goLive.failGoLiveWithRollback(root, failed.id, "test").rollbackResult.reason, /never reset the books/);
 });
