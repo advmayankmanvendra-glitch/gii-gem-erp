@@ -10,6 +10,7 @@ import {
 import { StockAccountingStructureSummary } from "../features/reports/accountingIntelligence.jsx";
 import { exportRows } from "../utils/formatters.js";
 import { requestPrintPreview } from "../utils/uiHelpers.js";
+import { addRupees } from "../utils/money.js";
 
 export function InteractiveStockSummaryReport({ data, filters, setFilters, rows, title }) {
   const [mode, setMode] = useState("summary");
@@ -25,13 +26,13 @@ export function InteractiveStockSummaryReport({ data, filters, setFilters, rows,
   const monthlyRows = buildStockMonthlyRows(ledgerRows, selectedItem, filters.date_from, filters.date_to, showMovementAnalysis);
   const totals = summaryRows.reduce((acc, row) => ({
     openingQty: acc.openingQty + Number(row.opening_quantity || 0),
-    openingValue: acc.openingValue + Number(row.opening_value || 0),
+    openingValue: addRupees(acc.openingValue, row.opening_value),
     inwardQty: acc.inwardQty + Number(row.inward_quantity || 0),
-    inwardValue: acc.inwardValue + Number(row.inward_value || 0),
+    inwardValue: addRupees(acc.inwardValue, row.inward_value),
     outwardQty: acc.outwardQty + Number(row.outward_quantity || 0),
-    outwardValue: acc.outwardValue + Number(row.outward_value || 0),
+    outwardValue: addRupees(acc.outwardValue, row.outward_value),
     closingQty: acc.closingQty + Number(row.closing_quantity || 0),
-    closingValue: acc.closingValue + Number(row.stock_value || 0)
+    closingValue: addRupees(acc.closingValue, row.stock_value)
   }), { openingQty: 0, openingValue: 0, inwardQty: 0, inwardValue: 0, outwardQty: 0, outwardValue: 0, closingQty: 0, closingValue: 0 });
   const currentRows = mode === "summary" ? summaryRows : mode === "monthly" ? monthlyRows : itemVoucherRows;
   const exportTitle = mode === "summary" ? "Stock Summary" : mode === "monthly" ? `Monthly Movement - ${selectedItem?.item_name || ""}` : `Stock Item Ledger - ${selectedItem?.item_name || ""}`;

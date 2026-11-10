@@ -3,6 +3,7 @@ import path from "node:path";
 import { sendMail } from "./smtpClient.js";
 import { sendWhatsApp } from "./whatsappClient.js";
 import { localBusinessDate } from "../../domain/businessDate.js";
+import { addRupees } from "../../domain/money.js";
 
 // Pending-dues and stock alerts by email and/or WhatsApp. Off until an admin turns
 // it on; every send (scheduled, manual or test) is written to the audit log.
@@ -113,12 +114,12 @@ export function createAlertService(deps) {
     const overdue = dues.filter((row) => row.balance_outstanding > 0 && row.overdue_days > overdueDays);
     const payables = (supplierPayableReport(db, companyId) || []).filter((row) => Number(row.balance_due || 0) > 0.009);
     const stock = inventoryStockSummary(db, companyId) || [];
-    const stockValue = stock.reduce((sum, row) => sum + Number(row.stock_value || 0), 0);
+    const stockValue = stock.reduce((sum, row) => addRupees(sum, row.stock_value), 0);
     const low = (inventoryLowStockReport(db, companyId) || []).filter((row) => Number(row.reorder_level || 0) > 0);
     const totals = {
-      receivable: dues.reduce((sum, row) => sum + Number(row.balance_outstanding || 0), 0),
-      overdue: overdue.reduce((sum, row) => sum + Number(row.balance_outstanding || 0), 0),
-      payable: payables.reduce((sum, row) => sum + Number(row.balance_due || 0), 0),
+      receivable: dues.reduce((sum, row) => addRupees(sum, row.balance_outstanding), 0),
+      overdue: overdue.reduce((sum, row) => addRupees(sum, row.balance_outstanding), 0),
+      payable: payables.reduce((sum, row) => addRupees(sum, row.balance_due), 0),
       stockValue,
       lowStockItems: low.length
     };

@@ -1,4 +1,5 @@
 import { downloadText } from "../utils/formatters.js";
+import { rupeesEqual, sumRupees } from "../utils/money.js";
 import { normalizeFallbackImportRow, parseCsvText, parseLegacyXlsText, parseXlsxBufferBrowser } from "../utils/importParsers.js";
 
 function sum(rows, key) {
@@ -337,9 +338,9 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
     const payload = JSON.parse(guided.payload_json || "{}");
     const previewLines = businessVoucherPreview({ ...payload, voucher_kind: guided.voucher_kind });
     if (previewLines.length < 2) throw new Error("Enter a valid debit and credit voucher before posting");
-    const debit = previewLines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-    const credit = previewLines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-    if (Math.round(debit * 100) !== Math.round(credit * 100)) throw new Error("Voucher debit and credit totals must match before posting");
+    const debit = sumRupees(previewLines.map((line) => line.debit));
+    const credit = sumRupees(previewLines.map((line) => line.credit));
+    if (!rupeesEqual(debit, credit)) throw new Error("Voucher debit and credit totals must match before posting");
     const voucherType = fallbackVoucherType(guided.voucher_kind);
     const voucherId = Date.now();
     const voucherNumber = nextFallbackVoucherNumber(db, voucherType);
@@ -995,6 +996,8 @@ export function createBrowserFallbackApi(businessVoucherPreview) {
       return voucher;
     },
     reverseVoucher: async () => ({ id: Date.now(), voucher_number: "JOURNAL-PREVIEW", status: "Posted" }),
+    getMoneyIntegrity: async () => ({ ok: true, preview: true, trial_balance: { debit: 0, credit: 0, difference: 0 }, unbalanced_vouchers: [], line_ledger_mismatches: [], mirror_mismatches: [], missing_guards: [] }),
+    postRoundingAdjustment: async () => { throw new Error("Rounding adjustments are posted in the Windows desktop app only."); },
     postTransaction: async () => ({ id: Date.now(), voucher_number: "POST-PREVIEW" }),
     approveTransaction: async () => true,
     createFinancialYear: async (payload) => {

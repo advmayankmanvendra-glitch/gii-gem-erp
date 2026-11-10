@@ -1,4 +1,5 @@
-import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
+import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { parseMoneyToMinor, roundMoney, rupees, sumRupees, subtractRupees } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createAccountingService(deps) {
@@ -145,7 +146,10 @@ export function createAccountingService(deps) {
     return record;
   }
 
-  function createBalancedVoucher(db, payload) {
+  // options.mirrorImbalanceMinor is for reverseVoucher only: a reversal that mirrors an
+  // older, unbalanced voucher line for line carries the opposite of that voucher's paise
+  // difference, so the pair nets to zero. The database guard checks the same.
+  function createBalancedVoucher(db, payload, options = {}) {
     const financialYear = assertOpenFinancialYear(db, payload.company_id, payload.voucher_date);
     const companyId = Number(payload.company_id || 0);
     const lines = (payload.lines || []).map((line) => ({
@@ -181,15 +185,20 @@ export function createAccountingService(deps) {
     const creditMinors = lines.map(line => parseMoneyToMinor(line.credit));
     const totalDebitMinor = debitMinors.reduce((a, b) => a + b, 0);
     const totalCreditMinor = creditMinors.reduce((a, b) => a + b, 0);
-    if (totalDebitMinor !== totalCreditMinor) {
-      throw new Error(`Unbalanced voucher in minor units: debit ${totalDebitMinor} paise, credit ${totalCreditMinor} paise (legacy: ${totalDebit}, ${totalCredit})`);
+    if (lines.some((line, idx) => debitMinors[idx] === 0 && creditMinors[idx] === 0)) {
+      throw new Error("Voucher line amount is less than one paisa. Enter amounts to two decimal places.");
+    }
+    const mirroredDifference = Number.isSafeInteger(options.mirrorImbalanceMinor) && options.mirrorImbalanceMinor !== 0
+      && totalDebitMinor - totalCreditMinor === options.mirrorImbalanceMinor;
+    if (totalDebitMinor !== totalCreditMinor && !mirroredDifference) {
+      throw new Error(`Unbalanced voucher: debit ${rupees(totalDebitMinor).toFixed(2)} and credit ${rupees(totalCreditMinor).toFixed(2)} differ by ${rupees(Math.abs(totalDebitMinor - totalCreditMinor)).toFixed(2)}. Correct the voucher lines so debit equals credit to the paisa.`);
     }
 
     const transaction = db.transaction(() => {
       const voucherNumber = payload.voucher_number || nextVoucherNumber(db, payload.company_id, payload.voucher_type.toUpperCase().replaceAll(" ", ""));
       const voucherResult = db.prepare(`
         INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, narration, source_module, source_id, status, financial_year_id, approval_status)
-        VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Posted', @financial_year_id, 'Approved')
+        VALUES (@company_id, @voucher_number, @voucher_date, @voucher_type, @narration, @source_module, @source_id, 'Draft', @financial_year_id, 'Approved')
       `).run({ ...payload, voucher_number: voucherNumber, financial_year_id: financialYear.id });
       const voucherId = voucherResult.lastInsertRowid;
       lines.forEach((line, idx) => {
@@ -201,17 +210,20 @@ export function createAccountingService(deps) {
         `).run({
           voucher_id: voucherId,
           account_id: line.account_id,
-          debit: line.debit,
-          credit: line.credit,
+          debit: rupees(lineMinorDebit),
+          credit: rupees(lineMinorCredit),
           narration: line.narration,
           linked_party_type: line.linked_party_type,
           linked_party_id: line.linked_party_id,
           debit_minor: lineMinorDebit,
           credit_minor: lineMinorCredit
         });
-        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, line.debit, line.credit, payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
+        postLedgerEntry(db, payload.company_id, voucherId, lineResult.lastInsertRowid, line.account_id, payload.voucher_date, rupees(lineMinorDebit), rupees(lineMinorCredit), payload.source_module, payload.source_id, lineMinorDebit, lineMinorCredit);
       });
-      auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit }) });
+      // The voucher becomes Posted only now, once its lines and ledger entries are in,
+      // so the database's own guard can check that they balance.
+      db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(voucherId);
+      auditLog(db, { company_id: payload.company_id, action: "voucher posting", table_name: "vouchers", record_id: voucherId, new_value: JSON.stringify({ voucherNumber, totalDebit: rupees(totalDebitMinor) }) });
       const voucher = db.prepare("SELECT * FROM vouchers WHERE id = ?").get(voucherId);
       auditVoucherDependencySync(db, voucher, voucherTypeDependencyEffects(voucher.voucher_type));
       return voucher;
@@ -445,19 +457,47 @@ export function createAccountingService(deps) {
     if (original.status !== "Posted") {
       throw new Error(`Only posted vouchers can be reversed. ${original.voucher_number} is ${original.status || "not posted"}; edit or delete the draft instead.`);
     }
-    if (original.source_module === "voucher_reversal") {
+    if (original.source_module === ROUNDING_ADJUSTMENT_SOURCE) {
+      throw new Error(`${original.voucher_number} is a rounding adjustment and cannot be reversed. It only corrects a paise difference in the older voucher it names.`);
+    }
+    if (original.source_module === VOUCHER_REVERSAL_SOURCE) {
       throw new Error(`${original.voucher_number} is itself a reversal and cannot be reversed. Post a fresh voucher for the correct entry instead.`);
     }
-    const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = 'voucher_reversal' AND source_id = ? AND is_deleted = 0").get(original.id);
+    const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0").get(VOUCHER_REVERSAL_SOURCE, original.id);
     if (existingReversal) throw new Error("Voucher reversal already exists");
 
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
+    // A rounding adjustment that corrected this voucher is reversed with it, in the same
+    // reversal voucher, so the pair still balances.
+    const adjustment = db.prepare("SELECT * FROM vouchers WHERE source_module = ? AND source_id = ? AND status = 'Posted' AND is_deleted = 0").get(ROUNDING_ADJUSTMENT_SOURCE, original.id);
+    const adjustmentLines = adjustment
+      ? db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(adjustment.id)
+      : [];
+    // Lines worth less than a paisa on both sides hold nothing in the books and would make
+    // an empty reversal line, so they are left out.
+    const reversedLines = [...lines, ...adjustmentLines]
+      .filter((line) => Number(line.debit_minor || 0) !== 0 || Number(line.credit_minor || 0) !== 0);
+    if (!reversedLines.length) throw new Error(`${original.voucher_number} has no amounts to reverse`);
+    // Amounts come from the paise columns, which are what the books hold.
+    const imbalanceMinor = reversedLines.reduce((sum, line) => sum + Number(line.credit_minor || 0) - Number(line.debit_minor || 0), 0);
     const reasonText = String(reason || "").trim() || "Reversed by user";
     const today = localBusinessDate();
+    const mirrorImbalanceMinor = adjustment ? 0 : imbalanceMinor;
     // The reversal is dated today (in the open year) unless the original is later
     // than today; the original stays in its own period, so closed years never change.
-    const reversalDate = original.voucher_date > today ? original.voucher_date : today;
+    // An older unbalanced voucher is mirrored on its own date instead, so the two cancel
+    // inside one year and neither year's trial balance is left off by the difference.
+    const reversalDate = mirrorImbalanceMinor !== 0
+      ? original.voucher_date
+      : (original.voucher_date > today ? original.voucher_date : today);
+    if (mirrorImbalanceMinor !== 0) {
+      try {
+        assertOpenFinancialYear(db, original.company_id, reversalDate);
+      } catch (error) {
+        throw new Error(`${original.voucher_number} is out of balance by ${rupees(Math.abs(mirrorImbalanceMinor)).toFixed(2)} and must be reversed on its own date (${reversalDate}), but that year is not open: ${error.message}`);
+      }
+    }
 
     const reversal = db.transaction(() => {
       const reversalVoucher = createBalancedVoucher(db, {
@@ -465,17 +505,18 @@ export function createAccountingService(deps) {
         voucher_date: reversalDate,
         voucher_type: "Journal",
         narration: `Reversal of ${original.voucher_number} - ${reasonText}`,
-        source_module: "voucher_reversal",
+        source_module: VOUCHER_REVERSAL_SOURCE,
         source_id: original.id,
-        lines: lines.map((line) => ({
+        lines: reversedLines.map((line) => ({
           account_id: line.account_id,
-          debit: Number(line.credit || 0),
-          credit: Number(line.debit || 0),
+          debit: rupees(line.credit_minor),
+          credit: rupees(line.debit_minor),
           narration: `Reverse ${original.voucher_number}`,
           linked_party_type: line.linked_party_type,
           linked_party_id: line.linked_party_id
         }))
-      });
+      }, { mirrorImbalanceMinor });
+      if (adjustment) db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(`Reversed with ${original.voucher_number}`, reversalDate, adjustment.id);
 
       db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_reason = ?, reversal_date = ?, reversed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
         .run(reasonText, reversalDate, userId && db.prepare("SELECT 1 FROM users WHERE id = ?").get(userId) ? userId : null, original.id);
@@ -525,7 +566,7 @@ export function createAccountingService(deps) {
         db.prepare("SELECT * FROM advance_adjustments WHERE adjustment_type = 'supplier' AND procurement_id = ? AND COALESCE(is_deleted, 0) = 0 AND status = 'Active'").all(original.source_id)
           .forEach((adjustment) => reverseAdvanceAdjustment(db, adjustment.id, `Purchase reversed: ${reasonText}`));
       }
-      if (original.source_module.startsWith("stock_") && source) {
+      if (source && original.source_module.startsWith("stock_")) {
         mirrorStockForSource(db, source.table, original.source_id, reversalVoucher.id, reasonText);
         db.prepare(`UPDATE ${source.table} SET posting_status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(original.source_id);
       }
@@ -542,7 +583,7 @@ export function createAccountingService(deps) {
           bank_account_id: row.bank_account_id,
           transaction_date: reversalVoucher.voucher_date,
           transaction_type: "Voucher Reversal",
-          source_module: "voucher_reversal",
+          source_module: VOUCHER_REVERSAL_SOURCE,
           source_id: original.id,
           voucher_id: reversalVoucher.id,
           debit: Number(row.credit || 0),
@@ -573,9 +614,9 @@ export function createAccountingService(deps) {
   // always balances exactly in paise.
   function documentTotals(lines, fallbackTaxable, fallbackTax) {
     if (lines.length) {
-      const taxable = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.taxable_value), 0));
-      const tax = roundMoney(lines.reduce((sum, row) => sum + roundMoney(row.gst_amount), 0));
-      return { taxable, tax, gross: roundMoney(taxable + tax) };
+      const taxable = sumRupees(lines.map((row) => roundMoney(row.taxable_value)));
+      const tax = sumRupees(lines.map((row) => roundMoney(row.gst_amount)));
+      return { taxable, tax, gross: sumRupees([taxable, tax]) };
     }
     const taxable = roundMoney(fallbackTaxable);
     const tax = roundMoney(fallbackTax);
@@ -636,7 +677,7 @@ export function createAccountingService(deps) {
       // against GRNI; the bill clears GRNI for that value instead of expensing the
       // goods a second time. Any remainder (services, goods not received) is a purchase.
       const receivedValue = roundMoney(Number(db.prepare(`
-        SELECT COALESCE(SUM(sl.value), 0) value FROM stock_inwards si
+        SELECT COALESCE(SUM(sl.value_minor), 0) / 100.0 value FROM stock_inwards si
         JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Inward'
         WHERE si.procurement_id = ? AND si.company_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
       `).get(procurement.id, companyId)?.value || 0));
@@ -1166,15 +1207,15 @@ export function createAccountingService(deps) {
     if (postingIssues.length) throw new Error("Cannot close year while Draft/Error transactions exist");
 
     const tb = trialBalance(db, companyId, fromYear.start_date, fromYear.end_date);
-    const debit = tb.reduce((sum, row) => sum + Number(row.debit || 0), 0);
-    const credit = tb.reduce((sum, row) => sum + Number(row.credit || 0), 0);
-    const tbDifference = Math.round((debit - credit) * 100) / 100;
-    if (Math.round(debit * 100) !== Math.round(credit * 100)) throw new Error("Trial balance must balance before year close");
+    const debit = sumRupees(tb.map((row) => row.debit));
+    const credit = sumRupees(tb.map((row) => row.credit));
+    const tbDifference = subtractRupees(debit, credit);
+    if (tbDifference !== 0) throw new Error(`Trial balance must balance before year close: debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}. Open the Trial Balance for this year and correct the difference first.`);
 
     const pl = profitLossReport(db, companyId, fromYear.start_date, fromYear.end_date);
     const bs = balanceSheetReport(db, companyId, fromYear.start_date, fromYear.end_date);
-    const bsDifference = Math.round((Number(bs.assets || 0) - Number(bs.liabilitiesAndEquity || 0)) * 100) / 100;
-    if (Math.abs(bsDifference) > 1) throw new Error("Balance sheet must balance before year close");
+    const bsDifference = subtractRupees(bs.assets, bs.liabilitiesAndEquity);
+    if (bsDifference !== 0) throw new Error(`Balance sheet must balance to the paisa before year close (difference ${bsDifference.toFixed(2)}). Open the Balance Sheet for this year and correct the difference first.`);
 
     const transaction = db.transaction(() => {
       const closing = db.prepare(`

@@ -104,7 +104,8 @@ const keyboardGuideSections = [
   ["GST", [["Ctrl + 8", "Open GST group"], ["Ctrl + F", "Search tax report"], ["Ctrl + P", "Print tax report"], ["Ctrl + R", "Refresh tax report"]]],
   ["Reports", [["Ctrl + 9", "Open Reports"], ["Ctrl + P", "Print"], ["Ctrl + E", "Export"], ["Ctrl + F", "Search"], ["Ctrl + R", "Refresh"]]],
   ["Financial Control", [["Ctrl + Shift + P", "Production Health Dashboard"], ["Ctrl + Shift + L", "Audit Log"], ["Ctrl + Shift + B", "Create Backup"], ["Ctrl + Shift + R", "Open Restore Backup"]]],
-  ["Help and Training", [["F1", "Open shortcut guide"], ["Ctrl + K", "Search ERP"], ["Esc", "Close help dialog"], ["Ctrl + P", "Print or save manual through preview"]]]
+  ["Help and Training", [["F1", "Open shortcut guide"], ["Ctrl + K", "Search ERP"], ["Esc", "Close help dialog"], ["Ctrl + P", "Print or save manual through preview"]]],
+  ["Tally Key Layout (optional, switch on in User Preferences, F12)", [["F4", "Contra Voucher"], ["F5", "Payment Voucher"], ["F6", "Receipt Voucher"], ["F7", "Journal Voucher"], ["F8", "Sales Voucher"], ["F9", "Purchase Voucher"], ["Ctrl + F8", "Credit Note"], ["Ctrl + F9", "Debit Note"], ["F2", "Change the date of the entry being made"], ["Alt + C", "Create a master from the party, ledger or item field"], ["Enter", "On the last voucher line, adds a new line"], ["Ctrl + R", "Refresh (F5 opens Payment in this layout)"]]]
 ];
 
 const erpManualSections = [

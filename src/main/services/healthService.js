@@ -2,6 +2,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { bookIntegrityChecks } from "./errorConsoleService.js";
+import { subtractRupees } from "../domain/money.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -156,20 +157,20 @@ function accountingBalanceCheck(db) {
       "Review database schema compatibility before using accounting reports."
     );
   }
-  const totals = safeGet(db, "SELECT COALESCE(SUM(debit), 0) AS debit, COALESCE(SUM(credit), 0) AS credit FROM ledger_entries");
+  const totals = safeGet(db, "SELECT COALESCE(SUM(debit_minor), 0) / 100.0 AS debit, COALESCE(SUM(credit_minor), 0) / 100.0 AS credit FROM ledger_entries");
   if (!totals.ok) {
     return check("accounting_balance", "Ledger Entry Balance", "fail", "critical", totals.error, "Run verify:accounting and review database errors.");
   }
   const debit = Number(totals.row?.debit || 0);
   const credit = Number(totals.row?.credit || 0);
-  const difference = Number((debit - credit).toFixed(2));
+  const difference = subtractRupees(debit, credit);
   return check(
     "accounting_balance",
     "Ledger Entry Balance",
-    Math.abs(difference) <= 0.01 ? "pass" : "fail",
-    Math.abs(difference) <= 0.01 ? "normal" : "critical",
+    difference === 0 ? "pass" : "fail",
+    difference === 0 ? "normal" : "critical",
     `Debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}, difference ${difference.toFixed(2)}.`,
-    Math.abs(difference) <= 0.01 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
+    difference === 0 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
     { debit, credit, difference }
   );
 }

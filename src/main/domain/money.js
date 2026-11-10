@@ -1,3 +1,6 @@
+// Shared by the main process and the screens (through src/renderer/utils/money.js), so
+// it must stay free of imports other than src/main/domain/invoiceMath.js and must not use
+// Node or Electron APIs.
 export const CURRENCY = "INR";
 export const MINOR_UNITS = 100;
 export const MAX_SAFE_AMOUNT = Number.MAX_SAFE_INTEGER / MINOR_UNITS;
@@ -20,6 +23,44 @@ function decimalStringToMinor(text) {
 
 export function roundMoney(value) {
   return parseMoneyToMinor(Number(value || 0)) / MINOR_UNITS;
+}
+
+// Rupee amounts (stored values, or what was typed in an amount box) converted to whole
+// paise. Blank and non-numeric values count as zero, as `Number(x || 0)` did before, so
+// this is not a validator: use parseMoneyToMinor where bad input must be refused.
+export function paise(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? parseMoneyToMinor(value) : 0;
+  const cleaned = String(value).replace(/[₹,\s]/g, "");
+  if (/^-?\d+(\.\d+)?$/.test(cleaned)) return parseMoneyToMinor(cleaned);
+  // Forms such as ".5" or "1e3" that a number box can hold.
+  const number = Number(cleaned);
+  return cleaned && Number.isFinite(number) ? parseMoneyToMinor(number) : 0;
+}
+
+// Whole paise back to a rupee number that prints exactly to two decimals.
+export function rupees(minor) {
+  return Number(minor || 0) / MINOR_UNITS;
+}
+
+// Adds rupee amounts in whole paise, so 0.10 + 0.20 is exactly 0.30 and long
+// lists never drift. Returns rupees.
+export function sumRupees(values) {
+  let total = 0;
+  for (const value of values) total += paise(value);
+  return rupees(total);
+}
+
+export function addRupees(...values) {
+  return sumRupees(values);
+}
+
+export function subtractRupees(a, b) {
+  return rupees(paise(a) - paise(b));
+}
+
+export function rupeesEqual(a, b) {
+  return paise(a) === paise(b);
 }
 
 export function parseMoneyToMinor(value) {
@@ -73,17 +114,23 @@ export function compareMoney(a, b) {
   return Number(a) - Number(b);
 }
 
+// Rounds a value already in paise to a whole paisa, half away from zero (the same rule
+// as parseMoneyToMinor), so -2.5 paise becomes -3, not -2 as Math.round gives.
+function roundMinorHalfAway(raw) {
+  return Math.sign(raw) * Math.round(Math.abs(raw));
+}
+
 export function multiplyRateByQuantity(rate, quantity) {
   const qty = Number(quantity || 0);
   const raw = rate * qty;
-  const resultMinor = Math.round(raw);
+  const resultMinor = roundMinorHalfAway(raw);
   if (!Number.isSafeInteger(resultMinor)) throw new Error("Multiplication result exceeds safe range");
   return resultMinor;
 }
 
 export function calculatePercentage(amountMinor, ratePct) {
   const raw = amountMinor * ratePct / 100;
-  const resultMinor = Math.round(raw);
+  const resultMinor = roundMinorHalfAway(raw);
   if (!Number.isSafeInteger(resultMinor)) throw new Error("Percentage result exceeds safe range");
   return resultMinor;
 }
@@ -96,7 +143,7 @@ export function allocateMoney(total, shares) {
   let allocated = 0;
   const results = shareValues.map(share => {
     const raw = totalMinor * share / totalShares;
-    return Math.round(raw);
+    return roundMinorHalfAway(raw);
   });
   allocated = results.reduce((a, b) => a + b, 0);
   let remainder = totalMinor - allocated;
@@ -139,7 +186,7 @@ export function convertMinorToLegacyMajor(value) {
 }
 
 export function roundToMinor(value) {
-  return Math.round(Number(value || 0) * MINOR_UNITS);
+  return paise(value);
 }
 
 export function exactEqual(a, b) {

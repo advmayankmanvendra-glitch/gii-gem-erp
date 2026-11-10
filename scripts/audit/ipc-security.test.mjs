@@ -94,7 +94,8 @@ test("a viewer cannot post, delete, reset or restore, even when it claims to be 
     ["records:delete", "suppliers", 1],
     ["backup:restore", "x.db"],
     ["reset:execute", { company_id: 1, confirm_text: "RESET", userId: 1 }],
-    ["financial-years:create", { company_id: 1, user_id: 1 }]
+    ["financial-years:create", { company_id: 1, user_id: 1 }],
+    ["money:rounding-adjustment", { voucherId: 1, userId: 1 }]
   ];
   for (const [channel, ...args] of attempts) {
     assert.match((await call(win, channel, ...args)).err || "", /Permission denied/i, channel);
@@ -361,6 +362,15 @@ test("an .xlsx with a cell past Excel's last column is refused quickly", async (
   const result = await call(admin, "imports:parse-buffer", "wide.xlsx", Buffer.concat([local, name, data, central, name, eocd]));
   assert.match(result.err || "", /beyond Excel's last column/);
   assert.ok(Date.now() - started < 2000);
+});
+
+test("the money integrity check runs for an admin and a viewer, and only when signed in", async () => {
+  assert.match((await call(newWindow(), "money:integrity", { company_id: 1 })).err || "", /not signed in/);
+  for (const win of [await adminWindow(), await roleWindow("viewer5", "viewer")]) {
+    const result = await call(win, "money:integrity", { company_id: 1 });
+    assert.equal(result.err, undefined, result.err);
+    assert.equal(typeof result.ok.ok, "boolean");
+  }
 });
 
 // ---- SEC-1 session-bound authorization ----

@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency } from "../../utils/formatters.js";
 import { sortRecordsBy } from "../../utils/optionSorting.js";
+import { sumRupees, subtractRupees } from "../../utils/money.js";
+import { ADD_VOUCHER_LINE_EVENT } from "../../config/keyLayout.js";
 
 export function VoucherEntryScreen({ notify, companyContext, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -39,11 +41,32 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
     }
   }, [companyContext?.company_id, form.company_id]);
 
+  const linesRef = useRef(null);
+  const focusNewLine = useRef(false);
+
+  // Tally key layout: Enter on the last line's narration adds a line (see config/keyLayout.js).
+  useEffect(() => {
+    function onAddLine() {
+      focusNewLine.current = true;
+      addLine();
+    }
+    window.addEventListener(ADD_VOUCHER_LINE_EVENT, onAddLine);
+    return () => window.removeEventListener(ADD_VOUCHER_LINE_EVENT, onAddLine);
+  }, []);
+
+  useEffect(() => {
+    if (!focusNewLine.current) return;
+    focusNewLine.current = false;
+    const lines = linesRef.current?.querySelectorAll(".voucher-line:not(.voucher-line-head)");
+    lines?.[lines.length - 1]?.querySelector("select")?.focus();
+  }, [form.lines.length]);
+
   const accounts = data?.accounts || [];
   const banks = data?.banks || [];
-  const totalDebit = form.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
-  const totalCredit = form.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-  const difference = totalDebit - totalCredit;
+  // Totals are added in paise, line by line, exactly as the posting check does.
+  const totalDebit = sumRupees(form.lines.map((line) => line.debit));
+  const totalCredit = sumRupees(form.lines.map((line) => line.credit));
+  const difference = subtractRupees(totalDebit, totalCredit);
 
   function updateLine(index, key, value) {
     setForm((current) => ({
@@ -65,7 +88,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
     try {
       if (!companyContext?.company_id) throw new Error("Select Current Company before posting a voucher.");
       if (form.company_id && String(form.company_id) !== String(companyContext.company_id)) throw new Error("Selected company and voucher company do not match.");
-      if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) throw new Error("Voucher debit and credit totals must match");
+      if (difference !== 0) throw new Error(`Voucher does not balance: debit ${formatCurrency(totalDebit)}, credit ${formatCurrency(totalCredit)}. Adjust the voucher lines until the difference is zero.`);
       const voucher = await api.createVoucher({
         ...form,
         company_id: Number(companyContext.company_id),
@@ -142,7 +165,7 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
           <textarea value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         </label>
 
-        <div className="voucher-lines">
+        <div className="voucher-lines" ref={linesRef}>
           <div className="voucher-line voucher-line-head">
             <span>Account</span>
             <span>Debit</span>
@@ -158,7 +181,11 @@ export function VoucherEntryScreen({ notify, companyContext, api }) {
               </select>
               <input type="number" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} min="0" step="0.01" />
               <input type="number" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} min="0" step="0.01" />
-              <input value={line.narration} onChange={(event) => updateLine(index, "narration", event.target.value)} />
+              <input
+                value={line.narration}
+                onChange={(event) => updateLine(index, "narration", event.target.value)}
+                data-enter-adds-line={index === form.lines.length - 1 && line.account_id && (Number(line.debit) > 0 || Number(line.credit) > 0) ? "true" : undefined}
+              />
               <button type="button" className="ghost-btn" onClick={() => removeLine(index)} disabled={form.lines.length <= 2}>Remove</button>
             </div>
           ))}

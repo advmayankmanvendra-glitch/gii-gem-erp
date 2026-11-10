@@ -1,4 +1,5 @@
-import { roundMoney } from "../domain/money.js";
+import { roundMoney, sumRupees, subtractRupees } from "../domain/money.js";
+import { invoiceLineAmounts } from "../domain/invoiceMath.js";
 
 export function createBillingService(deps) {
   const {
@@ -10,15 +11,7 @@ export function createBillingService(deps) {
   function normalizeInvoiceItem(item, companyId, orderId) {
     const quantity = Number(item.quantity || 0);
     const billingRate = Number(item.billing_rate || 0);
-    const taxableValue = roundMoney(Number(item.taxable_value || (quantity * billingRate) || 0));
-    const gstRate = Number(item.gst_rate || 0);
-    const gstType = item.gst_type || "CGST/SGST";
-    const gstAmount = roundMoney(taxableValue * gstRate / 100);
-    // The split follows the GST type chosen on the invoice: IGST, CGST only, SGST only, or CGST + SGST half each.
-    const single = ["IGST", "CGST", "SGST"].includes(gstType);
-    const cgst = gstType === "CGST" ? gstAmount : single ? 0 : roundMoney(gstAmount / 2);
-    const sgst = gstType === "SGST" ? gstAmount : single ? 0 : roundMoney(gstAmount - cgst);
-    const igst = gstType === "IGST" ? gstAmount : 0;
+    const amounts = invoiceLineAmounts({ quantity, billingRate, taxableValue: item.taxable_value, gstRate: item.gst_rate, gstType: item.gst_type || "CGST/SGST" });
     return {
       company_id: companyId,
       order_id: orderId,
@@ -29,13 +22,7 @@ export function createBillingService(deps) {
       unit: item.unit || "",
       quantity,
       billing_rate: billingRate,
-      gst_rate: gstRate,
-      taxable_value: taxableValue,
-      cgst,
-      sgst,
-      igst,
-      gst_amount: gstAmount,
-      gross_value: roundMoney(taxableValue + gstAmount)
+      ...amounts
     };
   }
 
@@ -181,29 +168,29 @@ export function createBillingService(deps) {
       WHERE ee.order_id = ? AND COALESCE(ee.is_deleted, 0) = 0 AND ee.posting_status = 'Posted'
     `).all(order.id);
 
-    const billingValue = invoices.reduce((sum, row) => sum + Number(row.billing_value || 0), 0);
-    const invoiceGrossValue = invoices.reduce((sum, row) => {
-      const lineGross = Number(db.prepare(`
-        SELECT COALESCE(SUM(gross_value), 0) total
-        FROM invoice_items
+    // Totals are added in whole paise so they never drift; the formulas are unchanged.
+    const billingValue = sumRupees(invoices.map((row) => row.billing_value));
+    const invoiceGrossValue = sumRupees(invoices.map((row) => {
+      const lineGross = sumRupees(db.prepare(`
+        SELECT gross_value FROM invoice_items
         WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0
-      `).get(row.id)?.total || 0);
-      if (lineGross > 0) return sum + lineGross;
-      return sum + Number(row.billing_value || 0) + (Number(row.billing_value || 0) * Number(row.gst_rate || 0) / 100);
-    }, 0);
+      `).all(row.id).map((item) => item.gross_value));
+      if (lineGross > 0) return lineGross;
+      return roundMoney(Number(row.billing_value || 0) + (Number(row.billing_value || 0) * Number(row.gst_rate || 0) / 100));
+    }));
     const gstRate = invoices.length ? Number(invoices[0].gst_rate || 0) / 100 : 0;
-    const purchaseValue = procurements.reduce((sum, row) => sum + Number(row.purchase_value || 0), 0);
-    const purchaseCost = procurements.reduce((sum, row) => sum + Number(row.purchase_value || 0) + Number(row.freight || 0) + Number(row.loading_charges || 0), 0);
+    const purchaseValue = sumRupees(procurements.map((row) => row.purchase_value));
+    const purchaseCost = sumRupees(procurements.flatMap((row) => [row.purchase_value, row.freight, row.loading_charges]));
     const issuedStockCost = Number(db.prepare(`
-      SELECT COALESCE(SUM(value), 0) total
+      SELECT COALESCE(SUM(value_minor), 0) / 100.0 total
       FROM stock_ledger
       WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND transaction_type = 'Outward'
     `).get(order.id)?.total || 0);
     const inventoryCostBasis = issuedStockCost > 0 ? issuedStockCost : purchaseValue;
-    const supplierPaid = procurements.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
-    const amountReceived = payments.reduce((sum, row) => sum + Number(row.payment_amount || 0), 0);
-    const grossMargin = billingValue - inventoryCostBasis;
-    const gstInputLoss = grossMargin * gstRate;
+    const supplierPaid = sumRupees(procurements.map((row) => row.amount_paid));
+    const amountReceived = sumRupees(payments.map((row) => row.payment_amount));
+    const grossMargin = subtractRupees(billingValue, inventoryCostBasis);
+    const gstInputLoss = roundMoney(grossMargin * gstRate);
     const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
     const dynamicExpenses = expenses.map((expense) => {
       let amount = Number(expense.fixed_amount || 0);
@@ -213,13 +200,13 @@ export function createBillingService(deps) {
       if (expense.calculation_method === "percentage_taxable") {
         amount = taxableValue * (Number(expense.percentage || 0) / 100);
       }
-      return { ...expense, amount };
+      return { ...expense, amount: roundMoney(amount) };
     });
-    const totalExpenses = dynamicExpenses.reduce((sum, row) => sum + row.amount, 0);
-    const initialProfit = grossMargin - gstInputLoss - totalExpenses;
+    const totalExpenses = sumRupees(dynamicExpenses.map((row) => row.amount));
+    const initialProfit = sumRupees([grossMargin, -gstInputLoss, -totalExpenses]);
     const incentivePercentage = Number(order.incentive_percentage || 0) / 100;
-    const employeeIncentive = initialProfit * incentivePercentage;
-    const netCompanyProfit = initialProfit - employeeIncentive;
+    const employeeIncentive = roundMoney(initialProfit * incentivePercentage);
+    const netCompanyProfit = subtractRupees(initialProfit, employeeIncentive);
 
     return {
       ...order,
@@ -232,9 +219,9 @@ export function createBillingService(deps) {
       inventoryCostBasis,
       inventoryCostSource: issuedStockCost > 0 ? "Issued Stock Cost" : "Procurement Value",
       supplierPaid,
-      supplierDue: purchaseCost - supplierPaid,
+      supplierDue: subtractRupees(purchaseCost, supplierPaid),
       amountReceived,
-      outstanding: invoiceGrossValue - amountReceived,
+      outstanding: subtractRupees(invoiceGrossValue, amountReceived),
       grossMargin,
       gstInputLoss,
       totalExpenses,
@@ -305,9 +292,9 @@ export function createBillingService(deps) {
     const normalizedItems = items
       .map((item) => normalizeInvoiceItem(item, companyId, Number(header.order_id)))
       .filter((item) => item.quantity || item.taxable_value || item.item_id || item.description);
-    const taxableTotal = normalizedItems.reduce((sum, item) => sum + item.taxable_value, 0);
-    const gstTotal = normalizedItems.reduce((sum, item) => sum + item.gst_amount, 0);
-    const fallbackBilling = Number(header.billing_value || 0);
+    const taxableTotal = sumRupees(normalizedItems.map((item) => item.taxable_value));
+    const gstTotal = sumRupees(normalizedItems.map((item) => item.gst_amount));
+    const fallbackBilling = roundMoney(header.billing_value);
     const billingValue = taxableTotal || fallbackBilling;
     const gstRate = normalizedItems.length ? Math.max(...normalizedItems.map((item) => item.gst_rate)) : Number(header.gst_rate || 0);
     if (billingValue < 0 || gstTotal < 0) throw new Error("Invoice amount cannot be negative");

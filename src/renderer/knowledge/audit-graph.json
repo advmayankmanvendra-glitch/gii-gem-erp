@@ -111,6 +111,7 @@
     { "eventId": "security.admin_password_reset", "action": "admin_password_reset", "module": "security", "severity": "critical", "table": "users", "description": "Administrator-forced password reset on another user.", "sourceFiles": ["src/main/services/authService.js"], "actorRole": "admin" },
     { "eventId": "security.permission_denied", "action": "permission_denied", "module": "security", "severity": "informational", "table": "varies", "description": "Operation denied by the permission layer.", "sourceFiles": ["src/main/services/authService.js", "src/main/services/desktopSessionService.js"], "actorRole": "admin" },
     { "eventId": "accounting.voucher_posting", "action": "voucher posting", "module": "accounting", "severity": "critical", "table": "vouchers", "description": "Balanced voucher posted through createBalancedVoucher (covers sales/purchase/receipt/payment/opening/reversal sub-posts).", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "finance" },
+    { "eventId": "accounting.rounding_adjustment_posted", "action": "rounding adjustment posted", "module": "accounting", "severity": "critical", "table": "vouchers", "description": "One-sided Rounding Off journal (1 to 100 paise) that settles an older voucher left unbalanced by paisa rounding; the original voucher is never changed.", "sourceFiles": ["src/main/services/moneyIntegrityService.js"], "actorRole": "finance" },
     { "eventId": "accounting.voucher_reversal", "action": "voucher reversal", "module": "accounting", "severity": "critical", "table": "vouchers", "description": "Posted voucher reversed; triggers general ledger, trial balance, subledger, cash/bank and report resync.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "finance" },
     { "eventId": "accounting.quick_create", "action": "quick_create", "module": "accounting", "severity": "sensitive", "table": "accounts", "description": "Ledger account quick create from a source module.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "finance" },
     { "eventId": "accounting.guided_voucher_draft_created", "action": "guided_voucher_draft_created", "module": "accounting", "severity": "sensitive", "table": "guided_vouchers", "description": "Guided voucher draft created.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "maker" },
@@ -287,6 +288,7 @@
   "criticalActions": [
     "voucher posting",
     "voucher reversal",
+    "rounding adjustment posted",
     "guided_voucher_posted",
     "credit_note_operational_correction_posted",
     "debit_note_operational_correction_posted",
@@ -381,18 +383,18 @@
   },
   "metadata": {
     "modules": 14,
-    "events": 97,
+    "events": 98,
     "mutations": 25,
     "actors": 9,
     "approvals": 4,
     "complianceControls": 7,
-    "criticalActions": 40,
+    "criticalActions": 41,
     "auditStores": 3,
     "trustBoundaries": 4
   },
   "statistics": {
-    "totalEvents": 97,
-    "criticalEvents": 40,
+    "totalEvents": 98,
+    "criticalEvents": 41,
     "sensitiveEvents": 41,
     "informationalEvents": 16
   },
