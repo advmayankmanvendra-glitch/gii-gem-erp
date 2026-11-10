@@ -645,6 +645,10 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   // Nothing left to receive: settled.
   result = closure.computeOrderClosure(db, so, { outstandingFor: () => 0 });
   assert.equal(check(result, "payment_received").ready, true);
+  // No receivable on record: not provably settled. No calculation passed: refused.
+  db.prepare("UPDATE receivables SET is_deleted = 1 WHERE billing_id = ?").run(inv.id);
+  assert.equal(check(closure.computeOrderClosure(db, so, { outstandingFor: () => 0 }), "payment_received").ready, false);
+  assert.throws(() => closure.computeOrderClosure(db, so), /no outstanding-amount calculation/);
 });
 
 test("the order picker shows only the selected company's orders", async () => {

@@ -1,0 +1,527 @@
+✖ C1 reversing a posted billing voucher fully reverses it (500.095562ms)
+✖ C1 reversing a posted procurement voucher fully reverses it (478.355235ms)
+✖ C1 reversing a posted payment voucher fully reverses it (521.282702ms)
+✖ C1 reversing a posted supplier_payment voucher fully reverses it (398.877766ms)
+✔ C2 after closing FY 2025-26, the FY 2026-27 balance sheet ties and carries the prior-year balances (422.624284ms)
+✔ C2b the second year can itself be closed into a third year, and that year ties (399.382459ms)
+✖ C2c before the prior year is closed, the next year's balance sheet still shows the full ledger balance (378.397133ms)
+✖ C3 one receipt cannot be applied twice (advance adjustment + allocation) (434.886694ms)
+✖ C4 an advance cannot exceed its receipt (406.283114ms)
+✖ C5 posting receipts never pushes an invoice below zero (401.484358ms)
+✖ C6 a second Post click does not unlock or double-book a posted purchase (456.778645ms)
+✖ C7 a failed sales posting leaves nothing behind, and the retry posts once and completely (394.603985ms)
+✖ C8 a warehouse transfer keeps stock value (400.702772ms)
+✖ C9 item opening stock cannot be issued from a warehouse that never held it (442.041467ms)
+✖ C10a restoring a non-SQLite file is rejected and the live database stays intact (379.412413ms)
+✖ C10b restoring a truncated copy of a real database is rejected and the live database stays intact (414.971772ms)
+✖ C10c restoring a zero-byte file is rejected and the live database stays intact (365.123792ms)
+✖ C10d restoring a valid SQLite file that is not an ERP database is rejected and the live database stays intact (450.561816ms)
+✔ C10e a good backup really restores: data changed after the backup is rolled back (519.088969ms)
+✖ C10f the pending-restore path (used when the file is locked) explicitly refuses a bad file (373.69606ms)
+✔ C10g the pending-restore path still restores a good backup (control case) (498.978124ms)
+✖ C11a the generic save cannot create a purchase that is already Posted (372.899103ms)
+✔ C11c an ordinary draft purchase saves as unposted and posts exactly once (control case) (390.068305ms)
+✖ C11b the generic save cannot create a stock adjustment that is already Approved (386.8957ms)
+✔ C11d a draft stock adjustment posts only after the approval step (control case) (399.968403ms)
+✖ C12 a bank line for an already-posted receipt does not book the receipt again (412.697224ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 6
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11160.539858
+
+✖ failing tests:
+
+test at scripts/audit/critical-defects.test.mjs:99:3
+✖ C1 reversing a posted billing voucher fully reverses it (500.095562ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception: reversing SALES-00001
+  Actual message: "no such column: updated_at"
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.start (node:internal/test_runner/test:944:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { code: 'SQLITE_ERROR' },
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:99:3
+✖ C1 reversing a posted procurement voucher fully reverses it (478.355235ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception: reversing PURCHASE-00001
+  Actual message: "no such column: updated_at"
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { code: 'SQLITE_ERROR' },
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:99:3
+✖ C1 reversing a posted payment voucher fully reverses it (521.282702ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception: reversing RECEIPT-00001
+  Actual message: "no such column: updated_at"
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { code: 'SQLITE_ERROR' },
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:99:3
+✖ C1 reversing a posted supplier_payment voucher fully reverses it (398.877766ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception: reversing PAYMENT-00001
+  Actual message: "no such column: updated_at"
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:111:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { code: 'SQLITE_ERROR' },
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:177:1
+✖ C2c before the prior year is closed, the next year's balance sheet still shows the full ledger balance (378.397133ms)
+  AssertionError [ERR_ASSERTION]: ledger says 831000, balance sheet shows 830000 (FY 2025-26 not yet closed)
+  
+  830000 !== 831000
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:180:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 830000,
+    expected: 831000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:184:1
+✖ C3 one receipt cannot be applied twice (advance adjustment + allocation) (434.886694ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      appliedToA: 100000,
+  +   appliedToB: 100000,
+  +   secondAllocationRefused: false
+  -   appliedToB: 0,
+  -   secondAllocationRefused: true
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:194:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { secondAllocationRefused: false, appliedToA: 100000, appliedToB: 100000 },
+    expected: { secondAllocationRefused: true, appliedToA: 100000, appliedToB: 0 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:199:1
+✖ C4 an advance cannot exceed its receipt (406.283114ms)
+  AssertionError [ERR_ASSERTION]: a 100000 receipt recorded an advance of 500000
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:204:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:211:1
+✖ C5 posting receipts never pushes an invoice below zero (401.484358ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      allocatedTotal: 236000,
+  +   outstandingA: -118000,
+  +   outstandingB: 118000,
+  -   outstandingA: 0,
+  -   outstandingB: 0,
+      receivedTotal: 236000
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:219:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { outstandingA: -118000, outstandingB: 118000, receivedTotal: 236000, allocatedTotal: 236000 },
+    expected: { outstandingA: 0, outstandingB: 0, receivedTotal: 236000, allocatedTotal: 236000 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:225:1
+✖ C6 a second Post click does not unlock or double-book a posted purchase (456.778645ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   statusAfterSecondClick: 'Error',
+  +   thirdClickRefused: false,
+  +   tradePayablesCredit: 23600,
+  +   vouchers: 2
+  -   statusAfterSecondClick: 'Posted',
+  -   thirdClickRefused: true,
+  -   tradePayablesCredit: 11800,
+  -   vouchers: 1
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:234:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { statusAfterSecondClick: 'Error', thirdClickRefused: false, vouchers: 2, tradePayablesCredit: 23600 },
+    expected: { statusAfterSecondClick: 'Posted', thirdClickRefused: true, vouchers: 1, tradePayablesCredit: 11800 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:240:1
+✖ C7 a failed sales posting leaves nothing behind, and the retry posts once and completely (394.603985ms)
+  AssertionError [ERR_ASSERTION]: state right after the injected failure
+  + actual - expected
+  
+    {
+      invoicePosted: false,
+  +   ledgerEntries: 3,
+  -   ledgerEntries: 0,
+      receivables: 0,
+  +   vouchers: 1
+  -   vouchers: 0
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:254:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { vouchers: 1, ledgerEntries: 3, receivables: 0, invoicePosted: false },
+    expected: { vouchers: 0, ledgerEntries: 0, receivables: 0, invoicePosted: false },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:269:1
+✖ C8 a warehouse transfer keeps stock value (400.702772ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      a: 600,
+  +   b: -400,
+  +   issueRate: 0
+  -   b: 400,
+  -   issueRate: 100
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:277:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { a: 600, b: -400, issueRate: 0 },
+    expected: { a: 600, b: 400, issueRate: 100 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:281:1
+✖ C9 item opening stock cannot be issued from a warehouse that never held it (442.041467ms)
+  AssertionError [ERR_ASSERTION]: issuing 10 from warehouse B should be refused
+  + actual - expected
+  
+    {
+  +   issuedFromB: 10,
+  +   refused: false
+  -   issuedFromB: 0,
+  -   refused: true
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:287:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { refused: false, issuedFromB: 10 },
+    expected: { refused: true, issuedFromB: 0 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:325:3
+✖ C10a restoring a non-SQLite file is rejected and the live database stays intact (379.412413ms)
+  AssertionError [ERR_ASSERTION]: restore accepted; live database will not open: file is not a database
+  + actual - expected
+  
+    {
+  +   live: 'will not open: file is not a database',
+  +   outcome: 'accepted'
+  -   live: 'intact',
+  -   outcome: 'refused'
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:330:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { outcome: 'accepted', live: 'will not open: file is not a database' },
+    expected: { outcome: 'refused', live: 'intact' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:325:3
+✖ C10b restoring a truncated copy of a real database is rejected and the live database stays intact (414.971772ms)
+  AssertionError [ERR_ASSERTION]: restore accepted; live database will not open: database disk image is malformed
+  + actual - expected
+  
+    {
+  +   live: 'will not open: database disk image is malformed',
+  +   outcome: 'accepted'
+  -   live: 'intact',
+  -   outcome: 'refused'
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:330:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { outcome: 'accepted', live: 'will not open: database disk image is malformed' },
+    expected: { outcome: 'refused', live: 'intact' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:325:3
+✖ C10c restoring a zero-byte file is rejected and the live database stays intact (365.123792ms)
+  AssertionError [ERR_ASSERTION]: restore accepted; live database not an ERP database
+  + actual - expected
+  
+    {
+  +   live: 'not an ERP database',
+  +   outcome: 'accepted'
+  -   live: 'intact',
+  -   outcome: 'refused'
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:330:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { outcome: 'accepted', live: 'not an ERP database' },
+    expected: { outcome: 'refused', live: 'intact' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:325:3
+✖ C10d restoring a valid SQLite file that is not an ERP database is rejected and the live database stays intact (450.561816ms)
+  AssertionError [ERR_ASSERTION]: restore accepted; live database not an ERP database
+  + actual - expected
+  
+    {
+  +   live: 'not an ERP database',
+  +   outcome: 'accepted'
+  -   live: 'intact',
+  -   outcome: 'refused'
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:330:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { outcome: 'accepted', live: 'not an ERP database' },
+    expected: { outcome: 'refused', live: 'intact' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:368:1
+✖ C10f the pending-restore path (used when the file is locked) explicitly refuses a bad file (373.69606ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   live: 'will not open: file is not a database',
+  -   live: 'intact',
+      nextStartRestored: false,
+      pendingFilesLeft: [],
+  +   refused: false
+  -   refused: true
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:376:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { refused: false, pendingFilesLeft: [], nextStartRestored: false, live: 'will not open: file is not a database' },
+    expected: { refused: true, pendingFilesLeft: [], nextStartRestored: false, live: 'intact' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:392:1
+✖ C11a the generic save cannot create a purchase that is already Posted (372.899103ms)
+  AssertionError [ERR_ASSERTION]: purchase stored as Posted/Approved with no voucher
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:396:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:414:1
+✖ C11b the generic save cannot create a stock adjustment that is already Approved (386.8957ms)
+  AssertionError [ERR_ASSERTION]: stock was adjusted with no approval step
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:419:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts/audit/critical-defects.test.mjs:432:1
+✖ C12 a bank line for an already-posted receipt does not book the receipt again (412.697224ms)
+  AssertionError [ERR_ASSERTION]: proposal 1 for bank entry 1 (matched payments #1)
+  + actual - expected
+  
+    {
+  +   bankBalance: 300000,
+  +   newVouchers: 1
+  -   bankBalance: -50000,
+  -   newVouchers: 0
+    }
+  
+      at TestContext.<anonymous> (file://scripts/audit/critical-defects.test.mjs:453:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { bankBalance: 300000, newVouchers: 1 },
+    expected: { bankBalance: -50000, newVouchers: 0 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

@@ -2,18 +2,15 @@
  * Order Closure Service - Checklist-driven operational closure tracking.
  */
 
-// Without the books' own calculation, the outstanding amount stored on the receivable.
-function storedOutstanding(db, invoiceId) {
-  return db.prepare("SELECT COALESCE(balance_outstanding, invoice_amount, 0) v FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(invoiceId)?.v ?? 0;
-}
-
 /**
  * Compute closure checklist for a supply order.
  * @param {object} db - SQLite database handle
  * @param {number} orderId - Supply order ID
  * @returns {object} { checks, percentage, ready }
  */
-export function computeOrderClosure(db, orderId, { outstandingFor = storedOutstanding } = {}) {
+export function computeOrderClosure(db, orderId, { outstandingFor } = {}) {
+  // One definition of "settled": the books' own outstanding calculation, passed in by the caller.
+  if (typeof outstandingFor !== "function") throw new Error("Order closure check refused: no outstanding-amount calculation was passed, so settlement cannot be proved. Nothing was changed.");
   const order = db.prepare("SELECT * FROM supply_orders WHERE id = ? AND is_deleted = 0").get(orderId);
   if (!order) return { checks: [], percentage: 0, ready: false };
 
@@ -21,7 +18,9 @@ export function computeOrderClosure(db, orderId, { outstandingFor = storedOutsta
   const posted = invoices.filter((invoice) => invoice.posting_status === "Posted");
   // Settlement is proved from the books: every posted invoice of the order has nothing
   // left to receive. One receipt somewhere on the order is not proof of settlement.
-  const unsettled = posted.filter((invoice) => Number(outstandingFor(db, invoice.id) || 0) > 0.005);
+  // A posted invoice with no receivable on record cannot be shown to be settled.
+  const hasReceivable = db.prepare("SELECT 1 FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0");
+  const unsettled = posted.filter((invoice) => !hasReceivable.get(invoice.id) || Number(outstandingFor(db, invoice.id) || 0) > 0.005);
   // Open work on the order: invoices or receipts saved but not posted (or failed).
   const openInvoices = invoices.filter((invoice) => !["Posted", "Reversed", "Cancelled"].includes(invoice.posting_status || "Draft"));
   const openReceipts = db.prepare("SELECT COUNT(*) c FROM payments WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND COALESCE(posting_status, 'Draft') NOT IN ('Posted', 'Reversed', 'Cancelled')").get(orderId).c;

@@ -305,16 +305,20 @@ function guarded(permission, moduleName, handler) {
       user_id: session.user_id
     });
     const safeArgs = args.map((arg) => withActor(arg, user));
-    // High-impact permissions record who was allowed, as refusals already do.
-    if (AUDITED_GRANTS.has(permission)) {
-      runAsActor(user, () => auditLog(db, { company_id: payload.company_id || null, user_id: user.id, action: "permission_granted", module: moduleName, table_name: "system", new_value: JSON.stringify({ permission, module: moduleName }) }));
-    }
+    recordGrant(user, permission, moduleName, payload);
     return runAsActor(user, () => handler(...safeArgs));
   };
 }
 
 // Permissions whose every use is recorded with the signed-in user (SEC-1).
 const AUDITED_GRANTS = new Set(["system_reset", "restore_backup", "settings", "financial_year_close", "financial_year_reopen", "account_mapping"]);
+
+// High-impact permissions record who was allowed, as refusals already do. Both guard
+// wrappers call this, so no channel for these permissions goes unrecorded.
+function recordGrant(user, permission, moduleName, payload = {}) {
+  if (!AUDITED_GRANTS.has(permission)) return;
+  runAsActor(user, () => auditLog(db, { company_id: payload.company_id || null, user_id: user.id, action: "permission_granted", module: moduleName, table_name: "system", new_value: JSON.stringify({ permission, module: moduleName }) }));
+}
 
 function sessionGuarded(permission, moduleName, handler) {
   return (event, ...args) => {
@@ -329,6 +333,7 @@ function sessionGuarded(permission, moduleName, handler) {
         table_name: moduleName
       }
     );
+    recordGrant(user, permission, moduleName, payload);
     return handler(...args, {
       user_id: user.id,
       user_role: user.role
