@@ -91,8 +91,8 @@ export function createTallyImportService(deps) {
     return db.prepare("SELECT id FROM companies ORDER BY id LIMIT 1").get()?.id || 0;
   }
 
-  function namedTallyBlocks(xmlText, tagName) {
-    return tallyTagBlocks(xmlText, tagName).map(({ attributes, body }) => ({ name: cleanTallyText(tallyAttribute(attributes, "NAME")), attributes, body }));
+  function namedTallyBlocks(xmlText, tagName, limit = Infinity) {
+    return tallyTagBlocks(xmlText, tagName, limit).map(({ attributes, body }) => ({ name: cleanTallyText(tallyAttribute(attributes, "NAME")), attributes, body }));
   }
 
   function uniqueNamedTallyBlocks(xmlText, tagName) {
@@ -432,6 +432,12 @@ export function createTallyImportService(deps) {
       throw new Error(`Preview refused: ${path.basename(filePath)} is ${(bytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. In Tally, export the stock items in parts (for example by stock group) and preview each part.`);
     }
     const xmlText = readXmlText(filePath);
+    // The same master budget as the migration preview, counted before anything is parsed.
+    if (tallyTagBlocks(xmlText, "STOCKITEM", MAX_TALLY_PREVIEW_MASTERS + 1).length > MAX_TALLY_PREVIEW_MASTERS) {
+      const error = new Error(`Preview refused: ${path.basename(filePath)} holds more than ${MAX_TALLY_PREVIEW_MASTERS.toLocaleString("en-IN")} stock items, more than one preview can show. In Tally, export the stock items in parts (for example by stock group) and preview each part.`);
+      error.code = "TALLY_PREVIEW_TOO_LARGE";
+      throw error;
+    }
     return parseTallyStockItemsXml(xmlText, path.basename(filePath));
   }
 
@@ -496,24 +502,40 @@ export function createTallyImportService(deps) {
           const xmlText = readXmlText(filePath);
           const sourceCompany = tallyTagValue(xmlText, "SVCURRENTCOMPANY") || tallyTagValue(xmlText, "COMPANYNAME") || "";
           if (sourceCompany) aggregate.companies.push(tallyCompanyCandidate(db, sourceCompany, fileName));
-          namedTallyBlocks(xmlText, "COMPANY").forEach((block) => {
+          // Every master kind counts against one budget, and reading stops as soon as it is
+          // passed, so a huge file of any kind is never copied in full.
+          const tooMany = () => {
+            const error = new Error(`Preview refused: the selected files hold more than ${MAX_TALLY_PREVIEW_MASTERS.toLocaleString("en-IN")} masters (companies, groups, units, godowns, stock groups, ledgers and stock items), more than one preview can show. In Tally, export the masters in parts (for example ledgers and stock items separately) and preview each part.`);
+            error.code = "TALLY_PREVIEW_TOO_LARGE";
+            return error;
+          };
+          const take = (tagName, unique = false) => {
+            const blocks = namedTallyBlocks(xmlText, tagName, MAX_TALLY_PREVIEW_MASTERS - mastersRead + 1);
+            mastersRead += blocks.length;
+            if (mastersRead > MAX_TALLY_PREVIEW_MASTERS) throw tooMany();
+            if (!unique) return blocks;
+            const seen = new Set();
+            return blocks.filter((block) => {
+              const key = normalizeDuplicateKey(block.name);
+              if (!key || seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          };
+          take("COMPANY").forEach((block) => {
             const name = block.name || tallyTagValue(block.body, "NAME") || tallyTagValue(block.body, "COMPANYNAME");
             if (name) aggregate.companies.push(tallyCompanyCandidate(db, name, fileName, block.body));
           });
-          uniqueNamedTallyBlocks(xmlText, "GROUP").forEach((block) => aggregate.ledgerGroups.push({ name: block.name, parent: tallyTagValue(block.body, "PARENT") || "", source_file: fileName }));
-          uniqueNamedTallyBlocks(xmlText, "UNIT").forEach((block) => aggregate.units.push({
+          take("GROUP", true).forEach((block) => aggregate.ledgerGroups.push({ name: block.name, parent: tallyTagValue(block.body, "PARENT") || "", source_file: fileName }));
+          take("UNIT", true).forEach((block) => aggregate.units.push({
             name: block.name, formal_name: tallyTagValue(block.body, "ORIGINALNAME") || block.name,
             uqc: tallyTagValue(block.body, "GSTREPUQC") || "", source_file: fileName
           }));
-          uniqueNamedTallyBlocks(xmlText, "GODOWN").forEach((block) => aggregate.godowns.push(tallyGodownCandidate(db, block, fileName)));
-          uniqueNamedTallyBlocks(xmlText, "STOCKGROUP").forEach((block) => aggregate.stockGroups.push({ name: block.name, parent: tallyTagValue(block.body, "PARENT") || "", source_file: fileName }));
-          const ledgerBlocks = namedTallyBlocks(xmlText, "LEDGER");
-          mastersRead += ledgerBlocks.length + tallyTagBlocks(xmlText, "STOCKITEM").length;
-          if (mastersRead > MAX_TALLY_PREVIEW_MASTERS) {
-            const error = new Error(`Preview refused: the selected files hold more than ${MAX_TALLY_PREVIEW_MASTERS.toLocaleString("en-IN")} ledgers and stock items, more than one preview can show. In Tally, export the masters in parts (for example ledgers and stock items separately) and preview each part.`);
-            error.code = "TALLY_PREVIEW_TOO_LARGE";
-            throw error;
-          }
+          take("GODOWN", true).forEach((block) => aggregate.godowns.push(tallyGodownCandidate(db, block, fileName)));
+          take("STOCKGROUP", true).forEach((block) => aggregate.stockGroups.push({ name: block.name, parent: tallyTagValue(block.body, "PARENT") || "", source_file: fileName }));
+          const ledgerBlocks = take("LEDGER");
+          mastersRead += tallyTagBlocks(xmlText, "STOCKITEM", MAX_TALLY_PREVIEW_MASTERS - mastersRead + 1).length;
+          if (mastersRead > MAX_TALLY_PREVIEW_MASTERS) throw tooMany();
           ledgerBlocks.forEach((block, index) => aggregate.ledgers.push(tallyLedgerCandidate(db, block, index, fileName)));
           const stockPreview = parseTallyStockItemsXml(xmlText, fileName);
           stockPreview.items.forEach((item) => aggregate.stockItems.push(tallyStockItemCandidate(db, item, fileName)));

@@ -21,6 +21,7 @@ import { createSchemaFunctions } from "./schemaDefinitions.js";
 import { createSeedData } from "./seedData.js";
 import {
   FSR2B1_MIGRATION_NAME,
+  DEFAULT_REPORTING_PROFILE,
   applyAccountMappingRegistryMigration,
   ensureAccountMappingRegistry
 } from "./accountMappingRegistry.js";
@@ -35,7 +36,7 @@ import { createTallyImportService } from "../services/tallyImportService.js";
 import { createImportParserService } from "../services/importParserService.js";
 import { createDocumentService } from "../services/documentService.js";
 import { createAuthService } from "../services/authService.js";
-import { createBillingService } from "../services/billingService.js";
+import { createBillingService, expenseFormulaAmount } from "../services/billingService.js";
 import { createDashboardService } from "../services/dashboardService.js";
 import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
@@ -841,6 +842,7 @@ function seedAccounts(db, companyId = null) {
       `).run({ company_id: company.id, account_code, account_name, account_type, normal_balance, opening_balance });
     });
     ensureRoundingOffAccount(db, company.id);
+    ensurePurchasePriceVarianceAccount(db, company.id);
   });
 }
 
@@ -856,6 +858,36 @@ function ensureRoundingOffAccount(db, companyId) {
     INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
     VALUES (?, ?, 'Rounding Off', 'Expense', 'Debit', 0, 'active')
   `).run(companyId, String(code)).lastInsertRowid;
+}
+
+export const PURCHASE_PRICE_VARIANCE_ACCOUNT = "Purchase Price Variance";
+
+// The ledger a supplier return's price gap posts to (owner decision CV, 10 Nov 2026 IST).
+// Added only when the company has none: an existing ledger with this name is reused, and a
+// code already in use by a ledger the user created is never taken over (first free code
+// from 5065 upward). It is reported under Purchases.
+export function ensurePurchasePriceVarianceAccount(db, companyId) {
+  const name = PURCHASE_PRICE_VARIANCE_ACCOUNT;
+  let id = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = ? AND is_deleted = 0").get(companyId, name)?.id;
+  if (!id) {
+    let code = 5065;
+    while (db.prepare("SELECT 1 FROM accounts WHERE company_id = ? AND account_code = ?").get(companyId, String(code))) code += 1;
+    id = Number(db.prepare(`
+      INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
+      VALUES (?, ?, ?, 'Expense', 'Debit', 0, 'active')
+    `).run(companyId, String(code), name).lastInsertRowid);
+  }
+  const registryReady = db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type = 'table' AND name IN ('account_groups', 'account_group_assignments')").get().n === 2;
+  if (registryReady) {
+    db.prepare(`
+      INSERT INTO account_group_assignments (company_id, account_id, account_group_id, effective_from, status, provenance, change_reason)
+      SELECT a.company_id, a.id, g.id, ?, 'active', 'SYSTEM_SEED', 'Owner decision CV: purchase price variance reported under Purchases'
+      FROM accounts a JOIN account_groups g ON g.group_code = 'PURCHASES'
+      WHERE a.id = ? AND a.account_type = g.account_type
+        AND NOT EXISTS (SELECT 1 FROM account_group_assignments existing WHERE existing.account_id = a.id)
+    `).run(DEFAULT_REPORTING_PROFILE.effectiveFrom, id);
+  }
+  return id;
 }
 
 function normalizeDuplicateKey(value) {
@@ -1571,12 +1603,10 @@ function postExpenseEntry(db, expenseId) {
   // Same formula as the profitability engine (billingService calculateProfitability),
   // which only lists expenses already posted, so it is applied here directly.
   const profit = order ? calculateProfitability(db, order) : null;
-  const billingValue = Number(profit?.billingValue || 0);
-  const gstRate = Number(profit?.gstRate || 0) / 100;
-  const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
-  let calculated = Number(expense.fixed_amount || 0);
-  if (expense.calculation_method === "percentage_gross") calculated = billingValue * (Number(expense.percentage || 0) / 100);
-  if (expense.calculation_method === "percentage_taxable") calculated = taxableValue * (Number(expense.percentage || 0) / 100);
+  const calculated = expenseFormulaAmount(expense, {
+    taxableValue: Number(profit?.billingValue || 0),
+    grossValue: Number(profit?.invoiceGrossValue || 0)
+  });
   const amount = roundMoney(Number(expense.expense_amount || 0) || calculated);
   if (amount <= 0) {
     throw new Error(`Expense ${expense.expense_head_name} (entry ${expense.id}) has no amount to post. ${String(expense.calculation_method || "").startsWith("percentage") ? "A percentage expense is calculated on the order's posted invoices; post the sales invoice first." : "Enter the expense amount on the entry, then post."}`);
@@ -1973,7 +2003,7 @@ const {
   reverseStockInward, reverseStockOutward, reverseStockAdjustment, reverseStockReturn,
   mirrorStockForSource
 } = createInventoryService({
-    auditLog, activeRowClause, accountId, createBalancedVoucher,
+    auditLog, activeRowClause, accountId, createBalancedVoucher, ensurePurchasePriceVarianceAccount,
     autoReserveOrderStock: (...args) => autoReserveOrderStock(...args), listRecords, referenceData,
     reverseVoucher
   });

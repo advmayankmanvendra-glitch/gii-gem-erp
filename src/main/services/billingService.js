@@ -1,6 +1,17 @@
 import { roundMoney, sumRupees, subtractRupees } from "../domain/money.js";
 import { invoiceLineAmounts } from "../domain/invoiceMath.js";
 
+
+// Percentage expenses (owner decision EXP, 10 Nov 2026 IST): "% of gross" is worked out on the
+// posted invoices' gross value (taxable value plus GST) and "% of taxable" on their taxable value
+// (invoices.billing_value). Before, the taxable value was treated as the gross value.
+export function expenseFormulaAmount(expense, { taxableValue = 0, grossValue = 0 } = {}) {
+  const percentage = Number(expense?.percentage || 0) / 100;
+  if (expense?.calculation_method === "percentage_gross") return Number(grossValue || 0) * percentage;
+  if (expense?.calculation_method === "percentage_taxable") return Number(taxableValue || 0) * percentage;
+  return Number(expense?.fixed_amount || 0);
+}
+
 export function createBillingService(deps) {
   const {
     referenceData, suggestedInvoiceSequences, assertRecordEditable,
@@ -191,17 +202,10 @@ export function createBillingService(deps) {
     const amountReceived = sumRupees(payments.map((row) => row.payment_amount));
     const grossMargin = subtractRupees(billingValue, inventoryCostBasis);
     const gstInputLoss = roundMoney(grossMargin * gstRate);
-    const taxableValue = gstRate ? billingValue / (1 + gstRate) : billingValue;
-    const dynamicExpenses = expenses.map((expense) => {
-      let amount = Number(expense.fixed_amount || 0);
-      if (expense.calculation_method === "percentage_gross") {
-        amount = billingValue * (Number(expense.percentage || 0) / 100);
-      }
-      if (expense.calculation_method === "percentage_taxable") {
-        amount = taxableValue * (Number(expense.percentage || 0) / 100);
-      }
-      return { ...expense, amount: roundMoney(amount) };
-    });
+    const dynamicExpenses = expenses.map((expense) => ({
+      ...expense,
+      amount: roundMoney(expenseFormulaAmount(expense, { taxableValue: billingValue, grossValue: invoiceGrossValue }))
+    }));
     const totalExpenses = sumRupees(dynamicExpenses.map((row) => row.amount));
     const initialProfit = sumRupees([grossMargin, -gstInputLoss, -totalExpenses]);
     const incentivePercentage = Number(order.incentive_percentage || 0) / 100;
