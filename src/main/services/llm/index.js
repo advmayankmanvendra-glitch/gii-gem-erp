@@ -1,6 +1,9 @@
 // BRAIN-5 governed LLM gateway (main process only). See
 // docs/architecture/brain-5a-llm-gateway-foundation-report.md.
 export { createLlmGateway, defaultChooseModel } from "./llmGateway.js";
+export { chooseModel, chooseTier } from "./llmModelRouter.js";
+export { createContextAssembler } from "./llmContextAssembler.js";
+export { loadKnowledge } from "./llmKnowledgeLoader.js";
 export { createLlmSettingsStore, LLM_DEFAULTS } from "./llmSettingsStore.js";
 export { createLlmCostTracker, istDay } from "./llmCostTracker.js";
 export { createLlmAuditService, LLM_AUDIT_ACTIONS } from "./llmAuditService.js";

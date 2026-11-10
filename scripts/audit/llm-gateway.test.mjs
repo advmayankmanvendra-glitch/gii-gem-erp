@@ -241,3 +241,15 @@ test("5B end to end: gateway + assembler + offline provider cite real graph ids"
   assert.equal(result.answer.insufficientEvidence, false);
   assert.ok(result.sources.length >= 1);
 });
+
+// ---- BRAIN-5F: model routing ----
+import { chooseModel, chooseTier } from "../../src/main/services/llm/llmModelRouter.js";
+
+test("5F: routing picks cheap models for navigation and strong ones for accounting", () => {
+  const settings = { models: { low: "small", medium: "mid", high: "big" } };
+  assert.equal(chooseModel(settings, { question: "Where is the stock screen?", context: { intent: "screen_help", evidence: [{ source: "RG-1" }] } }).model, "small");
+  assert.equal(chooseModel(settings, { question: "How do I close an order?", context: { intent: "workflow", evidence: [{ source: "WG-1" }] } }).model, "mid");
+  assert.equal(chooseModel(settings, { question: "Explain GST on this invoice", context: { intent: "gst_tax", evidence: [] } }).model, "big");
+  assert.equal(chooseTier({ question: "x", context: { intent: "workflow", evidence: ["WG-1", "KG-4", "KG-5", "DG-1"].map((source) => ({ source })) } }), "high");
+  assert.deepEqual(chooseModel({ models: { low: "", medium: "mid", high: "" } }, { context: { intent: "gst_tax" } }), { tier: "medium", model: "mid" });
+});

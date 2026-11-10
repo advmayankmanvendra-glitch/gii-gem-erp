@@ -86,3 +86,9 @@ Unsafe-action questions (BRAIN-4 classifier) and questions with no match get no 
 **Packaging:** the main process now needs the graph JSON and the BRAIN-2/BRAIN-4 modules at run time, so `build.files` adds `src/renderer/knowledge/*.json`, `src/renderer/modules/erpBrain/**`, `src/renderer/modules/erpAssistant/**/*.js` and `src/renderer/modules/helpAssistant/contextualBrainHelp.js` (pure JS/JSON, no external imports — checked by tracing the import closure).
 
 **Verification:** `npm run test:llm-gateway` 20/20 (adds five 5B tests over the real graphs, including an end-to-end gateway run with the offline provider).
+
+---
+
+# BRAIN-5F (part 1) — Model routing
+
+`llmModelRouter.js` picks a tier per question: **low** for screen help, navigation and glossary questions with few sources; **high** for accounting (KG-4) and GST questions, or any question drawing on four or more graphs or longer than 300 characters; **medium** otherwise. A tier with no model configured falls back to medium. The daily token budget (`llmCostTracker.js`, per IST day) already caps spend. Remaining for 5F: per-user quotas and a usage view in Settings, done with 5C's screen. Tests: 21/21.
