@@ -22,8 +22,15 @@ export function computeOrderClosure(db, orderId, { outstandingFor } = {}) {
   const hasReceivable = db.prepare("SELECT 1 FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0");
   const missing = posted.filter((invoice) => !hasReceivable.get(invoice.id));
   // Settlement is judged for the whole order, so a credit note booked as its own (negative)
-  // invoice nets against the invoice it corrects.
-  const outstanding = posted.map((invoice) => ({ invoice, amount: Number(outstandingFor(db, invoice.id) || 0) }));
+  // invoice nets against the invoice it corrects. Only such a credit note may net: any other
+  // invoice that went below zero (an excess receipt, or a credit note larger than what was
+  // left on it) counts as zero, so it never hides another invoice that is still unpaid.
+  const invoiceAmount = db.prepare("SELECT COALESCE(SUM(invoice_amount), 0) amount FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0");
+  const outstanding = posted.map((invoice) => {
+    const amount = Number(outstandingFor(db, invoice.id) || 0);
+    const creditNote = Number(invoiceAmount.get(invoice.id)?.amount || 0) < 0;
+    return { invoice, amount: creditNote ? amount : Math.max(0, amount) };
+  });
   const orderOutstanding = outstanding.reduce((sum, row) => sum + row.amount, 0);
   const unsettled = orderOutstanding > 0.005 ? [...missing, ...outstanding.filter((row) => row.amount > 0.005 && !missing.includes(row.invoice)).map((row) => row.invoice)] : missing;
   // Open work on the order: invoices or receipts saved but not posted (or failed).

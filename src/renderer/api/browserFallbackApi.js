@@ -43,10 +43,11 @@ function calculatePreviewProfit(db) {
     const amountReceived = sum(payments.map((row) => ({ value: row.payment_amount })), "value");
     const grossMargin = billingValue - purchaseValue;
     const gstInputLoss = grossMargin * (gstRate / 100);
-    const taxableValue = billingValue / (1 + gstRate / 100);
+    // billing_value is the taxable value; gross adds GST (same rule as the main program).
+    const grossValue = billingValue * (1 + gstRate / 100);
     const totalExpenses = expenses.reduce((total, row) => {
-      if (row.calculation_method === "percentage_gross") return total + billingValue * (Number(row.percentage || 0) / 100);
-      if (row.calculation_method === "percentage_taxable") return total + taxableValue * (Number(row.percentage || 0) / 100);
+      if (row.calculation_method === "percentage_gross") return total + grossValue * (Number(row.percentage || 0) / 100);
+      if (row.calculation_method === "percentage_taxable") return total + billingValue * (Number(row.percentage || 0) / 100);
       return total + Number(row.fixed_amount || 0);
     }, 0);
     const initialProfit = grossMargin - gstInputLoss - totalExpenses;

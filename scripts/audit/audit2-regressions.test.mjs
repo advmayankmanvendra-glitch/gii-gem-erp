@@ -672,6 +672,19 @@ test("order closure needs every posted invoice settled and nothing saved but unp
   bill(s12, 1000); bill(s12, 500);
   m.postReceiptVoucher(db, pay(s12, 1000));
   assert.equal(check(closure.computeOrderClosure(db, s12, options), "payment_received").ready, false);
+  // An ordinary invoice that went below zero (excess receipt, or a credit note larger than
+  // what was left on it) never hides another invoice that is still unpaid.
+  const s13 = newOrder(db, "A2-CLOSE-OVER");
+  const over = bill(s13, 1000); const unpaid = bill(s13, 1000);
+  const stub = { outstandingFor: (_db, id) => (id === over.id ? -1000 : id === unpaid.id ? 1000 : 0) };
+  assert.equal(check(closure.computeOrderClosure(db, s13, stub), "payment_received").ready, false, "an overpaid invoice does not settle another one");
+  const s14 = newOrder(db, "A2-CLOSE-BIGCN");
+  const paidInFull = bill(s14, 1000); bill(s14, 590);
+  m.postReceiptVoucher(db, pay(s14, 1000));
+  const bigNote = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "credit_note", voucher_date: "2026-07-04", taxable_value: 500, gst_rate: 18, department_id: dept, linked_invoice_id: paidInFull.id, reason_code: "short supply" });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, bigNote.id, step, 1);
+  m.postGuidedVoucher(db, bigNote.id, 1);
+  assert.equal(check(closure.computeOrderClosure(db, s14, options), "payment_received").ready, false, "a credit note on a paid invoice does not settle another invoice");
 });
 
 test("the order picker shows only the selected company's orders", async () => {
@@ -742,4 +755,90 @@ test("a97daf4 round: Tally exports with unclosed tags are read in one pass, and 
   m.updateVoucherProposal(db, proposal, { status: "Approved", narration: "edited", user_id: admin.id });
   assert.equal(db.prepare("SELECT status FROM voucher_proposals WHERE id = ?").get(proposal).status, "Needs Review");
   assert.throws(() => m.createDraftVoucherFromProposal(db, proposal, admin.id), /must be approved/);
+});
+
+test("owner decision EXP: % of gross uses the invoice's gross value and % of taxable its taxable value", () => {
+  const db = fresh();
+  const order = newOrder(db, "A2-EXP");
+  const inv = m.saveBillingVoucher(db, { header: { order_id: order, company_id: 1, invoice_date: "2026-07-01" }, items: [{ quantity: 1, billing_rate: 10000, gst_rate: 18 }] });
+  m.postSalesVoucher(db, inv.id);
+  const head = db.prepare("SELECT id FROM expense_heads LIMIT 1").get().id;
+  const posted = (method) => {
+    const exp = m.createRecord(db, "expense_entries", { company_id: 1, order_id: order, expense_head_id: head, expense_date: "2026-07-02", calculation_method: method, percentage: 5, expense_amount: 0, approval_status: "Approved" });
+    m.postBusinessTransaction(db, "expense_entries", exp.id);
+    const voucher = db.prepare("SELECT id FROM vouchers WHERE source_module = 'expense' AND source_id = ?").get(exp.id);
+    return db.prepare("SELECT SUM(debit) d FROM ledger_entries WHERE voucher_id = ?").get(voucher.id).d;
+  };
+  assert.equal(posted("percentage_gross"), 590, "5% of 11,800 gross");
+  assert.equal(posted("percentage_taxable"), 500, "5% of 10,000 taxable");
+  const row = m.orderProfitability(db, { company_id: 1 }).find((r) => r.id === order);
+  assert.equal(Math.round(row.totalExpenses * 100) / 100, 1090, "profitability uses the same formula");
+});
+
+test("owner decision CV: a supplier return's price gap goes to Purchase Price Variance, not Trade Payables", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Variance");
+  const order = newOrder(db, "A2-PPV");
+  const supplier2 = m.createRecord(db, "suppliers", { supplier_name: "A2 Second Supplier", status: "active" }).id;
+  // Supplier 1: 10 units at 100, never billed. Supplier 2: 10 units at 200, billed. Average 150.
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-PPV-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: supplier2, purchase_invoice_number: "A2-PPV-2", purchase_value: 2000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: supplier2, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-PPV-2", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const before = { tp: balance(db, "Trade Payables"), grni: balance(db, "Goods Received Not Invoiced"), inv: balance(db, "Inventory"), ppv: balance(db, "Purchase Price Variance") };
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-03", quantity: 5 });
+  m.postStockReturn(db, ret.id);
+  const diff = (name, was) => Math.round((balance(db, name) - was) * 100) / 100;
+  assert.equal(diff("Trade Payables", before.tp), 0, "supplier 1 has no bill, so nothing comes off Trade Payables");
+  assert.equal(diff("Goods Received Not Invoiced", before.grni), 500, "GRNI clears at supplier 1's price");
+  assert.equal(diff("Purchase Price Variance", before.ppv), 250, "the gap to the 150 average is a price variance");
+  assert.equal(diff("Inventory", before.inv), -750, "stock leaves at average cost");
+  // The ledger is reported under Purchases.
+  const group = db.prepare("SELECT g.group_code FROM accounts a JOIN account_group_assignments x ON x.account_id = a.id JOIN account_groups g ON g.id = x.account_group_id WHERE a.company_id = 1 AND a.account_name = 'Purchase Price Variance'").get();
+  assert.equal(group?.group_code, "PURCHASES");
+  // A return to the billed supplier comes off Trade Payables at that supplier's price.
+  const tp = balance(db, "Trade Payables"); const ppv = balance(db, "Purchase Price Variance");
+  const ret2 = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: supplier2, item_id: item, warehouse_id: wh, return_date: "2026-07-04", quantity: 2 });
+  m.postStockReturn(db, ret2.id);
+  assert.equal(diff("Trade Payables", tp), 400, "2 units at supplier 2's 200");
+  assert.equal(diff("Purchase Price Variance", ppv), -100, "stock at 150 leaves for 200: a credit to the variance");
+});
+
+test("owner decision CV: an existing ledger named Purchase Price Variance is reused and a taken code is never taken over", () => {
+  const db = fresh();
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A2 PPV Co')").run().lastInsertRowid;
+  db.prepare("INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status) VALUES (?, '5065', 'My Own Ledger', 'Expense', 'Debit', 0, 'active')").run(other);
+  m.ensurePurchasePriceVarianceAccount(db, other);
+  assert.equal(db.prepare("SELECT account_name FROM accounts WHERE company_id = ? AND account_code = '5065'").get(other).account_name, "My Own Ledger");
+  assert.equal(db.prepare("SELECT account_code FROM accounts WHERE company_id = ? AND account_name = 'Purchase Price Variance'").get(other).account_code, "5066");
+  m.ensurePurchasePriceVarianceAccount(db, other);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM accounts WHERE company_id = ? AND account_name = 'Purchase Price Variance'").get(other).n, 1);
+});
+
+test("9dac174 round: every Tally master kind counts against the preview cap, and the stock preview is capped too", () => {
+  const db = fresh();
+  const root = freshRoot();
+  const admin = db.prepare("SELECT id FROM users ORDER BY id LIMIT 1").get();
+  const groups = path.join(root, "groups.xml");
+  fs.writeFileSync(groups, `<ENVELOPE>${"<GROUP NAME=\"G\"></GROUP>".repeat(100001)}</ENVELOPE>`);
+  let started = Date.now();
+  assert.throws(() => m.previewTallyMasterMigration(db, [{ filePath: groups }], { user_id: admin.id }), /more than 1,00,000 masters/);
+  assert.ok(Date.now() - started < 5000, `took ${Date.now() - started} ms`);
+  const stock = path.join(root, "stock.xml");
+  fs.writeFileSync(stock, `<ENVELOPE>${"<STOCKITEM NAME=\"S\"></STOCKITEM>".repeat(100001)}</ENVELOPE>`);
+  started = Date.now();
+  assert.throws(() => m.previewTallyStockXml(stock), /more than 1,00,000 stock items/);
+  assert.ok(Date.now() - started < 5000, `took ${Date.now() - started} ms`);
+});
+
+test("9dac174 round: padding after a compressed xlsx part does not dodge the expansion check", () => {
+  const sheet = `<worksheet><sheetData>${"<row><c t=\"str\"><v>a</v></c></row>".repeat(400000)}</sheetData></worksheet>`;
+  const data = zlib.deflateRawSync(Buffer.from(sheet));
+  const padded = Buffer.concat([data, Buffer.alloc(Math.ceil(Buffer.byteLength(sheet) / 150))]);
+  const name = Buffer.from("xl/worksheets/sheet1.xml");
+  const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(8, 8); local.writeUInt32LE(padded.length, 18); local.writeUInt16LE(name.length, 26);
+  const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(8, 10); central.writeUInt32LE(padded.length, 20); central.writeUInt16LE(name.length, 28);
+  const cd = Buffer.concat([central, name]);
+  const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(1, 8); eocd.writeUInt16LE(1, 10); eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(30 + name.length + padded.length, 16);
+  assert.throws(() => m.parseImportBuffer("pad.xlsx", Buffer.concat([local, name, padded, cd, eocd])), /expands \d+ times when opened/);
 });

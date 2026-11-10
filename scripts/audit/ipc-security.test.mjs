@@ -396,9 +396,17 @@ test("SEC-1: an allowed high-impact action is recorded with the signed-in admin"
     assert.equal(row?.username, "admin", "the grant names the signed-in admin, not the id the screen sent");
     assert.match(row.new_value, /system_reset/);
   } finally { db.close(); }
-  // Channels behind the session guard record their grants too.
+  // Channels behind the session guard record their grants too, for writes only: a read
+  // (opening the mapping panel, listing users) is checked but writes no grant row.
   const mark = (() => { const side2 = side(); try { return side2.prepare("SELECT COALESCE(MAX(id), 0) id FROM audit_log").get().id; } finally { side2.close(); } })();
   await call(admin, "account-mapping:registry", { company_id: 1 });
+  await call(admin, "account-mapping:coverage", { company_id: 1 });
+  await call(admin, "auth:list-users");
+  const db1 = side();
+  try {
+    assert.equal(db1.prepare("SELECT COUNT(*) c FROM audit_log WHERE id > ? AND action = 'permission_granted'").get(mark).c, 0, "reads write no grant rows");
+  } finally { db1.close(); }
+  await call(admin, "account-mapping:assign", { company_id: 1 });
   const db2 = side();
   try {
     const grant = db2.prepare("SELECT a.new_value, u.username FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE a.id > ? AND a.action = 'permission_granted' ORDER BY a.id LIMIT 1").get(mark);

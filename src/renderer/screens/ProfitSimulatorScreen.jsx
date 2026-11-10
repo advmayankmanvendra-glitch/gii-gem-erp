@@ -37,6 +37,8 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
   // order profitability report; this screen only shows them.
   const [result, setResult] = useState(null);
   const [loadError, setLoadError] = useState("");
+  // Another company's figures are never shown while this one's load.
+  useEffect(() => { setResult(null); setLoadError(""); }, [companyContext?.company_id, companyContext?.company_scope]);
   useEffect(() => {
     let current = true;
     // Each request reruns the profitability report, so typing waits for a short pause.
@@ -45,6 +47,7 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
         if (current) { setResult(data); setLoadError(""); }
       }).catch((error) => {
         if (!current) return;
+        setResult(null);
         setLoadError(error.message);
         notify(error.message, "error");
       });
@@ -63,7 +66,10 @@ export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
 
   function updateParam(key, value) {
     const num = parseFloat(value);
-    setParams((prev) => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+    // The box shows the same limits the main program applies, so a typed value is never silently changed.
+    const percentOnly = key === "incentivePercent" || key === "gstRateOverride";
+    const bounded = isNaN(num) ? 0 : Math.min(percentOnly ? 100 : 1000, Math.max(percentOnly ? 0 : -100, num));
+    setParams((prev) => ({ ...prev, [key]: bounded }));
     setSelectedScenario("");
   }
 

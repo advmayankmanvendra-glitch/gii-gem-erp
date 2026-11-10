@@ -172,7 +172,10 @@ try {
   check("Canonical account groups are seeded", groupCount === 29, `groups=${groupCount}`);
   check("Canonical statement mappings are seeded", mappingCount === 20, `mappings=${mappingCount}`);
 
-  const expectedDefaultMappings = defaultAccountMappingEntries().length;
+  // Plus one Purchase Price Variance ledger per company (owner decision CV, 10 Nov 2026 IST),
+  // which is mapped by its id because its code is the first free one.
+  const varianceLedgers = db.prepare("SELECT COUNT(*) count FROM accounts WHERE account_name = 'Purchase Price Variance' AND COALESCE(is_deleted, 0) = 0").get().count;
+  const expectedDefaultMappings = defaultAccountMappingEntries().length + varianceLedgers;
   const assignmentCount = db.prepare(
     "SELECT COUNT(*) count FROM account_group_assignments WHERE provenance = 'SYSTEM_SEED'"
   ).get().count;
