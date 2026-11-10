@@ -276,28 +276,33 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   };
 
   const handleEnhancedDependencies = async () => {
+    // Every answer below belongs to the company selected when this started; after a
+    // company switch the workflow was already restarted, so a late answer changes nothing.
+    const requested = resetPreviewPayload();
     setResetStep("dependencies");
     setResetDependencyLoading(true);
     try {
-      const result = await apiClient.analyzeResetDependencies?.(resetPreviewPayload());
+      const result = await apiClient.analyzeResetDependencies?.(requested);
+      if (isStaleFor(requested.company_id)) return;
       setResetDependencies(result);
       if (result?.total?.blocked > 0) {
         setResetError("Dependency analysis found blocked tables. Reset cannot proceed.");
         setResetStep("blocked");
       } else {
-        setResetStep("preview");
-        const requested = resetPreviewPayload();
         const preview = await apiClient.previewReset(requested);
         if (isStaleFor(requested.company_id)) return;
         setResetPreview(preview);
+        setResetStep("preview");
       }
     } catch (error) {
+      if (isStaleFor(requested.company_id)) return;
       setResetError(error.message || "Dependency analysis failed");
       setResetStep("error");
     } finally {
       setResetDependencyLoading(false);
     }
   };
+
 
   const handleEnhancedExecute = async () => {
     if (resetConfirm !== "RESET" || !previewMatchesCompany) return;
