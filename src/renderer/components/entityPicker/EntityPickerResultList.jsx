@@ -1,6 +1,6 @@
 import { EntityPickerResultRow } from "./EntityPickerResultRow.jsx";
 
-export function EntityPickerResultList({ config, results, loading, hasMore, activeIndex, listRef, onSelect, onLoadMore }) {
+export function EntityPickerResultList({ config, results, loading, hasMore, activeIndex, listRef, onSelect, onLoadMore, listboxId = "entity-picker-listbox", optionId = (index) => `entity-picker-option-${index}` }) {
   if (loading && results.length === 0) {
     return <div className="entity-picker-status">Searching...</div>;
   }
@@ -10,7 +10,7 @@ export function EntityPickerResultList({ config, results, loading, hasMore, acti
   }
 
   return (
-    <div className="entity-picker-results" ref={listRef} role="listbox" tabIndex={-1}>
+    <div className="entity-picker-results" ref={listRef} id={listboxId} role="listbox" tabIndex={-1}>
       {results.map((record, index) => (
         <EntityPickerResultRow
           key={record.id || index}
@@ -18,7 +18,7 @@ export function EntityPickerResultList({ config, results, loading, hasMore, acti
           record={record}
           active={index === activeIndex}
           onSelect={onSelect}
-          id={`entity-picker-option-${index}`}
+          id={optionId(index)}
         />
       ))}
       {hasMore && (

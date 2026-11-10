@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, useId } from "react";
 import { getEntityPickerConfig } from "./EntityPickerRegistry.js";
 import { useEntitySearch } from "./useEntitySearch.js";
 import { useEntityPickerKeyboard } from "./useEntityPickerKeyboard.js";
@@ -12,6 +12,8 @@ import { getRememberedEntityPickerRecord, rememberEntityPickerRecord } from "./E
 export function SmartEntityPicker({ entityType, api, role, companyId, value, onChange, onQuickCreate, disabled, placeholder }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
+  // Ties the search box to its result list for screen readers.
+  const pickerId = `entity-picker-${useId().replace(/:/g, "")}`;
   const storeRef = useRef(null);
   const config = useMemo(() => getEntityPickerConfig(entityType), [entityType]);
 
@@ -130,6 +132,8 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
             <button type="button" className="entity-picker-close-btn" onClick={handleClose} aria-label="Close">&times;</button>
           </div>
           <EntityPickerSearchInput
+            listboxId={`${pickerId}-listbox`}
+            activeOptionId={keyboard.activeIndex >= 0 && keyboard.activeIndex < searchApi.results.length ? `${pickerId}-option-${keyboard.activeIndex}` : ""}
             placeholder={config.searchPlaceholder}
             value={searchApi.query}
             onChange={(value) => {
@@ -147,6 +151,8 @@ export function SmartEntityPicker({ entityType, api, role, companyId, value, onC
             listRef={keyboard.listRef}
             onSelect={handleSelect}
             onLoadMore={searchApi.loadMore}
+            listboxId={`${pickerId}-listbox`}
+            optionId={(index) => `${pickerId}-option-${index}`}
           />
           {searchApi.results.length === 0 && !searchApi.loading && searchApi.query.trim() && permission.canCreate && (
             <div className="entity-picker-empty-create">

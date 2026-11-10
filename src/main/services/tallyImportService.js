@@ -263,7 +263,7 @@ export function createTallyImportService(deps) {
       address: tallyAddress(block.body) || tallyTagValue(block.body, "ADDRESS") || "",
       suggested_master: "warehouses",
       source_file: sourceFile,
-      duplicate_match: findMasterImportDuplicate(db, "warehouses", payload, companyId),
+      duplicate_match: findMasterImportDuplicate(db, "warehouses", payload, companyId, previewDuplicateCache),
       import_payload: payload
     };
   }
@@ -287,7 +287,7 @@ export function createTallyImportService(deps) {
     const warnings = [...(item.warnings || [])];
     if (!payload.gst_rate) warnings.push("GST requires row-wise review before import");
     const failed = !payload.item_name || !payload.unit || item.import_status === "failed";
-    const duplicate = findMasterImportDuplicate(db, "items", payload, firstCompanyId(db));
+    const duplicate = findMasterImportDuplicate(db, "items", payload, firstCompanyId(db), previewDuplicateCache);
     return {
       ...item,
       source_file: sourceFile,
@@ -315,7 +315,7 @@ export function createTallyImportService(deps) {
     const payload = ledgerImportPayload(classification.master, {
       ledgerName, gstin, pan, address, contact, accountNumber, ifsc, bankName
     });
-    const duplicate = payload ? findMasterImportDuplicate(db, classification.master, payload, firstCompanyId(db)) : null;
+    const duplicate = payload ? findMasterImportDuplicate(db, classification.master, payload, firstCompanyId(db), previewDuplicateCache) : null;
     const warnings = [];
     if (!ledgerName) warnings.push("Missing ledger name");
     if (!classification.master) warnings.push("Ledger group needs manual mapping");
@@ -435,6 +435,13 @@ export function createTallyImportService(deps) {
     return parseTallyStockItemsXml(xmlText, path.basename(filePath));
   }
 
+  // Set for the length of one migration preview only (it reads, never writes), so the
+  // duplicate check reads each master table once instead of once per ledger.
+  let previewDuplicateCache = null;
+  // Masters in one preview; each becomes a row in the reply the screen receives.
+  const MAX_TALLY_PREVIEW_MASTERS = 100000;
+  const MAX_TALLY_PREVIEW_SPREADSHEETS = 5;
+
   const MAX_TALLY_PREVIEW_FILES = 20;
   const MAX_TALLY_PREVIEW_BYTES = 50 * 1024 * 1024;
 
@@ -475,6 +482,10 @@ export function createTallyImportService(deps) {
       referenceFiles: [], errors: [], fileSummaries: []
     };
 
+    let mastersRead = 0;
+    let spreadsheetsRead = 0;
+    previewDuplicateCache = new Map();
+    try {
     sourceFiles.forEach((file) => {
       const filePath = file.filePath;
       const fileName = path.basename(filePath || "");
@@ -496,11 +507,24 @@ export function createTallyImportService(deps) {
           }));
           uniqueNamedTallyBlocks(xmlText, "GODOWN").forEach((block) => aggregate.godowns.push(tallyGodownCandidate(db, block, fileName)));
           uniqueNamedTallyBlocks(xmlText, "STOCKGROUP").forEach((block) => aggregate.stockGroups.push({ name: block.name, parent: tallyTagValue(block.body, "PARENT") || "", source_file: fileName }));
-          namedTallyBlocks(xmlText, "LEDGER").forEach((block, index) => aggregate.ledgers.push(tallyLedgerCandidate(db, block, index, fileName)));
+          const ledgerBlocks = namedTallyBlocks(xmlText, "LEDGER");
+          mastersRead += ledgerBlocks.length + tallyTagBlocks(xmlText, "STOCKITEM").length;
+          if (mastersRead > MAX_TALLY_PREVIEW_MASTERS) {
+            const error = new Error(`Preview refused: the selected files hold more than ${MAX_TALLY_PREVIEW_MASTERS.toLocaleString("en-IN")} ledgers and stock items, more than one preview can show. In Tally, export the masters in parts (for example ledgers and stock items separately) and preview each part.`);
+            error.code = "TALLY_PREVIEW_TOO_LARGE";
+            throw error;
+          }
+          ledgerBlocks.forEach((block, index) => aggregate.ledgers.push(tallyLedgerCandidate(db, block, index, fileName)));
           const stockPreview = parseTallyStockItemsXml(xmlText, fileName);
           stockPreview.items.forEach((item) => aggregate.stockItems.push(tallyStockItemCandidate(db, item, fileName)));
           aggregate.fileSummaries.push({ file_name: fileName, file_type: file.type || "Tally XML", row_count: stockPreview.items.length + aggregate.ledgers.filter((row) => row.source_file === fileName).length, status: "Previewed" });
         } else if ([".csv", ".xlsx", ".xls"].includes(extension)) {
+          // Spreadsheets are reference only (the preview shows 50 rows of each), yet each is
+          // parsed in full on the main thread; a few per preview is plenty.
+          spreadsheetsRead += 1;
+          if (spreadsheetsRead > MAX_TALLY_PREVIEW_SPREADSHEETS) {
+            throw new Error(`Skipped: one preview reads at most ${MAX_TALLY_PREVIEW_SPREADSHEETS} spreadsheet reference files. Preview the rest in another batch.`);
+          }
           const rows = parseImportFile(filePath);
           aggregate.referenceFiles.push({ file_name: fileName, file_type: file.type || extension.slice(1).toUpperCase(), rows: rows.slice(0, 50), row_count: rows.length, reference_only: true });
           aggregate.fileSummaries.push({ file_name: fileName, file_type: file.type || "Reference", row_count: rows.length, status: "Reference only" });
@@ -508,10 +532,14 @@ export function createTallyImportService(deps) {
           throw new Error("Unsupported file type");
         }
       } catch (error) {
+        if (error?.code === "TALLY_PREVIEW_TOO_LARGE") throw error;
         aggregate.errors.push({ file_name: fileName, error: error.message || "Unable to parse file" });
         aggregate.fileSummaries.push({ file_name: fileName, file_type: file.type || extension, row_count: 0, status: "Failed" });
       }
     });
+    } finally {
+      previewDuplicateCache = null;
+    }
 
     aggregate.companies = uniqueBy(aggregate.companies, (row) => normalizeDuplicateKey(row.tally_company_name));
     aggregate.ledgerGroups = uniqueBy(aggregate.ledgerGroups, (row) => normalizeDuplicateKey(row.name));

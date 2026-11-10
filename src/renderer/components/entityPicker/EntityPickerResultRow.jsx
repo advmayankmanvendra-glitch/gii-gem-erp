@@ -7,11 +7,10 @@ export function EntityPickerResultRow({ config, record, active, onSelect, id }) 
     <button
       type="button"
       className={`entity-picker-row${active ? " active" : ""}`}
-      onMouseDown={(event) => {
-        event.preventDefault();
-        onSelect(record);
-      }}
-      onMouseEnter={() => {}}
+      // Mouse down keeps focus in the search box; the selection itself happens on click, so
+      // Enter, Space and assistive technology select the result too.
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onSelect(record)}
       id={id}
       role="option"
       aria-selected={active}
