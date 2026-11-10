@@ -116,7 +116,7 @@ Copilot reviewed for the first time and raised eight findings; the three own aud
 
 - **Posting now checks each ledger entry against its line.** Every line must have exactly one ledger entry with the same account and amounts, in the voucher's company, and every line's account must belong to that company. Before, only the totals were compared.
 - **Paise must be whole numbers.** SQLite would store 0.5 in an integer column; posting now refuses it.
-- **Corrections are stricter.** A rounding adjustment must be one line on the company's Rounding Off ledger; a one-sided reversal must mirror the original (made exact in Round 4: each original line used once). Lines and ledger must agree on debit and credit totals separately, not only on the net difference.
+- **Corrections are stricter.** A rounding adjustment must be one line on the company's Rounding Off ledger; a one-sided reversal must mirror the original (made exact in Rounds 4 and 5: each non-zero original line used once, and no zero lines). Lines and ledger must agree on debit and credit totals separately, not only on the net difference.
 - **Maintenance windows stay inside their company.** A window for one company can no longer move a posted voucher to another company, or add or move ledger entries onto another company's voucher; the same-company rule for entries holds even inside a window.
 - **A trigger the app did not create on the ledger tables** is removed at start-up and logged, and the money integrity check reports one found while the app runs.
 - **Unposted vouchers holding ledger entries** are reported by the integrity check, since some reports read entries without checking the voucher's status.
@@ -145,6 +145,22 @@ The three own audits found one serious bug and several smaller ones. All were fi
 The start-up count on 200,000 vouchers with no indexes takes about 1.3 s (it runs twice per start).
 
 After the fixes: `npm run test:integrity` 166 + 23 tests pass; `vite build`, `lint:syntax`, the database-graph and audit-graph checks pass; the older-format database was upgraded on a copy with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row; the desktop app showed Money integrity at 1440×900 and 800×600 with difference 0.00, no overflow and no page errors (`smoke-round4/`); all 2 lakh amounts posted again with trial balance difference 0.00 and 0 problems. PR #4 head `9dac174` was then merged in with no conflicts, and the tests, lint, build and graph checks pass again.
+
+## Rounds 5 and 6 (10–11 Nov 2026 IST): own audits on 8894f79, then a check of the fixes
+
+The owner gave the merge go on 11 Nov 00:10 IST, once the audits are clean. The correctness audit found 4 small items, the security audit 10 holes and the architecture audit 7 items. A follow-up check of those fixes found 3 more. All are fixed, each with a test:
+
+- **Entry dates.** Every ledger entry must carry its voucher's date. Before, one entry could be dated in a closed year while every check stayed clean.
+- **Reversed status.** A voucher becomes Reversed only once its reversal voucher is posted.
+- **Deleted rows.** A voucher marked deleted, or holding deleted lines or entries, cannot be posted, and a deleted entry cannot be written outside a maintenance window.
+- **Replace across companies.** INSERT OR REPLACE or UPDATE OR REPLACE onto a posted row needs a window for that row's own company. A voucher cannot move to another company away from its lines' accounts or entries, even inside a window.
+- **Reversal mirror.** A one-sided reversal may not hold zero lines, so it cannot pad out lines it leaves un-reversed. A voucher whose lines disagree with its ledger is not reversed automatically.
+- **Checks.** The shared check also flags entries dated off the voucher, deleted accounts still in use, deleted lines, fractional paise and a posted voucher with no lines. The start-up check compares voucher ids, not a count. TEMP triggers on the ledger tables are dropped. Health's ledger balance reads only posted vouchers' active entries.
+- **Speed.** The shared check is one grouped pass, and the report and Error Console net corrections in memory. With 20,000 vouchers, 4,000 of them off by paise, the money report takes about 0.4 s instead of 19 s. With 15,000 settled originals, the Error Console check takes 0.4 s instead of 12–18 s.
+
+PR #4 heads `605a873` and `dc030e6` were merged in. Their supplier-return split keeps paise: the price-variance line is the Inventory credit less GRNI and Trade Payables, in whole paise, so the return voucher balances under the guards.
+
+After the fixes (head `43c5ccf`): `npm run test:integrity` 188 + 24 tests pass; lint, build and graph checks pass; databases made by five older versions open with all guards and no defects; the older-format rehearsal again settles with `RNDADJ-00001` to 0.00; the desktop app shows Money integrity at difference 0.00 at both sizes (`smoke-round6/`); all 2 lakh amounts posted again on `5f16fb2` (the merged PR #4 code; round 6 changed no posting path) with trial balance difference 0.00 and 0 problems.
 
 ## Restore point
 

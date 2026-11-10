@@ -701,11 +701,11 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 278,
+      "lineNumber": 407,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
-      "voucherTypeCreated": "journal",
+      "voucherTypeCreated": "Journal",
       "debitAccounts": ["Goods Received Not Invoiced", "Trade Payables", "Purchase Price Variance", "Inventory"],
       "creditAccounts": ["Inventory", "Cost of Goods Sold", "Purchase Price Variance"],
       "transactionBoundary": "db.transaction() - stock ledger + Journal voucher + status update",
@@ -1761,7 +1761,7 @@
     },
     {
       "gapId": "KG4-GAP-002",
-      "description": "Closed by FSR-2A4 (PR #4): stock adjustments, stock returns and warehouse transfers now post Journal vouchers. The rest of this graph is brought up to date in KG-4 v1.1 after the branch convergence (see docs/audit/in-house-audits-2026-10/2026-11-10-convergence/).",
+      "description": "Partly closed by FSR-2A4 (PR #4): stock adjustments and stock returns now post Journal vouchers; warehouse transfers still post none (the value only moves between warehouses). The rest of this graph is brought up to date in KG-4 v1.1 after the branch convergence (see docs/audit/in-house-audits-2026-10/2026-11-10-convergence/).",
       "impact": "Until KG-4 v1.1, other entries of this graph may still describe stock movements without their vouchers",
       "workaround": "Read src/main/services/inventoryService.js and docs/architecture/fsr-2a4-perpetual-inventory-policy.md for the current postings"
     },

@@ -454,8 +454,8 @@ test("605a873 round: a support bundle names the signed-in user and stays small w
   const users = side();
   try { assert.equal(bundle.context.user_id, users.prepare("SELECT id FROM users WHERE username = 'admin'").get().id); } finally { users.close(); }
   assert.equal(bundle.context.user_name, "admin");
-  assert.match(JSON.stringify(bundle.context.screenContext), /larger than 1 MB/);
+  assert.match(bundle.context.screenContextJson, /larger than 1 MB/);
   const small = await call(admin, "health:support-bundle", { source: "safe_mode", crashes: [{ message: "kept" }] });
   const kept = JSON.parse(fs.readFileSync(small.ok.filePath, "utf8"));
-  assert.equal(kept.context.screenContext.crashes[0].message, "kept", "Safe Mode's crash list is still in the bundle");
+  assert.equal(JSON.parse(kept.context.screenContextJson).crashes[0].message, "kept", "Safe Mode's crash list is still in the bundle");
 });

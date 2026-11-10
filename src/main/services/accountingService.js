@@ -1,4 +1,4 @@
-import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE, voucherLedgerCheckSql } from "../database/ledgerGuards.js";
 import { parseMoneyToMinor, roundMoney, rupees, sumRupees, subtractRupees } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
@@ -466,6 +466,12 @@ export function createAccountingService(deps) {
     const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0").get(VOUCHER_REVERSAL_SOURCE, original.id);
     if (existingReversal) throw new Error("Voucher reversal already exists");
 
+    // A mirror of lines that disagree with the ledger would post amounts the ledger never
+    // held (or miss ones it did), so such a voucher is not reversed automatically.
+    const check = db.prepare(`${voucherLedgerCheckSql("SELECT ?")} SELECT mismatch FROM checked`).get(original.id);
+    if (check?.mismatch) {
+      throw new Error(`${original.voucher_number} cannot be reversed automatically: its lines do not match its ledger entries. Open Health > Money integrity and export a support bundle.`);
+    }
     // Every line is reversed, as the ledger and the database guards count every line.
     const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");

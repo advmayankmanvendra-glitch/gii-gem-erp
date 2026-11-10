@@ -359,15 +359,19 @@ export function createInventoryService(deps) {
   // Stock leaves at the warehouse average cost. The gap between that and the two amounts
   // above is a purchase price variance, not money the supplier owes or is owed.
   // Returns are not linked to a specific receipt (decision C2: keep the pool), so this is
-  // judged per item, supplier and order rather than per receipt.
+  // judged per item, supplier and order rather than per receipt. A return with no order may
+  // have used any order's receipts, so it counts against an order's return as well; that can
+  // leave value that is not used up, never the same units cleared twice.
   function supplierReturnSplit(db, row, quantity, retValue) {
     if (!row.supplier_id) {
       const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
       return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0 };
     }
     const orderId = row.order_id || null;
+    // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
+    // supplier at the supplier's own rate, without freight or other landed cost.
     const receiptLots = (billed) => db.prepare(`
-      SELECT sl.inward_quantity quantity, sl.value_minor / 100.0 value FROM stock_inwards si
+      SELECT sl.inward_quantity quantity, ${billed ? "sl.inward_quantity * COALESCE(si.rate, 0)" : "sl.value_minor / 100.0"} value FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
@@ -382,7 +386,7 @@ export function createInventoryService(deps) {
       JOIN voucher_lines vl ON vl.voucher_id = v.id
       JOIN accounts a ON a.id = vl.account_id AND a.account_name = ?
       WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
-        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ?)
+        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0 AND (? IS NULL OR sr.order_id = ? OR sr.order_id IS NULL)
     `).get(accountName, row.company_id, row.supplier_id, row.item_id, row.id, orderId, orderId)?.value || 0);
     // Takes value already returned off the oldest lots, then takes up to `wanted` units at each lot's price.
     const takeFrom = (lots, alreadyValue, wanted) => {
@@ -391,7 +395,8 @@ export function createInventoryService(deps) {
       let value = 0;
       for (const lot of lots) {
         let available = lot.quantity;
-        if (skip > 0.005) {
+        // A free (zero-price) receipt holds no value for earlier returns to have used up.
+        if (skip > 0.005 && lot.rate > 0) {
           const skipped = Math.min(available, skip / lot.rate);
           available -= skipped;
           skip -= skipped * lot.rate;
@@ -457,7 +462,8 @@ export function createInventoryService(deps) {
           { account_id: accountId(db, row.company_id, "Inventory"), debit: retValue, credit: 0 },
           { account_id: accountId(db, row.company_id, "Cost of Goods Sold"), debit: 0, credit: retValue }
         ] : [
-          ...(payablesPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Trade Payables"), debit: payablesPortion, credit: 0 }] : []),
+          // The supplier's own ledger shows the return, as it shows the bill.
+          ...(payablesPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Trade Payables"), debit: payablesPortion, credit: 0, ...(row.supplier_id ? { linked_party_type: "supplier", linked_party_id: row.supplier_id } : {}) }] : []),
           ...(grniPortion > 0 ? [{ account_id: accountId(db, row.company_id, "Goods Received Not Invoiced"), debit: grniPortion, credit: 0 }] : []),
           // Stock is cheaper or dearer at average cost than the supplier's price: the gap.
           ...(variance > 0 ? [{ account_id: varianceAccount, debit: variance, credit: 0 }] : []),

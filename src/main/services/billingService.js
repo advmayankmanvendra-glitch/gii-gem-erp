@@ -2,8 +2,6 @@ import { roundMoney, sumRupees, subtractRupees } from "../domain/money.js";
 import { invoiceLineAmounts } from "../domain/invoiceMath.js";
 import { expenseFormulaAmount } from "../domain/expenseFormula.js";
 
-export { expenseFormulaAmount };
-
 
 export function createBillingService(deps) {
   const {
