@@ -116,18 +116,35 @@ Copilot reviewed for the first time and raised eight findings; the three own aud
 
 - **Posting now checks each ledger entry against its line.** Every line must have exactly one ledger entry with the same account and amounts, in the voucher's company, and every line's account must belong to that company. Before, only the totals were compared.
 - **Paise must be whole numbers.** SQLite would store 0.5 in an integer column; posting now refuses it.
-- **Corrections are stricter.** A rounding adjustment must be one line on the company's Rounding Off ledger; a one-sided reversal must mirror the original line for line. Lines and ledger must agree on debit and credit totals separately, not only on the net difference.
+- **Corrections are stricter.** A rounding adjustment must be one line on the company's Rounding Off ledger; a one-sided reversal must mirror the original (made exact in Round 4: each original line used once). Lines and ledger must agree on debit and credit totals separately, not only on the net difference.
 - **Maintenance windows stay inside their company.** A window for one company can no longer move a posted voucher to another company, or add or move ledger entries onto another company's voucher; the same-company rule for entries holds even inside a window.
 - **A trigger the app did not create on the ledger tables** is removed at start-up and logged, and the money integrity check reports one found while the app runs.
 - **Unposted vouchers holding ledger entries** are reported by the integrity check, since some reports read entries without checking the voucher's status.
 - **Start-up check.** The count is one grouped pass that needs no index (20,000 vouchers: well under a second, where the first version took about a minute on an older database), it only hides a "no such column" error, it does not compare on the start that runs migration 036 (which can uncover older defects), and a failure shows in Health Center.
-- **Integrity report.** It now lists vouchers whose entries do not match their lines, and a stored amount with a fraction of a paisa counts as harmless only when it rounds to its paise value. The Error Console's voucher check also flags lines that disagree with the ledger, so it agrees with the integrity check.
+- **Integrity report.** It now lists vouchers whose entries do not match their lines, and a stored amount with a fraction of a paisa counts as harmless only when it rounds to its paise value. The Error Console's voucher check also flags lines that disagree with the ledger, (fully aligned in Round 4, where both read one shared check).
 - **Stock.** A receipt worth less than half a paisa no longer picks up the item's average cost.
 - **Screens.** The Money integrity panel clears its result when the company changes and ignores an older answer that arrives late. Alt+C inside a picker now uses the name just typed.
 
 Left as it is: GST registers, the GST summary, the GRNI check and two health totals read ledger entries without checking the voucher's status. After this change only an interrupted posting could leave entries on a draft, and the integrity check now reports that case; changing those reports is a separate change.
 
 After the fixes and the merge of PR #4 head `3c12e50`: `npm run test:integrity` 159 + 23 tests pass; all 2 lakh amounts posted again with trial balance difference 0.00 and 0 problems; `vite build`, `lint:syntax` and the database-graph check pass; the older-format database was upgraded on a copy again with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row.
+
+## Round 4 (10 Nov 2026 IST): own audits on 66bb35a
+
+The three own audits found one serious bug and several smaller ones. All were fixed with tests:
+
+- **Integrity report (High, found by two audits).** A missing pair of brackets meant one draft voucher with lines but no ledger entries, which Bank Reconciliation leaves as a normal state, made the report fail every posted voucher and refused every rounding adjustment. The check also ran one query per voucher, which took about two minutes at 8,000 vouchers and froze the app. It is now grouped passes over each table: 20,000 vouchers in about a second.
+- **One shared rule.** Health Center, the Error Console and the start-up count now read the same check: debit and credit totals compared separately, one matching entry per line, and every line, entry and account in the voucher's company. Before, the Error Console and the start-up count missed a voucher with balanced lines and no ledger entries, and entries doubled on both sides. A test runs four defect cases through all three.
+- **Reversal mirror.** A one-sided reversal must use each original line exactly once. Before, two copies of one line could stand in for two different lines.
+- **Rounding adjustment.** Its line must be on the company's active Expense ledger named Rounding Off, so a look-alike account cannot be used.
+- **Accounts stay in their company** for lines and entries even inside a maintenance window.
+- **Planted triggers.** A trigger is caught whatever case its table name uses, and also when it sits on another table but writes to the ledger tables.
+- **Guards are compiled at start-up.** SQLite checks a trigger's column names only when it runs, so a future migration that renamed a column would have broken every posting. Now such a change fails at start-up.
+- **Soft-deleted entries** are ignored by every posting check.
+
+The start-up count on 200,000 vouchers with no indexes takes about 1.3 s (it runs twice per start).
+
+After the fixes: `npm run test:integrity` 166 + 23 tests pass; `vite build`, `lint:syntax`, the database-graph and audit-graph checks pass; the older-format database was upgraded on a copy with all guards in place, settled by `RNDADJ-00001`, trial balance 0.00 and no start-up audit row; the desktop app showed Money integrity at 1440×900 and 800×600 with difference 0.00, no overflow and no page errors (`smoke-round4/`); all 2 lakh amounts posted again with trial balance difference 0.00 and 0 problems. PR #4 head `9dac174` was then merged in with no conflicts, and the tests, lint, build and graph checks pass again.
 
 ## Restore point
 
