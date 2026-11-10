@@ -12,6 +12,7 @@ import {
   auditLog,
   runAsActor,
   currentActor as ambientActor,
+  receivableOutstandingBeforeAdjustment,
   roleCan,
   enforceBankDetailPermission,
   verifyAuditChain,
@@ -1381,8 +1382,9 @@ function registerIpc() {
   handle("crac:payment-readiness", (_event, filters) => getPaymentReadinessReport(db, filters));
   handle("crac:billed-without-crac", (_event, filters) => getOrdersBilledWithoutCrac(db, Number(filters?.company_id || 0)));
   handle("crac:payment-delayed", (_event, filters) => getPaymentDelayedOrders(db, Number(filters?.company_id || 0)));
-  handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId));
-  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId, auditEntry)));
+  const closureOptions = { outstandingFor: receivableOutstandingBeforeAdjustment };
+  handle("crac:closure-compute", (_event, orderId) => computeOrderClosure(db, orderId, closureOptions));
+  handle("crac:closure-mark", guarded("edit", "supply_orders", (orderId) => markOrderOperationallyClosed(db, orderId, auditEntry, closureOptions)));
   handle("crac:closure-pending", (_event, filters) => getClosurePendingOrders(db, Number(filters?.company_id || 0)));
 
   handle("feedback:submit", (event, payload = {}) => {

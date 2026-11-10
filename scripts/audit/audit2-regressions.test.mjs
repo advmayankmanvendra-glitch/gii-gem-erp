@@ -602,3 +602,50 @@ test("a go-live rollback refusal carries a code, so it is told apart from a faul
     assert.match(error.message, /^Rollback refused:/);
   }
 });
+
+test("order closure needs every posted invoice settled and nothing saved but unposted", async () => {
+  const closure = await service("orderClosureService.js");
+  const db = fresh();
+  const so = newOrder(db, "A2-CLOSE");
+  const check = (result, key) => result.checks.find((row) => row.key === key);
+  const options = { outstandingFor: m.receivableOutstandingBeforeAdjustment };
+
+  // A receipt alone, with no posted invoice, is not settlement.
+  db.prepare("INSERT INTO payments (company_id, order_id, payment_date, payment_amount, payment_mode, posting_status) VALUES (1, ?, '2026-07-02', 10, 'NEFT', 'Posted')").run(so);
+  let result = closure.computeOrderClosure(db, so, options);
+  assert.equal(check(result, "payment_received").ready, false);
+
+  // A saved but unposted invoice is open work.
+  const inv = m.saveBillingVoucher(db, { header: { order_id: so, company_id: 1, invoice_date: "2026-07-03" }, items: [{ quantity: 1, billing_rate: 1000, gst_rate: 0 }] });
+  result = closure.computeOrderClosure(db, so, options);
+  assert.equal(check(result, "invoice_submitted").ready, false);
+  assert.equal(check(result, "no_outstanding_issues").ready, false);
+  assert.match(check(result, "no_outstanding_issues").detail, /1 invoice\(s\)/);
+
+  // Posted but unpaid: the invoice is named as still to receive.
+  m.postSalesVoucher(db, inv.id);
+  result = closure.computeOrderClosure(db, so, options);
+  assert.equal(check(result, "invoice_submitted").ready, true);
+  assert.equal(check(result, "no_outstanding_issues").ready, true);
+  assert.equal(check(result, "payment_received").ready, false);
+  const number = db.prepare("SELECT invoice_number FROM invoices WHERE id = ?").get(inv.id).invoice_number;
+  assert.ok(check(result, "payment_received").detail.includes(number));
+  assert.throws(() => closure.markOrderOperationallyClosed(db, so, (entry) => m.auditLog(db, entry), options), /Order cannot be closed yet\. Still open: .*Payment Settled \(Still to receive on /);
+  assert.equal(db.prepare("SELECT operationally_closed FROM supply_orders WHERE id = ?").get(so).operationally_closed || 0, 0);
+
+  // Nothing left to receive: settled.
+  result = closure.computeOrderClosure(db, so, { outstandingFor: () => 0 });
+  assert.equal(check(result, "payment_received").ready, true);
+});
+
+test("the order picker shows only the selected company's orders", async () => {
+  const search = await service("entitySearchService.js");
+  const db = fresh();
+  const other = db.prepare("INSERT INTO companies (company_name) VALUES ('A2 Other Co')").run().lastInsertRowid;
+  newOrder(db, "A2-SCOPE-1");
+  const second = newOrder(db, "A2-SCOPE-2");
+  db.prepare("UPDATE supply_orders SET company_id = ? WHERE id = ?").run(other, second);
+  const numbers = (companyId) => search.searchEntities(db, "supply_order", "A2-SCOPE", { company_id: companyId }).results.map((row) => row.order_number).sort();
+  assert.deepEqual(numbers(1), ["A2-SCOPE-1"]);
+  assert.deepEqual(numbers(other), ["A2-SCOPE-2"]);
+});

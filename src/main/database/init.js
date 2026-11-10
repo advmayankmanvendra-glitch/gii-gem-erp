@@ -1440,7 +1440,7 @@ function supplierAdvanceAdjustedForProcurement(db, procurementId) {
   `).get(procurementId).value || 0);
 }
 
-function receivableOutstandingBeforeAdjustment(db, billingId) {
+export function receivableOutstandingBeforeAdjustment(db, billingId) {
   const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(billingId);
   if (!receivable) return 0;
   const allocation = db.prepare(`

@@ -306,7 +306,7 @@ export function OperationsRecommendations({ action, closure }) {
         <strong>{operationDisplay(action)}</strong>
         {pending.length ? (
           <ul>
-            {pending.map((item) => <li key={item.label}>{item.label}</li>)}
+            {pending.map((item) => <li key={item.label}>{item.detail ? `${item.label}: ${item.detail}` : item.label}</li>)}
           </ul>
         ) : <small>All closure checks are clear.</small>}
       </div>
@@ -326,6 +326,7 @@ export function OperationsClosureReadiness({ closure }) {
           <div key={check.label} className={check.ready ? "ready" : "pending"}>
             <strong>{check.label}</strong>
             <span>{check.ready ? "Yes" : "No"}</span>
+            {check.detail ? <small>{check.detail}</small> : null}
           </div>
         ))}
       </div>

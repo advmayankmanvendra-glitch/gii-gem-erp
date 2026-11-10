@@ -20,7 +20,7 @@ export function ClosureChecklist({ checks, percentage, ready, onMarkClosed }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {checks.map((check) => (
           <div key={check.key} className="operations-closure-grid" style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: check.ready ? "#e8f4ee" : "#fff3e1", borderRadius: 6 }}>
-            <strong>{check.label}</strong>
+            <strong>{check.label}{check.detail ? <small style={{ display: "block", fontWeight: 400 }}>{check.detail}</small> : null}</strong>
             <span style={{ color: check.ready ? "#087240" : "#b95120" }}>{check.ready ? "Yes" : "No"}</span>
           </div>
         ))}
