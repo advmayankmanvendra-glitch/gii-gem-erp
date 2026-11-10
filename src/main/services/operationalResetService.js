@@ -9,7 +9,14 @@ const PRESERVED_TABLES = new Set([
   "government_departments", "suppliers", "items", "banks",
   "employees", "expense_heads", "warehouses", "credit_terms",
   "settings", "help_content", "email_templates", "print_templates",
-  "architecture_documents", "audit_log", "import_templates"
+  "architecture_documents", "audit_log", "import_templates",
+  // Import history has no company column, so it cannot be cleared for one company.
+  "import_batches", "import_batch_records",
+  "account_group_assignments", "feedback_log",
+  // Transient guard-window rows (ledgerGuards.js); the reset itself opens one.
+  "ledger_maintenance",
+  // Pre-sales pipeline: kept, with its links to deleted orders cleared (UNLINK_ON_RESET).
+  "leads", "requirement_queries", "quotations", "negotiations", "purchase_orders"
 ]);
 
 const RESET_TABLES = [
@@ -50,16 +57,86 @@ const RESET_TABLES = [
   { table: "bank_reconciliation_matches", module: "Bank" },
   { table: "bank_statement_entries", module: "Bank" },
   { table: "bank_statement_imports", module: "Bank" },
-  { table: "import_batches", module: "Import" },
-  { table: "import_batch_records", module: "Import" },
   { table: "crac_records", module: "CRAC" },
   { table: "documents", module: "Operations" },
   { table: "advance_adjustments", module: "Receivables" },
   { table: "advance_receipts", module: "Receivables" },
   { table: "supplier_advances", module: "Payables" },
   { table: "allocation_audit", module: "Receivables" },
-  { table: "approval_queue", module: "Approvals" }
+  { table: "approval_queue", module: "Approvals" },
+  // Order follow-ups point at supply orders and delivery challans. If they stayed
+  // behind, the foreign key check refused the whole reset.
+  { table: "installations", module: "Operations" },
+  { table: "procurement_plans", module: "Procurement" },
+  // Opening balances are posted together with their own opening voucher, which the
+  // reset removes with every other voucher.
+  { table: "opening_balances", module: "Accounting" }
 ];
+
+// Year-end records are removed with the transactions; they are not listed in the preview.
+const YEAR_END_TABLES = ["carry_forward_entries", "year_end_closings"];
+
+// The pre-sales pipeline (leads to purchase orders) is kept. Its links to the
+// orders a reset deletes are cleared instead, so the records stay and the foreign
+// key check passes.
+const UNLINK_ON_RESET = [
+  { table: "quotations", column: "supply_order_id", parent: "supply_orders", set: "supply_order_id = NULL" },
+  { table: "negotiations", column: "supply_order_id", parent: "supply_orders", set: "supply_order_id = NULL" },
+  // A purchase order whose work order is gone can be converted again.
+  { table: "purchase_orders", column: "work_order_id", parent: "supply_orders", set: "work_order_id = NULL, converted_to_work_order = 0, status = CASE WHEN status = 'converted' THEN 'draft' ELSE status END" }
+];
+
+// Rows that will SURVIVE a reset of this company but point at rows it deletes
+// (for example another company's record, or a row with no company, linked to
+// this company's order). The reset would break those links, so it is refused
+// up front, and the preview lists them so the person can fix them first.
+// Old broken links elsewhere in the database are not counted.
+export function blockingReferences(db, companyId) {
+  const id = Number(companyId || 0);
+  if (!Number.isSafeInteger(id) || id <= 0) return [];
+  const tableNames = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name).filter((n) => !n.startsWith("sqlite_"));
+  const cleared = new Set([...RESET_TABLES.map((r) => r.table), ...YEAR_END_TABLES]);
+  const hasCompany = (table) => db.prepare(`PRAGMA table_info("${table}")`).all().some((c) => c.name === "company_id");
+  // The rows of a cleared table that this reset deletes.
+  const deletedRows = (table) => (table === "voucher_lines"
+    ? `SELECT id FROM "voucher_lines" WHERE voucher_id IN (SELECT id FROM "vouchers" WHERE company_id = ${id})`
+    : `SELECT id FROM "${table}" WHERE company_id = ${id}`);
+  const out = [];
+  for (const table of tableNames) {
+    for (const fk of db.prepare(`PRAGMA foreign_key_list("${table}")`).all()) {
+      if (!cleared.has(fk.table) || (fk.to && fk.to !== "id")) continue;
+      if (fk.table !== "voucher_lines" && !hasCompany(fk.table)) continue;
+      const survives = [];
+      if (cleared.has(table)) {
+        if (table === "voucher_lines") survives.push(`voucher_id NOT IN (SELECT id FROM "vouchers" WHERE company_id = ${id})`);
+        else if (hasCompany(table)) survives.push(`(company_id IS NULL OR company_id <> ${id})`);
+      } else if (UNLINK_ON_RESET.some((u) => u.table === table && u.column === fk.from && u.parent === fk.table) && hasCompany(table)) {
+        survives.push(`(company_id IS NULL OR company_id <> ${id})`);
+      }
+      const where = [`"${fk.from}" IN (${deletedRows(fk.table)})`, ...survives].join(" AND ");
+      const count = db.prepare(`SELECT COUNT(*) c FROM "${table}" WHERE ${where}`).get().c;
+      if (count > 0) {
+        const sampleIds = db.prepare(`SELECT rowid id FROM "${table}" WHERE ${where} ORDER BY rowid LIMIT 5`).all().map((r) => r.id);
+        out.push({ table, column: fk.from, parent: fk.table, count, sampleIds });
+      }
+    }
+  }
+  return out;
+}
+
+function describeBlockingReferences(refs) {
+  return refs.map((r) => `${r.count} ${r.table} row(s) (column ${r.column}, row ids ${r.sampleIds.join(", ")}${r.count > r.sampleIds.length ? ", ..." : ""}) still point at ${r.parent} rows of this company`).join("; ");
+}
+
+
+// Every table with a company column must be either cleared or kept on purpose.
+// A new table that is neither is reported, so a reset can never silently skip it.
+export function unclassifiedCompanyTables(db) {
+  const known = new Set([...PRESERVED_TABLES, ...RESET_TABLES.map((row) => row.table), ...YEAR_END_TABLES]);
+  return db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name)
+    .filter((name) => !known.has(name) && !name.startsWith("sqlite_"))
+    .filter((name) => db.prepare(`PRAGMA table_info("${name}")`).all().some((col) => col.name === "company_id"));
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -76,8 +153,13 @@ function formatForeignKeyIssues(issues) {
     .join("; ");
 }
 
-function assertNoForeignKeyIssues(db) {
-  const issues = db.prepare("PRAGMA foreign_key_check").all();
+const issueKey = (issue) => `${issue.table}:${issue.rowid}:${issue.parent}:${issue.fkid}`;
+
+// Broken links that already existed before the reset (for example an old row with
+// no company) are not the reset's doing and must not block every company's reset.
+// Only links the reset itself would break are refused.
+function assertNoForeignKeyIssues(db, existing = new Set()) {
+  const issues = db.prepare("PRAGMA foreign_key_check").all().filter((issue) => !existing.has(issueKey(issue)));
   if (issues.length > 0) {
     throw new OperationalResetError(`Reset would leave ${issues.length} foreign key issue(s): ${formatForeignKeyIssues(issues)}`);
   }
@@ -92,26 +174,58 @@ function runWithForeignKeysDisabled(db, callback) {
   }
 }
 
-export function previewReset(db) {
+// With a company id, counts exactly the rows a reset of that company deletes.
+// Without one (All Companies view), counts every company and says so.
+export function previewReset(db, companyId = null) {
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
+  const id = Number(companyId || 0) || null;
+  const company = id ? db.prepare("SELECT id, company_name FROM companies WHERE id = ?").get(id) : null;
+  if (id && !company) throw new OperationalResetError(`Preview refused: company #${id} does not exist. Select a valid company and retry.`);
   const counts = [];
   let totalOperational = 0;
   for (const { table, module } of RESET_TABLES) {
     if (!tables.has(table)) continue;
-    const count = activeCount(db, table);
+    const count = company ? companyRowCount(db, table, company.id) : activeCount(db, table);
     if (count > 0) totalOperational += count;
     counts.push({ table, module, count });
   }
   const preservedCounts = [];
   for (const table of PRESERVED_TABLES) {
     if (!tables.has(table)) continue;
-    const row = db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
+    const hasCompany = db.prepare(`PRAGMA table_info("${table}")`).all().some((col) => col.name === "company_id");
+    const row = company && hasCompany
+      ? db.prepare(`SELECT COUNT(*) count FROM "${table}" WHERE company_id = ?`).get(company.id)
+      : db.prepare(`SELECT COUNT(*) count FROM "${table}"`).get();
     preservedCounts.push({ table, count: Number(row?.count || 0) });
   }
-  return { operational: counts, preserved: preservedCounts, totalOperational };
+  return {
+    scope: company ? "company" : "all",
+    company: company ? { id: company.id, name: company.company_name } : null,
+    operational: counts,
+    preserved: preservedCounts,
+    totalOperational,
+    unclassifiedTables: unclassifiedCompanyTables(db),
+    // Records outside this company that point at rows the reset deletes. While any
+    // exist the reset is refused, so the screen shows them and blocks Execute.
+    blockingReferences: company ? blockingReferences(db, company.id) : []
+  };
 }
 
-export function analyzeDependencies(db) {
+// With a company id, only links this reset would break block it; old broken links
+// elsewhere are reported as warnings. Without one, the original whole-database check.
+export function analyzeDependencies(db, companyId = null) {
+  if (Number(companyId || 0)) {
+    const refs = blockingReferences(db, companyId);
+    const legacy = analyzeDependencies(db);
+    const blocked = refs.map((r) => ({ table: r.table, rowCount: r.count, module: "Links", sampleIds: r.sampleIds, reason: `${r.count} row(s) in ${r.table}.${r.column} point at ${r.parent} rows this reset deletes`, orphans: [{ table: r.table, column: r.column, orphanCount: r.count }] }));
+    const warnings = [...legacy.blocked, ...legacy.warnings].map((w) => ({ ...w, note: "Already broken before the reset; it does not block the reset." }));
+    return {
+      safe: legacy.safe,
+      warnings,
+      blocked,
+      total: { safe: legacy.safe.length, warnings: warnings.length, blocked: blocked.length }
+    };
+  }
   const issues = [];
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
   const foreignKeys = [];
@@ -189,7 +303,10 @@ export function rebuildZeroState(db, companyId = null) {
     { key: "invoices", label: "Invoices", table: "invoices" },
     { key: "procurements", label: "Procurements", table: "procurements" },
     { key: "supplyOrders", label: "Supply orders", table: "supply_orders" },
-    { key: "orderItems", label: "Order items", table: "order_items" }
+    { key: "orderItems", label: "Order items", table: "order_items" },
+    { key: "openingBalances", label: "Opening balances", table: "opening_balances" },
+    { key: "installations", label: "Installations", table: "installations" },
+    { key: "procurementPlans", label: "Procurement plans", table: "procurement_plans" }
   ];
 
   for (const check of zeroChecks) {
@@ -234,8 +351,7 @@ export function rebuildZeroState(db, companyId = null) {
 
 // Tables that belong to a company only through their parent row.
 const CHILD_TABLE_PARENTS = {
-  voucher_lines: { column: "voucher_id", parent: "vouchers" },
-  import_batch_records: { column: "batch_id", parent: "import_batches" }
+  voucher_lines: { column: "voucher_id", parent: "vouchers" }
 };
 
 function resolveResetCompany(db, companyId) {
@@ -270,6 +386,14 @@ function companyRowCount(db, table, companyId) {
 function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, module = "operational_reset" } = {}) {
   const company = resolveResetCompany(db, companyId);
   assertResetConfirmation(company, confirmText);
+  const unclassified = unclassifiedCompanyTables(db);
+  if (unclassified.length) {
+    throw new OperationalResetError(`Reset refused: these tables hold company data but the reset does not know whether to clear or keep them: ${unclassified.join(", ")}. Nothing was changed. Report this so the reset can be updated.`);
+  }
+  const refs = blockingReferences(db, company.id);
+  if (refs.length) {
+    throw new OperationalResetError(`Reset refused: ${describeBlockingReferences(refs)}. Those records belong to another company or to no company, and the reset would break their links. Fix or remove them first. Nothing was changed.`);
+  }
   const backup = createBackup(runtimeRoot, db, "pre_reset");
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name));
   const before = [];
@@ -280,8 +404,14 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   let after;
   let zeroState;
   let auditId;
+  const existingIssues = new Set(db.prepare("PRAGMA foreign_key_check").all().map(issueKey));
   runWithForeignKeysDisabled(db, () => {
     db.transaction(() => withLedgerMaintenance(db, company.id, "operational_reset", () => {
+      UNLINK_ON_RESET.forEach(({ table, column, parent, set }) => {
+        if (!tables.has(table)) return;
+        // Runs before the orders are deleted. Only links to this company's orders are cleared; a link to another company's order stays.
+        db.prepare(`UPDATE "${table}" SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE company_id = ? AND "${column}" IN (SELECT id FROM "${parent}" WHERE company_id = ?)`).run(company.id, company.id);
+      });
       // Children first, while their parents still exist to identify the company.
       Object.entries(CHILD_TABLE_PARENTS).forEach(([table, rule]) => {
         if (!tables.has(table) || !tables.has(rule.parent)) return;
@@ -295,9 +425,10 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
         if (!cols.includes("company_id")) continue;
         db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       }
-      if (tables.has("carry_forward_entries")) db.prepare("DELETE FROM carry_forward_entries WHERE company_id = ?").run(company.id);
-      if (tables.has("year_end_closings")) db.prepare("DELETE FROM year_end_closings WHERE company_id = ?").run(company.id);
-      assertNoForeignKeyIssues(db);
+      YEAR_END_TABLES.forEach((table) => {
+        if (tables.has(table)) db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
+      });
+      assertNoForeignKeyIssues(db, existingIssues);
       // The audit row is written in the same transaction, so a reset never lands without
       // its record (the go-live rollback guard relies on it).
       after = before.map((row) => ({ ...row, count: tables.has(row.table) ? companyRowCount(db, row.table, company.id) : 0 }));

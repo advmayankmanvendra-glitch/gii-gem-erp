@@ -1,0 +1,224 @@
+// Regression tests for "the ERP never resets" and the manual update flow (10 Nov 2026).
+// Each test builds its own throwaway database in the OS temp folder.
+// Run from the repo root:  node --test scripts/audit/reset-update.test.mjs
+import test, { afterEach } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const m = await import(pathToFileURL(path.join(REPO, "src/main/database/init.js")).href);
+const reset = await import(pathToFileURL(path.join(REPO, "src/main/services/operationalResetService.js")).href);
+const updates = await import(pathToFileURL(path.join(REPO, "src/main/services/updateVersion.js")).href);
+
+const handles = [];
+const roots = [];
+afterEach(() => {
+  while (handles.length) { const db = handles.pop(); try { if (db.open) db.close(); } catch { /* closed */ } }
+  while (roots.length) fs.rmSync(roots.pop(), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
+function freshRoot() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "gii-reset-"));
+  roots.push(root);
+  return root;
+}
+
+const insert = (db, table, row) => {
+  const cols = Object.keys(row);
+  return Number(db.prepare(`INSERT INTO "${table}" (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`).run(...Object.values(row)).lastInsertRowid);
+};
+
+// Adds, for one company, the pre-sales and follow-up chain that points at its supply
+// order, plus a posted opening balance (which owns an opening voucher).
+function addLinkedRecords(db, companyId, tag) {
+  const order = db.prepare("SELECT id FROM supply_orders WHERE company_id = ? ORDER BY id LIMIT 1").get(companyId).id;
+  const supplier = db.prepare("SELECT id FROM suppliers ORDER BY id LIMIT 1").get().id;
+  const lead = insert(db, "leads", { company_id: companyId, lead_number: `L-${tag}`, title: "Lead" });
+  const query = insert(db, "requirement_queries", { company_id: companyId, query_number: `Q-${tag}`, title: "Need", lead_id: lead });
+  const quote = insert(db, "quotations", { company_id: companyId, quotation_number: `QT-${tag}`, supplier_id: supplier, quotation_date: "2026-04-02", requirement_query_id: query, supply_order_id: order });
+  const negotiation = insert(db, "negotiations", { company_id: companyId, negotiation_number: `N-${tag}`, negotiation_date: "2026-04-03", quotation_id: quote, supplier_id: supplier, supply_order_id: order });
+  insert(db, "purchase_orders", { company_id: companyId, po_number: `PO-${tag}`, po_date: "2026-04-04", work_order_id: order, negotiation_id: negotiation, converted_to_work_order: 1 });
+  insert(db, "installations", { company_id: companyId, installation_number: `I-${tag}`, supply_order_id: order });
+  insert(db, "procurement_plans", { company_id: companyId, plan_number: `PP-${tag}`, plan_date: "2026-04-05", order_id: order });
+  const year = db.prepare("SELECT id FROM financial_years WHERE company_id = ? AND status = 'Open' ORDER BY id LIMIT 1").get(companyId).id;
+  return m.createOpeningBalance(db, { company_id: companyId, financial_year_id: year, balance_type: "Cash", opening_debit: 5000 });
+}
+
+function secondCompany(db) {
+  return insert(db, "companies", { company_name: "Second Test Co" });
+}
+
+test("a reset clears a company whose order is linked from pipeline records and a posted opening balance", () => {
+  const root = freshRoot();
+  let db = m.initializeDatabase(root);
+  handles.push(db);
+  const opening = addLinkedRecords(db, 1, "c1");
+  assert.ok(opening.voucher_id, "opening balance is posted with its own voucher");
+
+  const preview = reset.previewReset(db, 1);
+  assert.equal(preview.scope, "company");
+  assert.equal(preview.company.id, 1);
+  assert.ok(preview.totalOperational > 0);
+
+  // Before the fix this threw "Reset would leave N foreign key issue(s)" and nothing was cleared.
+  const result = reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(result.after.totalOperational, 0);
+  assert.equal(result.before.totalOperational, preview.totalOperational, "the preview counts exactly the rows the reset clears");
+  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  for (const table of ["vouchers", "voucher_lines", "ledger_entries", "supply_orders", "installations", "procurement_plans", "opening_balances"]) {
+    const where = table === "voucher_lines" ? "voucher_id IN (SELECT id FROM vouchers WHERE company_id = 1)" : "company_id = 1";
+    assert.equal(db.prepare(`SELECT COUNT(*) c FROM ${table} WHERE ${where}`).get().c, 0, `${table} is empty after the reset`);
+  }
+
+  // The pre-sales pipeline is kept, with its links to the deleted orders cleared.
+  for (const table of ["leads", "requirement_queries", "quotations", "negotiations", "purchase_orders"]) {
+    assert.equal(db.prepare(`SELECT COUNT(*) c FROM ${table} WHERE company_id = 1`).get().c, 1, `${table} is kept`);
+  }
+  assert.deepEqual(db.prepare("SELECT work_order_id, converted_to_work_order FROM purchase_orders WHERE company_id = 1").get(), { work_order_id: null, converted_to_work_order: 0 });
+  assert.equal(db.prepare("SELECT supply_order_id FROM quotations WHERE company_id = 1").get().supply_order_id, null);
+
+  // The reset survives a restart (the app reopens the database after a reset).
+  db.close();
+  db = m.initializeDatabase(root);
+  handles.push(db);
+  assert.equal(reset.previewReset(db, 1).totalOperational, 0, "nothing comes back after reopening");
+  assert.ok(db.prepare("SELECT COUNT(*) c FROM accounts WHERE company_id = 1").get().c > 0, "chart of accounts is kept");
+});
+
+test("a reset leaves every other company untouched", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const other = secondCompany(db);
+  const order = db.prepare("SELECT * FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get();
+  const { id: _id, order_number: _n, ...copy } = order;
+  const otherOrder = insert(db, "supply_orders", { ...copy, company_id: other, order_number: "OTHER-1" });
+  insert(db, "procurement_plans", { company_id: other, plan_number: "PP-other", plan_date: "2026-04-05", order_id: otherOrder });
+  insert(db, "leads", { company_id: other, lead_number: "L-other", title: "Other lead" });
+  const before = reset.previewReset(db, other).totalOperational;
+  assert.ok(before >= 2);
+  reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(reset.previewReset(db, other).totalOperational, before);
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM leads WHERE company_id = ?").get(other).c, 1);
+});
+
+test("every table with a company column is either cleared or kept on purpose", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  assert.deepEqual(reset.unclassifiedCompanyTables(db), []);
+});
+
+test("every table the reset clears can be scoped to one company", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  const preview = reset.previewReset(db, 1);
+  for (const { table } of preview.operational) {
+    const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map((c) => c.name);
+    assert.ok(cols.includes("company_id") || table === "voucher_lines", `${table} has a company column or a parent mapping`);
+  }
+});
+
+test("a reset refuses when a company table is neither cleared nor kept", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  db.exec("CREATE TABLE future_things (id INTEGER PRIMARY KEY, company_id INTEGER)");
+  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /future_things/);
+  assert.ok(db.prepare("SELECT COUNT(*) c FROM supply_orders WHERE company_id = 1").get().c > 0, "nothing was cleared");
+});
+
+test("a broken link that existed before the reset does not block it", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  db.exec("PRAGMA foreign_keys = OFF");
+  insert(db, "installations", { company_id: 1, installation_number: "I-orphan", supply_order_id: 999999 });
+  db.exec("PRAGMA foreign_keys = ON");
+  const other = secondCompany(db);
+  db.exec("PRAGMA foreign_keys = OFF");
+  insert(db, "installations", { company_id: other, installation_number: "I-orphan-2", supply_order_id: 888888 });
+  db.exec("PRAGMA foreign_keys = ON");
+  assert.equal(reset.previewReset(db, 1).blockingReferences.length, 0);
+  assert.equal(reset.analyzeDependencies(db, 1).total.blocked, 0, "another company's old broken link does not block the 10-step workflow");
+  assert.ok(reset.analyzeDependencies(db, 1).total.warnings > 0, "it is still reported as a warning");
+  const result = reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(result.after.totalOperational, 0);
+});
+
+test("a record outside the company that points at its order blocks the reset up front", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const other = secondCompany(db);
+  const order = db.prepare("SELECT id FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get().id;
+  insert(db, "procurement_plans", { company_id: other, plan_number: "PP-x", plan_date: "2026-04-05", order_id: order });
+  const preview = reset.previewReset(db, 1);
+  assert.equal(preview.blockingReferences.length, 1);
+  assert.equal(reset.analyzeDependencies(db, 1).total.blocked, 1);
+  const backups = () => fs.readdirSync(path.join(root, "backups")).length;
+  const before = backups();
+  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /procurement_plans.*row ids/);
+  assert.equal(reset.blockingReferences(db, "1 OR 1=1").length, 0, "a non-integer company id is ignored");
+  assert.equal(backups(), before, "refused before any backup was taken");
+});
+
+test("a reset purchase order can be converted again", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const order = db.prepare("SELECT id FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get().id;
+  insert(db, "purchase_orders", { company_id: 1, po_number: "PO-conv", po_date: "2026-04-04", work_order_id: order, converted_to_work_order: 1, status: "converted" });
+  reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.deepEqual(db.prepare("SELECT status, work_order_id, converted_to_work_order FROM purchase_orders WHERE po_number = 'PO-conv'").get(), { status: "draft", work_order_id: null, converted_to_work_order: 0 });
+});
+
+test("a reset keeps a pipeline link to another company's order", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const other = secondCompany(db);
+  const order = db.prepare("SELECT * FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get();
+  const { id: _id, order_number: _n, ...copy } = order;
+  const otherOrder = insert(db, "supply_orders", { ...copy, company_id: other, order_number: "OTHER-Q" });
+  const supplier = db.prepare("SELECT id FROM suppliers ORDER BY id LIMIT 1").get().id;
+  insert(db, "quotations", { company_id: 1, quotation_number: "QT-cross", supplier_id: supplier, quotation_date: "2026-04-02", supply_order_id: otherOrder });
+  reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(db.prepare("SELECT supply_order_id FROM quotations WHERE quotation_number = 'QT-cross'").get().supply_order_id, otherOrder);
+});
+
+test("a preview for a company that does not exist is refused", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  assert.throws(() => reset.previewReset(db, 999), /does not exist/);
+});
+
+test("the preview in the All Companies view says it covers every company", () => {
+  const db = m.initializeDatabase(freshRoot());
+  handles.push(db);
+  const preview = reset.previewReset(db);
+  assert.equal(preview.scope, "all");
+  assert.equal(preview.company, null);
+});
+
+test("update versions compare in semantic-version order", () => {
+  const c = (a, b) => Math.sign(updates.compareUpdateVersions(a, b));
+  assert.equal(c("0.2.0-internal-test", "0.1.0-internal-test"), 1);
+  assert.equal(c("0.1.0-internal-test", "0.1.0-internal-test"), 0);
+  assert.equal(c("0.2.0", "0.2.0-beta"), 1, "a release is newer than its pre-release");
+  assert.equal(c("0.2.0-rc.1", "0.2.0"), -1);
+  assert.equal(c("1.2.10", "1.2.9"), 1);
+  assert.equal(c("0.1.0-rc.2", "0.1.0-rc.10"), -1);
+  assert.equal(c("v1.0.0", "1.0.0"), 0);
+});
+
+test("portable EXEs are not treated as updates", () => {
+  assert.equal(updates.isPortableInstaller("GII-GeM-ERP-Portable-0.2.0-x64.exe"), true);
+  assert.equal(updates.isPortableInstaller("GII-GeM-ERP-Setup-0.2.0-x64.exe"), false);
+});
+
+test("the package version was raised past the version every earlier build carried", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8"));
+  assert.equal(Math.sign(updates.compareUpdateVersions(pkg.version, "0.1.0-internal-test")), 1);
+});

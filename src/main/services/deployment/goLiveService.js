@@ -48,9 +48,9 @@ export function checkGoLivePreconditions(db, runtimeRoot, currentEnv, companyId 
   return { allPassed, issues };
 }
 
-export function previewGoLiveReset(db, runtimeRoot) {
-  const preview = previewReset(db);
-  const deps = analyzeDependencies(db);
+export function previewGoLiveReset(db, runtimeRoot, companyId = null) {
+  const preview = previewReset(db, companyId);
+  const deps = analyzeDependencies(db, companyId);
   return { preview, dependencies: deps };
 }
 
@@ -67,7 +67,7 @@ export function executeGoLiveReset(db, runtimeRoot, options = {}) {
     const failing = preconditions.issues.filter((issue) => !issue.passed).map((issue) => `${issue.label}${issue.detail ? ` (${issue.detail})` : ""}`);
     throw new Error(`Go-live reset refused: ${failing.join("; ")}. Fix these in Environment Manager, then retry. Nothing was changed.`);
   }
-  const dependencies = analyzeDependencies(db);
+  const dependencies = analyzeDependencies(db, Number(resetOptions.companyId || 0) || null);
   if (dependencies?.total?.blocked > 0) {
     throw new Error(`Go-live reset refused: dependency analysis found ${dependencies.total.blocked} blocked table(s). Open Environment Manager > Dependencies, fix the listed orphan rows, then retry. Nothing was changed.`);
   }

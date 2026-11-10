@@ -89,7 +89,7 @@ export function NavigationSidebar({
         {safeRecentScreens.length > 0 && <NavQuickSection title="Recent" items={safeRecentScreens} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
         {safeFavorites.length > 0 && <NavQuickSection title="Favorites" items={safeFavorites} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
       </nav>
-      <div className="version">v0.4.0 - Accounting Controls</div>
+      <div className="version">v{typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev"}</div>
     </aside>
   );
 }

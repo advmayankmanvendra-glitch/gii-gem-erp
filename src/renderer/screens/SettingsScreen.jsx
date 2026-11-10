@@ -113,15 +113,17 @@ export function SettingsScreen({ notify, apiClient, confirmAction, role, userId,
     const confirmed = await confirmAction({
       mode: "warning",
       title: "Install Update",
-      message: "This will open the selected GII GeM ERP update installer. Save your work before continuing.",
+      message: updateStatus.sameVersion
+        ? `This installer is the same version (${updateStatus.currentVersion}) as the ERP you are running, so installing it will not change anything you can see. Ask for an installer with a higher version number. Do you still want to reinstall? The ERP takes a backup, opens the installer and then closes itself.`
+        : "The ERP takes a backup of your data, opens the update installer and then closes itself so the installer can replace it. Save your work before continuing.",
       confirmLabel: "Yes, Install",
       cancelLabel: "No, Cancel",
       moduleName: "settings"
     });
     if (!confirmed.confirmed) return;
     try {
-      await apiClient.installUpdate(updateStatus.installerPath);
-      notify("Update installer opened");
+      const result = await apiClient.installUpdate(updateStatus.installerPath);
+      notify(`Backup ${result?.backup || "taken"}. Installer opened; the ERP is closing so the update can be installed.`);
     } catch (error) {
       notify(error.message, "error");
     }
