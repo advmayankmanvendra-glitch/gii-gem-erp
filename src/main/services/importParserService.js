@@ -117,7 +117,7 @@ export function createImportParserService() {
     for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) {
       lines += 1;
       if (lines > MAX_IMPORT_LINES) {
-        throw new Error(`Import refused: the file has more than ${MAX_IMPORT_LINES.toLocaleString("en-IN")} lines, most of them blank. Delete the blank lines (or save it again from Excel) and import again.`);
+        throw new Error(`Import refused: the file has more than ${MAX_IMPORT_LINES.toLocaleString("en-IN")} lines (blank lines included), more than one import can read. Delete blank lines, or split the file into smaller files, and import again.`);
       }
     }
     const rows = [];
@@ -209,7 +209,7 @@ export function createImportParserService() {
     forEachElement(xml, "si", (_attrs, body) => {
       // A sheet cannot use more distinct strings than it has cells.
       if (strings.length >= MAX_XLSX_CELLS) {
-        throw new Error("Import refused: the workbook lists more than 1,000,000 text values. Save the sheet again from Excel, or split it into smaller files, and retry.");
+        throw new Error("Import refused: the workbook lists more than 2,000,000 text values. Save the sheet again from Excel, or split it into smaller files, and retry.");
       }
       const parts = [];
       let rawChars = 0;
@@ -240,7 +240,7 @@ export function createImportParserService() {
   const MAX_XLSX_ENTRY_BYTES = 64 * 1024 * 1024;
   const MAX_XLSX_TOTAL_BYTES = 128 * 1024 * 1024;
   const MAX_XLSX_COLUMN_INDEX = 16383;
-  const MAX_XLSX_CELLS = 1000000;
+  const MAX_XLSX_CELLS = 2000000;
   const MAX_SHARED_STRING_CHARS = 16 * 1024 * 1024;
   const MAX_CELL_CHARS = 32767;
   const MAX_SHEET_CHARS = 64 * 1024 * 1024;
@@ -336,7 +336,7 @@ export function createImportParserService() {
         }
         cellCount += 1;
         if (cellCount > MAX_XLSX_CELLS) {
-          throw new Error("Import refused: the sheet has more than 1,000,000 cells. Split it into smaller files and import them one by one.");
+          throw new Error("Import refused: the sheet has more than 2,000,000 cells. Split it into smaller files and import them one by one.");
         }
         const type = /t="([^"]+)"/.exec(attrs)?.[1];
         const raw = firstElementBody(body, "v") ?? firstElementBody(body, "t") ?? "";

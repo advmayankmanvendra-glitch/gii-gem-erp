@@ -126,7 +126,7 @@ import { getVerificationConsoleState, recordVerificationSnapshot } from "./servi
 import { PROFILES } from "./config/verificationConfig.js";
 import { calculateReadinessScore } from "./services/deployment/readinessService.js";
 import { generateGoLiveCertificate, getCertificateHistory } from "./services/deployment/certificationService.js";
-import { assertGoLiveRollbackSafe, checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";
+import { ROLLBACK_REFUSED, assertGoLiveRollbackSafe, checkGoLivePreconditions, previewGoLive, executeGoLiveReset, verifyGoLiveProduction, completeGoLive, failGoLiveWithRollback } from "./services/deployment/goLiveService.js";
 import { getGoLiveHistory } from "./services/deployment/goLiveHistoryService.js";
 import {
   listCracRecords,
@@ -1326,7 +1326,7 @@ function registerIpc() {
       assertGoLiveRollbackSafe(db, runtimeDataRoot, goLiveId);
     } catch (error) {
       // Only the guard's own refusals are answers; any other error is a fault and is thrown.
-      if (!String(error?.message || "").startsWith("Rollback refused:")) throw error;
+      if (error?.code !== ROLLBACK_REFUSED) throw error;
       auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason: error.message }) });
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }

@@ -209,13 +209,21 @@ function resetAuditIdFor(db, entry) {
   `).get(since, GO_LIVE_RESET_MODULE, companyId, companyId)?.id || null;
 }
 
+// A refusal carries a code, so callers tell it apart from a fault without reading text.
+export const ROLLBACK_REFUSED = "ROLLBACK_REFUSED";
+function rollbackRefused(message) {
+  const error = new Error(message);
+  error.code = ROLLBACK_REFUSED;
+  return error;
+}
+
 // Called with the live database open, before the rollback closes it. Restoring the
 // pre-go-live backup would erase anything entered after the reset, so that is refused.
 export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
   const history = getGoLiveHistory(runtimeRoot);
   // The history checks come first, so a completed or unknown run gets its own reason.
   const refusal = rollbackRefusalReason(history, goLiveId);
-  if (refusal) throw new Error(refusal);
+  if (refusal) throw rollbackRefused(refusal);
   const entry = history.find((item) => item.id === goLiveId);
   let mark;
   let compared;
@@ -235,7 +243,7 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
     // audited record write after the run started is work the rollback would erase.
     const reset = resetAuditIdFor(db, entry);
     if (!reset) {
-      throw new Error(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
+      throw rollbackRefused(`Rollback refused: go-live ${entry.goliveNumber || goLiveId} has no record of a reset in the books, so there is nothing to roll back. Nothing was changed.`);
     }
     // Count from where the run started, not from the reset row: another reset that writes
     // the same kind of row must not hide work entered before it.
@@ -254,7 +262,7 @@ export function assertGoLiveRollbackSafe(db, runtimeRoot, goLiveId) {
       .forEach((row) => { if (tables.has(row.table_name) && row.table_name !== "users") grown.add(row.table_name); });
   }
   if (grown.size) {
-    throw new Error(`Rollback refused: ${[...grown].sort().join(", ").replaceAll("_", " ")} changed after go-live ${entry.goliveNumber || goLiveId}. Restoring the pre-go-live backup would erase that work. To return to an older state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
+    throw rollbackRefused(`Rollback refused: ${[...grown].sort().join(", ").replaceAll("_", " ")} changed after go-live ${entry.goliveNumber || goLiveId}. Restoring the pre-go-live backup would erase that work. To return to an older state anyway, use Backup & Restore, which keeps a safety copy. Nothing was changed.`);
   }
 }
 

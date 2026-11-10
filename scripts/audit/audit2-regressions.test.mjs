@@ -440,7 +440,7 @@ test("bank values are cleaned before the supplier bank text is built, and number
 test("import parser caps: long header names, shared-string count, blank TSV lines, and a header too far down", () => {
   const long = "h".repeat(101);
   assert.throws(() => m.parseImportBuffer("long.csv", Buffer.from(`supplier_name,${long}\nA,B\n`)), /header of 101 characters; the limit is 100/);
-  const strings = `<sst>${"<si><t></t></si>".repeat(1000001)}</sst>`;
+  const strings = `<sst>${"<si><t></t></si>".repeat(2000001)}</sst>`;
   const zip = (files) => {
     const parts = []; const centrals = []; let offset = 0;
     for (const [n, text] of Object.entries(files)) {
@@ -454,7 +454,7 @@ test("import parser caps: long header names, shared-string count, blank TSV line
     return Buffer.concat([...parts, cd, eocd]);
   };
   let started = Date.now();
-  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 1,000,000 text values/);
+  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values/);
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
   // Blank lines do not count toward the row limit.
   const tsv = m.parseImportBuffer("t.xls", Buffer.from(`supplier_name\tcity\nA\tX\n${"\n".repeat(200005)}B\tY\n`));
@@ -488,8 +488,10 @@ test("the Tally migration preview reads a file picked twice only once, and caps 
   assert.equal(summaries(twice).length, 1, "the same file picked three times is read once");
   const many = Array.from({ length: 21 }, (_, i) => { const f = path.join(root, `m${i}.xml`); fs.writeFileSync(f, "<ENVELOPE/>"); return { filePath: f }; });
   assert.throws(() => preview(many), /reads at most 20/);
-  const big = Array.from({ length: 2 }, (_, i) => { const f = path.join(root, `big${i}.xml`); fs.writeFileSync(f, Buffer.alloc(13 * 1024 * 1024, 32)); return { filePath: f }; });
-  assert.throws(() => preview(big), /one preview reads at most 25 MB/);
+  const big = Array.from({ length: 2 }, (_, i) => { const f = path.join(root, `big${i}.xml`); fs.writeFileSync(f, Buffer.alloc(26 * 1024 * 1024, 32)); return { filePath: f }; });
+  assert.throws(() => preview(big), /one preview reads at most 50 MB/);
+  const huge = path.join(root, "huge.xml"); fs.writeFileSync(huge, Buffer.alloc(51 * 1024 * 1024, 32));
+  assert.throws(() => preview([{ filePath: huge }]), /huge\.xml is 51\.0 MB.*export the masters in parts/);
 });
 
 test("CRAC writes and the closure mark are audited with their company, in the same transaction", async () => {
@@ -529,7 +531,8 @@ test("219b2d3+1 round: yes/no values are stored as 1/0 and lists are refused wit
   const db = fresh();
   const id = m.createRecord(db, "suppliers", { supplier_name: "Typed Values", status: "active" }).id;
   assert.throws(() => m.updateRecord(db, "suppliers", id, { contact_details: { a: 1 } }), /contact details must be a single value/);
-  assert.doesNotThrow(() => m.updateRecord(db, "suppliers", id, { remarks: false }));
+  m.updateRecord(db, "suppliers", id, { remarks: false });
+  assert.equal(db.prepare("SELECT remarks FROM suppliers WHERE id = ?").get(id).remarks, "0", "stored as \"0\", not \"0.0\"");
 });
 
 test("219b2d3+1 round: xlsx text values and blank-line files are refused before they hold the app", () => {
@@ -547,7 +550,7 @@ test("219b2d3+1 round: xlsx text values and blank-line files are refused before 
   const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(2, 8); eocd.writeUInt16LE(2, 10); eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
   assert.throws(() => m.parseImportBuffer("long.xlsx", Buffer.concat([...parts, cd, eocd])), /longer than 32,767 characters/);
   const started = Date.now();
-  assert.throws(() => m.parseImportBuffer("blank.xls", Buffer.from(`supplier_name\tcity\n${"\n".repeat(400005)}`)), /most of them blank/);
+  assert.throws(() => m.parseImportBuffer("blank.xls", Buffer.from(`supplier_name\tcity\n${"\n".repeat(400005)}`)), /blank lines included/);
   assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
 });
 
@@ -588,4 +591,14 @@ test("Profit Simulator: the scenario is calculated in the main process from the 
   assert.ok(Math.abs(raised.netProfit) < 1e-6, "an incentive above 100% is held at 100%");
   const db = fresh();
   assert.ok(Array.isArray(sim.profitSimulation(m.orderProfitability(db, { company_id: 1 }), {}).rows));
+});
+
+test("a go-live rollback refusal carries a code, so it is told apart from a fault without reading its text", async () => {
+  const goLive = await service("deployment/goLiveService.js");
+  const root = freshRoot();
+  const db = fresh();
+  try { goLive.assertGoLiveRollbackSafe(db, root, 12345); assert.fail("should refuse"); } catch (error) {
+    assert.equal(error.code, goLive.ROLLBACK_REFUSED);
+    assert.match(error.message, /^Rollback refused:/);
+  }
 });

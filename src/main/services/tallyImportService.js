@@ -423,7 +423,7 @@ export function createTallyImportService(deps) {
   }
 
   const MAX_TALLY_PREVIEW_FILES = 20;
-  const MAX_TALLY_PREVIEW_BYTES = 25 * 1024 * 1024;
+  const MAX_TALLY_PREVIEW_BYTES = 50 * 1024 * 1024;
 
   function previewTallyMasterMigration(db, files = [], context = {}) {
     enforcePermission(db, "import", { ...context, module: "tally_migration_assistant", table_name: "imports" });
@@ -442,10 +442,16 @@ export function createTallyImportService(deps) {
       throw new Error(`Preview refused: ${sourceFiles.length} files were selected; one preview reads at most ${MAX_TALLY_PREVIEW_FILES}. Preview them in smaller batches.`);
     }
     // Each file is parsed in full on the app's main thread, so the whole preview shares one
-    // size budget: the same 25 MB one import may read.
+    // size budget of 50 MB.
     const totalBytes = sourceFiles.reduce((sum, file) => {
       try { return sum + fs.statSync(file.filePath).size; } catch { return sum; }
     }, 0);
+    const largest = sourceFiles.map((file) => {
+      try { return { name: path.basename(file.filePath), bytes: fs.statSync(file.filePath).size }; } catch { return { name: "", bytes: 0 }; }
+    }).sort((a, b) => b.bytes - a.bytes)[0];
+    if (largest && largest.bytes > MAX_TALLY_PREVIEW_BYTES) {
+      throw new Error(`Preview refused: ${largest.name} is ${(largest.bytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. In Tally, export the masters in parts (for example ledgers and stock items separately) and preview each part.`);
+    }
     if (totalBytes > MAX_TALLY_PREVIEW_BYTES) {
       throw new Error(`Preview refused: the selected files total ${(totalBytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. Preview them in smaller batches.`);
     }
