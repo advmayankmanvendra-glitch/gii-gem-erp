@@ -23,6 +23,7 @@ export function createImportParserService() {
   const MAX_IMPORT_ROWS = 200000;
   const MAX_IMPORT_VALUES = 6000000;
   const MAX_HEADER_SEARCH_ROWS = 50;
+  const MAX_IMPORT_LINES = MAX_IMPORT_ROWS * 2;
   // Every record repeats each header name as its key, so long names multiply the reply
   // the screen receives by the row count. Real column names are short.
   const MAX_HEADER_CHARS = 100;
@@ -49,6 +50,19 @@ export function createImportParserService() {
       throw new Error(`Import refused: column ${longHeader[1] + 1} has a header of ${longHeader[0].length} characters; the limit is ${MAX_HEADER_CHARS}. Shorten the column titles in the first row and import again.`);
     }
     const keyChars = headerEntries.reduce((sum, [header]) => sum + header.length, 0);
+    if (keyChars * rows.length > MAX_KEY_CHARS && rows.length <= MAX_IMPORT_ROWS) {
+      throw new Error(`Import refused: the ${headerEntries.length} column titles total ${keyChars} characters and repeat on each of ${rows.length.toLocaleString("en-IN")} rows, more than one import can hold. Shorten the column titles, or split the file into smaller files, and import again.`);
+    }
+    // The screen receives every title and value; the two together share one budget.
+    if (rows.length <= MAX_IMPORT_ROWS && headerEntries.length * rows.length <= MAX_IMPORT_VALUES) {
+      let replyChars = keyChars * rows.length;
+      for (const cells of rows) {
+        for (const [, index] of headerEntries) replyChars += String(cells[index] ?? "").length;
+        if (replyChars > MAX_KEY_CHARS) {
+          throw new Error("Import refused: the sheet's titles and values together are more text than one import can hold. Split it into smaller files and import them one by one.");
+        }
+      }
+    }
     if (rows.length > MAX_IMPORT_ROWS || headerEntries.length * rows.length > MAX_IMPORT_VALUES || keyChars * rows.length > MAX_KEY_CHARS) {
       throw new Error(`Import refused: the sheet has ${rows.length} rows of ${headerEntries.length} columns, more than one import can read safely. Split it into smaller files and import them one by one.`);
     }
@@ -66,6 +80,9 @@ export function createImportParserService() {
       if (char === '"' && quoted && next === '"') {
         value += '"';
         index += 1;
+        if (value.length > MAX_CELL_CHARS) {
+          throw new Error(`Import refused: row ${rows.length + 1} has a cell longer than 32,767 characters, Excel's limit for one cell. Save the sheet again from Excel and retry.`);
+        }
       } else if (char === '"') {
         quoted = !quoted;
       } else if (char === "," && !quoted) {
@@ -81,6 +98,10 @@ export function createImportParserService() {
         value = "";
       } else {
         value += char;
+        // Excel stops a cell at 32,767 characters; a longer one is a broken or crafted file.
+        if (value.length > MAX_CELL_CHARS) {
+          throw new Error(`Import refused: row ${rows.length + 1} has a cell longer than 32,767 characters, Excel's limit for one cell. Save the sheet again from Excel and retry.`);
+        }
       }
     }
     row.push(value.trim());
@@ -90,7 +111,15 @@ export function createImportParserService() {
   }
 
   function parseDelimited(text, delimiter) {
-    // Blank lines are skipped, so only filled rows count toward the row limit.
+    // Blank lines are skipped, so only filled rows count toward the row limit. A file that
+    // is mostly blank lines is refused before it is split, so it cannot hold the app.
+    let lines = 0;
+    for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) {
+      lines += 1;
+      if (lines > MAX_IMPORT_LINES) {
+        throw new Error(`Import refused: the file has more than ${MAX_IMPORT_LINES.toLocaleString("en-IN")} lines, most of them blank. Delete the blank lines (or save it again from Excel) and import again.`);
+      }
+    }
     const rows = [];
     for (const line of text.split(/\r?\n/)) {
       const row = line.split(delimiter).map((cell) => cell.trim());
@@ -170,16 +199,31 @@ export function createImportParserService() {
     return body;
   }
 
+  function sharedStringTooLong() {
+    return new Error("Import refused: the workbook holds a text value longer than 32,767 characters, Excel's limit for one cell. Save the sheet again from Excel and retry.");
+  }
+
   function parseSharedStrings(xml) {
     const strings = [];
+    let totalChars = 0;
     forEachElement(xml, "si", (_attrs, body) => {
       // A sheet cannot use more distinct strings than it has cells.
       if (strings.length >= MAX_XLSX_CELLS) {
-        throw new Error("Import refused: the workbook lists more than 2,000,000 text values. Save the sheet again from Excel, or split it into smaller files, and retry.");
+        throw new Error("Import refused: the workbook lists more than 1,000,000 text values. Save the sheet again from Excel, or split it into smaller files, and retry.");
       }
       const parts = [];
-      forEachElement(body, "t", (_tAttrs, text) => parts.push(text));
-      strings.push(decodeXml(parts.join("")));
+      let rawChars = 0;
+      forEachElement(body, "t", (_tAttrs, text) => { parts.push(text); rawChars += text.length; });
+      // An entity such as &amp; is at most 6 characters for one, so a raw text this long
+      // cannot fit Excel's 32,767-character cell; it is refused before decoding.
+      if (rawChars > MAX_CELL_CHARS * 6) throw sharedStringTooLong();
+      const value = decodeXml(parts.join(""));
+      if (value.length > MAX_CELL_CHARS) throw sharedStringTooLong();
+      totalChars += value.length;
+      if (totalChars > MAX_SHARED_STRING_CHARS) {
+        throw new Error("Import refused: the workbook's text values hold more than 16 million characters. Split it into smaller files and import them one by one.");
+      }
+      strings.push(value);
     });
     return strings;
   }
@@ -196,7 +240,8 @@ export function createImportParserService() {
   const MAX_XLSX_ENTRY_BYTES = 64 * 1024 * 1024;
   const MAX_XLSX_TOTAL_BYTES = 128 * 1024 * 1024;
   const MAX_XLSX_COLUMN_INDEX = 16383;
-  const MAX_XLSX_CELLS = 2000000;
+  const MAX_XLSX_CELLS = 1000000;
+  const MAX_SHARED_STRING_CHARS = 16 * 1024 * 1024;
   const MAX_CELL_CHARS = 32767;
   const MAX_SHEET_CHARS = 64 * 1024 * 1024;
 
@@ -275,6 +320,7 @@ export function createImportParserService() {
     const sheetPath = `xl/${(target || "worksheets/sheet1.xml").replace(/^\/xl\//, "")}`;
     const sheetXml = files.get(sheetPath)?.toString("utf8") || files.get("xl/worksheets/sheet1.xml")?.toString("utf8") || "";
     const matrix = [];
+    const excelRows = [];
     let cellCount = 0;
     let spreadCells = 0;
     let textChars = 0;
@@ -290,7 +336,7 @@ export function createImportParserService() {
         }
         cellCount += 1;
         if (cellCount > MAX_XLSX_CELLS) {
-          throw new Error("Import refused: the sheet has more than 2,000,000 cells. Split it into smaller files and import them one by one.");
+          throw new Error("Import refused: the sheet has more than 1,000,000 cells. Split it into smaller files and import them one by one.");
         }
         const type = /t="([^"]+)"/.exec(attrs)?.[1];
         const raw = firstElementBody(body, "v") ?? firstElementBody(body, "t") ?? "";
@@ -302,7 +348,7 @@ export function createImportParserService() {
         }
         textChars += value.length;
         if (textChars > MAX_SHEET_CHARS) {
-          throw new Error("Import refused: the sheet holds more than 64 million characters of text. Split it into smaller files and import them one by one.");
+          throw new Error("Import refused: the sheet holds more than 67 million characters of text. Split it into smaller files and import them one by one.");
         }
         row[colIndex] = value;
       });
@@ -310,16 +356,26 @@ export function createImportParserService() {
       if (spreadCells > MAX_XLSX_CELLS * 10) {
         throw new Error("Import refused: the sheet is too wide and long to read safely. Delete empty columns, or split it into smaller files, and retry.");
       }
-      if (row.some((cell) => String(cell || "").trim())) matrix.push(row.map((cell) => String(cell || "").trim()));
+      if (row.some((cell) => String(cell || "").trim())) {
+        matrix.push(row.map((cell) => String(cell || "").trim()));
+        excelRows.push(Number(/\br="(\d+)"/.exec(_rowAttrs)?.[1]) || matrix.length);
+      }
     });
     // The header row is the first row holding one of these titles. Cells are already
     // trimmed, so a longer cell cannot be one of them and is skipped without work.
-    const isHeaderRow = (row) => row.some((cell) => cell.length <= HEADER_TITLE_MAX_CHARS && HEADER_TITLES.has(normalizeHeader(cell)));
-    const headerIndex = matrix.findIndex(isHeaderRow);
-    // Title rows above the header are expected, but a header this far down is more likely
-    // a second table; reading it silently would map the wrong rows.
-    if (headerIndex >= MAX_HEADER_SEARCH_ROWS) {
-      throw new Error(`Import refused: the header row (with supplier_name, item_name, order_number or company_name) is row ${headerIndex + 1} of the filled rows; it must be within the first ${MAX_HEADER_SEARCH_ROWS}. Delete the title rows above the header and import again.`);
+    const isTitle = (cell) => cell.length <= HEADER_TITLE_MAX_CHARS && HEADER_TITLES.has(normalizeHeader(cell));
+    let headerIndex = matrix.slice(0, MAX_HEADER_SEARCH_ROWS).findIndex((row) => row.some(isTitle));
+    if (headerIndex < 0) {
+      // A header this far down is more likely a second table; reading the sheet from row 1
+      // would map the wrong rows. Only a row that looks like a header (two or more short
+      // cells, one of them a known title) counts, so a data cell that happens to read
+      // "item_name" in a bank statement does not.
+      const late = matrix.findIndex((row, index) => index >= MAX_HEADER_SEARCH_ROWS
+        && row.filter(Boolean).length >= 2 && row.every((cell) => cell.length <= MAX_HEADER_CHARS) && row.some(isTitle));
+      if (late >= 0) {
+        throw new Error(`Import refused: the header row (with supplier_name, item_name, order_number or company_name) is Excel row ${excelRows[late]}; it must be within the first ${MAX_HEADER_SEARCH_ROWS} filled rows. Delete the title rows above the header and import again.`);
+      }
+      headerIndex = -1;
     }
     const sourceRows = headerIndex >= 0 ? matrix.slice(headerIndex) : matrix;
     const headers = (sourceRows.shift() || []).map(normalizeHeader);

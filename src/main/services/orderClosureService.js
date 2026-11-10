@@ -34,7 +34,7 @@ export function computeOrderClosure(db, orderId) {
  * @param {number} orderId - Supply order ID
  * @param {function} audit - audit writer, called inside the transaction
  */
-export function markOrderOperationallyClosed(db, orderId, audit = () => {}) {
+export function markOrderOperationallyClosed(db, orderId, audit = () => { throw new Error("Order closure refused: no audit writer was passed, so this change could not be recorded. Nothing was changed."); }) {
   db.transaction(() => {
     const closure = computeOrderClosure(db, orderId);
     if (!closure.ready) throw new Error("Order closure checklist is not complete");

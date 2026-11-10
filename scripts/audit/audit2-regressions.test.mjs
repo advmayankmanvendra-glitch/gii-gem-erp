@@ -400,7 +400,7 @@ test("go-live rollback sees allocation and bank-proposal work, and proposal writ
   m.rejectVoucherProposal(db2, proposal, null, "wrong party");
   assert.throws(() => goLive.assertGoLiveRollbackSafe(db2, root, run2.id), /voucher proposal/);
   const row = db2.prepare("SELECT * FROM audit_log WHERE table_name = 'voucher_proposals' ORDER BY id DESC LIMIT 1").get();
-  assert.equal(row.action, "voucher proposal proposal rejected");
+  assert.equal(row.action, "voucher proposal rejected");
   assert.equal(row.record_id, proposal);
 });
 
@@ -440,7 +440,7 @@ test("bank values are cleaned before the supplier bank text is built, and number
 test("import parser caps: long header names, shared-string count, blank TSV lines, and a header too far down", () => {
   const long = "h".repeat(101);
   assert.throws(() => m.parseImportBuffer("long.csv", Buffer.from(`supplier_name,${long}\nA,B\n`)), /header of 101 characters; the limit is 100/);
-  const strings = `<sst>${"<si><t></t></si>".repeat(2000001)}</sst>`;
+  const strings = `<sst>${"<si><t></t></si>".repeat(1000001)}</sst>`;
   const zip = (files) => {
     const parts = []; const centrals = []; let offset = 0;
     for (const [n, text] of Object.entries(files)) {
@@ -454,14 +454,17 @@ test("import parser caps: long header names, shared-string count, blank TSV line
     return Buffer.concat([...parts, cd, eocd]);
   };
   let started = Date.now();
-  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values/);
+  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 1,000,000 text values/);
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
   // Blank lines do not count toward the row limit.
-  const tsv = m.parseImportBuffer("t.csv", Buffer.from(`supplier_name\tcity\nA\tX\n${"\n".repeat(200005)}B\tY\n`));
+  const tsv = m.parseImportBuffer("t.xls", Buffer.from(`supplier_name\tcity\nA\tX\n${"\n".repeat(200005)}B\tY\n`));
   assert.equal(tsv.length, 2);
   const row = (r, v) => `<row r="${r}"><c r="A${r}" t="inlineStr"><is><t>${v}</t></is></c></row>`;
   const title = Array.from({ length: 60 }, (_, i) => row(i + 1, `title ${i}`)).join("");
-  assert.throws(() => m.parseImportBuffer("far.xlsx", sheetZip(`<worksheet><sheetData>${title}${row(61, "supplier_name")}${row(62, "Acme")}</sheetData></worksheet>`)), /row 61 of the filled rows/);
+  const row2 = (r, a, b) => `<row r="${r}"><c r="A${r}" t="inlineStr"><is><t>${a}</t></is></c><c r="B${r}" t="inlineStr"><is><t>${b}</t></is></c></row>`;
+  assert.throws(() => m.parseImportBuffer("far.xlsx", sheetZip(`<worksheet><sheetData>${title}${row2(61, "supplier_name", "city")}${row2(62, "Acme", "Pune")}</sheetData></worksheet>`)), /is Excel row 61/);
+  // A single data cell that reads like a title far down is data, not a header.
+  assert.equal(m.parseImportBuffer("data.xlsx", sheetZip(`<worksheet><sheetData>${title}${row(61, "item_name")}</sheetData></worksheet>`)).length, 60);
   const near = Array.from({ length: 5 }, (_, i) => row(i + 1, `title ${i}`)).join("");
   assert.deepEqual(m.parseImportBuffer("near.xlsx", sheetZip(`<worksheet><sheetData>${near}${row(6, "supplier_name")}${row(7, "Acme")}</sheetData></worksheet>`)), [{ supplier_name: "Acme" }]);
   // Long cells are skipped by the header search at once.
@@ -485,6 +488,8 @@ test("the Tally migration preview reads a file picked twice only once, and caps 
   assert.equal(summaries(twice).length, 1, "the same file picked three times is read once");
   const many = Array.from({ length: 21 }, (_, i) => { const f = path.join(root, `m${i}.xml`); fs.writeFileSync(f, "<ENVELOPE/>"); return { filePath: f }; });
   assert.throws(() => preview(many), /reads at most 20/);
+  const big = Array.from({ length: 2 }, (_, i) => { const f = path.join(root, `big${i}.xml`); fs.writeFileSync(f, Buffer.alloc(13 * 1024 * 1024, 32)); return { filePath: f }; });
+  assert.throws(() => preview(big), /one preview reads at most 25 MB/);
 });
 
 test("CRAC writes and the closure mark are audited with their company, in the same transaction", async () => {
@@ -502,4 +507,67 @@ test("CRAC writes and the closure mark are audited with their company, in the sa
   const before = db.prepare("SELECT COUNT(*) c FROM crac_records").get().c;
   assert.throws(() => crac.createCracRecord(db, { company_id: 1, supply_order_id: order }, () => { throw new Error("audit down"); }), /audit down/);
   assert.equal(db.prepare("SELECT COUNT(*) c FROM crac_records").get().c, before);
+});
+
+test("219b2d3+1 round: undefined, invisible and conflicting supplier values never wipe stored bank details", () => {
+  const db = fresh();
+  const id = m.createRecord(db, "suppliers", { supplier_name: "Keep Bank", status: "active", supplier_account_number: "123456", supplier_bank_ifsc_code: "SBIN0000001", supplier_branch: "Pune" }).id;
+  const before = db.prepare("SELECT * FROM suppliers WHERE id = ?").get(id);
+  const changes = () => db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'bank_details_changed'").get().c;
+  const logged = changes();
+  for (const payload of [{ supplier_account_number: undefined }, { bank_details: undefined }, { branch: "\u200B" }, { ifsc: "\uFEFF" }, { supplier_branch: null }, { remarks: "x", supplier_bank_ifsc_code: "SBIN0000001\u200B" }]) {
+    m.updateRecord(db, "suppliers", id, payload);
+    const after = db.prepare("SELECT * FROM suppliers WHERE id = ?").get(id);
+    for (const field of ["supplier_account_number", "supplier_bank_ifsc_code", "supplier_branch", "bank_details"]) {
+      assert.equal(after[field], before[field], `${JSON.stringify(payload)} changed ${field}`);
+    }
+  }
+  assert.equal(changes(), logged, "no bank change was logged");
+});
+
+test("219b2d3+1 round: yes/no values are stored as 1/0 and lists are refused with a guided message", () => {
+  const db = fresh();
+  const id = m.createRecord(db, "suppliers", { supplier_name: "Typed Values", status: "active" }).id;
+  assert.throws(() => m.updateRecord(db, "suppliers", id, { contact_details: { a: 1 } }), /contact details must be a single value/);
+  assert.doesNotThrow(() => m.updateRecord(db, "suppliers", id, { remarks: false }));
+});
+
+test("219b2d3+1 round: xlsx text values and blank-line files are refused before they hold the app", () => {
+  const big = `<sst><si><t>${"&amp;".repeat(40000)}</t></si></sst>`;
+  const name = "xl/sharedStrings.xml";
+  const files = { [name]: big, "xl/worksheets/sheet1.xml": "<worksheet/>" };
+  const parts = []; const centrals = []; let offset = 0;
+  for (const [n, text] of Object.entries(files)) {
+    const nb = Buffer.from(n); const data = zlib.deflateRawSync(Buffer.from(text));
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(8, 8); local.writeUInt32LE(data.length, 18); local.writeUInt16LE(nb.length, 26);
+    const central = Buffer.alloc(46); central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(8, 10); central.writeUInt32LE(data.length, 20); central.writeUInt16LE(nb.length, 28); central.writeUInt32LE(offset, 42);
+    parts.push(local, nb, data); centrals.push(central, nb); offset += local.length + nb.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22); eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(2, 8); eocd.writeUInt16LE(2, 10); eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  assert.throws(() => m.parseImportBuffer("long.xlsx", Buffer.concat([...parts, cd, eocd])), /longer than 32,767 characters/);
+  const started = Date.now();
+  assert.throws(() => m.parseImportBuffer("blank.xls", Buffer.from(`supplier_name\tcity\n${"\n".repeat(400005)}`)), /most of them blank/);
+  assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
+});
+
+test("219b2d3+1 round: a failing audit write rolls back a proposal change, and CRAC writes need an audit writer", async () => {
+  const crac = await service("cracService.js");
+  const db = fresh();
+  db.pragma("foreign_keys = OFF");
+  const proposal = db.prepare("INSERT INTO voucher_proposals (company_id, bank_entry_id, transaction_date, suggested_voucher_type, status) VALUES (1, 1, '2026-06-01', 'Receipt', 'Suggested')").run().lastInsertRowid;
+  db.pragma("foreign_keys = ON");
+  db.exec("CREATE TEMP TRIGGER fail_proposal_audit BEFORE INSERT ON voucher_proposal_audit BEGIN SELECT RAISE(ABORT, 'audit down'); END;");
+  assert.throws(() => m.rejectVoucherProposal(db, proposal, null, "x"), /audit down/);
+  assert.equal(db.prepare("SELECT status FROM voucher_proposals WHERE id = ?").get(proposal).status, "Suggested");
+  assert.throws(() => crac.createCracRecord(db, { company_id: 1, supply_order_id: firstOrder(db) }), /no audit writer was passed/);
+});
+
+test("219b2d3+1 round: a csv cell past Excel's limit and an oversized reply are refused quickly", () => {
+  const started = Date.now();
+  assert.throws(() => m.parseImportBuffer("q.csv", Buffer.from(`supplier_name\n"${"x".repeat(40000)}"\n`)), /longer than 32,767 characters/);
+  assert.throws(() => m.parseImportBuffer("qq.csv", Buffer.from(`supplier_name\n"${'""'.repeat(40000)}"\n`)), /longer than 32,767 characters/);
+  const header = Array.from({ length: 400 }, (_, i) => `h${String(i).padStart(3, "0")}${"x".repeat(90)}`).join(",");
+  assert.throws(() => m.parseImportBuffer("wide.csv", Buffer.from(`${header}\n${"a\n".repeat(4000)}`)), /more than one import can hold|more text than one import can hold/);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });

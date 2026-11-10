@@ -6,7 +6,10 @@
 // Every CRAC write is audited inside its own transaction, so a write and its audit row are
 // saved together or not at all. The go-live rollback guard relies on these rows. The
 // caller passes its audit writer (main.js passes init.js auditLog).
-function noAudit() {}
+// There is no silent default: a caller that forgets the writer is told at once.
+function noAudit() {
+  throw new Error("CRAC write refused: no audit writer was passed, so this change could not be recorded. Nothing was changed.");
+}
 
 function auditCrac(audit, action, oldRecord, newRecord) {
   const record = newRecord || oldRecord;

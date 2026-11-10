@@ -49,7 +49,8 @@ export function createCrudHelpers({
   }
 
   // One rule for "this field carries a value": null, undefined and blank text do not; 0 does.
-  const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+  // Invisible characters (zero-width space, byte-order mark) count as blank too.
+  const hasValue = (value) => value !== undefined && value !== null && String(value).replace(/[\s\u200B-\u200D\uFEFF]+/g, "") !== "";
 
   // Supplier fields that the import and quick-create screens may send under another name.
   const SUPPLIER_FIELD_ALIASES = {
@@ -76,7 +77,10 @@ export function createCrudHelpers({
 
   function withStoredFields(table, oldRecord, payload = {}) {
     if (!KEEP_OMITTED_ON_UPDATE.has(table) || !oldRecord) return payload;
-    const sent = (field) => Object.prototype.hasOwnProperty.call(payload, field) && payload[field] !== undefined;
+    // A key sent as undefined or null carries no value, the same as one left out, so it
+    // never overrides the stored value. Blank text is an explicit clear and is kept.
+    payload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null));
+    const sent = (field) => Object.prototype.hasOwnProperty.call(payload, field);
     const stored = { ...oldRecord };
     delete stored.id;
     if (table === "suppliers") {
@@ -85,14 +89,9 @@ export function createCrudHelpers({
       for (const [field, aliases] of Object.entries(SUPPLIER_UPDATE_ALIASES)) {
         if (!sent(field) && aliases.some((alias) => hasValue(payload[alias]))) delete stored[field];
       }
-      // The combined bank text is rebuilt when one of its parts is sent with a new value
-      // and the text itself is not sent; a part resent unchanged keeps the stored text.
-      // An alias counts only when the column itself was not sent (the column wins).
-      const differs = (field, key) => !sameBankValue(payload[key], oldRecord[field]);
-      const partChanged = SUPPLIER_BANK_PARTS.some((field) => (sent(field)
-        ? differs(field, field)
-        : SUPPLIER_UPDATE_ALIASES[field].some((alias) => hasValue(payload[alias]) && differs(field, alias))));
-      if (partChanged && !sent("bank_details")) delete stored.bank_details;
+      // The combined bank text is rebuilt only when a part's resolved value really changes
+      // (the same rule cleanPayload uses), and the text itself is not sent.
+      if (!sent("bank_details") && supplierBankPartsChanged({ ...stored, ...payload }, oldRecord)) delete stored.bank_details;
     }
     return { ...stored, ...payload };
   }
@@ -139,6 +138,16 @@ export function createCrudHelpers({
   // Names a supplier bank value may arrive under besides its own column.
   const SUPPLIER_BANK_ALIASES = SUPPLIER_BANK_PARTS.flatMap((field) => SUPPLIER_FIELD_ALIASES[field] || []);
 
+  // SQLite stores text, numbers and null. A yes/no value is stored as 1 or 0; a list or
+  // object cannot be stored in one field and is refused with the field's name.
+  function storableValue(field, value) {
+    if (typeof value === "boolean") return value ? 1 : 0;
+    if (value !== null && typeof value === "object") {
+      throw new Error(`${field.replaceAll("_", " ")} must be a single value, not a list or object. Enter it again in the form and save. Nothing was changed.`);
+    }
+    return value;
+  }
+
   function cleanPayload(table, payload, options) {
     assertTable(table);
     // Bank values are normalized first, so the combined bank text is built from clean parts.
@@ -147,7 +156,7 @@ export function createCrudHelpers({
     const allowed = ALL_TABLES[table].fields;
     const cleaned = {};
     allowed.forEach((field) => {
-      cleaned[field] = payload[field] ?? "";
+      cleaned[field] = storableValue(field, payload[field] ?? "");
     });
     Object.keys(cleaned).filter((field) => field === "id" || field.endsWith("_id")).forEach((field) => {
       if (Object.prototype.hasOwnProperty.call(cleaned, field) && cleaned[field] === "") cleaned[field] = null;

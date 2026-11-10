@@ -1315,6 +1315,9 @@ function registerIpc() {
     try {
       assertGoLiveRollbackSafe(db, runtimeDataRoot, goLiveId);
     } catch (error) {
+      // Only the guard's own refusals are answers; any other error is a fault and is thrown.
+      if (!String(error?.message || "").startsWith("Rollback refused:")) throw error;
+      auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason: error.message }) });
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }
     const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
