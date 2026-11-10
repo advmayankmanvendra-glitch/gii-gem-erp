@@ -50,6 +50,8 @@ function boundedCopy(value, budget, depth) {
     return budget.left >= 0 ? text : undefined;
   }
   if (typeof value !== "object" || depth >= MAX_DEPTH) return undefined;
+  const proto0 = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && proto0 !== Object.prototype && proto0 !== null) return undefined; // typed arrays, dates, maps
   // IPC sends an object referenced many times only once; it is copied once, too.
   if (budget.seen.has(value)) { budget.left -= 12; return "(repeated)"; }
   budget.seen.add(value);
@@ -63,11 +65,9 @@ function boundedCopy(value, budget, depth) {
     budget.left -= 2;
     return out;
   }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) return undefined; // typed arrays, dates, buffers
   const out = {};
   let keys = 0;
-  // for...in stops at the cap without listing every key first.
+  // Keys are read until the cap; the visited set above is what keeps shared objects cheap.
   for (const key in value) {
     if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
     if (keys >= MAX_KEYS || budget.left <= 0) break;

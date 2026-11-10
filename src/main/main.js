@@ -527,6 +527,10 @@ function getUpdateStatus() {
 
 function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
   const resolvedInstaller = path.resolve(installerPath || "");
+  // A ":" in the name would name a hidden Windows stream, not the file shown in the folder.
+  if (path.basename(resolvedInstaller).includes(":")) {
+    throw new Error("The installer name cannot contain \":\". Use the GII-GeM-ERP-Setup-<version>-x64.exe file as it is.");
+  }
   if (!/\.exe$/i.test(resolvedInstaller)) {
     throw new Error("Only Windows EXE update installers can be launched.");
   }
@@ -1276,6 +1280,10 @@ function registerIpc() {
     }
     // Back up the books before anything is replaced, then hand over to the installer.
     const backup = await createLiveBackup(db, runtimeDataRoot);
+    // The file is checked again after the backup, so one swapped in meanwhile is not launched.
+    if (assertInstallerInsideUpdateFolder(selectedInstaller, status.updateFolder) !== selectedInstaller) {
+      throw new Error("The installer changed while the backup was being made, so it was not started. Check the update folder and try again.");
+    }
     const failureReason = await shell.openPath(selectedInstaller);
     auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, failure: failureReason || null }) });
     if (failureReason) throw new Error(failureReason);

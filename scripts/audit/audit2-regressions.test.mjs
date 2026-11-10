@@ -1146,3 +1146,12 @@ test("66b024f round: purchase-voucher receipts match the voucher, skip Accountin
   // Two bills of 1,000 (the Accounting Only one too); the return takes 400 off.
   assert.equal(balance(db, "Trade Payables") - payables, -1600, "the supplier owes back 400 of the 1,000 bill");
 });
+
+test("f9241ed round: the repository tracks no symbolic links and no node_modules", async (t) => {
+  const { execFileSync } = await import("node:child_process");
+  let listing;
+  try { listing = execFileSync("git", ["ls-files", "-s"], { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }); } catch { t.skip("git is not available here"); return; }
+  const links = listing.split("\n").filter((line) => line.startsWith("120000 "));
+  assert.deepEqual(links, [], "a committed link would point outside the repository on another machine");
+  assert.ok(!listing.split("\n").some((line) => /\tnode_modules(\/|$)/.test(line)), "node_modules is never committed");
+});
