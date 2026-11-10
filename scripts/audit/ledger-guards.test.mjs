@@ -1077,3 +1077,45 @@ test("the shared check ignores duplicate ids in its scope and flags fractional p
   inWindowOf(db, 1, () => db.prepare("UPDATE voucher_lines SET debit_minor = 10000.5 WHERE voucher_id = ? AND debit_minor = 10000").run(posted.id));
   assert.equal(db.prepare(`${guards.voucherLedgerCheckSql("SELECT ?")} SELECT mismatch FROM checked`).get(posted.id).mismatch, 1);
 });
+
+test("a voucher whose lines do not match its ledger is not reversed automatically", () => {
+  const db = fresh();
+  const id = inWindowOf(db, 1, () => {
+    const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+    const voucher = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id, source_module) VALUES (1, 'OLD-DELLINES', ?, 'Journal', 'Posted', ?, 'legacy')").run(DATE, year.id).lastInsertRowid;
+    addLine(db, voucher, "Cash", 1000, 0);
+    addLine(db, voucher, "Capital", 0, 1000);
+    const bank = addLine(db, voucher, "Cash", 9000, 0);
+    const sales = addLine(db, voucher, "Sales", 0, 9000);
+    db.prepare("UPDATE voucher_lines SET is_deleted = 1 WHERE id IN (?, ?)").run(bank, sales);
+    db.prepare("UPDATE ledger_entries SET is_deleted = 1 WHERE voucher_line_id IN (?, ?)").run(bank, sales);
+    return voucher;
+  });
+  assert.throws(() => m.reverseVoucher(db, id, "should refuse"), /cannot be reversed automatically/);
+  assert.equal(db.prepare("SELECT status FROM vouchers WHERE id = ?").get(id).status, "Posted");
+});
+
+test("the Error Console voucher check stays fast with thousands of settled originals", () => {
+  const db = fresh();
+  const cash = account(db, "Cash");
+  const capital = account(db, "Capital");
+  const rounding = db.prepare("SELECT id FROM accounts WHERE company_id = 1 AND account_name = 'Rounding Off'").get().id;
+  const year = db.prepare("SELECT id FROM financial_years WHERE company_id = 1 AND start_date <= ? AND end_date >= ?").get(DATE, DATE);
+  inWindowOf(db, 1, () => {
+    const voucher = db.prepare("INSERT INTO vouchers (company_id, voucher_number, voucher_date, voucher_type, status, financial_year_id, source_module, source_id) VALUES (1, ?, ?, 'Journal', 'Posted', ?, ?, ?)");
+    const line = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?, ?)");
+    const entry = db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
+      VALUES (1, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0)`);
+    const add = (id, acc, d, c) => entry.run(id, line.run(id, acc, d / 100, c / 100, d, c).lastInsertRowid, acc, DATE, d / 100, c / 100, d, c);
+    for (let i = 0; i < 15000; i += 1) {
+      const original = voucher.run(`SETTLED-${i}`, DATE, year.id, "legacy", null).lastInsertRowid;
+      add(original, cash, 101, 0);
+      add(original, capital, 0, 100);
+      add(voucher.run(`ADJ-${i}`, DATE, year.id, "rounding_adjustment", original).lastInsertRowid, rounding, 0, 1);
+    }
+  });
+  const started = Date.now();
+  assert.equal(bookIntegrityChecks(db, 1).find((c) => c.id === "voucher_balance").status, "pass");
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 5000, `Error Console took ${elapsed} ms`);
+});

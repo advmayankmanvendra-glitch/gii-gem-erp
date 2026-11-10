@@ -141,22 +141,29 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
   // A rounding adjustment, or a reversal that mirrors an older unbalanced voucher, is
   // one-sided by design: a voucher counts as unbalanced only when it and the corrections
   // naming it do not net to zero.
-  const unbalanced = db.prepare(`
-    ${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${companyClause}`)},
-    imbalance AS (
-      SELECT id, voucher_number, source_module, source_id, line_debit_minor - line_credit_minor diff, mismatch FROM checked
-    )
-    SELECT a.voucher_number FROM imbalance a
-    WHERE (a.diff <> 0
-        AND COALESCE(a.source_module, '') <> '${ROUNDING_ADJUSTMENT_SOURCE}'
-        AND a.diff + COALESCE((SELECT SUM(c.diff) FROM imbalance c WHERE c.source_id = a.id AND c.source_module IN ('${ROUNDING_ADJUSTMENT_SOURCE}', '${VOUCHER_REVERSAL_SOURCE}')), 0) <> 0
-        AND NOT (a.source_module = '${VOUCHER_REVERSAL_SOURCE}' AND a.diff + COALESCE((SELECT o.diff FROM imbalance o WHERE o.id = a.source_id), 0) = 0))
-      -- Lines that disagree with the ledger entries are reported too, by the same check the
-      -- money integrity report uses.
-      OR a.mismatch = 1
-    ORDER BY a.id
-    LIMIT 10
-  `).all(...params).map((row) => row.voucher_number);
+  // One grouped pass gives every voucher's line difference and line/ledger mismatch flag
+  // (the same check the money integrity report uses); the netting with corrections is done
+  // here with maps, so it stays linear however many corrections the books hold.
+  const voucherRows = db.prepare(`
+    ${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${companyClause}`)}
+    SELECT id, voucher_number, source_module, source_id, line_debit_minor - line_credit_minor diff, mismatch
+    FROM checked WHERE line_debit_minor <> line_credit_minor OR mismatch = 1 ORDER BY id
+  `).all(...params);
+  const diffById = new Map(voucherRows.map((row) => [row.id, Number(row.diff)]));
+  const correctionSum = new Map();
+  voucherRows.forEach((row) => {
+    if ([ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE].includes(row.source_module)) {
+      correctionSum.set(row.source_id, (correctionSum.get(row.source_id) || 0) + Number(row.diff));
+    }
+  });
+  const unbalanced = voucherRows.filter((row) => {
+    if (row.mismatch === 1) return true;
+    const diff = Number(row.diff);
+    if (diff === 0 || row.source_module === ROUNDING_ADJUSTMENT_SOURCE) return false;
+    if (diff + (correctionSum.get(row.id) || 0) === 0) return false;
+    if (row.source_module === VOUCHER_REVERSAL_SOURCE && diff + (diffById.get(row.source_id) || 0) === 0) return false;
+    return true;
+  }).slice(0, 10).map((row) => row.voucher_number);
   checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced or not matching their ledger entries: ${unbalanced.join(", ")}` : "All posted vouchers balance and match their ledger entries.", "Open Health > Money integrity, which says what is wrong with each voucher. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
 
   const stockCompany = companyId ? " AND company_id = ?" : "";

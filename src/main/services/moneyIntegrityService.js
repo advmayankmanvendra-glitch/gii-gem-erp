@@ -25,7 +25,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
   // that mirrors an unbalanced voucher, are one-sided by design and appear only as the
   // correction of the voucher they name. With voucherId, only that voucher (and the
   // voucher it names) is read, so a single adjustment does not scan the whole books.
-  function unbalancedVouchers(db, companyId, voucherId = null) {
+  function unbalancedVouchers(db, companyId, voucherId = null, knownMismatches = null) {
     const filter = companyFilter(companyId);
     if (voucherId) {
       // The voucher itself, and the original it mirrors when it is a reversal.
@@ -45,11 +45,13 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     const byId = new Map(rows.map((row) => [row.id, Number(row.total_debit_minor) - Number(row.total_credit_minor)]));
     // Everything per row is read up front in grouped queries, so books with many older
     // paise differences do not run several queries per voucher.
-    const mismatched = new Set();
+    const mismatched = new Set(knownMismatches || []);
     const correctionsBySource = new Map();
     if (rows.length) {
-      db.prepare(`${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${filter.sql}`)} SELECT id FROM checked WHERE mismatch = 1`)
-        .all(...filter.params).forEach((row) => mismatched.add(row.id));
+      if (!knownMismatches) {
+        db.prepare(`${voucherLedgerCheckSql(`SELECT v.id FROM vouchers v WHERE 1 = 1${filter.sql}`)} SELECT id FROM checked WHERE mismatch = 1`)
+          .all(...filter.params).forEach((row) => mismatched.add(row.id));
+      }
       const correctionFilter = companyFilter(companyId, "c");
       db.prepare(`
         SELECT c.id, c.voucher_number, c.source_module, c.source_id,
@@ -143,8 +145,9 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
 
   function moneyIntegrityReport(db, companyId = null) {
     const trialBalance = trialBalanceTotals(db, companyId);
-    const unbalanced = unbalancedVouchers(db, companyId);
+    // The shared line/ledger check runs once and serves both lists.
     const mismatches = lineLedgerMismatches(db, companyId);
+    const unbalanced = unbalancedVouchers(db, companyId, null, mismatches.map((row) => row.id));
     // The paise twins hold every company's rows, so this part is checked database-wide.
     // An older rupee amount saved with a fraction of a paisa (1181.475) is listed apart:
     // the books use its paise value, and the old row is left as it is.

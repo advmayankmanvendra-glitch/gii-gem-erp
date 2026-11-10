@@ -323,9 +323,10 @@ function triggerSql() {
         SELECT RAISE(ABORT, 'Ledger guard: ledger entries can only be written for an existing voucher of the same company that is not yet posted.')
         WHERE NOT EXISTS (SELECT 1 FROM vouchers WHERE id = NEW.voucher_id AND company_id = NEW.company_id)
           OR NOT EXISTS (SELECT 1 FROM accounts WHERE id = NEW.account_id AND company_id = NEW.company_id)
-          OR (NOT ${maintenanceOpen("NEW.company_id")}
-            AND (${lockedVoucher("NEW.voucher_id")} OR COALESCE(NEW.is_deleted, 0) <> 0))
+          OR (NOT ${maintenanceOpen("NEW.company_id")} AND ${lockedVoucher("NEW.voucher_id")})
           OR EXISTS (SELECT 1 FROM ledger_entries old WHERE old.id = NEW.id AND NOT ${maintenanceOpen("old.company_id")});
+        SELECT RAISE(ABORT, 'Ledger guard: a ledger entry cannot be written already deleted.')
+        WHERE COALESCE(NEW.is_deleted, 0) <> 0 AND NOT ${maintenanceOpen("NEW.company_id")};
       END`,
 
     `CREATE TRIGGER IF NOT EXISTS trg_ledger_guard_entry_update
