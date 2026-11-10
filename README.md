@@ -136,6 +136,26 @@ npm run dist:win
 
 Packaging output is written to `dist-installer`.
 
+### Releasing an update
+
+The ERP only offers an installer as an update when its version is higher than
+the running app's version.
+
+1. Raise `version` in `package.json` before every build you hand out (for example
+   `npm version 0.3.0-internal-test --no-git-tag-version`). A build with the same
+   version is shown as "same version" and installing it changes nothing.
+2. Run `npm run dist:win` and copy `GII-GeM-ERP-Setup-<version>-x64.exe` into
+   `Documents\GII GeM ERP Updates` on the user's computer. Portable EXEs are
+   not offered as updates, because they never replace the installed app.
+3. In Settings > Updates, Install Update takes a backup, opens the installer and
+   closes the ERP so the installer can replace it.
+4. If you use `latest.json`, update it with each release. A newer Setup EXE in
+   the folder is offered even when an old `latest.json` names an older one.
+
+First upgrade from 0.1.0-internal-test: that build still runs the old updater.
+Put only the Setup EXE in the update folder (no portable EXE, no old
+`latest.json`), close the ERP yourself, then run the Setup EXE.
+
 ## Runtime Data Locations
 
 Source/development mode stores ERP data in the project folders:

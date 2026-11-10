@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { EmptyState } from "../common.jsx";
 
+function updateStatusLabel(status) {
+  if (status?.portableNotSupported) return "Portable EXE found: it does not update the installed app. Use the Setup installer.";
+  if (status?.updateAvailable) return "Update available";
+  if (status?.sameVersion) return "Installer found, but it is the same version as this app";
+  if (status?.olderVersion) return "Installer found, but it is older than this app";
+  return "No newer package detected";
+}
+
 export function SettingsPanel({
   backups,
   updateStatus,
@@ -67,7 +75,7 @@ export function UpdaterSection({
     ["Current Version", updateStatus?.currentVersion || "-", "Installed app version."],
     ["Latest Available", updateStatus?.latestVersion || "No update package found", updateStatus?.installerFileName || "Place installer EXE in the update folder."],
     ["Update Folder", updateStatus?.updateFolder || "Windows desktop app only", "Store internal update installers and latest.json here."],
-    ["Update Status", updateStatus?.updateAvailable ? "Update available" : "No newer package detected", updateStatus?.manifestError || updateStatus?.source || "Manual check"]
+    ["Update Status", updateStatusLabel(updateStatus), updateStatus?.manifestError || updateStatus?.source || "Manual check"]
   ];
 
   return (
