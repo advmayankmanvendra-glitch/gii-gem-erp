@@ -129,6 +129,18 @@ test("a reset refuses when a company table is neither cleared nor kept", () => {
   assert.ok(db.prepare("SELECT COUNT(*) c FROM supply_orders WHERE company_id = 1").get().c > 0, "nothing was cleared");
 });
 
+test("a broken link that existed before the reset does not block it", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  db.exec("PRAGMA foreign_keys = OFF");
+  insert(db, "installations", { company_id: 1, installation_number: "I-orphan", supply_order_id: 999999 });
+  db.exec("PRAGMA foreign_keys = ON");
+  assert.equal(reset.previewReset(db, 1).existingLinkIssues, 1);
+  const result = reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.equal(result.after.totalOperational, 0);
+});
+
 test("a preview for a company that does not exist is refused", () => {
   const db = m.initializeDatabase(freshRoot());
   handles.push(db);

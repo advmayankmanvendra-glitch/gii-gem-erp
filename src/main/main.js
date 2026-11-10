@@ -422,15 +422,22 @@ function writeEnvironmentConfig(config) {
 }
 
 function findLatestUpdateInstaller(updateFolder, manifest) {
+  const folderBest = newestSetupInFolder(updateFolder);
   const manifestFileName = manifest?.fileName || manifest?.installerFileName || manifest?.installer;
   if (manifestFileName) {
     const fileName = path.basename(manifestFileName);
     const installerPath = path.join(updateFolder, fileName);
-    return fs.existsSync(installerPath)
+    const named = fs.existsSync(installerPath)
       ? { fileName, installerPath, version: parseUpdateVersion(fileName), source: "manifest" }
       : { fileName, installerPath: "", version: parseUpdateVersion(fileName), source: "manifest", missing: true };
+    // An old latest.json must not hide a newer Setup installer copied in later.
+    if (folderBest && (named.missing || !named.version || compareUpdateVersions(folderBest.version, named.version) > 0)) return folderBest;
+    return named;
   }
+  return folderBest;
+}
 
+function newestSetupInFolder(updateFolder) {
   const candidates = fs.readdirSync(updateFolder)
     .filter((fileName) => /^GII-GeM-ERP-Setup-.+-x64\.exe$/i.test(fileName))
     .map((fileName) => {

@@ -220,7 +220,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
     setResetLoading(true);
     setResetError(null);
     try {
-      const result = await apiClient.executeReset({ company_id: companyContext?.company_id, confirm_text: resetConfirm });
+      const result = await apiClient.executeReset({ company_id: resetPreview?.company?.id || companyContext?.company_id, confirm_text: resetConfirm });
       setResetResult(result);
       setResetPreview(null);
       setResetConfirm("");
@@ -295,7 +295,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
     setResetLoading(true);
     setResetError(null);
     try {
-      const resetPayload = { company_id: companyContext?.company_id, confirm_text: resetConfirm };
+      const resetPayload = { company_id: resetPreview?.company?.id || companyContext?.company_id, confirm_text: resetConfirm };
       const result = await apiClient.executeEnhancedReset?.(resetPayload) || await apiClient.executeReset(resetPayload);
       setResetResult(result);
       setResetZeroState(result.zeroState);
@@ -339,6 +339,16 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
       setResetRollbackLoading(false);
     }
   };
+
+  // Switching company mid-workflow would reset a company other than the one previewed,
+  // so start the workflow again.
+  const previewCompanyId = resetPreview?.company?.id;
+  useEffect(() => {
+    if (previewCompanyId && String(previewCompanyId) !== String(companyContext?.company_id || "")) {
+      handleResetComplete();
+      setResetError("The company was changed, so the reset was started again. Preview the newly selected company first.");
+    }
+  }, [companyContext?.company_id]);
 
   const handleResetComplete = () => {
     setResetStep("idle");
@@ -784,7 +794,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
 
             <div className="reset-confirm-section" style={{ marginTop: 12 }}>
               <p className="reset-warning">
-                This removes every transaction of <strong>{companyContext?.company_name || "the selected company"}</strong> only, including posted opening balances (masters, users, chart of accounts and the leads-to-purchase-order pipeline are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
+                This removes every transaction of <strong>{resetPreview?.company?.name || companyContext?.company_name || "the selected company"}</strong> only, including posted opening balances (masters, users, chart of accounts and the leads-to-purchase-order pipeline are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
               </p>
               <input
                 type="text"

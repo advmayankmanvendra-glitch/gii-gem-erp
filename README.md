@@ -149,6 +149,12 @@ the running app's version.
    not offered as updates, because they never replace the installed app.
 3. In Settings > Updates, Install Update takes a backup, opens the installer and
    closes the ERP so the installer can replace it.
+4. If you use `latest.json`, update it with each release. A newer Setup EXE in
+   the folder is offered even when an old `latest.json` names an older one.
+
+First upgrade from 0.1.0-internal-test: that build still runs the old updater.
+Put only the Setup EXE in the update folder (no portable EXE, no old
+`latest.json`), close the ERP yourself, then run the Setup EXE.
 
 ## Runtime Data Locations
 

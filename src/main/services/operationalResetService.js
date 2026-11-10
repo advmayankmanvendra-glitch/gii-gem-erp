@@ -107,8 +107,13 @@ function formatForeignKeyIssues(issues) {
     .join("; ");
 }
 
-function assertNoForeignKeyIssues(db) {
-  const issues = db.prepare("PRAGMA foreign_key_check").all();
+const issueKey = (issue) => `${issue.table}:${issue.rowid}:${issue.parent}:${issue.fkid}`;
+
+// Broken links that already existed before the reset (for example an old row with
+// no company) are not the reset's doing and must not block every company's reset.
+// Only links the reset itself would break are refused.
+function assertNoForeignKeyIssues(db, existing = new Set()) {
+  const issues = db.prepare("PRAGMA foreign_key_check").all().filter((issue) => !existing.has(issueKey(issue)));
   if (issues.length > 0) {
     throw new OperationalResetError(`Reset would leave ${issues.length} foreign key issue(s): ${formatForeignKeyIssues(issues)}`);
   }
@@ -153,7 +158,9 @@ export function previewReset(db, companyId = null) {
     operational: counts,
     preserved: preservedCounts,
     totalOperational,
-    unclassifiedTables: unclassifiedCompanyTables(db)
+    unclassifiedTables: unclassifiedCompanyTables(db),
+    // Broken links already in the database; they do not block the reset.
+    existingLinkIssues: db.prepare("PRAGMA foreign_key_check").all().length
   };
 }
 
@@ -332,6 +339,7 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   let after;
   let zeroState;
   let auditId;
+  const existingIssues = new Set(db.prepare("PRAGMA foreign_key_check").all().map(issueKey));
   runWithForeignKeysDisabled(db, () => {
     db.transaction(() => {
       // Children first, while their parents still exist to identify the company.
@@ -354,7 +362,7 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
       YEAR_END_TABLES.forEach((table) => {
         if (tables.has(table)) db.prepare(`DELETE FROM "${table}" WHERE company_id = ?`).run(company.id);
       });
-      assertNoForeignKeyIssues(db);
+      assertNoForeignKeyIssues(db, existingIssues);
       // The audit row is written in the same transaction, so a reset never lands without
       // its record (the go-live rollback guard relies on it).
       after = before.map((row) => ({ ...row, count: tables.has(row.table) ? companyRowCount(db, row.table, company.id) : 0 }));

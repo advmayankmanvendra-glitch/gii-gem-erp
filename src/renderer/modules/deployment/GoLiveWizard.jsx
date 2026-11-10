@@ -98,6 +98,10 @@ function GoLiveWizard({ apiClient, companyContext }) {
   };
 
   const step3CreateBackup = async () => {
+    if (!companyContext?.company_id) {
+      handleError("Select one company in the company switcher (top bar) first. Go-live resets one company at a time.", 3);
+      return;
+    }
     setLoading(true);
     try {
       const preview = await apiClient.previewGoLive({ company_id: companyContext?.company_id });
