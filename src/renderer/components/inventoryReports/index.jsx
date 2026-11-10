@@ -2,6 +2,7 @@ import React from "react";
 import { EmptyState } from "../common.jsx";
 import { MetricLine, ReportActionButtons, ReportDateFilters, ReportSelectFilter, ReportToolbar } from "../forms/index.jsx";
 import { formatCurrency } from "../../utils/formatters.js";
+import { sumRupees } from "../../utils/money.js";
 
 export { InventoryDashboardPanel } from "./InventoryDashboardPanel.jsx";
 
@@ -91,9 +92,9 @@ export function StockReportTotals({ rows, totals, mode, selectedItem }) {
     closingValue: totals.closingValue
   } : {
     inwardQty: rows.reduce((sum, row) => sum + Number(row.inward_quantity || 0), 0),
-    inwardValue: rows.reduce((sum, row) => sum + Number(row.inward_value || 0), 0),
+    inwardValue: sumRupees(rows.map((row) => row.inward_value)),
     outwardQty: rows.reduce((sum, row) => sum + Number(row.outward_quantity || 0), 0),
-    outwardValue: rows.reduce((sum, row) => sum + Number(row.outward_value || 0), 0),
+    outwardValue: sumRupees(rows.map((row) => row.outward_value)),
     closingQty: rows.at(-1)?.closing_quantity || selectedItem?.closing_quantity || 0,
     closingValue: rows.at(-1)?.closing_value || selectedItem?.stock_value || 0
   };

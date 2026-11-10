@@ -57,8 +57,20 @@ At present, statement queries read `ledger_entries` without consistently revalid
 
 - `createBalancedVoucher` itself does not validate account ownership.
 - Empty posted vouchers are accepted.
+  **Paise/guards resolution (2026-10-29)**: the `trg_ledger_guard_voucher_post` trigger refuses
+  to post a voucher with no lines.
 - Draft/Cancelled exclusion is not expressed in core statement SQL.
 - No database trigger/constraint enforces voucher-line balance or line-to-ledger equality.
+  **Paise/guards resolution (2026-10-29)**: `src/main/database/ledgerGuards.js` now adds
+  triggers that refuse, at the database, any Posted voucher whose lines or ledger entries do
+  not balance to the paisa, whose lines disagree with its ledger entries, or whose rupee
+  values are not exactly their paise / 100, and any edit or delete of a posted voucher, its
+  lines or its ledger entries. They are dropped before migrations and recreated at the end of
+  every start. Trusted repair code (migrations, year close, verify fixtures) runs inside
+  `withLedgerMaintenance`, which opens the window with a `ledger_maintenance` row inside its
+  own transaction. The only one-sided voucher allowed is a labelled Rounding Off journal
+  (`source_module = 'rounding_adjustment'`, 1 to 100 paise, one per original) that settles an
+  older voucher left unbalanced by paisa rounding; the original is never changed.
 - `accounts.opening_balance` can be created without a balancing voucher.
   **FSR-2A.5A resolution**: `createLedgerAccount` now forces `opening_balance = 0`;
   `accounts` is in `WRITE_POLICY.accountingReadOnly` (generic `createRecord`/`updateRecord`

@@ -2,7 +2,7 @@ import { localBusinessDate } from "../domain/businessDate.js";
 export function createOperationsService(deps) {
   const {
     auditLog, stockBalance, nextDocumentNumber, createRecord,
-    postStockOutward, weightedAverageCost, insertStockLedger,
+    postStockOutward, weightedAverageCost, outwardValue, insertStockLedger,
     getRecord, postSalesVoucher, postPurchaseVoucher,
     postReceiptVoucher, postSupplierPaymentVoucher, postExpenseAccrualsForOrder, postExpenseEntry
   } = deps;
@@ -154,8 +154,7 @@ export function createOperationsService(deps) {
     if (Number(transfer.quantity || 0) > available) throw new Error(`Transfer quantity exceeds available stock (available ${available}). Reduce the quantity or receive stock into the source warehouse first.`);
     // Stock moves at its book value (weighted average of the source warehouse),
     // so the transfer never creates or destroys inventory value.
-    const rate = weightedAverageCost(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id);
-    const value = Number(transfer.quantity || 0) * rate;
+    const { rate, value } = outwardValue(db, transfer.company_id, transfer.item_id, transfer.from_warehouse_id, transfer.quantity);
     const tx = db.transaction(() => {
       insertStockLedger(db, {
         company_id: transfer.company_id,

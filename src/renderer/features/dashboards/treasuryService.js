@@ -1,3 +1,4 @@
+import { sumRupees, subtractRupees } from "../../utils/money.js";
 /** Builds read-only cash and bank visibility from existing accounting rows. */
 export function buildTreasuryOverview(counts, accountingData, bankLedgers = []) {
   const cashBankRows = Array.isArray(accountingData?.cashBank) ? accountingData.cashBank : [];
@@ -6,7 +7,7 @@ export function buildTreasuryOverview(counts, accountingData, bankLedgers = []) 
     : (Array.isArray(accountingData?.references?.banks) ? accountingData.references.banks : []);
   const bankRows = Array.isArray(bankLedgers) && bankLedgers.length ? bankLedgers : bankMasters;
   const isCashRow = (row) => String(row.payment_mode || "").trim().toLowerCase() === "cash";
-  const balanceForRows = (rows) => rows.reduce((sum, row) => sum + Number(row.debit || 0) - Number(row.credit || 0), 0);
+  const balanceForRows = (rows) => subtractRupees(sumRupees(rows.map((row) => row.debit)), sumRupees(rows.map((row) => row.credit)));
 
   // Cash is identified by its payment mode, never by a missing bank ID: bank
   // movements can be saved without a bank master. Only bank movements are

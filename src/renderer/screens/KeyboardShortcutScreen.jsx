@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { keyboardShortcuts, moduleKeys } from "../config/keyboardShortcuts.js";
+import { keyboardShortcuts as standardShortcuts, moduleKeys as standardModules } from "../config/keyboardShortcuts.js";
+import { tallyKeyboardShortcuts } from "../config/keyLayout.js";
+
+const keyboardShortcuts = [...standardShortcuts, ...tallyKeyboardShortcuts];
+const moduleKeys = [...standardModules, "Tally Key Layout"];
 import { sortOptions } from "../utils/optionSorting.js";
 
 export function KeyboardShortcutScreen({ onNavigate }) {

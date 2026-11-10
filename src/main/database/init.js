@@ -27,6 +27,7 @@ import {
 } from "./accountMappingRegistry.js";
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
+import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectIds } from "./ledgerGuards.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -42,8 +43,9 @@ import { createOperationsService } from "../services/operationsService.js";
 import { createImportValidationService } from "../services/importValidationService.js";
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 import { createAccountMappingService } from "../services/accountMappingService.js";
+import { createMoneyIntegrityService } from "../services/moneyIntegrityService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
-import { roundMoney } from "../domain/money.js";
+import { roundMoney, paise, rupees } from "../domain/money.js";
 import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "../services/bankDetailsPolicy.js";
 
 export {
@@ -278,12 +280,27 @@ export const WRITE_POLICY = {
 
 export function initializeDatabase(root = projectRoot()) {
   const db = openDatabase(root);
+  // Migrations run with the ledger guards off; they are put back, current, at the end.
+  const existingBooks = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vouchers'").get());
+  const repairPending = existingBooks && !migrationApplied(db, UPGRADE_REPAIR_MIGRATION);
+  const countedBefore = existingBooks ? ledgerDefectIds(db) : null;
+  const plantedBefore = existingBooks ? dropUnexpectedLedgerTriggers(db) : [];
+  if (existingBooks) dropLedgerGuards(db);
   backupBeforePendingMigration(db, root);
   migrate(db);
   ensureAuditChain(db);
   seed(db);
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
+  const guards = ensureLedgerGuards(db);
+  const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
+  if (removed.length) {
+    console.error(`Ledger check: removed ${removed.length} trigger(s) touching the accounting tables that the app did not create.`);
+    auditLog(db, { action: "ledger_unexpected_triggers_removed", table_name: "vouchers", new_value: JSON.stringify({ triggers: removed }) });
+  }
+  // Migration 036 fills paise columns that older rows left at 0, which can show defects
+  // that were already there; that start sets the baseline instead of comparing.
+  recordStartupLedgerCheck(db, repairPending ? null : countedBefore);
   return db;
 }
 
@@ -682,6 +699,39 @@ export function migrate(db) {
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 
+// Start-up work above runs with the ledger guards off. If it left more unbalanced or
+// mismatched posted vouchers than there were before, that is recorded in the audit log
+// (the Money integrity check in Health Center lists the vouchers themselves). Start-up is
+// not refused, so the owner can still open the books to correct them.
+// defectsBefore: the voucher ids ledgerDefectIds listed before migrations and seeding (a
+// count is also accepted). Any voucher listed now and not then is recorded, so fixing one
+// voucher cannot hide breaking another.
+export function recordStartupLedgerCheck(db, defectsBefore) {
+  if (defectsBefore === null || defectsBefore === undefined) return;
+  const after = ledgerDefectIds(db);
+  if (after === null) return;
+  let added;
+  if (Array.isArray(defectsBefore)) {
+    const before = new Set(defectsBefore);
+    added = after.filter((id) => !before.has(id));
+  } else {
+    added = after.length > Number(defectsBefore) ? after.slice(Number(defectsBefore)) : [];
+  }
+  if (!added.length) return;
+  const beforeCount = Array.isArray(defectsBefore) ? defectsBefore.length : Number(defectsBefore);
+  console.error(`Ledger check: start-up left ${added.length} new unbalanced or mismatched posted voucher(s).`);
+  auditLog(db, {
+    action: "ledger_startup_check_failed",
+    table_name: "vouchers",
+    new_value: JSON.stringify({ unbalanced_before: beforeCount, unbalanced_after: after.length, new_voucher_ids: added.slice(0, 50) })
+  });
+}
+
+function migrationApplied(db, name) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()) return false;
+  return Boolean(db.prepare("SELECT 1 FROM schema_migrations WHERE migration_name = ?").get(name));
+}
+
 // Copy an existing database aside before migrations that have not run on it yet.
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
@@ -797,10 +847,25 @@ function seedAccounts(db, companyId = null) {
           updated_at = CURRENT_TIMESTAMP
       `).run({ company_id: company.id, account_code, account_name, account_type, normal_balance, opening_balance });
     });
+    ensureRoundingOffAccount(db, company.id);
     // At start-up a same-name ledger of the wrong type must not stop the books opening; the
     // return that needs the variance ledger refuses with guidance instead.
     ensurePurchasePriceVarianceAccount(db, company.id, { refuseWrongType: false });
   });
+}
+
+// The Rounding Off ledger that rounding adjustments post to. Added after the defaults
+// above, and only when the company has none: an existing ledger with that name is
+// reused, and a code already in use (by a ledger the user created) is never taken over.
+function ensureRoundingOffAccount(db, companyId) {
+  const existing = db.prepare("SELECT id FROM accounts WHERE company_id = ? AND account_name = 'Rounding Off' AND is_deleted = 0").get(companyId);
+  if (existing) return existing.id;
+  let code = 5180;
+  while (db.prepare("SELECT 1 FROM accounts WHERE company_id = ? AND account_code = ?").get(companyId, String(code))) code += 1;
+  return db.prepare(`
+    INSERT INTO accounts (company_id, account_code, account_name, account_type, normal_balance, opening_balance, status)
+    VALUES (?, ?, 'Rounding Off', 'Expense', 'Debit', 0, 'active')
+  `).run(companyId, String(code)).lastInsertRowid;
 }
 
 export const PURCHASE_PRICE_VARIANCE_ACCOUNT = "Purchase Price Variance";
@@ -1211,16 +1276,15 @@ function postLedgerEntry(db, companyId, voucherId, voucherLineId, accountIdValue
   const ledgerActiveWhere = activeRowClause(db, "ledger_entries");
   const previous = db.prepare(`SELECT running_balance, running_balance_minor FROM ledger_entries WHERE company_id = ? AND account_id = ?${ledgerActiveWhere} ORDER BY id DESC LIMIT 1`).get(companyId, accountIdValue);
   const account = db.prepare("SELECT normal_balance FROM accounts WHERE id = ?").get(accountIdValue);
-  const delta = account?.normal_balance === "Credit" ? credit - debit : debit - credit;
-  const running = Number(previous?.running_balance || 0) + delta;
   if (debitMinor === null) debitMinor = parseMoneyToMinor(debit);
   if (creditMinor === null) creditMinor = parseMoneyToMinor(credit);
   const deltaMinor = account?.normal_balance === "Credit" ? creditMinor - debitMinor : debitMinor - creditMinor;
   const runningMinor = Number(previous?.running_balance_minor || 0) + deltaMinor;
+  // The REAL columns mirror the paise columns exactly, so both always agree.
   db.prepare(`
     INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, source_module, source_id, debit_minor, credit_minor, running_balance_minor)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, debit, credit, running, sourceModule, sourceId, debitMinor, creditMinor, runningMinor);
+  `).run(companyId, voucherId, voucherLineId, accountIdValue, entryDate, rupees(debitMinor), rupees(creditMinor), rupees(runningMinor), sourceModule, sourceId, debitMinor, creditMinor, runningMinor);
 }
 
 function updateCashBankLedger(db, { company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit = 0, credit = 0, payment_mode, utr_number, remarks }) {
@@ -1239,7 +1303,9 @@ function updateCashBankLedger(db, { company_id, bank_account_id, transaction_dat
   `).get(company_id, bank_account_id || null, voucher_id || null, source_module || "", source_id || null, Number(debit || 0), Number(credit || 0));
   if (existing) return existing.id;
   const previous = db.prepare(`SELECT balance FROM cash_bank_ledger WHERE company_id = ? AND COALESCE(bank_account_id, 0) = COALESCE(?, 0)${cashBankActiveWhere} ORDER BY id DESC LIMIT 1`).get(company_id, bank_account_id);
-  const balance = Number(previous?.balance || 0) + Number(debit || 0) - Number(credit || 0);
+  debit = rupees(paise(debit));
+  credit = rupees(paise(credit));
+  const balance = rupees(paise(previous?.balance) + paise(debit) - paise(credit));
   const result = db.prepare(`
     INSERT INTO cash_bank_ledger (company_id, bank_account_id, transaction_date, transaction_type, source_module, source_id, voucher_id, debit, credit, balance, payment_mode, utr_number, remarks)
     VALUES (@company_id, @bank_account_id, @transaction_date, @transaction_type, @source_module, @source_id, @voucher_id, @debit, @credit, @balance, @payment_mode, @utr_number, @remarks)
@@ -1943,7 +2009,7 @@ const {
 });
 
 const {
-  stockBalance, weightedAverageCost, insertStockLedger,
+  stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
   inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
   procurementRequirementReport,
   postStockInward, postStockOutward, postStockAdjustment,
@@ -2046,7 +2112,7 @@ const {
   submitForApproval, approveTransaction, postBusinessTransaction
 } = createOperationsService({
   auditLog, stockBalance, nextDocumentNumber, createRecord,
-  postStockOutward, weightedAverageCost, insertStockLedger,
+  postStockOutward, weightedAverageCost, outwardValue, insertStockLedger,
   getRecord, postSalesVoucher, postPurchaseVoucher,
   postReceiptVoucher, postSupplierPaymentVoucher, postExpenseAccrualsForOrder, postExpenseEntry
 });
@@ -2110,6 +2176,12 @@ export {
   trialBalance, profitLossReport, balanceSheetReport,
   businessVoucherPayload
 };
+
+const { moneyIntegrityReport, postRoundingAdjustment } = createMoneyIntegrityService({
+  auditLog, accountId, nextVoucherNumber, postLedgerEntry, financialYearForDate
+});
+
+export { moneyIntegrityReport, postRoundingAdjustment };
 
 export {
   previewBankStatementImport, createBankStatementImport,

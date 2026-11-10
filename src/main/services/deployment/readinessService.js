@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { subtractRupees } from "../../domain/money.js";
 
 const WEIGHTS = {
   foundation: 15,
@@ -70,9 +71,9 @@ export function assessFoundation(db, companyId = null) {
 export function assessAccounting(db, companyId = null) {
   const checks = [];
   const tbRows = hasTable(db, "accounts") && hasTable(db, "ledger_entries")
-    ? db.prepare(`SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE COALESCE(a.is_deleted,0)=0 AND COALESCE(le.is_deleted,0)=0${companyId ? " AND a.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
+    ? db.prepare(`SELECT COALESCE(SUM(le.debit_minor),0) / 100.0 debit, COALESCE(SUM(le.credit_minor),0) / 100.0 credit FROM ledger_entries le JOIN accounts a ON a.id=le.account_id WHERE COALESCE(a.is_deleted,0)=0 AND COALESCE(le.is_deleted,0)=0${companyId ? " AND a.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
     : { debit: 0, credit: 0 };
-  const tbDiff = Math.round((Number(tbRows.debit || 0) - Number(tbRows.credit || 0)) * 100) / 100;
+  const tbDiff = subtractRupees(tbRows.debit, tbRows.credit);
   checks.push({ key: "trialBalance", label: "Trial balance difference is zero", passed: tbDiff === 0, detail: `Difference: ${tbDiff}` });
   checks.push({ key: "ledgerIntegrity", label: "Ledger entries have valid accounts", passed: !hasTable(db, "ledger_entries") || db.prepare("SELECT COUNT(*) count FROM ledger_entries WHERE account_id NOT IN (SELECT id FROM accounts)").get()?.count === 0 });
   checks.push({ key: "voucherIntegrity", label: "Voucher lines have valid vouchers", passed: !hasTable(db, "voucher_lines") || db.prepare("SELECT COUNT(*) count FROM voucher_lines WHERE voucher_id NOT IN (SELECT id FROM vouchers)").get()?.count === 0 });
@@ -99,11 +100,11 @@ export function assessInventory(db) {
 export function assessGst(db, companyId = null) {
   const checks = [];
   const gstRows = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
-    ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
-      COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
+    ? db.prepare(`SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit_minor ELSE 0 END),0) / 100.0 input,
+      COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit_minor ELSE 0 END),0) / 100.0 output
       FROM voucher_lines vl JOIN accounts a ON a.id=vl.account_id JOIN vouchers v ON v.id=vl.voucher_id WHERE COALESCE(v.is_deleted,0)=0 AND COALESCE(vl.is_deleted,0)=0 AND COALESCE(a.is_deleted,0)=0${companyId ? " AND v.company_id = ?" : ""}`).get(...(companyId ? [companyId] : []))
     : { input: 0, output: 0 };
-  const netGst = Math.round((Number(gstRows.output || 0) - Number(gstRows.input || 0)) * 100) / 100;
+  const netGst = subtractRupees(gstRows.output, gstRows.input);
   // Input credit above output tax is a normal carry-forward, not a defect, so it never fails readiness.
   checks.push({ key: "gstReconciled", label: "GST input/output summarised", passed: Number.isFinite(netGst), detail: netGst >= 0 ? `Net GST payable: ${netGst}` : `Input credit carried forward: ${Math.abs(netGst)}` });
   checks.push({ key: "gstRegisters", label: "GST registers exist", passed: hasTable(db, "gst_registers") ? count(db, "gst_registers") > 0 : true });

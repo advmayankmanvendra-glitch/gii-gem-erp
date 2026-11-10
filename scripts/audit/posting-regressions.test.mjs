@@ -77,3 +77,10 @@ test("a failed second posting attempt never marks a posted document as Error", (
   assert.throws(() => m.postPurchaseVoucher(db, p.id), /already posted/i);
   assert.equal(db.prepare("SELECT posting_status FROM procurements WHERE id = ?").get(p.id).posting_status, "Posted");
 });
+
+test("amounts typed as .5 or 1e3 count the same as 0.50 and 1000", () => {
+  assert.equal(money.paise(".5"), 50);
+  assert.equal(money.paise("1e3"), 100000);
+  assert.equal(money.paise("abc"), 0);
+  assert.equal(money.paise("₹1,181.475"), 118148);
+});

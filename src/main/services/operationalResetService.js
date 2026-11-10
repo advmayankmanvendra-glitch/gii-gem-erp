@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createBackup, restoreBackup, listBackups } from "./backup.js";
 import * as init from "../database/init.js";
+import { withLedgerMaintenance } from "../database/ledgerGuards.js";
 
 const PRESERVED_TABLES = new Set([
   "companies", "users", "accounts", "financial_years",
@@ -280,7 +281,7 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   let zeroState;
   let auditId;
   runWithForeignKeysDisabled(db, () => {
-    db.transaction(() => {
+    db.transaction(() => withLedgerMaintenance(db, company.id, "operational_reset", () => {
       // Children first, while their parents still exist to identify the company.
       Object.entries(CHILD_TABLE_PARENTS).forEach(([table, rule]) => {
         if (!tables.has(table) || !tables.has(rule.parent)) return;
@@ -320,7 +321,7 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
         })
       });
       auditId = db.prepare("SELECT last_insert_rowid() as id").get()?.id || null;
-    })();
+    }))();
   });
   return {
     company: { id: company.id, name: company.company_name },

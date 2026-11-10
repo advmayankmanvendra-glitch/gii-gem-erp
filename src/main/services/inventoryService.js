@@ -1,4 +1,4 @@
-import { parseMoneyToMinor, roundMoney } from "../domain/money.js";
+import { roundMoney, paise, rupees, addRupees } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createInventoryService(deps) {
@@ -22,21 +22,27 @@ export function createInventoryService(deps) {
       && Boolean(db.prepare("SELECT 1 FROM warehouses WHERE id = ? AND (company_id = ? OR company_id IS NULL OR company_id = 0)").get(warehouseId, companyId));
     const openingQuantity = holdsOpening ? Number(item.opening_stock || 0) : 0;
     const openingValue = holdsOpening ? (Number(item.opening_value || 0) || openingQuantity * Number(item.opening_rate || 0)) : 0;
+    // Stock value is kept in whole paise so it always agrees with the Inventory ledger.
     const movement = db.prepare(`
       SELECT COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
-        COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value ELSE -value END), 0) value
+        COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
       FROM stock_ledger
       WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
     `).get(companyId, itemId, warehouseId);
     const quantity = openingQuantity + Number(movement?.quantity || 0);
-    const value = openingValue + Number(movement?.value || 0);
-    const movementMinor = db.prepare(`
-      SELECT COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
-      FROM stock_ledger
-      WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
-    `).get(companyId, itemId, warehouseId);
-    const valueMinor = parseMoneyToMinor(openingValue) + Number(movementMinor?.value_minor || 0);
-    return { quantity, value: Math.max(0, value), value_minor: Math.max(0, valueMinor), rate: quantity > 0 ? Math.max(0, value) / quantity : Number(item.opening_rate || 0) };
+    const valueMinor = Math.max(0, paise(openingValue) + Number(movement?.value_minor || 0));
+    const value = rupees(valueMinor);
+    return { quantity, value, value_minor: valueMinor, rate: quantity > 0 ? value / quantity : Number(item.opening_rate || 0) };
+  }
+
+  // Value of stock leaving a warehouse at weighted average cost, in rupees to the
+  // paisa. Issuing everything that is left takes the exact remaining value, so no
+  // stray paise stay behind in Inventory once the quantity reaches zero.
+  function outwardValue(db, companyId, itemId, warehouseId, quantity) {
+    const balance = stockBalance(db, companyId, itemId, warehouseId);
+    const qty = Number(quantity || 0);
+    if (balance.quantity > 0 && Math.abs(balance.quantity - qty) < 0.0001) return { rate: balance.rate, value: balance.value };
+    return { rate: balance.rate, value: roundMoney(qty * balance.rate) };
   }
 
   function weightedAverageCost(db, companyId, itemId, warehouseId) {
@@ -49,12 +55,15 @@ export function createInventoryService(deps) {
     const outwardQuantity = Number(payload.outward_quantity || 0);
     const nextQuantity = balanceBefore.quantity + inwardQuantity - outwardQuantity;
     if (nextQuantity < -0.0001) throw new Error("Stock cannot go negative");
-    const rate = Number(payload.rate || balanceBefore.rate || 0);
-    const value = Number(payload.value || (inwardQuantity || outwardQuantity) * rate);
-    const nextValue = Math.max(0, Number(balanceBefore.value || 0) + (inwardQuantity ? value : -value));
-    const valueMinor = parseMoneyToMinor(value);
+    // An explicit 0 rate or value (a receipt worth less than half a paisa) stays 0; only a
+    // missing one falls back to the current average cost.
+    const given = (field) => payload[field] !== undefined && payload[field] !== null && payload[field] !== "";
+    const rate = Number(given("rate") ? payload.rate : (balanceBefore.rate || 0));
+    const valueMinor = paise(given("value") ? payload.value : (inwardQuantity || outwardQuantity) * rate);
+    const value = rupees(valueMinor);
     const prevValueMinor = Number(balanceBefore.value_minor || 0);
     const nextValueMinor = Math.max(0, prevValueMinor + (inwardQuantity ? valueMinor : -valueMinor));
+    const nextValue = rupees(nextValueMinor);
     db.prepare(`
       INSERT INTO stock_ledger (
         company_id, item_id, warehouse_id, transaction_date, document_number, transaction_type,
@@ -181,7 +190,9 @@ export function createInventoryService(deps) {
     const row = db.prepare("SELECT * FROM stock_inwards WHERE id = ? AND COALESCE(is_deleted, 0) = 0").get(id);
     ensureStockNotPosted(row);
     if (Number(row.quantity || 0) <= 0) throw new Error("Inward quantity must be positive");
-    const value = Number(row.landed_cost || 0) || Number(row.quantity || 0) * Number(row.rate || 0);
+    // Rounded to the paisa, as the books hold it: a receipt worth less than half a paisa
+    // posts no voucher, rather than a voucher of 0.00 lines.
+    const value = roundMoney(Number(row.landed_cost || 0) || Number(row.quantity || 0) * Number(row.rate || 0));
     const tx = db.transaction(() => {
       insertStockLedger(db, {
         company_id: row.company_id,
@@ -234,11 +245,10 @@ export function createInventoryService(deps) {
     if (Number(row.quantity_issued || 0) <= 0) throw new Error("Outward quantity must be positive");
     const available = stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity;
     if (Number(row.quantity_issued || 0) > available) throw new Error("Outward quantity exceeds available stock");
-    const rate = weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const { rate, value: issueValue } = outwardValue(db, row.company_id, row.item_id, row.warehouse_id, row.quantity_issued);
     const tx = db.transaction(() => {
       syncSerialOutward(db, row);
       syncBatchOutward(db, row);
-      const issueValue = Number(row.quantity_issued || 0) * rate;
       const voucher = issueValue > 0 ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.issue_date,
@@ -261,7 +271,7 @@ export function createInventoryService(deps) {
         inward_quantity: 0,
         outward_quantity: row.quantity_issued,
         rate,
-        value: Number(row.quantity_issued || 0) * rate,
+        value: issueValue,
         order_id: row.order_id,
         supplier_id: null,
         department_id: row.department_id,
@@ -285,9 +295,10 @@ export function createInventoryService(deps) {
     if (Number(row.quantity || 0) <= 0) throw new Error("Adjustment quantity must be positive");
     const isIncrease = row.adjustment_type === "Increase";
     if (!isIncrease && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Adjustment decrease exceeds available stock");
-    const rate = Number(row.rate || 0) || weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const atCost = !isIncrease && !Number(row.rate || 0) ? outwardValue(db, row.company_id, row.item_id, row.warehouse_id, row.quantity) : null;
+    const rate = atCost ? atCost.rate : Number(row.rate || 0) || weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
     const tx = db.transaction(() => {
-      const adjValue = Number(row.quantity || 0) * rate;
+      const adjValue = atCost ? atCost.value : roundMoney(Number(row.quantity || 0) * rate);
       insertStockLedger(db, {
         company_id: row.company_id,
         item_id: row.item_id,
@@ -334,7 +345,7 @@ export function createInventoryService(deps) {
   }
 
   function isGrniClearedForCompany(db, companyId) {
-    const grniRow = db.prepare("SELECT SUM(le.debit - le.credit) net FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = ? AND a.account_name = 'Goods Received Not Invoiced' AND a.is_deleted = 0").get(companyId);
+    const grniRow = db.prepare("SELECT SUM(le.debit_minor - le.credit_minor) net FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = ? AND a.account_name = 'Goods Received Not Invoiced' AND a.is_deleted = 0").get(companyId);
     return grniRow && Number(grniRow.net || 0) >= 0;
   }
 
@@ -354,13 +365,13 @@ export function createInventoryService(deps) {
   function supplierReturnSplit(db, row, quantity, retValue) {
     if (!row.supplier_id) {
       const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
-      return { grniPortion: grni, payablesPortion: roundMoney(retValue - grni), variance: 0 };
+      return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0 };
     }
     const orderId = row.order_id || null;
     // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
     // supplier at the supplier's own rate, without freight or other landed cost.
     const receiptLots = (billed) => db.prepare(`
-      SELECT sl.inward_quantity quantity, ${billed ? "sl.inward_quantity * COALESCE(si.rate, 0)" : "sl.value"} value FROM stock_inwards si
+      SELECT sl.inward_quantity quantity, ${billed ? "sl.inward_quantity * COALESCE(si.rate, 0)" : "sl.value_minor / 100.0"} value FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
@@ -373,7 +384,7 @@ export function createInventoryService(deps) {
       // they are only used once every priced receipt is used up, when nothing is left owed.
       .sort((a, b) => Number(a.rate <= 0) - Number(b.rate <= 0));
     const earlier = (accountName) => Number(db.prepare(`
-      SELECT COALESCE(SUM(vl.debit), 0) value FROM stock_returns sr
+      SELECT COALESCE(SUM(vl.debit_minor), 0) / 100.0 value FROM stock_returns sr
       JOIN vouchers v ON v.source_module = 'stock_returns' AND v.source_id = sr.id AND COALESCE(v.is_deleted, 0) = 0 AND v.status = 'Posted'
       JOIN voucher_lines vl ON vl.voucher_id = v.id
       JOIN accounts a ON a.id = vl.account_id AND a.account_name = ?
@@ -406,7 +417,10 @@ export function createInventoryService(deps) {
     const beyondReceipts = Math.max(0, quantity - grni.quantity - billed.quantity);
     const grniPortion = roundMoney(grni.value);
     const payablesPortion = roundMoney(billed.value + beyondReceipts * averageRate);
-    return { grniPortion, payablesPortion, variance: roundMoney(retValue - grniPortion - payablesPortion) };
+    // The three debits must add up to the Inventory credit, roundMoney(retValue), to the paisa.
+    const creditMinor = Math.round(roundMoney(retValue) * 100);
+    const varianceMinor = creditMinor - Math.round(grniPortion * 100) - Math.round(payablesPortion * 100);
+    return { grniPortion, payablesPortion, variance: varianceMinor / 100 };
   }
 
   function postStockReturn(db, id) {
@@ -415,9 +429,10 @@ export function createInventoryService(deps) {
     if (Number(row.quantity || 0) <= 0) throw new Error("Return quantity must be positive");
     const isDepartmentReturn = row.return_type === "Department";
     if (!isDepartmentReturn && Number(row.quantity || 0) > stockBalance(db, row.company_id, row.item_id, row.warehouse_id).quantity) throw new Error("Supplier return exceeds available stock");
-    const rate = weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
+    const atCost = isDepartmentReturn ? null : outwardValue(db, row.company_id, row.item_id, row.warehouse_id, row.quantity);
+    const rate = atCost ? atCost.rate : weightedAverageCost(db, row.company_id, row.item_id, row.warehouse_id);
     const tx = db.transaction(() => {
-      const retValue = Number(row.quantity || 0) * rate;
+      const retValue = atCost ? atCost.value : roundMoney(Number(row.quantity || 0) * rate);
       insertStockLedger(db, {
         company_id: row.company_id,
         item_id: row.item_id,
@@ -668,14 +683,14 @@ export function createInventoryService(deps) {
 
   function inventoryDashboard(db, companyId) {
     const summary = inventoryStockSummary(db, companyId);
-    const totalStockValue = summary.reduce((sum, row) => sum + Number(row.stock_value || 0), 0);
+    const totalStockValue = summary.reduce((sum, row) => addRupees(sum, row.stock_value), 0);
     const totalQuantity = summary.reduce((sum, row) => sum + Number(row.closing_quantity || 0), 0);
     const lowStockItems = inventoryLowStockReport(db, companyId).length;
     const reservations = inventoryReservations(db, companyId);
     const reservedQuantity = reservations.reduce((sum, row) => sum + Number(row.balance_reserved || 0), 0);
     const issuedQuantity = reservations.reduce((sum, row) => sum + Number(row.issued_quantity || 0), 0);
-    const reservedStockValue = reservations.reduce((sum, row) => sum + Number(row.balance_reserved || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
-    const procurementRequiredValue = reservations.reduce((sum, row) => sum + Number(row.short_quantity || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0), 0);
+    const reservedStockValue = reservations.reduce((sum, row) => addRupees(sum, roundMoney(Number(row.balance_reserved || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0))), 0);
+    const procurementRequiredValue = reservations.reduce((sum, row) => addRupees(sum, roundMoney(Number(row.short_quantity || 0) * weightedAverageCost(db, companyId, row.item_id, row.warehouse_id || 0))), 0);
     const today = localBusinessDate();
     const pendingGrns = db.prepare("SELECT COUNT(*) count FROM goods_receipts WHERE company_id = ? AND status != 'Posted' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
     const pendingDeliveries = db.prepare("SELECT COUNT(*) count FROM delivery_challans WHERE company_id = ? AND status != 'Confirmed' AND COALESCE(is_deleted, 0) = 0").get(companyId).count;
@@ -784,7 +799,7 @@ export function createInventoryService(deps) {
     const ledgerActiveWhere = activeRowClause(db, "ledger_entries", "le");
     return db.prepare(`
       SELECT le.entry_date, v.voucher_number, v.source_module, v.source_id, a.account_name,
-        le.debit cogs_value, le.credit, v.narration
+        le.debit_minor / 100.0 cogs_value, le.credit_minor / 100.0 credit, v.narration
       FROM ledger_entries le
       JOIN accounts a ON a.id = le.account_id
       JOIN vouchers v ON v.id = le.voucher_id
@@ -890,7 +905,7 @@ export function createInventoryService(deps) {
   function inventoryStockMovement(db, companyId, dateFrom, dateTo) {
     return db.prepare(`
       SELECT it.item_name, w.warehouse_name, sl.transaction_type, COUNT(*) documents,
-        SUM(sl.inward_quantity) inward_quantity, SUM(sl.outward_quantity) outward_quantity, SUM(sl.value) movement_value
+        SUM(sl.inward_quantity) inward_quantity, SUM(sl.outward_quantity) outward_quantity, SUM(sl.value_minor) / 100.0 movement_value
       FROM stock_ledger sl
       JOIN items it ON it.id = sl.item_id
       JOIN warehouses w ON w.id = sl.warehouse_id
@@ -957,8 +972,8 @@ export function createInventoryService(deps) {
     return db.prepare(`
       SELECT it.item_name, so.order_number,
         SUM(ii.taxable_value) billing_value,
-        COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) issued_stock_cost,
-        SUM(ii.taxable_value) - COALESCE((SELECT SUM(sl.value) FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) gross_margin
+        COALESCE((SELECT SUM(sl.value_minor) / 100.0 FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) issued_stock_cost,
+        SUM(ii.taxable_value) - COALESCE((SELECT SUM(sl.value_minor) / 100.0 FROM stock_ledger sl WHERE sl.company_id = ii.company_id AND sl.item_id = ii.item_id AND sl.order_id = ii.order_id AND COALESCE(sl.is_deleted, 0) = 0 AND sl.transaction_type = 'Outward'), 0) gross_margin
       FROM invoice_items ii
       JOIN items it ON it.id = ii.item_id
       LEFT JOIN supply_orders so ON so.id = ii.order_id
@@ -969,7 +984,7 @@ export function createInventoryService(deps) {
   }
 
   return {
-    stockBalance, weightedAverageCost, insertStockLedger,
+    stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
     inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
     procurementRequirementReport,
     postStockInward, postStockOutward, postStockAdjustment,

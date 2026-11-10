@@ -1,25 +1,14 @@
 import { formatCurrency } from "../../utils/formatters.js";
+import { invoiceLineAmounts, sumRupees } from "../../utils/money.js";
 
 export function calculateInvoiceLine(line, gstType = "CGST/SGST") {
   const quantity = Number(line.quantity || 0);
   const billingRate = Number(line.billing_rate || 0);
-  const taxableValue = quantity * billingRate;
-  const gstRate = Number(line.gst_rate || 0);
-  const gstAmount = taxableValue * gstRate / 100;
-  const isIgst = gstType === "IGST";
-  const isCgstOnly = gstType === "CGST";
-  const isSgstOnly = gstType === "SGST";
   return {
     ...line,
     quantity,
     billing_rate: billingRate,
-    gst_rate: gstRate,
-    taxable_value: taxableValue,
-    cgst: isIgst || isSgstOnly ? 0 : isCgstOnly ? gstAmount : gstAmount / 2,
-    sgst: isIgst || isCgstOnly ? 0 : isSgstOnly ? gstAmount : gstAmount / 2,
-    igst: isIgst ? gstAmount : 0,
-    gst_amount: gstAmount,
-    gross_value: taxableValue + gstAmount
+    ...invoiceLineAmounts({ quantity, billingRate, gstRate: line.gst_rate, gstType })
   };
 }
 
@@ -115,11 +104,11 @@ export function billingOrderValidation(data, header, lines, editingId) {
   if (excessLines.length) messages.push("Excess Quantity: one or more item lines exceed pending order quantity.");
   const existingBilling = (data?.invoices || [])
     .filter((row) => Number(row.order_id) === orderId && Number(row.id) !== Number(editingId || 0))
-    .reduce((sum, row) => sum + Number(row.billing_value || 0), 0);
-  const currentBilling = lines.reduce((sum, row) => sum + Number(row.taxable_value || 0), 0);
+    .map((row) => row.billing_value);
+  const currentBilling = sumRupees(lines.map((row) => row.taxable_value));
   const order = (data?.references?.orders || []).find((row) => Number(row.id) === orderId);
   const orderValue = Number(order?.order_taxable_value || order?.order_value || 0);
-  const overBilling = orderValue > 0 && existingBilling + currentBilling > orderValue;
+  const overBilling = orderValue > 0 && sumRupees([...existingBilling, currentBilling]) > orderValue;
   if (overBilling) messages.push("Over Billing: invoice value exceeds the recorded order value.");
   return { orderedQuantity, billedQuantity, balanceQuantity, duplicate, overBilling, excessQuantity: orderedQuantity && balanceQuantity < 0, excessLineQuantity: excessLines.length > 0, messages };
 }
