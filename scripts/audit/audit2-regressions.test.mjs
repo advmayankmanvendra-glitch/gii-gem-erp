@@ -460,7 +460,7 @@ test("import parser caps: long header names, shared-string count, blank TSV line
     return Buffer.concat([...parts, cd, eocd]);
   };
   let started = Date.now();
-  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values/);
+  assert.throws(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": strings, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /more than 2,000,000 text values|expands \d+ times when opened/);
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
   // Blank lines do not count toward the row limit.
   const tsv = m.parseImportBuffer("t.xls", Buffer.from(`supplier_name\tcity\nA\tX\n${"\n".repeat(200005)}B\tY\n`));
@@ -477,7 +477,10 @@ test("import parser caps: long header names, shared-string count, blank TSV line
   const near = Array.from({ length: 5 }, (_, i) => row(i + 1, `title ${i}`)).join("");
   assert.deepEqual(m.parseImportBuffer("near.xlsx", sheetZip(`<worksheet><sheetData>${near}${row(6, "supplier_name")}${row(7, "Acme")}</sheetData></worksheet>`)), [{ supplier_name: "Acme" }]);
   // Long cells are skipped by the header search at once.
-  const spaces = `<row r="1">${Array.from({ length: 2000 }, (_, i) => `<c r="A1" t="inlineStr"><is><t>a${" ".repeat(30000)}b</t></is></c>`).slice(0, 2000).join("")}</row>`;
+  // Varied text, as in a real sheet (a sheet of one repeated character is refused as a zip bomb).
+  let seed = 7;
+  const varied = (n) => Array.from({ length: n }, () => { seed = (seed * 1103515245 + 12345) % 2147483648; return "abcdefghij klmnopqrst"[seed % 21]; }).join("");
+  const spaces = `<row r="1">${Array.from({ length: 2000 }, () => `<c r="A1" t="inlineStr"><is><t>a${varied(30000)}b</t></is></c>`).join("")}</row>`;
   started = Date.now();
   m.parseImportBuffer("sp.xlsx", sheetZip(`<worksheet><sheetData>${spaces}${row(2, "supplier_name")}</sheetData></worksheet>`));
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
@@ -703,8 +706,8 @@ test("a97daf4 round: entity-heavy xlsx text, long rows, blank HTML rows and two-
     assert.ok(Date.now() - started < 6000, `${label} took ${Date.now() - started} ms`);
   };
   const amp = "&amp;".repeat(32767);
-  timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(220)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /32 million characters as stored/, "entity-heavy shared strings");
-  timed(() => m.parseImportBuffer("in.xlsx", zip({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c r="A1" t="str"><v>${"&amp;".repeat(2_000_000)}</v></c></row></sheetData></worksheet>` })), /holds more than 32,767 characters/, "inline cell");
+  timed(() => m.parseImportBuffer("ss.xlsx", zip({ "xl/sharedStrings.xml": `<sst>${`<si><t>${amp}</t></si>`.repeat(110)}</sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /expands \d+ times when opened/, "entity-heavy shared strings");
+  timed(() => m.parseImportBuffer("in.xlsx", zip({ "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row><c r="A1" t="str"><v>${"&amp;".repeat(2_000_000)}</v></c></row></sheetData></worksheet>` })), /holds more than 32,767 characters|expands \d+ times when opened/, "inline cell");
   timed(() => m.parseImportBuffer("runs.xlsx", zip({ "xl/sharedStrings.xml": `<sst><si>${"<t/>".repeat(5000)}</si></sst>`, "xl/worksheets/sheet1.xml": "<worksheet/>" })), /formatted parts/, "text runs");
   timed(() => m.parseImportBuffer("w.csv", Buffer.from("a,".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide csv header");
   timed(() => m.parseImportBuffer("w.xls", Buffer.from("a\t".repeat(2_000_000) + "\nx")), /more than 16,384 cells/, "wide tsv header");

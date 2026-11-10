@@ -60,15 +60,36 @@ export function createImportValidationService(deps) {
     });
   }
 
-  function findMasterImportDuplicate(db, table, payload, companyId) {
+  // A preview checks every row of a file against the whole master table, and the match on
+  // LOWER(TRIM(...)) cannot use an index. With a cache (one Map per preview, never kept across
+  // writes), each table and field is read once and every row is a Map lookup. The keys are
+  // computed by SQLite itself, so a cached match is the same as the query's.
+  function cachedLookup(db, cache, cacheKey, sql, params, key) {
+    if (!cache.has(cacheKey)) {
+      const map = new Map();
+      for (const row of db.prepare(sql).all(...params)) {
+        if (!map.has(row.k)) map.set(row.k, { id: row.id, label: row.label });
+      }
+      cache.set(cacheKey, map);
+    }
+    return cache.get(cacheKey).get(key) || null;
+  }
+
+  function findMasterImportDuplicate(db, table, payload, companyId, cache = null) {
     const notDeleted = columnExists(db, table, "is_deleted") ? "AND COALESCE(is_deleted, 0) = 0" : "";
     const byText = (field, value, labelField = field) => {
       if (!String(value || "").trim()) return null;
+      if (cache) {
+        return cachedLookup(db, cache, `${table}|${field}|${labelField}`, `SELECT id, ${labelField} label, LOWER(TRIM(COALESCE(${field}, ''))) k FROM ${table} WHERE 1 = 1 ${notDeleted} ORDER BY id`, [], normalizeDuplicateKey(value));
+      }
       const row = db.prepare(`SELECT id, ${labelField} label FROM ${table} WHERE LOWER(TRIM(COALESCE(${field}, ''))) = ? ${notDeleted} LIMIT 1`).get(normalizeDuplicateKey(value));
       return row || null;
     };
     const byCompanyText = (field, value, labelField = field) => {
       if (!String(value || "").trim()) return null;
+      if (cache) {
+        return cachedLookup(db, cache, `${table}|${field}|${labelField}|${companyId}`, `SELECT id, ${labelField} label, LOWER(TRIM(COALESCE(${field}, ''))) k FROM ${table} WHERE company_id = ? ${notDeleted} ORDER BY id`, [companyId], normalizeDuplicateKey(value));
+      }
       const row = db.prepare(`SELECT id, ${labelField} label FROM ${table} WHERE company_id = ? AND LOWER(TRIM(COALESCE(${field}, ''))) = ? ${notDeleted} LIMIT 1`).get(companyId, normalizeDuplicateKey(value));
       return row || null;
     };
@@ -88,6 +109,11 @@ export function createImportValidationService(deps) {
         byText("supplier_name", payload.supplier_name, "supplier_name");
     }
     if (table === "items" && String(payload.item_name || "").trim()) {
+      if (cache) {
+        const key = [payload.item_name, payload.brand, payload.model].map((part) => normalizeDuplicateKey(part)).join("\u0001");
+        const found = cachedLookup(db, cache, "items|name-brand-model", `SELECT id, item_name label, LOWER(TRIM(COALESCE(item_name, ''))) || char(1) || LOWER(TRIM(COALESCE(brand, ''))) || char(1) || LOWER(TRIM(COALESCE(model, ''))) k FROM items WHERE 1 = 1 ${notDeleted} ORDER BY id`, [], key);
+        return found ? { ...found, duplicate_reason: "Normalized item name, brand and model match" } : null;
+      }
       return db.prepare(`
         SELECT id, item_name label, 'Normalized item name, brand and model match' duplicate_reason
         FROM items

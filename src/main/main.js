@@ -184,8 +184,16 @@ function safeMainLog(level, message) {
   }
 }
 
+// Only a plain object counts as a payload; a byte array or other typed object is never
+// copied key by key (a large one would hold the app before the permission check).
 function firstPayload(args) {
-  return args.find((arg) => arg && typeof arg === "object" && !Array.isArray(arg)) || {};
+  return args.find((arg) => arg && typeof arg === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(arg))) || {};
+}
+
+// The audit trail is a report; roles without report access do not receive it. Admins
+// (who hold settings rather than view_reports) keep it.
+function seesAuditTrail(actor) {
+  return Boolean(actor && (roleCan(actor.role, "view_reports") || roleCan(actor.role, "settings")));
 }
 
 function userContext(args, fallback = {}) {
@@ -856,11 +864,7 @@ function registerIpc() {
   handle("profitability:simulate", (_event, filters, params) => profitSimulation(orderProfitability(db, filters) || [], params || {}));
   handle("accounting:data", (_event, filters) => {
     const data = accountingData(db, filters);
-    // The audit trail is a report; roles without report access do not receive it. Admins
-    // (who hold settings rather than view_reports) keep it.
-    const actor = ambientActor();
-    const seesAuditTrail = actor && (roleCan(actor.role, "view_reports") || roleCan(actor.role, "settings"));
-    return seesAuditTrail ? data : { ...data, auditLog: [] };
+    return seesAuditTrail(ambientActor()) ? data : { ...data, auditLog: [] };
   });
   handle(
     "account-mapping:registry",
@@ -941,7 +945,11 @@ function registerIpc() {
   handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
   handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status) => updateFinancialYearStatus(db, id, status, actorId())));
   handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
-  handle("accounting:drilldown", (_event, payload) => drilldownData(db, payload));
+  handle("accounting:drilldown", (_event, payload) => {
+    const data = drilldownData(db, payload);
+    // A voucher's audit rows are part of the audit trail, shown on the same terms as accounting:data.
+    return data?.voucher && !seesAuditTrail(ambientActor()) ? { ...data, voucher: { ...data.voucher, audit: [] } } : data;
+  });
   handle("financial-years:close", guarded("financial_year_close", "financial_years", (payload) => closeFinancialYear(db, payload)));
   handle("imports:parse-file", guarded("import", "imports", (filePath) => {
     if (!selectedFiles.has(path.resolve(String(filePath || "")))) {
@@ -1183,7 +1191,9 @@ function registerIpc() {
     return getVerificationConsoleState(runtimeDataRoot);
   });
   handle("health:verification-snapshot", (_event, context) => {
-    const healthContext = { ...context, dbName: DB_NAME };
+    // The snapshot names the signed-in user, never one the screen supplies.
+    const actor = ambientActor();
+    const healthContext = { ...context, user_id: actor?.id || null, userId: undefined, user_name: actor?.id ? db.prepare("SELECT username FROM users WHERE id = ?").get(actor.id)?.username || "" : "", userName: undefined, role: actor?.role || "", dbName: DB_NAME };
     const checks = runHealthChecks(db, runtimeDataRoot, healthContext);
     return recordVerificationSnapshot(runtimeDataRoot, checks, healthContext);
   });
@@ -1342,7 +1352,7 @@ function registerIpc() {
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }
     const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
-    auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId, reason, success: result?.rollbackResult?.success }) });
+    auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: String(reason ?? "").slice(0, 500), success: result?.rollbackResult?.success }) });
     return result;
   }));
 
