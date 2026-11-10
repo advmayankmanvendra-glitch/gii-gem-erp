@@ -84,6 +84,9 @@ Dr/Cr Purchase Price Variance         (the gap to average cost; Dr when stock co
 - This return then uses what is left, oldest receipt first (by receipt date, then entry order): unbilled receipts first, clearing GRNI at their stock value per unit; then billed receipts (a posted purchase bill, or the posted purchase voucher that created the receipt), clearing Trade Payables at the supplier's rate (without freight or other landed cost; at the stock value when the receipt has no rate). Quantity past every receipt goes to Trade Payables at WAC.
 - A free (zero-price) receipt is used after every priced receipt of the same kind.
 - Known limits of the pool (accepted with decision C2): a bill that clears a whole receipt after part of it was returned still clears GRNI for the returned part, and a return naming an order finds no receipts when the supplier's receipts carry no order (it then goes to Trade Payables at WAC).
+- A reversed bill counts as billed only between the bill and its reversal, so a return after the reversal clears GRNI again.
+- A return that clears GRNI or Trade Payables posts a voucher even when its stock is worth nothing at the warehouse's average cost (the gap goes to Purchase Price Variance).
+- Posting order is taken from the stock ledger rows and voucher numbers the system assigns, not from the dates typed. A return with no voucher (worth nothing and clearing nothing) is replayed with today's billing.
 - A purchase voucher set to Accounting Only books to Purchase and brings no stock in, so it creates no goods receipt. A purchase voucher with stock brings the goods in at the voucher's taxable value, the amount it put into GRNI.
 - Input GST on billed goods is not reversed by the return; that treatment is not yet decided.
 - Stock always leaves at WAC. The difference between WAC and the supplier's own price goes to the **Purchase Price Variance** ledger (reported under Purchases; created per company, first free code from 5065).

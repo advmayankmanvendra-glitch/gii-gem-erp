@@ -539,8 +539,14 @@ function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
   }
   // Links are followed before the check, and the installer must sit directly in the update
   // folder (not in a sub-folder), so a link or folder cannot point the launch elsewhere.
-  const realFolder = fs.realpathSync(path.resolve(updateFolder));
-  const realInstaller = fs.realpathSync(resolvedInstaller);
+  let realFolder;
+  let realInstaller;
+  try {
+    realFolder = fs.realpathSync(path.resolve(updateFolder));
+    realInstaller = fs.realpathSync(resolvedInstaller);
+  } catch {
+    throw new Error("The update folder or installer could not be opened. Use Open Update Folder, put the installer there and try again.");
+  }
   if (path.dirname(realInstaller) !== realFolder || !fs.lstatSync(realInstaller).isFile()) {
     throw new Error("Selected installer is not directly inside the update folder. Copy the installer file itself into the update folder (not a shortcut or sub-folder) and try again.");
   }
@@ -1280,7 +1286,8 @@ function registerIpc() {
     }
     // Back up the books before anything is replaced, then hand over to the installer.
     const backup = await createLiveBackup(db, runtimeDataRoot);
-    // The file is checked again after the backup, so one swapped in meanwhile is not launched.
+    // The path is checked again after the backup (links followed, directly in the folder), so a
+    // link or sub-folder swapped in meanwhile is not launched.
     if (assertInstallerInsideUpdateFolder(selectedInstaller, status.updateFolder) !== selectedInstaller) {
       throw new Error("The installer changed while the backup was being made, so it was not started. Check the update folder and try again.");
     }

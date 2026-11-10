@@ -275,7 +275,7 @@
       "ledgerImpact": true,
       "partySubledgerImpact": "Dynamic (based on voucher_kind)",
       "gstImpact": "Dynamic (based on voucher_kind)",
-      "inventoryImpact": "Auto-GRN for purchase, auto-stock-issue for sales",
+      "inventoryImpact": "Auto-GRN for purchase at the voucher taxable value (none when Accounting Only), auto-stock-issue for sales (none when Accounting Only)",
       "cashBankImpact": "Dynamic (based on voucher_kind)",
       "receivablePayableImpact": "Dynamic (based on voucher_kind)",
       "reportImpact": ["trialBalance", "profitLossReport", "balanceSheetReport", "dayBook", "partyLedgerReport", "accountingRegisters", "postingControlReport"],
@@ -480,7 +480,7 @@
       "workflowStage": null,
       "relatedDG1Tables": ["guided_vouchers", "vouchers", "voucher_lines", "ledger_entries", "accounts"],
       "relatedWG1Stage": null,
-      "safetyRule": "Requires guided_voucher status=Approved; auto-creates GRN for purchase kind; auto-creates stock issue for sales kind; logs operational correction for credit/debit note kind"
+      "safetyRule": "Requires guided_voucher status=Approved; auto-creates GRN for purchase kind unless Accounting Only (receipt value = voucher taxable value, rate per unit; the receipt counts as billed by this voucher for supplier returns); auto-creates stock issue for sales kind; logs operational correction for credit/debit note kind"
     },
     {
       "functionName": "reverseVoucher",
@@ -539,7 +539,7 @@
     {
       "functionName": "postExpenseAccrualsForOrder",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1660,
+      "lineNumber": 1662,
       "serviceModule": "init",
       "readsFromTables": ["expense_entries", "expense_heads", "supply_orders", "employees", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "expense_entries", "audit_log"],
@@ -557,7 +557,7 @@
     {
       "functionName": "postLedgerEntry",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1282,
+      "lineNumber": 1284,
       "serviceModule": "init",
       "readsFromTables": ["ledger_entries", "accounts"],
       "writesToTables": ["ledger_entries"],
@@ -575,7 +575,7 @@
     {
       "functionName": "updateCashBankLedger",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1297,
+      "lineNumber": 1299,
       "serviceModule": "init",
       "readsFromTables": ["cash_bank_ledger"],
       "writesToTables": ["cash_bank_ledger"],
@@ -593,7 +593,7 @@
     {
       "functionName": "upsertReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1668,
+      "lineNumber": 1670,
       "serviceModule": "init",
       "readsFromTables": ["supply_orders", "receivables"],
       "writesToTables": ["receivables"],
@@ -611,7 +611,7 @@
     {
       "functionName": "refreshReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1693,
+      "lineNumber": 1695,
       "serviceModule": "init",
       "readsFromTables": ["receivables", "payment_allocations", "advance_adjustments"],
       "writesToTables": ["receivables"],
@@ -629,7 +629,7 @@
     {
       "functionName": "markPosted",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1380,
+      "lineNumber": 1382,
       "serviceModule": "init",
       "readsFromTables": ["vouchers"],
       "writesToTables": ["invoices", "procurements", "payments", "supplier_payments", "expense_entries"],
@@ -701,9 +701,9 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 447,
+      "lineNumber": 454,
       "serviceModule": "inventoryService",
-      "readsFromTables": ["stock_returns", "stock_ledger", "items"],
+      "readsFromTables": ["stock_returns", "stock_ledger", "items", "stock_inwards", "procurements", "vouchers", "goods_receipts", "goods_receipt_items", "accounts"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
       "voucherTypeCreated": "Journal",
       "debitAccounts": ["Goods Received Not Invoiced", "Trade Payables", "Purchase Price Variance", "Inventory"],

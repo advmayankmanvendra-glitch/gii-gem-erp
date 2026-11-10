@@ -1099,6 +1099,8 @@ test("d661346 round: a purchase voucher's receipt rate is per unit", () => {
   m.postGuidedVoucher(db, guided.id, 1);
   const inward = db.prepare("SELECT rate FROM stock_inwards WHERE item_id = ? ORDER BY id DESC LIMIT 1").get(item);
   assert.equal(Number(inward.rate), 100);
+  const grnLine = db.prepare("SELECT rate, landed_cost FROM goods_receipt_items WHERE stock_inward_id = (SELECT id FROM stock_inwards WHERE item_id = ? ORDER BY id DESC LIMIT 1)").get(item);
+  assert.deepEqual({ rate: Number(grnLine.rate), value: Number(grnLine.landed_cost) }, { rate: 100, value: 1000 }, "the goods receipt line agrees with the stock receipt");
   const stock = db.prepare("SELECT COALESCE(SUM(value_minor), 0) / 100.0 v FROM stock_ledger WHERE item_id = ? AND transaction_type = 'Inward' AND COALESCE(is_deleted, 0) = 0").get(item).v;
   assert.equal(stock, 1000, "10 units at 100 are stock worth 1,000");
 });
@@ -1153,5 +1155,59 @@ test("f9241ed round: the repository tracks no symbolic links and no node_modules
   try { listing = execFileSync("git", ["ls-files", "-s"], { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }); } catch { t.skip("git is not available here"); return; }
   const links = listing.split("\n").filter((line) => line.startsWith("120000 "));
   assert.deepEqual(links, [], "a committed link would point outside the repository on another machine");
-  assert.ok(!listing.split("\n").some((line) => /\tnode_modules(\/|$)/.test(line)), "node_modules is never committed");
+  assert.ok(!listing.split("\n").some((line) => /\t(.*\/)?node_modules(\/|$)/.test(line)), "node_modules is never committed, at any depth");
+});
+
+const returnLines = (db, id) => db.prepare("SELECT a.account_name acc, ROUND(vl.debit, 2) dr, ROUND(vl.credit, 2) cr FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id WHERE v.source_module = 'stock_returns' AND v.source_id = ? ORDER BY vl.id").all(id).map((row) => ({ ...row }));
+const postReturn = (db, fields) => { const r = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", supplier_id: 1, ...fields }); m.postStockReturn(db, r.id); return r.id; };
+
+test("f9241ed round: an earlier return is replayed with the billing it saw, and in posting order", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Seen");
+  const o = newOrder(db, "A2-SEEN");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-SEEN-B", purchase_value: 1000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-SEEN-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-SEEN-2", quantity: 10, rate: 120, landed_cost: 0 }).id);
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-03", quantity: 10 }); // the bill was not posted yet: the first receipt was unbilled
+  m.postPurchaseVoucher(db, bill.id);
+  const second = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-04", quantity: 10 });
+  assert.deepEqual(returnLines(db, second).find((line) => line.acc === "Goods Received Not Invoiced"), { acc: "Goods Received Not Invoiced", dr: 1200, cr: 0 }, "the second receipt is the one left");
+
+  const b = widget(db, "A2 Order");
+  const o1 = newOrder(db, "A2-ORD-1");
+  const o2 = newOrder(db, "A2-ORD-2");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o1, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-ORD-A", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o2, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-ORD-B", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  // Another supplier's stock, so the warehouse holds enough for every return.
+  const other = db.prepare("SELECT id FROM suppliers WHERE id <> 1 LIMIT 1").get()?.id ?? m.createRecord(db, "suppliers", { company_id: 1, supplier_name: "A2 Other Supplier", status: "active" }).id;
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: other, item_id: b.item, warehouse_id: b.wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-ORD-C", quantity: 10, rate: 150, landed_cost: 0 }).id);
+  postReturn(db, { item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-10", quantity: 10 }); // takes the oldest, o1
+  postReturn(db, { order_id: o1, item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-05", quantity: 5 }); // dated earlier, posted later: o1 is used up
+  const last = postReturn(db, { item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-11", quantity: 10 });
+  assert.deepEqual(returnLines(db, last).find((line) => line.acc === "Goods Received Not Invoiced"), { acc: "Goods Received Not Invoiced", dr: 2000, cr: 0 }, "the last return takes all of o2's receipt at 200");
+});
+
+test("f9241ed round: a reversed bill and a zero-value return keep GRNI and the supplier balanced", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 RevBill");
+  const o = newOrder(db, "A2-REVBILL");
+  const before = { grni: balance(db, "Goods Received Not Invoiced"), tp: balance(db, "Trade Payables"), inv: balance(db, "Inventory") };
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-RB-B", purchase_value: 2000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-RB-1", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-RB-2", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-10", quantity: 10 });
+  m.reverseVoucher(db, db.prepare("SELECT id FROM vouchers WHERE source_module = 'procurement' AND source_id = ?").get(bill.id).id, "bill entered in error");
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-11", quantity: 10 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - before.grni, 0);
+  assert.equal(balance(db, "Trade Payables") - before.tp, 0);
+
+  const z = widget(db, "A2 ZeroWh");
+  const wh2 = m.createRecord(db, "warehouses", { company_id: 1, warehouse_name: "A2 ZeroWh 2", status: "active" }).id;
+  const grni = balance(db, "Goods Received Not Invoiced");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: 1, item_id: z.item, warehouse_id: z.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-ZW-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: 1, item_id: z.item, warehouse_id: wh2, inward_date: "2026-07-02", purchase_invoice_number: "A2-ZW-2", quantity: 10, rate: 0, landed_cost: 0 }).id);
+  postReturn(db, { item_id: z.item, warehouse_id: wh2, return_date: "2026-07-10", quantity: 5 }); // worth 0 here, but uses a priced receipt
+  postReturn(db, { item_id: z.item, warehouse_id: z.wh, return_date: "2026-07-11", quantity: 10 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "the priced receipt is cleared once, in full");
 });

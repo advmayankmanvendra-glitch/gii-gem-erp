@@ -475,6 +475,7 @@ test("66b024f round: an update installer must be a real file directly in the upd
   try { fs.symlinkSync(target, link); } catch { /* links may be unavailable; the sub-folder case still runs */ }
   try {
     assert.match((await call(admin, "updates:install", nested)).err || "", /not directly inside the update folder/);
+    assert.match((await call(admin, "updates:install", path.join(folder, "GII-GeM-ERP-Setup-99.0.3-x64.exe:s-x64.exe"))).err || "", /cannot contain ":"/);
     if (fs.existsSync(link)) assert.match((await call(admin, "updates:install", link)).err || "", /not directly inside the update folder/);
   } finally {
     fs.rmSync(path.join(folder, "sub"), { recursive: true, force: true });

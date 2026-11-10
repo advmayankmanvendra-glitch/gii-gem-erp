@@ -370,22 +370,18 @@ export function createInventoryService(deps) {
     }
     // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
     // supplier at the supplier's own rate, without freight or other landed cost (or at its
-    // stock value when the receipt carries no rate). A receipt is billed by a posted purchase
-    // bill, or by the posted purchase voucher that created it.
+    // stock value when the receipt carries no rate).
+    const billVoucher = `
+      SELECT v.id, (SELECT MIN(r.id) FROM vouchers r WHERE r.source_module = 'voucher_reversal' AND r.source_id = v.id AND COALESCE(r.is_deleted, 0) = 0) reversal_id
+      FROM vouchers v WHERE v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0`;
     const lots = db.prepare(`
       SELECT si.order_id, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
-        COALESCE(
-          (SELECT MIN(v.id) FROM vouchers v WHERE v.company_id = si.company_id AND v.source_module = 'procurement' AND v.source_id = p.id AND v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0),
-          (SELECT MIN(v.id) FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id
-             JOIN vouchers v ON v.id = gr.purchase_voucher_id AND v.status = 'Posted' AND COALESCE(v.is_deleted, 0) = 0
-           WHERE gri.stock_inward_id = si.id)
-        ) bill_voucher_id,
-        (p.id IS NOT NULL OR EXISTS (SELECT 1 FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id
-             JOIN vouchers v ON v.id = gr.purchase_voucher_id AND v.status = 'Posted' AND COALESCE(v.is_deleted, 0) = 0
-           WHERE gri.stock_inward_id = si.id)) billed
+        COALESCE(pv.id, gv.id) bill_voucher_id, COALESCE(pv.reversal_id, gv.reversal_id) bill_reversal_id
       FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
-      LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
+      LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status IN ('Posted', 'Reversed') AND COALESCE(p.is_deleted, 0) = 0
+      LEFT JOIN (${billVoucher} AND v.source_module = 'procurement') pv ON pv.id = (SELECT MIN(v2.id) FROM vouchers v2 WHERE v2.source_module = 'procurement' AND v2.source_id = p.id AND v2.company_id = si.company_id AND v2.status IN ('Posted', 'Reversed') AND COALESCE(v2.is_deleted, 0) = 0)
+      LEFT JOIN (${billVoucher}) gv ON gv.id = (SELECT MIN(gr.purchase_voucher_id) FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id WHERE gri.stock_inward_id = si.id)
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
       ORDER BY si.inward_date, si.id, sl.id
     `).all(row.company_id, row.supplier_id, row.item_id)
@@ -393,32 +389,43 @@ export function createInventoryService(deps) {
         const quantity = Number(lot.quantity || 0);
         const stockRate = quantity > 0 ? Number(lot.stock_value || 0) / quantity : 0;
         const supplierRate = Number(lot.supplier_rate || 0) > 0 ? Number(lot.supplier_rate) : stockRate;
-        return { slId: Number(lot.sl_id), billVoucherId: lot.bill_voucher_id ? Number(lot.bill_voucher_id) : null, billedNow: Boolean(lot.billed), orderId: lot.order_id || null, left: quantity, stockRate, supplierRate };
+        const billId = lot.bill_voucher_id ? Number(lot.bill_voucher_id) : null;
+        const reversalId = lot.bill_reversal_id ? Number(lot.bill_reversal_id) : null;
+        return { slId: Number(lot.sl_id), billId, reversalId, orderId: lot.order_id || null, left: quantity, stockRate, supplierRate };
       })
       .filter((lot) => lot.left > 0);
+    // A receipt is billed between its bill (a purchase bill, or the purchase voucher that created
+    // it) and that bill's reversal, if any. "Now" is after every voucher posted so far.
+    const billedAt = (lot, voucherId) => lot.billId !== null && lot.billId < voucherId && (lot.reversalId === null || lot.reversalId > voucherId);
     // Each return is judged as things stood when it posted: only receipts posted before it, and
-    // a receipt counts as billed only if its bill was posted before it. Unbilled receipts are
-    // used before billed ones, free receipts last within each, oldest first.
+    // billing as it stood then. Unbilled receipts are used before billed ones, free receipts last
+    // within each, oldest first. The lots are already oldest first, so each pass is one scan per
+    // group, and used-up lots are dropped as the replay goes.
+    let open = lots;
     const take = (orderId, wanted, asOf = null) => {
-      const billed = (lot) => (asOf ? lot.billVoucherId !== null && (!asOf.voucherId || lot.billVoucherId < asOf.voucherId) : lot.billedNow);
-      const rate = (lot) => (billed(lot) ? lot.supplierRate : lot.stockRate);
-      const rank = (lot) => (billed(lot) ? 2 : 0) + (rate(lot) <= 0 ? 1 : 0);
-      const usable = lots.map((lot, index) => ({ lot, index }))
-        .filter(({ lot }) => !asOf || lot.slId < asOf.slId)
-        .sort((x, y) => rank(x.lot) - rank(y.lot) || x.index - y.index)
-        .map(({ lot }) => lot);
+      const voucherId = asOf?.voucherId || Infinity;
+      const groups = [[], [], [], []];
+      for (const lot of open) {
+        if (asOf && lot.slId >= asOf.slId) continue;
+        if (orderId && lot.orderId !== orderId) continue;
+        const billed = billedAt(lot, voucherId);
+        const rate = billed ? lot.supplierRate : lot.stockRate;
+        groups[(billed ? 2 : 0) + (rate <= 0 ? 1 : 0)].push({ lot, billed, rate });
+      }
       let left = wanted;
       const taken = { grniValue: 0, billedValue: 0, quantity: 0 };
-      for (const lot of usable) {
-        if (left <= 1e-9) break;
-        if (orderId && lot.orderId !== orderId) continue;
-        const units = Math.min(lot.left, left);
-        if (units <= 1e-9) continue;
-        lot.left -= units;
-        left -= units;
-        taken.quantity += units;
-        if (billed(lot)) taken.billedValue += units * lot.supplierRate; else taken.grniValue += units * lot.stockRate;
+      for (const group of groups) {
+        for (const { lot, billed, rate } of group) {
+          if (left <= 1e-9) break;
+          const units = Math.min(lot.left, left);
+          if (units <= 1e-9) continue;
+          lot.left -= units;
+          left -= units;
+          taken.quantity += units;
+          if (billed) taken.billedValue += units * rate; else taken.grniValue += units * rate;
+        }
       }
+      open = open.filter((lot) => lot.left > 1e-9);
       return taken;
     };
     // Earlier returns replay in the order they were posted (their stock ledger rows).
@@ -474,8 +481,10 @@ export function createInventoryService(deps) {
       const split = isDepartmentReturn ? { grniPortion: 0, payablesPortion: 0, variance: 0 } : supplierReturnSplit(db, row, Number(row.quantity || 0), roundMoney(retValue));
       const { grniPortion, payablesPortion, variance } = split;
       const varianceAccount = variance !== 0 ? ensurePurchasePriceVarianceAccount(db, row.company_id) : null;
-      // A return worth under half a paisa rounds to zero and needs no voucher.
-      const retVoucher = roundMoney(retValue) > 0 ? createBalancedVoucher(db, {
+      // A return worth under half a paisa at average cost still needs a voucher when it clears
+      // GRNI or Trade Payables (a free lot here, a priced lot used up elsewhere).
+      const needsVoucher = roundMoney(retValue) > 0 || grniPortion > 0 || payablesPortion > 0;
+      const retVoucher = needsVoucher ? createBalancedVoucher(db, {
         company_id: row.company_id,
         voucher_date: row.return_date,
         voucher_type: "Journal",
@@ -492,7 +501,7 @@ export function createInventoryService(deps) {
           // Stock is cheaper or dearer at average cost than the supplier's price: the gap.
           ...(variance > 0 ? [{ account_id: varianceAccount, debit: variance, credit: 0 }] : []),
           ...(variance < 0 ? [{ account_id: varianceAccount, debit: 0, credit: -variance }] : []),
-          { account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: roundMoney(retValue) }
+          ...(roundMoney(retValue) > 0 ? [{ account_id: accountId(db, row.company_id, "Inventory"), debit: 0, credit: roundMoney(retValue) }] : [])
         ]
       }) : null;
       db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(retVoucher?.id || null, id);
