@@ -158,7 +158,7 @@ const api = {
   generateCertificate: () => ipcRenderer.invoke("certificate:generate"),
   previewReset: (payload) => ipcRenderer.invoke("reset:preview", payload && typeof payload === "object" ? payload : {}),
   executeReset: (payload) => ipcRenderer.invoke("reset:execute", payload && typeof payload === "object" ? payload : {}),
-  analyzeResetDependencies: () => ipcRenderer.invoke("reset:analyze-dependencies"),
+  analyzeResetDependencies: (payload) => ipcRenderer.invoke("reset:analyze-dependencies", payload && typeof payload === "object" ? payload : {}),
   executeEnhancedReset: (payload) => ipcRenderer.invoke("reset:execute-enhanced", payload && typeof payload === "object" ? payload : {}),
   rollbackReset: (backup) => ipcRenderer.invoke("reset:rollback", { backup }),
   checkGoLivePreconditions: (payload) => ipcRenderer.invoke("go-live:preconditions", payload),

@@ -271,7 +271,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
     setResetStep("dependencies");
     setResetDependencyLoading(true);
     try {
-      const result = await apiClient.analyzeResetDependencies?.();
+      const result = await apiClient.analyzeResetDependencies?.(resetPreviewPayload());
       setResetDependencies(result);
       if (result?.total?.blocked > 0) {
         setResetError("Dependency analysis found blocked tables. Reset cannot proceed.");
@@ -344,7 +344,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
   // so start the workflow again.
   const previewCompanyId = resetPreview?.company?.id;
   useEffect(() => {
-    if (previewCompanyId && String(previewCompanyId) !== String(companyContext?.company_id || "")) {
+    if (previewCompanyId && ["preview", "dependencies", "warning", "backup"].includes(resetStep) && String(previewCompanyId) !== String(companyContext?.company_id || "")) {
       handleResetComplete();
       setResetError("The company was changed, so the reset was started again. Preview the newly selected company first.");
     }
@@ -768,7 +768,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
                   <div style={{ marginBottom: 8 }}>
                     <p style={{ color: "#721c24", fontWeight: 600 }}>Blocked</p>
                     {resetDependencies.blocked.map((b, i) => (
-                      <p key={i} style={{ color: "#721c24", fontSize: "0.85em" }}>{b.table} ({b.module}): {b.orphans?.length} orphan(s) prevent reset</p>
+                      <p key={i} style={{ color: "#721c24", fontSize: "0.85em" }}>{b.reason || `${b.table} (${b.module}): ${b.orphans?.length} orphan(s) prevent reset`}</p>
                     ))}
                   </div>
                 )}
@@ -786,6 +786,9 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
           <div className="reset-preview" style={{ marginTop: 12 }}>
             <h4>Reset Preview</h4>
             <p><strong>{resetPreview.company ? `Rows to clear for ${resetPreview.company.name}` : "Total operational rows (all companies)"}: {resetPreview.totalOperational}</strong></p>
+            {resetPreview.blockingReferences?.length > 0 && (
+              <p className="reset-warning">The reset cannot run yet: {resetPreview.blockingReferences.map((r) => `${r.count} ${r.table} row(s) outside this company point at its ${r.parent}`).join("; ")}. Fix or remove those records first.</p>
+            )}
             {resetPreview.unclassifiedTables?.length > 0 && (
               <p className="reset-warning">These tables hold company data but are neither cleared nor kept by the reset: {resetPreview.unclassifiedTables.join(", ")}. Report this before resetting.</p>
             )}
@@ -808,7 +811,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
                   type="button"
                   className="danger-btn"
                   onClick={handleEnhancedExecute}
-                  disabled={resetConfirm !== "RESET" || resetLoading}
+                  disabled={resetConfirm !== "RESET" || resetLoading || resetPreview?.blockingReferences?.length > 0 || resetPreview?.unclassifiedTables?.length > 0}
                 >
                   {resetLoading ? "Executing..." : "Execute Reset"}
                 </button>

@@ -136,9 +136,41 @@ test("a broken link that existed before the reset does not block it", () => {
   db.exec("PRAGMA foreign_keys = OFF");
   insert(db, "installations", { company_id: 1, installation_number: "I-orphan", supply_order_id: 999999 });
   db.exec("PRAGMA foreign_keys = ON");
-  assert.equal(reset.previewReset(db, 1).existingLinkIssues, 1);
+  const other = secondCompany(db);
+  db.exec("PRAGMA foreign_keys = OFF");
+  insert(db, "installations", { company_id: other, installation_number: "I-orphan-2", supply_order_id: 888888 });
+  db.exec("PRAGMA foreign_keys = ON");
+  assert.equal(reset.previewReset(db, 1).blockingReferences.length, 0);
+  assert.equal(reset.analyzeDependencies(db, 1).total.blocked, 0, "another company's old broken link does not block the 10-step workflow");
+  assert.ok(reset.analyzeDependencies(db, 1).total.warnings > 0, "it is still reported as a warning");
   const result = reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
   assert.equal(result.after.totalOperational, 0);
+});
+
+test("a record outside the company that points at its order blocks the reset up front", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const other = secondCompany(db);
+  const order = db.prepare("SELECT id FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get().id;
+  insert(db, "procurement_plans", { company_id: other, plan_number: "PP-x", plan_date: "2026-04-05", order_id: order });
+  const preview = reset.previewReset(db, 1);
+  assert.equal(preview.blockingReferences.length, 1);
+  assert.equal(reset.analyzeDependencies(db, 1).total.blocked, 1);
+  const backups = () => fs.readdirSync(path.join(root, "backups")).length;
+  const before = backups();
+  assert.throws(() => reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }), /procurement_plans/);
+  assert.equal(backups(), before, "refused before any backup was taken");
+});
+
+test("a reset purchase order can be converted again", () => {
+  const root = freshRoot();
+  const db = m.initializeDatabase(root);
+  handles.push(db);
+  const order = db.prepare("SELECT id FROM supply_orders WHERE company_id = 1 ORDER BY id LIMIT 1").get().id;
+  insert(db, "purchase_orders", { company_id: 1, po_number: "PO-conv", po_date: "2026-04-04", work_order_id: order, converted_to_work_order: 1, status: "converted" });
+  reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" });
+  assert.deepEqual(db.prepare("SELECT status, work_order_id, converted_to_work_order FROM purchase_orders WHERE po_number = 'PO-conv'").get(), { status: "draft", work_order_id: null, converted_to_work_order: 0 });
 });
 
 test("a preview for a company that does not exist is refused", () => {

@@ -1385,8 +1385,8 @@ function registerIpc() {
     return result;
   }));
 
-  handle("reset:analyze-dependencies", () => {
-    return analyzeDependencies(db);
+  handle("reset:analyze-dependencies", (_event, payload = {}) => {
+    return analyzeDependencies(db, Number(payload?.company_id || 0) || null);
   });
 
   handle("reset:execute-enhanced", guarded("system_reset", "operational_reset", (payload = {}) => {

@@ -77,10 +77,50 @@ const YEAR_END_TABLES = ["carry_forward_entries", "year_end_closings"];
 // orders a reset deletes are cleared instead, so the records stay and the foreign
 // key check passes.
 const UNLINK_ON_RESET = [
-  { table: "quotations", set: "supply_order_id = NULL" },
-  { table: "negotiations", set: "supply_order_id = NULL" },
-  { table: "purchase_orders", set: "work_order_id = NULL, converted_to_work_order = 0" }
+  { table: "quotations", column: "supply_order_id", set: "supply_order_id = NULL" },
+  { table: "negotiations", column: "supply_order_id", set: "supply_order_id = NULL" },
+  // A purchase order whose work order is gone can be converted again.
+  { table: "purchase_orders", column: "work_order_id", set: "work_order_id = NULL, converted_to_work_order = 0, status = CASE WHEN status = 'converted' THEN 'draft' ELSE status END" }
 ];
+
+// Rows that will SURVIVE a reset of this company but point at rows it deletes
+// (for example another company's record, or a row with no company, linked to
+// this company's order). The reset would break those links, so it is refused
+// up front, and the preview lists them so the person can fix them first.
+// Old broken links elsewhere in the database are not counted.
+export function blockingReferences(db, companyId) {
+  const id = Number(companyId || 0);
+  if (!id) return [];
+  const tableNames = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name).filter((n) => !n.startsWith("sqlite_"));
+  const cleared = new Set([...RESET_TABLES.map((r) => r.table), ...YEAR_END_TABLES]);
+  const hasCompany = (table) => db.prepare(`PRAGMA table_info("${table}")`).all().some((c) => c.name === "company_id");
+  // The rows of a cleared table that this reset deletes.
+  const deletedRows = (table) => (table === "voucher_lines"
+    ? `SELECT id FROM "voucher_lines" WHERE voucher_id IN (SELECT id FROM "vouchers" WHERE company_id = ${id})`
+    : `SELECT id FROM "${table}" WHERE company_id = ${id}`);
+  const out = [];
+  for (const table of tableNames) {
+    for (const fk of db.prepare(`PRAGMA foreign_key_list("${table}")`).all()) {
+      if (!cleared.has(fk.table) || (fk.to && fk.to !== "id")) continue;
+      if (fk.table !== "voucher_lines" && !hasCompany(fk.table)) continue;
+      const survives = [];
+      if (cleared.has(table)) {
+        if (table === "voucher_lines") survives.push(`voucher_id NOT IN (SELECT id FROM "vouchers" WHERE company_id = ${id})`);
+        else if (hasCompany(table)) survives.push(`(company_id IS NULL OR company_id <> ${id})`);
+      } else if (UNLINK_ON_RESET.some((u) => u.table === table && u.column === fk.from) && hasCompany(table)) {
+        survives.push(`(company_id IS NULL OR company_id <> ${id})`);
+      }
+      const where = [`"${fk.from}" IN (${deletedRows(fk.table)})`, ...survives].join(" AND ");
+      const count = db.prepare(`SELECT COUNT(*) c FROM "${table}" WHERE ${where}`).get().c;
+      if (count > 0) out.push({ table, column: fk.from, parent: fk.table, count });
+    }
+  }
+  return out;
+}
+
+function describeBlockingReferences(refs) {
+  return refs.map((r) => `${r.count} ${r.table} row(s) (column ${r.column}) still point at ${r.parent} rows of this company`).join("; ");
+}
 
 
 // Every table with a company column must be either cleared or kept on purpose.
@@ -159,12 +199,27 @@ export function previewReset(db, companyId = null) {
     preserved: preservedCounts,
     totalOperational,
     unclassifiedTables: unclassifiedCompanyTables(db),
-    // Broken links already in the database; they do not block the reset.
-    existingLinkIssues: db.prepare("PRAGMA foreign_key_check").all().length
+    // Records outside this company that point at rows the reset deletes. While any
+    // exist the reset is refused, so the screen shows them and blocks Execute.
+    blockingReferences: company ? blockingReferences(db, company.id) : []
   };
 }
 
-export function analyzeDependencies(db) {
+// With a company id, only links this reset would break block it; old broken links
+// elsewhere are reported as warnings. Without one, the original whole-database check.
+export function analyzeDependencies(db, companyId = null) {
+  if (Number(companyId || 0)) {
+    const refs = blockingReferences(db, companyId);
+    const legacy = analyzeDependencies(db);
+    const blocked = refs.map((r) => ({ table: r.table, rowCount: r.count, module: "Links", reason: `${r.count} row(s) in ${r.table}.${r.column} point at ${r.parent} rows this reset deletes`, orphans: [{ table: r.table, column: r.column, orphanCount: r.count }] }));
+    const warnings = [...legacy.blocked, ...legacy.warnings].map((w) => ({ ...w, note: "Already broken before the reset; it does not block the reset." }));
+    return {
+      safe: legacy.safe,
+      warnings,
+      blocked,
+      total: { safe: legacy.safe.length, warnings: warnings.length, blocked: blocked.length }
+    };
+  }
   const issues = [];
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
   const foreignKeys = [];
@@ -328,6 +383,10 @@ function performCompanyReset(db, runtimeRoot, { userId, companyId, confirmText, 
   const unclassified = unclassifiedCompanyTables(db);
   if (unclassified.length) {
     throw new OperationalResetError(`Reset refused: these tables hold company data but the reset does not know whether to clear or keep them: ${unclassified.join(", ")}. Nothing was changed. Report this so the reset can be updated.`);
+  }
+  const refs = blockingReferences(db, company.id);
+  if (refs.length) {
+    throw new OperationalResetError(`Reset refused: ${describeBlockingReferences(refs)}. Those records belong to another company or to no company, and the reset would break their links. Fix or remove them first. Nothing was changed.`);
   }
   const backup = createBackup(runtimeRoot, db, "pre_reset");
   const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name));
