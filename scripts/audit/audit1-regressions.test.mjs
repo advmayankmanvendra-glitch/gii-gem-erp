@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const m = await import(pathToFileURL(path.join(REPO, "src/main/database/init.js")).href);
+const guards = await import(pathToFileURL(path.join(REPO, "src/main/database/ledgerGuards.js")).href);
 
 const handles = [];
 const roots = [];
@@ -128,6 +129,8 @@ test("deleting the newest audit rows is detected", () => {
 test("upgrading an older database restores missing columns and paise amounts, with a backup first", () => {
   const root = freshRoot();
   let db = m.initializeDatabase(root);
+  // An older database has no ledger guard triggers yet.
+  guards.LEDGER_GUARD_TRIGGERS.forEach((name) => db.exec(`DROP TRIGGER IF EXISTS ${name}`));
   db.prepare("UPDATE voucher_lines SET debit_minor = 0, credit_minor = 0").run();
   db.exec("ALTER TABLE approval_queue DROP COLUMN deleted_by; ALTER TABLE approval_queue DROP COLUMN deleted_at; ALTER TABLE approval_queue DROP COLUMN is_deleted;");
   db.prepare("DELETE FROM schema_migrations WHERE migration_name = '036_upgrade_soft_delete_and_money_backfill'").run();
@@ -137,6 +140,7 @@ test("upgrading an older database restores missing columns and paise amounts, wi
   assert.ok(db.prepare("PRAGMA table_info(approval_queue)").all().some((c) => c.name === "is_deleted"));
   const mismatched = db.prepare("SELECT COUNT(*) c FROM voucher_lines WHERE debit_minor <> CAST(ROUND(debit * 100) AS INTEGER) OR credit_minor <> CAST(ROUND(credit * 100) AS INTEGER)").get().c;
   assert.equal(mismatched, 0);
+  assert.deepEqual(guards.missingLedgerGuards(db), []);
   assert.ok(fs.readdirSync(path.join(root, "backups")).some((f) => f.startsWith("pre-upgrade-")));
 });
 

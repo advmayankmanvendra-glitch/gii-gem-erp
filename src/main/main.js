@@ -105,7 +105,9 @@ import {
   setRuntimeRoot,
   sourceProjectRoot,
   voucherProposalData,
-  previewImportRollback
+  previewImportRollback,
+  moneyIntegrityReport,
+  postRoundingAdjustment
 } from "./database/init.js";
 import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
@@ -953,6 +955,17 @@ function registerIpc() {
   handle("vouchers:guided-status", guarded("approve", "guided_vouchers", (id, action, _userId, remarks) => updateGuidedVoucherStatus(db, id, action, actorId(), remarks)));
   handle("vouchers:guided-post", guarded("post", "guided_vouchers", (id) => postGuidedVoucher(db, id, actorId())));
   handle("vouchers:reverse", guarded("reverse", "vouchers", (voucherId, reason) => reverseVoucher(db, voucherId, reason, actorId())));
+  // Read-only, like the other Health Center checks: any signed-in user may run it.
+  handle("money:integrity", (event, payload = {}) => {
+    sessionUser(event);
+    // No company id means All Companies View; anything else must be a real company id.
+    const raw = payload?.company_id;
+    if (raw === undefined || raw === null || raw === "") return moneyIntegrityReport(db, null);
+    const companyId = Number(raw);
+    if (!Number.isInteger(companyId) || companyId <= 0) throw new Error("Money integrity check: the company id is not valid. Select a company and try again.");
+    return moneyIntegrityReport(db, companyId);
+  });
+  handle("money:rounding-adjustment", guarded("post", "vouchers", (payload = {}) => postRoundingAdjustment(db, { ...payload, userId: actorId() })));
   handle("posting:post", guarded("post", "posting", (moduleName, recordId) => postBusinessTransaction(db, moduleName, recordId)));
   handle("approval:approve", guarded("approve", "approval_queue", (moduleName, recordId, _userId, remarks) => approveTransaction(db, moduleName, recordId, actorId(), remarks)));
   handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));

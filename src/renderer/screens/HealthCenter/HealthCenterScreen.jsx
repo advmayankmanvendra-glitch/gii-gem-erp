@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { HealthCheckCard } from "../../components/health/index.jsx";
 import { ErrorConsolePanel } from "./ErrorConsolePanel.jsx";
 import { ErrorGuidancePanel } from "./ErrorGuidancePanel.jsx";
+import { MoneyIntegrityPanel } from "./MoneyIntegrityPanel.jsx";
 import { isAdminUser } from "../../utils/uiHelpers.js";
 import { PhaseLockRegistry } from "./PhaseLockRegistry.jsx";
 import { RecoveryCenterScreen } from "./RecoveryCenterScreen.jsx";
@@ -121,7 +122,10 @@ function HealthCenterScreen({ apiClient, notify, session, companyContext, onNavi
       ) : null}
 
       {activeTab === "errors" ? (
-        <ErrorConsolePanel apiClient={apiClient} context={context} notify={notify} onNavigate={onNavigate} isAdmin={isAdminUser(session?.user || session)} />
+        <>
+          <ErrorConsolePanel apiClient={apiClient} context={context} notify={notify} onNavigate={onNavigate} isAdmin={isAdminUser(session?.user || session)} />
+          <MoneyIntegrityPanel apiClient={apiClient} context={context} notify={notify} />
+        </>
       ) : null}
 
       {activeTab === "checks" ? (

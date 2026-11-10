@@ -91,6 +91,7 @@ import { AllocationWorkflowScreen } from "./features/accounting/AllocationWorkfl
 import { BankStatementScreen } from "./features/accounting/BankStatementScreen.jsx";
 import { confirmAction, postedProtectionOptions, deleteConfirmOptions, postConfirmOptions, approveConfirmOptions, reversalConfirmOptions, isRecordLocked } from "./utils/actionUtils.js";
 import { normalizeStatusClass } from "./utils/fileParsers.js";
+import { KEY_LAYOUT_EVENT, KEY_LAYOUT_TALLY, desktopCommandKeyEvent, handleTallyKey, readKeyLayout, saveKeyLayout } from "./config/keyLayout.js";
 
 const fallbackApi = createBrowserFallbackApi(businessVoucherPreview);
 const api = resolveApi(fallbackApi);
@@ -300,6 +301,7 @@ function App() {
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
   const [contextShortcutOpen, setContextShortcutOpen] = useState(false);
   const [userPreferencesOpen, setUserPreferencesOpen] = useState(false);
+  const [keyLayout, setKeyLayout] = useState(readKeyLayout);
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
   const [helpAssistantSourceView, setHelpAssistantSourceView] = useState("dashboard");
   const [helpAssistantInitialMode, setHelpAssistantInitialMode] = useState("screen");
@@ -722,6 +724,11 @@ function App() {
     if (confirmDialog || globalSearchOpen || shortcutHelpOpen || userPreferencesOpen || contextHelpOpen || firstTourOpen) return;
     if (!command) return;
 
+    // The desktop shell turns plain function keys and Alt + letter into commands before
+    // the page sees them, so the Tally layout is applied here as well as on keydown.
+    const tallyKey = keyLayout === KEY_LAYOUT_TALLY ? desktopCommandKeyEvent(command) : null;
+    if (tallyKey && handleTallyKey(tallyKey, { openVoucher: openVoucherShortcut, notify })) return;
+
     if (/^f[2-9]$/.test(command) && handleModuleFunctionKey(command.toUpperCase())) return;
 
     const quickViews = {
@@ -815,7 +822,7 @@ function App() {
       unsubscribeDesktopShortcut?.();
       window.removeEventListener("gii-gem-print-preview", handlePrintPreviewRequest);
     };
-  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, currentTitle, breadcrumb, view, effectiveView, navigationHistory]);
+  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, currentTitle, breadcrumb, view, effectiveView, navigationHistory, keyLayout]);
 
   async function createBackupFromShortcut() {
     const confirmed = await confirmAction({
@@ -1006,6 +1013,7 @@ function App() {
     function onProductivityKeyDown(event) {
       if (!session || (event.defaultPrevented && event.key !== "Enter")) return;
       if (confirmDialog || globalSearchOpen || shortcutHelpOpen || userPreferencesOpen || contextHelpOpen || firstTourOpen) return;
+      if (keyLayout === KEY_LAYOUT_TALLY && handleTallyKey(event, { openVoucher: openVoucherShortcut, notify })) return;
 
       if ((event.key === "Enter" || event.key === "Escape") && document.activeElement?.tagName === "SELECT") {
         if (event.key === "Escape") document.activeElement.blur?.();
@@ -1238,7 +1246,15 @@ function App() {
     }
     window.addEventListener("keydown", onProductivityKeyDown, true);
     return () => window.removeEventListener("keydown", onProductivityKeyDown, true);
-  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, view, navigationHistory]);
+  }, [session, confirmDialog, globalSearchOpen, shortcutHelpOpen, userPreferencesOpen, contextHelpOpen, firstTourOpen, view, navigationHistory, keyLayout]);
+
+  useEffect(() => {
+    function onKeyLayoutChange(event) {
+      setKeyLayout(event.detail === KEY_LAYOUT_TALLY ? KEY_LAYOUT_TALLY : readKeyLayout());
+    }
+    window.addEventListener(KEY_LAYOUT_EVENT, onKeyLayoutChange);
+    return () => window.removeEventListener(KEY_LAYOUT_EVENT, onKeyLayoutChange);
+  }, []);
 
   if (!session) {
     return (
@@ -1434,7 +1450,7 @@ function App() {
       {globalSearchOpen && <GlobalSearchOverlay query={globalSearchQuery} setQuery={setGlobalSearchQuery} results={globalSearchResults} onNavigate={(key) => { setGlobalSearchOpen(false); setGlobalSearchQuery(""); navigate(key); }} onClose={() => setGlobalSearchOpen(false)} />}
       {shortcutHelpOpen && <ShortcutHelpDialog onClose={() => setShortcutHelpOpen(false)} />}
       {contextShortcutOpen && <ContextShortcutOverlay view={effectiveView} onClose={() => setContextShortcutOpen(false)} />}
-      {userPreferencesOpen && <UserPreferencesDialog onClose={() => setUserPreferencesOpen(false)} compactSidebar={compactSidebar} />}
+      {userPreferencesOpen && <UserPreferencesDialog onClose={() => setUserPreferencesOpen(false)} compactSidebar={compactSidebar} keyLayout={keyLayout} onKeyLayoutChange={(layout) => { saveKeyLayout(layout); notify(layout === KEY_LAYOUT_TALLY ? "Tally key layout is on: F4 Contra, F5 Payment, F6 Receipt, F7 Journal, F8 Sales, F9 Purchase." : "Standard key layout is on."); }} />}
       {contextHelpOpen && <ContextHelpDialog view={effectiveView} onClose={() => setContextHelpOpen(false)} onOpenTraining={() => { setContextHelpOpen(false); navigate("help_training"); }} onOpenAssistant={() => { setContextHelpOpen(false); setHelpAssistantSourceView(effectiveView); setHelpAssistantInitialMode("brain"); navigate("help_assistant"); }} />}
       {productivityLearnOpen && <ProductivityLearnDialog view={effectiveView} onClose={() => setProductivityLearnOpen(false)} onOpenTraining={() => { setProductivityLearnOpen(false); navigate("help_training"); }} />}
       {firstTourOpen && <FirstTimeTour onClose={() => setFirstTourOpen(false)} onOpenHelp={() => { setFirstTourOpen(false); navigate("help_training"); }} />}

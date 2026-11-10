@@ -1,17 +1,18 @@
-import { parseMoneyToMinor, minorToMajor } from "../domain/money.js";
+import { parseMoneyToMinor, minorToMajor, roundMoney, addRupees, subtractRupees, sumRupees, rupeesEqual } from "../domain/money.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 
 export function createReportBuilders({ activeRowClause, creditDueDate, allocationStatus, daysBetween, financialYearForDate }) {
   function round2(value) {
-    return Math.round(Number(value || 0) * 100) / 100;
+    return roundMoney(value);
   }
 
+  // The paise columns are the books; the rupee columns only mirror them.
   function minorAgg(prefix, column) {
-    return `COALESCE(SUM(${prefix}.${column}_minor), CAST(ROUND(COALESCE(SUM(${prefix}.${column}), 0) * 100) AS INTEGER))`;
+    return `COALESCE(SUM(${prefix}.${column}_minor), 0)`;
   }
 
   function minorVal(table, column) {
-    return `COALESCE(${table}.${column}_minor, CAST(ROUND(COALESCE(${table}.${column}, 0) * 100) AS INTEGER))`;
+    return `COALESCE(${table}.${column}_minor, 0)`;
   }
 
   function ageBucket(days) {
@@ -198,7 +199,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
            JOIN supply_orders soip ON soip.id = prp.order_id
            WHERE spa.supplier_payment_id = sp.id)
         ) order_number,
-        vl.debit, vl.credit, vl.narration
+        vl.debit_minor / 100.0 debit, vl.credit_minor / 100.0 credit, vl.narration
       FROM voucher_lines vl
       JOIN vouchers v ON v.id = vl.voucher_id
       JOIN accounts a ON a.id = vl.account_id
@@ -220,8 +221,8 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
       const key = `${row.party_type}-${row.party_name}`;
       const opening = Number(row.opening_balance || 0);
       const prior = balances.has(key) ? Number(balances.get(key) || 0) : opening;
-      const movement = row.party_type === "supplier" ? Number(row.credit || 0) - Number(row.debit || 0) : Number(row.debit || 0) - Number(row.credit || 0);
-      const running = prior + movement;
+      const movement = row.party_type === "supplier" ? subtractRupees(row.credit, row.debit) : subtractRupees(row.debit, row.credit);
+      const running = addRupees(prior, movement);
       balances.set(key, running);
       return { ...row, running_balance: running, party_balance: running };
     });
@@ -402,18 +403,18 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
   function partyLedgerSummaryReport(db, companyId) {
     const receivables = billWiseReceivableReport(db, companyId);
     const payables = billWisePayableReport(db, companyId);
-    const totalReceivable = receivables.reduce((sum, row) => sum + Number(row.balance_outstanding || 0), 0);
-    const totalPayable = payables.reduce((sum, row) => sum + Number(row.balance_due || 0), 0);
+    const totalReceivable = receivables.reduce((sum, row) => addRupees(sum, row.balance_outstanding), 0);
+    const totalPayable = payables.reduce((sum, row) => addRupees(sum, row.balance_due), 0);
     const topOutstandingDepartments = Object.values(receivables.reduce((groups, row) => {
       const key = row.department_name || "Unassigned";
       groups[key] = groups[key] || { id: key, party_name: key, outstanding: 0 };
-      groups[key].outstanding += Number(row.balance_outstanding || 0);
+      groups[key].outstanding = addRupees(groups[key].outstanding, row.balance_outstanding);
       return groups;
     }, {})).sort((a, b) => b.outstanding - a.outstanding).slice(0, 5);
     const topOutstandingSuppliers = Object.values(payables.reduce((groups, row) => {
       const key = row.supplier_name || "Unassigned";
       groups[key] = groups[key] || { id: key, party_name: key, outstanding: 0 };
-      groups[key].outstanding += Number(row.balance_due || 0);
+      groups[key].outstanding = addRupees(groups[key].outstanding, row.balance_due);
       return groups;
     }, {})).sort((a, b) => b.outstanding - a.outstanding).slice(0, 5);
     const oldestInvoice = receivables.filter((row) => Number(row.balance_outstanding || 0) > 0).sort((a, b) => Number(b.days_outstanding || 0) - Number(a.days_outstanding || 0))[0] || null;
@@ -423,15 +424,15 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
 
   function partyReconciliationReport(db, companyId, dateFrom, dateTo) {
     const partyLedger = partyLedgerReport(db, companyId, dateFrom, dateTo);
-    const receivableLedger = partyLedger.filter((row) => row.party_type === "department").reduce((sum, row) => sum + Number(row.debit || 0) - Number(row.credit || 0), 0);
-    const payableLedger = partyLedger.filter((row) => row.party_type === "supplier").reduce((sum, row) => sum + Number(row.credit || 0) - Number(row.debit || 0), 0);
-    const receivables = billWiseReceivableReport(db, companyId).reduce((sum, row) => sum + Number(row.balance_outstanding || 0), 0);
-    const payables = billWisePayableReport(db, companyId).reduce((sum, row) => sum + Number(row.balance_due || 0), 0);
-    const receiptAllocations = paymentAllocationReport(db, companyId).reduce((sum, row) => sum + Number(row.allocated_amount || 0) + Number(row.tds_deducted || 0) + Number(row.gst_tds_deducted || 0) + Number(row.other_deductions || 0), 0);
-    const supplierAllocations = supplierPaymentAllocationReport(db, companyId).reduce((sum, row) => sum + Number(row.allocated_amount || 0), 0);
+    const receivableLedger = partyLedger.filter((row) => row.party_type === "department").reduce((sum, row) => addRupees(sum, row.debit, -Number(row.credit || 0)), 0);
+    const payableLedger = partyLedger.filter((row) => row.party_type === "supplier").reduce((sum, row) => addRupees(sum, row.credit, -Number(row.debit || 0)), 0);
+    const receivables = billWiseReceivableReport(db, companyId).reduce((sum, row) => addRupees(sum, row.balance_outstanding), 0);
+    const payables = billWisePayableReport(db, companyId).reduce((sum, row) => addRupees(sum, row.balance_due), 0);
+    const receiptAllocations = paymentAllocationReport(db, companyId).reduce((sum, row) => addRupees(sum, row.allocated_amount, row.tds_deducted, row.gst_tds_deducted, row.other_deductions), 0);
+    const supplierAllocations = supplierPaymentAllocationReport(db, companyId).reduce((sum, row) => addRupees(sum, row.allocated_amount), 0);
     return [
-      { id: "receivable", party_type: "Department", validation: "Department ledger agrees with receivables", check_scope: "Trade Receivables ledger vs bill-wise receivable balance", ledger_balance: receivableLedger, subledger_balance: receivables, difference: Math.round((receivableLedger - receivables) * 100) / 100, possible_issue: "Unposted invoice, unallocated receipt, wrong department link or manual journal posted to Trade Receivables", recommended_action: "Drill into Department Ledger and Bill-wise Receivable", status: Math.abs(receivableLedger - receivables) <= 1 ? "Matched" : "Mismatch" },
-      { id: "payable", party_type: "Supplier", validation: "Supplier ledger agrees with payables", check_scope: "Trade Payables ledger vs bill-wise payable balance", ledger_balance: payableLedger, subledger_balance: payables, difference: Math.round((payableLedger - payables) * 100) / 100, possible_issue: "Unposted purchase, unallocated supplier payment, wrong supplier link or manual journal posted to Trade Payables", recommended_action: "Drill into Supplier Ledger and Bill-wise Payable", status: Math.abs(payableLedger - payables) <= 1 ? "Matched" : "Mismatch" },
+      { id: "receivable", party_type: "Department", validation: "Department ledger agrees with receivables", check_scope: "Trade Receivables ledger vs bill-wise receivable balance", ledger_balance: receivableLedger, subledger_balance: receivables, difference: subtractRupees(receivableLedger, receivables), possible_issue: "Unposted invoice, unallocated receipt, wrong department link or manual journal posted to Trade Receivables", recommended_action: "Drill into Department Ledger and Bill-wise Receivable", status: Math.abs(receivableLedger - receivables) <= 1 ? "Matched" : "Mismatch" },
+      { id: "payable", party_type: "Supplier", validation: "Supplier ledger agrees with payables", check_scope: "Trade Payables ledger vs bill-wise payable balance", ledger_balance: payableLedger, subledger_balance: payables, difference: subtractRupees(payableLedger, payables), possible_issue: "Unposted purchase, unallocated supplier payment, wrong supplier link or manual journal posted to Trade Payables", recommended_action: "Drill into Supplier Ledger and Bill-wise Payable", status: Math.abs(payableLedger - payables) <= 1 ? "Matched" : "Mismatch" },
       { id: "receipt_allocations", party_type: "Department", validation: "Receipt allocations captured", check_scope: "Receipt allocations, TDS, GST TDS and other deductions", ledger_balance: receiptAllocations, subledger_balance: receiptAllocations, difference: 0, possible_issue: "Receipt saved without allocation or statutory deductions entered on wrong invoice", recommended_action: "Drill into Receipt Allocation and Unallocated Receipts", status: "Captured" },
       { id: "supplier_allocations", party_type: "Supplier", validation: "Supplier payment allocations captured", check_scope: "Supplier payment allocation against purchase bills", ledger_balance: supplierAllocations, subledger_balance: supplierAllocations, difference: 0, possible_issue: "Supplier payment saved without bill allocation or advance incorrectly adjusted", recommended_action: "Drill into Supplier Allocation and Unallocated Supplier Payments", status: "Captured" }
     ];
@@ -585,8 +586,8 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
 
   function financialControlReport(db, companyId, dateFrom, dateTo) {
     const tb = trialBalance(db, companyId, dateFrom, dateTo);
-    const debit = tb.reduce((sum, row) => sum + Number(row.debit || 0), 0);
-    const credit = tb.reduce((sum, row) => sum + Number(row.credit || 0), 0);
+    const debit = tb.reduce((sum, row) => addRupees(sum, row.debit), 0);
+    const credit = tb.reduce((sum, row) => addRupees(sum, row.credit), 0);
     const postingRows = postingControlReport(db, companyId);
     const unposted = postingRows.filter((row) => !["Posted", "Reversed"].includes(row.posting_status)).length;
     const drafts = postingRows.filter((row) => row.posting_status === "Draft").length;
@@ -605,7 +606,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     return [
       { id: "current_year", control_area: "Period", control: "Current Financial Year", value: currentYear?.financial_year_name || "Not configured", status: currentYear?.status || "Missing", status_reason: currentYear ? `Current date falls in ${currentYear.financial_year_name}` : "No financial year found for current date", blocking_reason: currentYear ? "None" : "Create an open financial year before posting", recommended_action: currentYear ? "Review financial year status before period close" : "Create financial year", drill_view: "financial_years" },
       { id: "period", control_area: "Period", control: "Report Period", value: `${dateFrom} to ${dateTo}`, status: "Open", status_reason: "Control checks calculated for selected period", blocking_reason: "None", recommended_action: "Change period filters for another review window", drill_view: "financial_control" },
-      { id: "trial", control_area: "Accounting", control: "Trial Balance Difference", value: Math.round((debit - credit) * 100) / 100, status: Math.round(debit * 100) === Math.round(credit * 100) ? "Balanced" : "Mismatch", status_reason: "Debit and credit totals compared from ledger entries", blocking_reason: Math.round(debit * 100) === Math.round(credit * 100) ? "None" : "Trial balance mismatch blocks production confidence", recommended_action: "Drill into Trial Balance and General Ledger", drill_view: "trial_balance" },
+      { id: "trial", control_area: "Accounting", control: "Trial Balance Difference", value: subtractRupees(debit, credit), status: rupeesEqual(debit, credit) ? "Balanced" : "Mismatch", status_reason: "Debit and credit totals compared from ledger entries", blocking_reason: rupeesEqual(debit, credit) ? "None" : "Trial balance mismatch blocks production confidence", recommended_action: "Drill into Trial Balance and General Ledger", drill_view: "trial_balance" },
       { id: "unposted", control_area: "Posting", control: "Unposted Business Records", value: unposted, status: unposted ? "Review Required" : "Clear", status_reason: "Operational records checked for accounting posting status", blocking_reason: unposted ? "Draft or error records exist in Posting Queue" : "None", recommended_action: "Open Posting Queue and post safe records", drill_view: "posting_control" },
       { id: "drafts", control_area: "Posting", control: "Draft Transactions", value: drafts, status: drafts ? "Review Required" : "Clear", status_reason: "Draft records do not affect final books", blocking_reason: drafts ? "Draft records need approval/posting or cancellation decision" : "None", recommended_action: "Review draft source records", drill_view: "posting_control" },
       { id: "approval", control_area: "Approval", control: "Pending Approvals", value: pendingApprovals, status: pendingApprovals ? "Checker Pending" : "Clear", status_reason: "Maker-checker queue reviewed", blocking_reason: pendingApprovals ? "Approval pending before posting" : "None", recommended_action: "Open Approval Queue", drill_view: "approval_queue" },
@@ -667,8 +668,8 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
           ELSE 0
         END taxable,
         CASE
-          WHEN @direction = 'output' THEN le.credit - le.debit
-          ELSE le.debit - le.credit
+          WHEN @direction = 'output' THEN (le.credit_minor - le.debit_minor) / 100.0
+          ELSE (le.debit_minor - le.credit_minor) / 100.0
         END gst_amount,
         CASE
           WHEN i.id IS NOT NULL THEN i.gst_rate
@@ -697,7 +698,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     `).all({ companyId, accountName, dateFrom, dateTo, direction });
     const output = registerRows("Output GST", "output");
     const input = registerRows("Input GST", "input");
-    return { output, input, payable: output.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) - input.reduce((sum, row) => sum + Number(row.gst_amount || 0), 0) };
+    return { output, input, payable: subtractRupees(output.reduce((sum, row) => addRupees(sum, row.gst_amount), 0), input.reduce((sum, row) => addRupees(sum, row.gst_amount), 0)) };
   }
 
   function tdsRegisters(db, companyId, dateFrom, dateTo) {
@@ -802,8 +803,8 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
           (SELECT ${minorAgg("cfe", "opening_credit")} FROM carry_forward_entries cfe WHERE cfe.account_id = a.id AND cfe.company_id = a.company_id AND cfe.to_financial_year_id = ?),
           CASE WHEN a.normal_balance = 'Credit' THEN ${minorVal("a", "opening_balance")} ELSE 0 END
         ) credit_minor_total,
-        COALESCE(SUM(le.debit), 0) debit,
-        COALESCE(SUM(le.credit), 0) credit
+        COALESCE(SUM(le.debit_minor), 0) / 100.0 debit,
+        COALESCE(SUM(le.credit_minor), 0) / 100.0 credit
       FROM accounts a
       LEFT JOIN ledger_entries le ON le.account_id = a.id AND le.entry_date BETWEEN ? AND ?${ledgerActiveWhere}${voucherFilter}
       WHERE a.company_id = ? AND a.is_deleted = 0
@@ -844,9 +845,9 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
         debit: minorToMajor(debitMinor), credit: minorToMajor(creditMinor), amount: minorToMajor(amountMinor)
       };
     });
-    const income = rows.filter((row) => row.account_type === "Income").reduce((sum, row) => sum + row.amount, 0);
-    const expenses = rows.filter((row) => row.account_type === "Expense").reduce((sum, row) => sum + row.amount, 0);
-    return { rows, income, expenses, netProfit: income - expenses };
+    const income = rows.filter((row) => row.account_type === "Income").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    const expenses = rows.filter((row) => row.account_type === "Expense").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    return { rows, income, expenses, netProfit: subtractRupees(income, expenses) };
   }
 
   function balanceSheetReport(db, companyId, dateFrom, dateTo) {
@@ -894,9 +895,9 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
         amount: minorToMajor(amountMinor)
       };
     });
-    const assets = rows.filter((row) => row.account_type === "Asset").reduce((sum, row) => sum + row.amount, 0);
-    const liabilities = rows.filter((row) => row.account_type === "Liability").reduce((sum, row) => sum + row.amount, 0);
-    const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => sum + row.amount, 0);
+    const assets = rows.filter((row) => row.account_type === "Asset").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    const liabilities = rows.filter((row) => row.account_type === "Liability").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    const equity = rows.filter((row) => row.account_type === "Equity").reduce((sum, row) => addRupees(sum, row.amount), 0);
     const currentProfitDateFrom = fy ? fy.start_date : dateFrom;
     const pl = profitLossReport(db, companyId, currentProfitDateFrom, dateTo).netProfit;
     let unclosedPriorProfit = 0;
@@ -907,16 +908,16 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
     }
     return {
       rows, assets, liabilities, equity, currentProfit: pl, unclosedPriorProfit,
-      liabilitiesAndEquity: liabilities + equity + pl + unclosedPriorProfit
+      liabilitiesAndEquity: addRupees(liabilities, equity, pl, unclosedPriorProfit)
     };
   }
 
   function financialStatementSummary(db, companyId, dateFrom, dateTo) {
     const pl = profitLossReport(db, companyId, dateFrom, dateTo);
     const bs = balanceSheetReport(db, companyId, dateFrom, dateTo);
-    const sales = pl.rows.filter((row) => row.account_name === "Sales").reduce((sum, row) => sum + row.amount, 0);
-    const purchase = pl.rows.filter((row) => row.account_name === "Purchase").reduce((sum, row) => sum + row.amount, 0);
-    const expenses = pl.rows.filter((row) => row.account_type === "Expense" && row.account_name !== "Purchase").reduce((sum, row) => sum + row.amount, 0);
+    const sales = pl.rows.filter((row) => row.account_name === "Sales").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    const purchase = pl.rows.filter((row) => row.account_name === "Purchase").reduce((sum, row) => addRupees(sum, row.amount), 0);
+    const expenses = pl.rows.filter((row) => row.account_type === "Expense" && row.account_name !== "Purchase").reduce((sum, row) => addRupees(sum, row.amount), 0);
     return {
       grossRevenue: sales,
       purchaseCost: purchase,
@@ -925,7 +926,7 @@ export function createReportBuilders({ activeRowClause, creditDueDate, allocatio
       netProfit: pl.netProfit,
       assets: bs.assets,
       liabilitiesAndEquity: bs.liabilitiesAndEquity,
-      balanceSheetDifference: Math.round((bs.assets - bs.liabilitiesAndEquity) * 100) / 100
+      balanceSheetDifference: subtractRupees(bs.assets, bs.liabilitiesAndEquity)
     };
   }
 

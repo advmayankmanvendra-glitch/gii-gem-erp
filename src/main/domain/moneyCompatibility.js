@@ -28,7 +28,7 @@ export function getDisagreementPolicy(disagreements) {
     action: total === 0 ? "pass" : total <= 10 ? "warn" : "block",
     details: disagreements,
     message: total > 0
-      ? `${total} legacy/minor disagreement(s) found — run backfillAll to resolve`
+      ? `${total} legacy/minor disagreement(s) found. Open Health Center > Error Console > Money integrity for the rows.`
       : undefined
   };
 }

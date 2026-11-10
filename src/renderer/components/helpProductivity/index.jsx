@@ -7,6 +7,7 @@ import { buildScreenHelpProfile } from "../../modules/helpAssistant/screenHelpCa
 import { safeArray, safeObject } from "../../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../../utils/formatters.js";
 import { HelpList } from "../helpTraining/index.jsx";
+import { sumRupees } from "../../utils/money.js";
 
 export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, onAction, onLearn }) {
   const [shortcutQuery, setShortcutQuery] = useState("");
@@ -218,12 +219,12 @@ function productivityStatsForView(view, stats) {
       ["Draft Vouchers", safeArray(accounting.guidedVouchers).filter((row) => row.status === "Draft").length || 0]
     ],
     receivables: [
-      ["Outstanding Amount", formatCurrency(safeArray(accounting.billWiseReceivables || accounting.receivables).reduce((sum, row) => sum + Number(row.balance_outstanding || row.outstanding || 0), 0))],
+      ["Outstanding Amount", formatCurrency(sumRupees(safeArray(accounting.billWiseReceivables || accounting.receivables).map((row) => row.balance_outstanding || row.outstanding)))],
       ["Overdue Invoices", safeArray(accounting.receivableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Receipts Today", safeArray(accounting.payments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
     payables: [
-      ["Outstanding Payables", formatCurrency(safeArray(accounting.billWisePayables || accounting.payables).reduce((sum, row) => sum + Number(row.balance_due || 0), 0))],
+      ["Outstanding Payables", formatCurrency(sumRupees(safeArray(accounting.billWisePayables || accounting.payables).map((row) => row.balance_due)))],
       ["Overdue Supplier Bills", safeArray(accounting.payableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Payments Today", safeArray(accounting.supplierPayments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
@@ -341,7 +342,7 @@ export function ShortcutHelpDialog({ onClose }) {
   );
 }
 
-export function UserPreferencesDialog({ onClose, compactSidebar }) {
+export function UserPreferencesDialog({ onClose, compactSidebar, keyLayout = "standard", onKeyLayoutChange }) {
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key === "Escape" || event.key === "F12") {
@@ -368,6 +369,18 @@ export function UserPreferencesDialog({ onClose, compactSidebar }) {
             <h3>Keyboard Layer</h3>
             <div className="shortcut-row"><kbd>F12</kbd><span>Open or close this preferences panel.</span></div>
             <div className="shortcut-row"><kbd>F1</kbd><span>Open the full keyboard shortcut guide.</span></div>
+          </div>
+          <div className="shortcut-group">
+            <h3>Key Layout</h3>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="standard" checked={keyLayout !== "tally"} onChange={() => onKeyLayoutChange?.("standard")} />
+              <span>Standard: F2 Receipt, F3 Payment, F4 Sales, F5 Purchase, F6 Contra, F7 Journal on Accounting screens.</span>
+            </label>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="tally" checked={keyLayout === "tally"} onChange={() => onKeyLayoutChange?.("tally")} />
+              <span>Tally style: F4 Contra, F5 Payment, F6 Receipt, F7 Journal, F8 Sales, F9 Purchase, Ctrl+F8 Credit Note, Ctrl+F9 Debit Note, F2 change date, Alt+C create master, Enter on the last voucher line adds a line.</span>
+            </label>
+            <p>Kept on this computer. The mouse and menus work the same in both.</p>
           </div>
           <div className="shortcut-group">
             <h3>Current Session</h3>

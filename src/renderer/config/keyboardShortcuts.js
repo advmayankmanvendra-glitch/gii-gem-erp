@@ -1,3 +1,5 @@
+import { KEY_LAYOUT_TALLY, readKeyLayout, replacedByTallyLayout, tallyKeyboardShortcuts } from "./keyLayout.js";
+
 const keyboardShortcuts = [
   { keys: "F1", action: "Open Screen Help", module: "Help and Training", scope: "global", contextGroup: "Always" },
   { keys: "Shift + F1", action: "Learn This Screen", module: "Help and Training", scope: "global", contextGroup: "Always" },
@@ -79,17 +81,27 @@ function shortcutScopeForView(view) {
   return "general";
 }
 
-function shortcutGroupsForView(view) {
+// The shortcuts in force for the chosen key layout: with the Tally layout on, its keys
+// replace the standard F2, F4-F9 and Alt + C.
+function activeKeyboardShortcuts(layout = readKeyLayout()) {
+  if (layout !== KEY_LAYOUT_TALLY) return keyboardShortcuts;
+  return [...keyboardShortcuts.filter((shortcut) => !replacedByTallyLayout(shortcut)), ...tallyKeyboardShortcuts];
+}
+
+function shortcutGroupsForView(view, layout = readKeyLayout()) {
   const scope = shortcutScopeForView(view);
-  const relevant = keyboardShortcuts.filter((shortcut) => shortcut.contextGroup && (shortcut.scope === "global" || shortcut.scope === scope));
+  const relevant = activeKeyboardShortcuts(layout).filter((shortcut) => shortcut.contextGroup && (shortcut.scope === "global" || shortcut.scope === scope));
   return ["This Screen", "Always"]
     .map((title) => ({ title, items: relevant.filter((shortcut) => shortcut.contextGroup === title).map((shortcut) => [shortcut.keys, shortcut.action]) }))
     .filter((group) => group.items.length);
 }
 
-const keyboardGuideSections = moduleKeys.map((module) => [
-  module,
-  shortcutsForModule(module).map((shortcut) => [shortcut.keys, shortcut.action])
-]);
+const keyboardGuideSections = [
+  ...moduleKeys.map((module) => [
+    module,
+    shortcutsForModule(module).map((shortcut) => [shortcut.keys, shortcut.action])
+  ]),
+  ["Tally Key Layout (optional, F12 to switch on)", tallyKeyboardShortcuts.map((shortcut) => [shortcut.keys, shortcut.action])]
+];
 
-export { keyboardShortcuts, keyboardGuideSections, moduleKeys, shortcutGroupsForView, shortcutScopeForView, shortcutsForModule, shortcutsForScope };
+export { activeKeyboardShortcuts, keyboardShortcuts, keyboardGuideSections, moduleKeys, shortcutGroupsForView, shortcutScopeForView, shortcutsForModule, shortcutsForScope };

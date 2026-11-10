@@ -12,6 +12,7 @@ import {
   orderIssuedQuantity, orderLinesForBilling, orderProcuredQuantity, pendingQuantityForLine,
   profitabilityPreviewForOrder, suggestedInvoiceNumber, uniqueInstitutionOptions
 } from "./billingHelpers.js";
+import { sumRupees } from "../../utils/money.js";
 
 function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, confirmAction, reversalConfirmOptions, postConfirmOptions, isRecordLocked, normalizeStatusClass }) {
   const blankHeader = {
@@ -89,15 +90,15 @@ function BillingVoucherScreen({ notify, role, companyContext, onNavigate, api, c
   const invoiceLocked = isRecordLocked(selectedInvoice || editing || {});
   const calculatedLines = lines.map((line) => calculateInvoiceLine(line, header.gst_type));
   const rowEditorCalculated = rowEditor ? calculateInvoiceLine(rowEditor.form, header.gst_type) : null;
-  const totals = calculatedLines.reduce((acc, line) => ({
-    quantity: acc.quantity + Number(line.quantity || 0),
-    taxable: acc.taxable + Number(line.taxable_value || 0),
-    cgst: acc.cgst + Number(line.cgst || 0),
-    sgst: acc.sgst + Number(line.sgst || 0),
-    igst: acc.igst + Number(line.igst || 0),
-    gst: acc.gst + Number(line.gst_amount || 0),
-    gross: acc.gross + Number(line.gross_value || 0)
-  }), { quantity: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, gst: 0, gross: 0 });
+  const totals = {
+    quantity: calculatedLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0),
+    taxable: sumRupees(calculatedLines.map((line) => line.taxable_value)),
+    cgst: sumRupees(calculatedLines.map((line) => line.cgst)),
+    sgst: sumRupees(calculatedLines.map((line) => line.sgst)),
+    igst: sumRupees(calculatedLines.map((line) => line.igst)),
+    gst: sumRupees(calculatedLines.map((line) => line.gst_amount)),
+    gross: sumRupees(calculatedLines.map((line) => line.gross_value))
+  };
   const orderValidation = billingOrderValidation(data, header, calculatedLines, editing?.id);
   const profitability = profitabilityPreviewForOrder(data?.profitability || [], header.order_id, totals.taxable);
   const documents = (data?.documents || []).filter((doc) => {

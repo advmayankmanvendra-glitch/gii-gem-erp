@@ -43,13 +43,28 @@ export function hasAllShadowColumns(db) {
     .every(col => hasColumn(db, col.table, col.shadow));
 }
 
+// Legacy rupee values are converted with the app's own rounding (from the decimal
+// digits, half away from zero), not SQLite's ROUND, which works on the binary value
+// and turns a stored 1.005 into 100 paise instead of 101.
+function legacyMinor(value) {
+  return m.paise(value);
+}
+
 export function backfillAll(db) {
   const results = [];
   for (const col of SHADOW_COLUMNS) {
     if (!hasColumn(db, col.table, col.shadow)) continue;
     try {
-      const affected = db.prepare(`UPDATE ${col.table} SET ${col.shadow} = CAST(ROUND(${col.legacy} * ${m.MINOR_UNITS}) AS INTEGER) WHERE ${col.shadow} = 0 AND ${col.legacy} != 0`).run();
-      results.push({ table: col.table, shadow: col.shadow, rowsUpdated: affected.changes });
+      const rows = db.prepare(`SELECT rowid AS row_id, ${col.legacy} AS legacy FROM ${col.table} WHERE COALESCE(${col.shadow}, 0) = 0 AND COALESCE(${col.legacy}, 0) != 0`).all();
+      const update = db.prepare(`UPDATE ${col.table} SET ${col.shadow} = ? WHERE rowid = ?`);
+      let rowsUpdated = 0;
+      for (const row of rows) {
+        const minor = legacyMinor(row.legacy);
+        if (minor === 0) continue;
+        update.run(minor, row.row_id);
+        rowsUpdated += 1;
+      }
+      results.push({ table: col.table, shadow: col.shadow, rowsUpdated });
     } catch (e) {
       if (e.message && e.message.includes("no such table")) continue;
       throw e;
@@ -59,12 +74,14 @@ export function backfillAll(db) {
 }
 
 export function reconcile(db, tableName, legacyCol, shadowCol) {
-  return db.prepare(`
-    SELECT id, ${legacyCol} AS legacy, ${shadowCol} AS minor,
-           CAST(ROUND(${legacyCol} * ${m.MINOR_UNITS}) AS INTEGER) - ${shadowCol} AS diff
-    FROM ${tableName}
-    WHERE ${shadowCol} != CAST(ROUND(${legacyCol} * ${m.MINOR_UNITS}) AS INTEGER)
-  `).all();
+  const disagreements = [];
+  // SQLite narrows the rows to those whose rupee value is not exactly paise / 100; the
+  // app's rounding then decides which of them really disagree.
+  for (const row of db.prepare(`SELECT id, ${legacyCol} AS legacy, ${shadowCol} AS minor FROM ${tableName} WHERE COALESCE(${legacyCol}, 0) <> COALESCE(${shadowCol}, 0) / 100.0`).iterate()) {
+    const diff = legacyMinor(row.legacy) - Number(row.minor || 0);
+    if (diff !== 0) disagreements.push({ ...row, diff });
+  }
+  return disagreements;
 }
 
 export function reconcileAll(db) {

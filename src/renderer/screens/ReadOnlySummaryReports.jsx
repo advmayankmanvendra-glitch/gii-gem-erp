@@ -1,5 +1,6 @@
 import React from "react";
 import { SummaryTable } from "../components/common.jsx";
+import { sumRupees } from "../utils/money.js";
 
 export function EmployeePerformanceSummary({ rows }) {
   const byEmployee = groupRows(rows, "employee_name", (items) => ({
@@ -80,5 +81,5 @@ function groupRows(rows, key, build) {
 }
 
 function sumRows(rows, key) {
-  return rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+  return sumRupees(rows.map((row) => row[key]));
 }

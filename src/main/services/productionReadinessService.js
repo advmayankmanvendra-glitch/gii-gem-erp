@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { subtractRupees } from "../domain/money.js";
 
 function count(db, table, where = "") {
   const sql = `SELECT COUNT(*) count FROM "${table}" ${where}`;
@@ -35,7 +36,7 @@ export function generateCertificate(db, runtimeRoot) {
 
   const trialBalanceRows = hasTable(db, "accounts") && hasTable(db, "ledger_entries")
     ? db.prepare(`
-      SELECT COALESCE(SUM(le.debit),0) debit, COALESCE(SUM(le.credit),0) credit
+      SELECT COALESCE(SUM(le.debit_minor),0) / 100.0 debit, COALESCE(SUM(le.credit_minor),0) / 100.0 credit
       FROM ledger_entries le
       JOIN accounts a ON a.id=le.account_id
       WHERE COALESCE(a.is_deleted, 0) = 0 AND COALESCE(le.is_deleted, 0) = 0
@@ -44,12 +45,12 @@ export function generateCertificate(db, runtimeRoot) {
 
   const tbDebit = Number(trialBalanceRows?.debit || 0);
   const tbCredit = Number(trialBalanceRows?.credit || 0);
-  const tbDifference = Math.round((tbDebit - tbCredit) * 100) / 100;
+  const tbDifference = subtractRupees(tbDebit, tbCredit);
 
   const gstInput = hasTable(db, "vouchers") && hasTable(db, "voucher_lines")
     ? db.prepare(`
-      SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit ELSE 0 END),0) input,
-        COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit ELSE 0 END),0) output
+      SELECT COALESCE(SUM(CASE WHEN a.account_name='Input GST' THEN vl.debit_minor ELSE 0 END),0) / 100.0 input,
+        COALESCE(SUM(CASE WHEN a.account_name='Output GST' THEN vl.credit_minor ELSE 0 END),0) / 100.0 output
       FROM voucher_lines vl
       JOIN accounts a ON a.id=vl.account_id
       JOIN vouchers v ON v.id=vl.voucher_id
@@ -57,7 +58,7 @@ export function generateCertificate(db, runtimeRoot) {
     `).get()
     : { input: 0, output: 0 };
 
-  const netGst = Math.round((Number(gstInput.output || 0) - Number(gstInput.input || 0)) * 100) / 100;
+  const netGst = subtractRupees(gstInput.output, gstInput.input);
   const gstOk = netGst === 0;
 
   const backupsDir = path.join(runtimeRoot, "backups");
