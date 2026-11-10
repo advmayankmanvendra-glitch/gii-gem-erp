@@ -1,7 +1,7 @@
 {
   "manifestVersion": "1.0.0",
   "purpose": "Checksums of the preserved in-house audit reports (October to November 2026). A report is never edited after it is preserved; a later audit is added as a new file.",
-  "count": 41,
+  "count": 44,
   "entries": [
     {
       "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/audit-1-current-build.md",
@@ -42,6 +42,21 @@
       "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-219b2d3-security.md",
       "bytes": 23632,
       "sha256": "E280E06C868AEEAD131728E00EEDFB4956EFC2217294FC8E6270ADB6E0CEC807"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-architecture.md",
+      "bytes": 34904,
+      "sha256": "6623EA11EC1E0AA6A9B890591558B429B5E8D21AFA02D36B555266448719B754"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-correctness.md",
+      "bytes": 18812,
+      "sha256": "7C25ECD9720985E49898346C7FC4D1F1A73EFC5615B7B0E49E53C31A50EE7F40"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-security.md",
+      "bytes": 28291,
+      "sha256": "58D425B5AC3753243D5690A0A749C1EB4502C79B75D1CB9A3AA83697DB28317C"
     },
     {
       "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-61dfe2b-architecture.md",
