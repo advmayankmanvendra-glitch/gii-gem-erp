@@ -466,13 +466,14 @@ export function createAccountingService(deps) {
     const existingReversal = db.prepare("SELECT id FROM vouchers WHERE source_module = ? AND source_id = ? AND is_deleted = 0").get(VOUCHER_REVERSAL_SOURCE, original.id);
     if (existingReversal) throw new Error("Voucher reversal already exists");
 
-    const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(original.id);
+    // Every line is reversed, as the ledger and the database guards count every line.
+    const lines = db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id").all(original.id);
     if (!lines.length) throw new Error("Voucher has no lines to reverse");
     // A rounding adjustment that corrected this voucher is reversed with it, in the same
     // reversal voucher, so the pair still balances.
     const adjustment = db.prepare("SELECT * FROM vouchers WHERE source_module = ? AND source_id = ? AND status = 'Posted' AND is_deleted = 0").get(ROUNDING_ADJUSTMENT_SOURCE, original.id);
     const adjustmentLines = adjustment
-      ? db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? AND COALESCE(is_deleted, 0) = 0 ORDER BY id").all(adjustment.id)
+      ? db.prepare("SELECT * FROM voucher_lines WHERE voucher_id = ? ORDER BY id").all(adjustment.id)
       : [];
     // Lines worth less than a paisa on both sides hold nothing in the books and would make
     // an empty reversal line, so they are left out.

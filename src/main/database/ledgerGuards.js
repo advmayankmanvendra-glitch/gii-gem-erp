@@ -188,8 +188,9 @@ function triggerSql() {
         WHERE NOT EXISTS (SELECT 1 FROM voucher_lines WHERE voucher_id = NEW.id);
         SELECT RAISE(ABORT, 'Ledger guard: a deleted voucher cannot be posted.')
         WHERE COALESCE(NEW.is_deleted, 0) <> 0;
-        SELECT RAISE(ABORT, 'Ledger guard: a voucher with deleted ledger entries cannot be posted. Remove them first.')
-        WHERE EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND COALESCE(is_deleted, 0) <> 0);
+        SELECT RAISE(ABORT, 'Ledger guard: a voucher with deleted lines or ledger entries cannot be posted. Remove them first.')
+        WHERE EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND COALESCE(is_deleted, 0) <> 0)
+          OR EXISTS (SELECT 1 FROM voucher_lines WHERE voucher_id = NEW.id AND COALESCE(is_deleted, 0) <> 0);
         SELECT RAISE(ABORT, 'Ledger guard: every ledger entry must carry the voucher''s date. Posting was refused.')
         WHERE EXISTS (SELECT 1 FROM ledger_entries WHERE voucher_id = NEW.id AND entry_date IS NOT NEW.voucher_date);
         SELECT RAISE(ABORT, 'Ledger guard: the voucher lines and ledger entries do not agree. Posting was refused.')
@@ -237,7 +238,7 @@ function triggerSql() {
                 ))
           )
           OR EXISTS (
-            SELECT 1 FROM voucher_lines l JOIN accounts a ON a.id = l.account_id
+            SELECT 1 FROM voucher_lines l LEFT JOIN accounts a ON a.id = l.account_id
             WHERE l.voucher_id = NEW.id AND a.company_id IS NOT NEW.company_id
           );
       END`,
@@ -431,12 +432,16 @@ export function compileLedgerGuards(db) {
 // One definition of "a posted voucher's lines and ledger entries agree", shared by the
 // money integrity report, the Error Console and the start-up defect count, so they cannot
 // drift apart. scopeSql is a SELECT of voucher ids (it may use positional parameters, which
-// appear once). The result is a WITH clause ending in a "checked" table with one row per
+// appear once; duplicate ids are ignored). Only the whole-book scope ("SELECT id FROM
+// vouchers") runs fast without the guard indexes; a company or single-voucher scope needs
+// them, which start-up creates before anything but ledgerDefectCount runs. The result is a WITH clause ending in a "checked" table with one row per
 // scoped Posted or Reversed voucher:
 //   line_debit_minor, line_credit_minor     totals of its lines
 //   entry_debit_minor, entry_credit_minor   totals of its active ledger entries
 //   bad_lines     lines without exactly one active entry with the line's account and
-//                 amounts, or whose account belongs to another company or is deleted
+//                 amounts, whose account belongs to another company or is deleted, that
+//                 is itself marked deleted, or whose paise (or its entry's) are not
+//                 whole numbers
 //   stray_entries active entries that name no line of this voucher, whose account or
 //                 company is not the voucher's company, whose account is deleted, or
 //                 whose date is not the voucher's date
@@ -444,7 +449,7 @@ export function compileLedgerGuards(db) {
 // Every part is a grouped pass, so a whole-book report reads each table once.
 export function voucherLedgerCheckSql(scopeSql) {
   return `
-    WITH scope(id) AS (${scopeSql}),
+    WITH scope(id) AS (SELECT DISTINCT * FROM (${scopeSql})),
     sv AS (
       SELECT v.id, v.company_id, v.voucher_number, v.voucher_date, v.voucher_type, v.status, v.source_module, v.source_id
       FROM vouchers v JOIN scope ON scope.id = v.id
@@ -454,41 +459,50 @@ export function voucherLedgerCheckSql(scopeSql) {
       SELECT l.voucher_id, l.id, l.debit_minor, l.credit_minor,
         COUNT(e.id) entries,
         SUM(CASE WHEN e.account_id = l.account_id AND e.debit_minor = l.debit_minor AND e.credit_minor = l.credit_minor THEN 1 ELSE 0 END) matching,
-        MAX(CASE WHEN a.company_id IS sv.company_id AND COALESCE(a.is_deleted, 0) = 0 THEN 0 ELSE 1 END) foreign_account
+        MAX(CASE WHEN a.company_id IS sv.company_id AND COALESCE(a.is_deleted, 0) = 0 THEN 0 ELSE 1 END) foreign_account,
+        MAX(CASE WHEN COALESCE(l.is_deleted, 0) <> 0 OR typeof(l.debit_minor) <> 'integer' OR typeof(l.credit_minor) <> 'integer'
+          OR typeof(e.debit_minor) NOT IN ('integer', 'null') OR typeof(e.credit_minor) NOT IN ('integer', 'null') THEN 1 ELSE 0 END) odd_line
       FROM voucher_lines l
       JOIN sv ON sv.id = l.voucher_id
       LEFT JOIN accounts a ON a.id = l.account_id
       LEFT JOIN ledger_entries e ON e.voucher_line_id = l.id AND COALESCE(e.is_deleted, 0) = 0
       GROUP BY l.id
     ),
-    line_sums AS (
-      SELECT voucher_id, SUM(debit_minor) debit_minor, SUM(credit_minor) credit_minor,
-        SUM(CASE WHEN entries <> 1 OR matching <> 1 OR foreign_account = 1 THEN 1 ELSE 0 END) bad_lines
-      FROM line_check GROUP BY voucher_id
-    ),
-    entry_sums AS (
-      SELECT e.voucher_id, SUM(e.debit_minor) debit_minor, SUM(e.credit_minor) credit_minor,
-        SUM(CASE WHEN l.id IS NULL OR e.company_id IS NOT sv.company_id OR a.company_id IS NOT sv.company_id
-          OR COALESCE(a.is_deleted, 0) <> 0 OR e.entry_date IS NOT sv.voucher_date THEN 1 ELSE 0 END) stray_entries
+    -- One row per voucher, line and entry, grouped once by voucher. No join of grouped
+    -- results, which SQLite would read by scanning (minutes on a large company).
+    parts AS (
+      SELECT id voucher_id, 1 present, company_id, voucher_number, voucher_date, voucher_type, status, source_module, source_id,
+        0 line_debit, 0 line_credit, 0 entry_debit, 0 entry_credit, 0 lines, 0 bad_line, 0 stray_entry
+      FROM sv
+      UNION ALL
+      SELECT voucher_id, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        debit_minor, credit_minor, 0, 0, 1,
+        CASE WHEN entries <> 1 OR matching <> 1 OR foreign_account = 1 OR odd_line = 1 THEN 1 ELSE 0 END, 0
+      FROM line_check
+      UNION ALL
+      SELECT e.voucher_id, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        0, 0, e.debit_minor, e.credit_minor, 0, 0,
+        CASE WHEN l.id IS NULL OR e.company_id IS NOT sv.company_id OR a.company_id IS NOT sv.company_id
+          OR COALESCE(a.is_deleted, 0) <> 0 OR e.entry_date IS NOT sv.voucher_date THEN 1 ELSE 0 END
       FROM ledger_entries e
       JOIN sv ON sv.id = e.voucher_id
       LEFT JOIN voucher_lines l ON l.id = e.voucher_line_id AND l.voucher_id = e.voucher_id
       LEFT JOIN accounts a ON a.id = e.account_id
       WHERE COALESCE(e.is_deleted, 0) = 0
-      GROUP BY e.voucher_id
+    ),
+    grouped AS (
+      SELECT voucher_id id, MAX(company_id) company_id, MAX(voucher_number) voucher_number, MAX(voucher_date) voucher_date,
+        MAX(voucher_type) voucher_type, MAX(status) status, MAX(source_module) source_module, MAX(source_id) source_id,
+        SUM(line_debit) line_debit_minor, SUM(line_credit) line_credit_minor,
+        SUM(entry_debit) entry_debit_minor, SUM(entry_credit) entry_credit_minor,
+        SUM(lines) lines, SUM(bad_line) bad_lines, SUM(stray_entry) stray_entries
+      FROM parts GROUP BY voucher_id HAVING MAX(present) = 1
     ),
     checked AS (
-      SELECT sv.*,
-        COALESCE(ls.debit_minor, 0) line_debit_minor, COALESCE(ls.credit_minor, 0) line_credit_minor,
-        COALESCE(es.debit_minor, 0) entry_debit_minor, COALESCE(es.credit_minor, 0) entry_credit_minor,
-        COALESCE(ls.bad_lines, 0) bad_lines, COALESCE(es.stray_entries, 0) stray_entries,
-        CASE WHEN COALESCE(ls.debit_minor, 0) <> COALESCE(es.debit_minor, 0)
-          OR COALESCE(ls.credit_minor, 0) <> COALESCE(es.credit_minor, 0)
-          OR COALESCE(ls.bad_lines, 0) > 0 OR COALESCE(es.stray_entries, 0) > 0
-          OR ls.voucher_id IS NULL THEN 1 ELSE 0 END mismatch
-      FROM sv
-      LEFT JOIN line_sums ls ON ls.voucher_id = sv.id
-      LEFT JOIN entry_sums es ON es.voucher_id = sv.id
+      SELECT *,
+        CASE WHEN line_debit_minor <> entry_debit_minor OR line_credit_minor <> entry_credit_minor
+          OR bad_lines > 0 OR stray_entries > 0 OR lines = 0 THEN 1 ELSE 0 END mismatch
+      FROM grouped
     )`;
 }
 

@@ -908,7 +908,7 @@ test("a guard that no longer fits the schema fails at start-up, not on the next 
   assert.throws(() => guards.ensureLedgerGuards(db), /Ledger guard does not fit the current schema/);
 });
 
-test("the integrity report reads the books in grouped passes (20,000 vouchers)", () => {
+test("the integrity report reads the books in grouped passes (20,000 vouchers, 4,000 off by paise)", () => {
   const db = fresh();
   const cash = account(db, "Cash");
   const capital = account(db, "Capital");
@@ -920,9 +920,11 @@ test("the integrity report reads the books in grouped passes (20,000 vouchers)",
     const line = db.prepare("INSERT INTO voucher_lines (voucher_id, account_id, debit, credit, debit_minor, credit_minor) VALUES (?, ?, ?, ?, ?, ?)");
     const entry = db.prepare(`INSERT INTO ledger_entries (company_id, voucher_id, voucher_line_id, account_id, entry_date, debit, credit, running_balance, debit_minor, credit_minor, running_balance_minor)
       VALUES (1, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0)`);
+    // One voucher in five is off by 7 paise, as older books full of paise drift are.
     for (let i = 0; i < 20000; i += 1) {
       const id = voucher.run(`BULK-${i}`, DATE, year.id).lastInsertRowid;
-      entry.run(id, line.run(id, cash, 1, 0, 100, 0).lastInsertRowid, cash, DATE, 1, 0, 100, 0);
+      const debit = i % 5 === 0 ? 107 : 100;
+      entry.run(id, line.run(id, cash, debit / 100, 0, debit, 0).lastInsertRowid, cash, DATE, debit / 100, 0, debit, 0);
       entry.run(id, line.run(id, capital, 0, 1, 0, 100).lastInsertRowid, capital, DATE, 0, 1, 0, 100);
     }
   }))();
@@ -930,8 +932,10 @@ test("the integrity report reads the books in grouped passes (20,000 vouchers)",
   const report = m.moneyIntegrityReport(db, 1);
   const elapsed = Date.now() - started;
   assert.deepEqual(report.line_ledger_mismatches, []);
-  // Generous for slow machines; the per-voucher version took minutes here.
-  assert.ok(elapsed < 20000, `report took ${elapsed} ms`);
+  assert.equal(report.unbalanced_vouchers.length, 4000);
+  assert.ok(report.unbalanced_vouchers.every((row) => row.adjustable));
+  // Generous for slow machines; the per-voucher versions took minutes here.
+  assert.ok(elapsed < 10000, `report took ${elapsed} ms`);
 });
 
 const inWindowOf = (db, company, fn) => db.transaction(() => guards.withLedgerMaintenance(db, company, "test", fn))();
@@ -999,7 +1003,7 @@ test("soft-deleted ledger entries cannot be added or carried into a posted vouch
   addLine(db, draft, "Capital", 0, 100);
   assert.throws(() => entryInsert(db).run(draft, cash, account(db, "Cash"), DATE, 50000, 0, 5000000, 0, 1), GUARD);
   inWindowOf(db, 1, () => entryInsert(db).run(draft, cash, account(db, "Cash"), DATE, 50000, 0, 5000000, 0, 1));
-  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(draft), /deleted ledger entries/);
+  assert.throws(() => db.prepare("UPDATE vouchers SET status = 'Posted' WHERE id = ?").run(draft), /deleted lines or ledger entries/);
 });
 
 test("a one-sided reversal cannot stand in zero lines for the original's amounts", () => {
@@ -1062,4 +1066,14 @@ test("a TEMP trigger on the ledger tables is found and dropped", () => {
   assert.deepEqual(guards.unexpectedLedgerTriggers(db), ["temp.planted_temp"]);
   assert.deepEqual(guards.dropUnexpectedLedgerTriggers(db), ["temp.planted_temp"]);
   assert.deepEqual(guards.unexpectedLedgerTriggers(db), []);
+});
+
+test("the shared check ignores duplicate ids in its scope and flags fractional paise", () => {
+  const db = fresh();
+  const posted = postBalanced(db);
+  const rows = db.prepare(`${guards.voucherLedgerCheckSql("SELECT ? UNION ALL SELECT ?")} SELECT id, mismatch FROM checked`).all(posted.id, posted.id);
+  assert.deepEqual(rows, [{ id: posted.id, mismatch: 0 }]);
+  inWindowOf(db, 1, () => db.prepare("UPDATE ledger_entries SET debit_minor = 10000.5 WHERE voucher_id = ? AND debit_minor = 10000").run(posted.id));
+  inWindowOf(db, 1, () => db.prepare("UPDATE voucher_lines SET debit_minor = 10000.5 WHERE voucher_id = ? AND debit_minor = 10000").run(posted.id));
+  assert.equal(db.prepare(`${guards.voucherLedgerCheckSql("SELECT ?")} SELECT mismatch FROM checked`).get(posted.id).mismatch, 1);
 });
