@@ -105,6 +105,7 @@ const desktopOnlyActions = new Set([
   "setVerificationProfile",
   "switchEnvironment",
   "computeOrderClosure",
+  "simulateProfit",
   "markOrderOperationallyClosed",
   "createCracRecord",
   "listCracRecords",

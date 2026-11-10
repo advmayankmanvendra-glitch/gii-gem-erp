@@ -296,11 +296,28 @@ export function collectGovernanceGraphRegistryFindings(root = DEFAULT_ROOT) {
       "Report dispositions reconcile to 3 evidence, 46 superseded, 7 excluded and 260 archived",
       `Report disposition counts are ${JSON.stringify(manifest.counts)}`,
     );
+    // Governance evidence is tracked, so it must be present in every checkout. The other
+    // 313 reports are a local, git-ignored archive (manifest policy): a fresh clone or a
+    // CI runner does not have them. A present file must still match its checksum; an
+    // absent archive is reported, and is a failure only where the archive is required
+    // (GII_REQUIRE_REPORT_ARCHIVE=1, for example on the machine that holds it).
+    const requireArchive = process.env.GII_REQUIRE_REPORT_ARCHIVE === "1";
+    const mustExist = (entry) => requireArchive || entry.disposition === "GOVERNANCE_EVIDENCE";
+    const missing = entries.filter((entry) => !existsSync(resolve(root, entry.path)));
+    const missingRequired = missing.filter(mustExist);
     const integrityMismatch = entries.filter((entry) => {
       const fullPath = resolve(root, entry.path);
-      return !existsSync(fullPath) || readFileSync(fullPath).length !== entry.bytes || sha256(root, entry.path) !== entry.sha256;
+      // FORMALLY_EXCLUDED entries are mutable generated output (for example
+      // reports/verify-erp-report.md, rewritten by every verify:erp run); only their
+      // presence is recorded, not their content.
+      if (entry.disposition === "FORMALLY_EXCLUDED") return false;
+      return existsSync(fullPath) && (readFileSync(fullPath).length !== entry.bytes || sha256(root, entry.path) !== entry.sha256);
     });
-    check(integrityMismatch.length === 0, "All 316 report paths, sizes and SHA-256 checksums remain valid", `Report manifest integrity mismatch: ${integrityMismatch.map((entry) => entry.path).join(", ")}`);
+    check(integrityMismatch.length === 0, `All report files present (${entries.length - missing.length}) match their recorded size and SHA-256, generated output excepted`, `Report manifest integrity mismatch: ${integrityMismatch.map((entry) => entry.path).join(", ")}`);
+    check(missingRequired.length === 0, requireArchive ? "Every report in the manifest is present" : "Every governance-evidence report is present", `Required report(s) missing: ${missingRequired.map((entry) => entry.path).join(", ")}`);
+    if (missing.length && !requireArchive) {
+      info(`${missing.length} of ${entries.length} archived reports are not in this checkout (local git-ignored archive); set GII_REQUIRE_REPORT_ARCHIVE=1 on the archive machine to check them`);
+    }
     const evidence = entries.filter((entry) => entry.disposition === "GOVERNANCE_EVIDENCE");
     const ignoredEvidence = evidence.filter((entry) => isGitIgnored(root, entry.path));
     check(ignoredEvidence.length === 0, "All three governance-evidence reports are allowlisted from reports/*", `Governance evidence still ignored: ${ignoredEvidence.map((entry) => entry.path).join(", ")}`);
@@ -310,6 +327,21 @@ export function collectGovernanceGraphRegistryFindings(root = DEFAULT_ROOT) {
     check(existsSync(resolve(root, "reports/README.md")), "Tracked-ready reports archive policy exists", "reports/README.md is missing");
   } catch (error) {
     fail(`Report disposition validation error: ${error.message}`);
+  }
+
+  // Preserved in-house audit reports (docs/audit/in-house-audits-2026-10): every listed
+  // report must be present and unchanged; a later audit is added as a new file.
+  try {
+    const preserved = readJson(root, "docs/audit/in-house-audits-2026-10/manifest.json");
+    const listed = Array.isArray(preserved.entries) ? preserved.entries : [];
+    const changed = listed.filter((entry) => {
+      const fullPath = resolve(root, entry.path);
+      return !existsSync(fullPath) || readFileSync(fullPath).length !== entry.bytes || sha256(root, entry.path) !== entry.sha256;
+    });
+    check(listed.length > 0 && listed.length === preserved.count, `In-house audit manifest lists ${listed.length} preserved reports`, `In-house audit manifest count is ${listed.length}/${preserved.count}`);
+    check(changed.length === 0, "Every preserved in-house audit report is present and unchanged", `Preserved audit report missing or changed: ${changed.map((entry) => entry.path).join(", ")}`);
+  } catch (error) {
+    fail(`In-house audit preservation check error: ${error.message}`);
   }
 
   try {

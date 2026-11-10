@@ -204,3 +204,24 @@ Accepted 2026-08-21 audit baseline
 ```
 
 BRAIN-3.5/KG-5 has not begun.
+
+## Completion Verification (2026-11-10 IST)
+
+Added after the fact; the sections above are left as they were written. Run on a fresh Linux checkout of the PR #4 branch (claude/erp-full-automation-qbhv8k) with the Audit preservation commit applied.
+
+| Command | Result |
+|---|---|
+| `npm run verify:graph-registry` | PASS: 52 PASS, 1 INFO, 0 FAIL. The INFO is the 313 git-ignored local-archive reports that a fresh clone does not hold. |
+| `npm run verify:audit -- --phase=ggr-1` | PASS: 74 PASS, 0 FAIL |
+| `npm run verify:audit` | PASS, 0 FAIL. Before the Audit preservation commit it failed on every fresh clone, because the manifest check required the 313 local-only reports. |
+| Active graph validators: `verify:knowledge`, `verify:workflow-graph`, `verify:database-graph`, `verify:voucher-accounting-graph`, `verify:erp-brain`, `verify:help-assistant-brain`, `verify:audit-graph`, `verify:manual-graph`, `verify:workflow-enforcement` | All PASS, 0 failures |
+| `npm run lint:syntax`, `npm run build` | PASS |
+| `npm run verify:accounting`, `verify:financials` | PASS |
+| `git diff --check` | PASS |
+
+Changes to the known limitations:
+1. The three governance-evidence reports and this report are now tracked.
+3. The 16 private source-derived reports remain local-only, as before.
+6. Production readiness is still BLOCKED until the later programme steps finish: SEC-1, FSR-2B.3, workflow and billing-boundary enforcement, Profit Simulator routing, and then stabilization, certification and baseline lock.
+
+The archive check on the owner's machine is `GII_REQUIRE_REPORT_ARCHIVE=1 npm run verify:audit`. It fails if any of the 316 archived reports is missing or changed.

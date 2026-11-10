@@ -641,6 +641,7 @@ export function createBankReconciliationService(deps) {
     const proposal = getVoucherProposal(db, proposalId);
     db.transaction(() => {
       if (["Draft Voucher Created", "Posted"].includes(proposal.status)) throw new Error("Proposal cannot be edited after draft voucher creation");
+      if (proposal.status === "Already Booked") throw new Error("This bank line is already booked in the books, so its proposal cannot be edited. Mark it reconciled in Bank Reconciliation instead.");
       const next = {
         suggested_voucher_type: payload.suggested_voucher_type || proposal.suggested_voucher_type,
         suggested_party_type: payload.suggested_party_type || proposal.suggested_party_type,
@@ -653,7 +654,9 @@ export function createBankReconciliationService(deps) {
         linked_order_id: payload.linked_order_id ? Number(payload.linked_order_id) : proposal.linked_order_id,
         narration: payload.narration || proposal.narration,
         remarks: payload.remarks || proposal.remarks,
-        status: payload.status || "Needs Review"
+        // A review edit never approves: approval goes through approveVoucherProposal, which
+        // needs the approve permission. Any edit, even of an approved proposal, needs a fresh approval.
+        status: "Needs Review"
       };
       assertProposalLinksInCompany(db, proposal.company_id, next);
       db.prepare(`

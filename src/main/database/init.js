@@ -1492,7 +1492,7 @@ function supplierAdvanceAdjustedForProcurement(db, procurementId) {
   `).get(procurementId).value || 0);
 }
 
-function receivableOutstandingBeforeAdjustment(db, billingId) {
+export function receivableOutstandingBeforeAdjustment(db, billingId) {
   const receivable = db.prepare("SELECT * FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(billingId);
   if (!receivable) return 0;
   const allocation = db.prepare(`
@@ -1979,7 +1979,7 @@ const {
 } = createImportParserService();
 
 const {
-  hashPassword, verifyPassword, normalizeRole, enforcePermission,
+  hashPassword, verifyPassword, normalizeRole, enforcePermission, roleCan,
   authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
   userForPermission, setRecoverySecret, recoveryResetPassword, adminResetPassword
 } = createAuthService({
@@ -2145,7 +2145,7 @@ export {
 };
 
 export {
-  authenticate, changeUserPassword, enforcePermission,
+  authenticate, changeUserPassword, enforcePermission, roleCan,
   setRecoverySecret, recoveryResetPassword, adminResetPassword
 };
 

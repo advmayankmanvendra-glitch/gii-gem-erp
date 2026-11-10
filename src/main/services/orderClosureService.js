@@ -2,23 +2,37 @@
  * Order Closure Service - Checklist-driven operational closure tracking.
  */
 
+// Without the books' own calculation, the outstanding amount stored on the receivable.
+function storedOutstanding(db, invoiceId) {
+  return db.prepare("SELECT COALESCE(balance_outstanding, invoice_amount, 0) v FROM receivables WHERE billing_id = ? AND COALESCE(is_deleted, 0) = 0").get(invoiceId)?.v ?? 0;
+}
+
 /**
  * Compute closure checklist for a supply order.
  * @param {object} db - SQLite database handle
  * @param {number} orderId - Supply order ID
  * @returns {object} { checks, percentage, ready }
  */
-export function computeOrderClosure(db, orderId) {
+export function computeOrderClosure(db, orderId, { outstandingFor = storedOutstanding } = {}) {
   const order = db.prepare("SELECT * FROM supply_orders WHERE id = ? AND is_deleted = 0").get(orderId);
   if (!order) return { checks: [], percentage: 0, ready: false };
+
+  const invoices = db.prepare("SELECT id, invoice_number, posting_status FROM invoices WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0").all(orderId);
+  const posted = invoices.filter((invoice) => invoice.posting_status === "Posted");
+  // Settlement is proved from the books: every posted invoice of the order has nothing
+  // left to receive. One receipt somewhere on the order is not proof of settlement.
+  const unsettled = posted.filter((invoice) => Number(outstandingFor(db, invoice.id) || 0) > 0.005);
+  // Open work on the order: invoices or receipts saved but not posted (or failed).
+  const openInvoices = invoices.filter((invoice) => !["Posted", "Reversed", "Cancelled"].includes(invoice.posting_status || "Draft"));
+  const openReceipts = db.prepare("SELECT COUNT(*) c FROM payments WHERE order_id = ? AND COALESCE(is_deleted, 0) = 0 AND COALESCE(posting_status, 'Draft') NOT IN ('Posted', 'Reversed', 'Cancelled')").get(orderId).c;
 
   const checks = [
     { label: "Supply Completed", key: "supply_completed", ready: Boolean(order.is_supply_completed || order.supply_completed_at) },
     { label: "CRAC Generated", key: "crac_generated", ready: order.crac_status === "Generated" },
-    { label: "Invoice Submitted", key: "invoice_submitted", ready: db.prepare("SELECT id FROM invoices WHERE order_id = ? AND is_deleted = 0 LIMIT 1").get(orderId) ? true : false },
-    { label: "Payment Received", key: "payment_received", ready: db.prepare("SELECT id FROM payments WHERE order_id = ? AND is_deleted = 0 LIMIT 1").get(orderId) ? true : false },
+    { label: "Invoice Posted", key: "invoice_submitted", ready: posted.length > 0 },
+    { label: "Payment Settled", key: "payment_received", ready: posted.length > 0 && unsettled.length === 0, detail: unsettled.length ? `Still to receive on ${unsettled.map((invoice) => invoice.invoice_number).join(", ")}` : "" },
     { label: "Documents Uploaded", key: "documents_uploaded", ready: db.prepare("SELECT id FROM documents WHERE linked_module = 'supply_orders' AND linked_record_id = ? AND status = 'active' AND deleted_at IS NULL LIMIT 1").get(orderId) ? true : false },
-    { label: "No Outstanding Issues", key: "no_outstanding_issues", ready: true }
+    { label: "No Outstanding Issues", key: "no_outstanding_issues", ready: openInvoices.length === 0 && openReceipts === 0, detail: openInvoices.length || openReceipts ? `${openInvoices.length} invoice(s) and ${openReceipts} receipt(s) are saved but not posted` : "" }
   ];
 
   const readyCount = checks.filter((c) => c.ready).length;
@@ -34,10 +48,13 @@ export function computeOrderClosure(db, orderId) {
  * @param {number} orderId - Supply order ID
  * @param {function} audit - audit writer, called inside the transaction
  */
-export function markOrderOperationallyClosed(db, orderId, audit = () => { throw new Error("Order closure refused: no audit writer was passed, so this change could not be recorded. Nothing was changed."); }) {
+export function markOrderOperationallyClosed(db, orderId, audit = () => { throw new Error("Order closure refused: no audit writer was passed, so this change could not be recorded. Nothing was changed."); }, closureOptions = {}) {
   db.transaction(() => {
-    const closure = computeOrderClosure(db, orderId);
-    if (!closure.ready) throw new Error("Order closure checklist is not complete");
+    const closure = computeOrderClosure(db, orderId, closureOptions);
+    if (!closure.ready) {
+      const missing = closure.checks.filter((check) => !check.ready).map((check) => (check.detail ? `${check.label} (${check.detail})` : check.label));
+      throw new Error(`Order cannot be closed yet. Still open: ${missing.join("; ")}. Finish these, then close the order again.`);
+    }
     db.prepare("UPDATE supply_orders SET operationally_closed = 1, operationally_closed_at = CURRENT_TIMESTAMP, closure_percentage = 100, closure_checklist = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(closure.checks), orderId);
     // Audited in the same transaction; the go-live rollback guard relies on this row.
     const order = db.prepare("SELECT company_id FROM supply_orders WHERE id = ?").get(orderId);

@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { EmptyState, Metric } from "../components/common.jsx";
 import { ReportToolbar, MetricLine } from "../components/forms/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { sortRecordsBy } from "../utils/optionSorting.js";
-import { addRupees } from "../utils/money.js";
 
 const SCENARIOS_KEY = "gii-gem-profit-simulator-scenarios";
 
@@ -27,58 +26,32 @@ function saveScenarios(scenarios) {
   window.localStorage.setItem(SCENARIOS_KEY, JSON.stringify(scenarios));
 }
 
-function calcScenarioTotals(baselineTotals, params) {
-  const billingAdj = 1 + Number(params.billingAdjustment || 0) / 100;
-  const costAdj = 1 + Number(params.costAdjustment || 0) / 100;
-  const expenseAdj = 1 + Number(params.expenseAdjustment || 0) / 100;
-  const incentivePct = Math.min(Number(params.incentivePercent || 0), 100) / 100;
-  const gstRate = Math.min(Number(params.gstRateOverride || 0), 100) / 100;
-
-  const billing = baselineTotals.billingValue * billingAdj;
-  const cost = (baselineTotals.inventoryCostBasis || baselineTotals.purchaseValue) * costAdj;
-  const grossMargin = billing - cost;
-  const gstImpact = baselineTotals.gstInputLoss > 0 && params.gstRateOverride > 0
-    ? grossMargin * gstRate
-    : baselineTotals.gstInputLoss * expenseAdj;
-  const expenses = baselineTotals.totalExpenses * expenseAdj;
-  const initialProfit = grossMargin - gstImpact - expenses;
-  const incentive = initialProfit * incentivePct;
-  const netProfit = initialProfit - incentive;
-  const roi = cost > 0 ? (netProfit / cost) * 100 : 0;
-
-  return { billing, cost, grossMargin, gstImpact, expenses, incentive, netProfit, roi };
-}
-
 export function ProfitSimulatorScreen({ notify, companyContext, apiClient }) {
-  const [rows, setRows] = useState([]);
   const [params, setParams] = useState({ ...defaultParams });
   const [scenarios, setScenarios] = useState([]);
   const [scenarioName, setScenarioName] = useState("");
   const [selectedScenario, setSelectedScenario] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
 
+  // The baseline and the scenario are calculated in the main process from the live
+  // order profitability report; this screen only shows them.
+  const [result, setResult] = useState(null);
   useEffect(() => {
-    apiClient.getProfitability(companyContext).then((data) => {
-      setRows(data || []);
+    let current = true;
+    apiClient.simulateProfit(companyContext, params).then((data) => {
+      if (current) setResult(data);
     }).catch((error) => notify(error.message, "error"));
-  }, [companyContext?.company_id, companyContext?.company_scope]);
+    return () => { current = false; };
+  }, [companyContext?.company_id, companyContext?.company_scope, params]);
 
   useEffect(() => {
     setScenarios(loadScenarios());
   }, []);
 
-  const baselineTotals = rows.reduce((acc, row) => ({
-    billingValue: addRupees(acc.billingValue, row.billingValue),
-    purchaseValue: addRupees(acc.purchaseValue, row.inventoryCostBasis ?? row.purchaseValue),
-    grossMargin: addRupees(acc.grossMargin, row.grossMargin),
-    gstInputLoss: addRupees(acc.gstInputLoss, row.gstInputLoss),
-    totalExpenses: addRupees(acc.totalExpenses, row.totalExpenses),
-    employeeIncentive: addRupees(acc.employeeIncentive, row.employeeIncentive),
-    netCompanyProfit: addRupees(acc.netCompanyProfit, row.netCompanyProfit)
-  }), { billingValue: 0, purchaseValue: 0, grossMargin: 0, gstInputLoss: 0, totalExpenses: 0, employeeIncentive: 0, netCompanyProfit: 0 });
-
-  const baselineROI = (baselineTotals.purchaseValue > 0 ? (baselineTotals.netCompanyProfit / baselineTotals.purchaseValue) * 100 : 0);
-  const scenarioTotals = calcScenarioTotals(baselineTotals, params);
+  const rows = result?.rows || [];
+  const baselineTotals = result?.baseline || { billingValue: 0, purchaseValue: 0, grossMargin: 0, gstInputLoss: 0, totalExpenses: 0, employeeIncentive: 0, netCompanyProfit: 0 };
+  const baselineROI = result?.baseline?.roi || 0;
+  const scenarioTotals = result?.scenario || { billing: 0, cost: 0, grossMargin: 0, gstImpact: 0, expenses: 0, incentive: 0, netProfit: 0, roi: 0 };
 
   function updateParam(key, value) {
     const num = parseFloat(value);

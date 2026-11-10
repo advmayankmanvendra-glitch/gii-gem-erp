@@ -139,10 +139,12 @@ export function createCrudHelpers({
   // Names a supplier bank value may arrive under besides its own column.
   const SUPPLIER_BANK_ALIASES = SUPPLIER_BANK_PARTS.flatMap((field) => SUPPLIER_FIELD_ALIASES[field] || []);
 
-  // SQLite stores text, numbers and null. A yes/no value is stored as 1 or 0; a list or
+  // SQLite stores text, numbers and null. A yes/no value is stored as "1" or "0"; a list or
   // object cannot be stored in one field and is refused with the field's name.
   function storableValue(field, value) {
-    if (typeof value === "boolean") return value ? 1 : 0;
+    // As text, so a text column stores "1"/"0" (a JS number would be stored as "1.0");
+    // numeric columns convert it back to a number.
+    if (typeof value === "boolean") return value ? "1" : "0";
     if (value !== null && typeof value === "object") {
       throw new Error(`${field.replaceAll("_", " ")} must be a single value, not a list or object. Enter it again in the form and save. Nothing was changed.`);
     }

@@ -29,7 +29,8 @@ const ENTITY_CONFIG = {
     displayFields: ["order_number", "order_date", "order_status"],
     rankField: "order_number",
     filterStatus: false,
-    companyScoped: false,
+    // An order belongs to one company; pickers show only the selected company's orders.
+    companyScoped: true,
     joins: [
       "LEFT JOIN government_departments ON supply_orders.department_id = government_departments.id"
     ],

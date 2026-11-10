@@ -38,19 +38,39 @@ export function createTallyImportService(deps) {
     return cleanTallyText(match?.[1] || "");
   }
 
+  // Finds <TAG ...>body</TAG> blocks, case-insensitive, in one pass over the text. A lazy
+  // regex for the same thing restarts at every opening tag and scans to the end of the file
+  // when no closing tag follows, which takes minutes on a crafted export. Here, once no
+  // closing tag (or no ">") is left, no later opening tag can match either, so the search stops.
+  function tallyTagBlocks(xmlText, tagName, limit = Infinity) {
+    const text = String(xmlText || "");
+    const openTag = new RegExp(`<${escapeRegex(tagName)}(?![\\w])`, "gi");
+    const closeTag = new RegExp(`<\\/${escapeRegex(tagName)}>`, "gi");
+    const blocks = [];
+    let open;
+    while (blocks.length < limit && (open = openTag.exec(text)) !== null) {
+      const tagEnd = text.indexOf(">", open.index + open[0].length);
+      if (tagEnd === -1) break;
+      closeTag.lastIndex = tagEnd + 1;
+      const close = closeTag.exec(text);
+      if (!close) break;
+      blocks.push({ attributes: text.slice(open.index + open[0].length, tagEnd), body: text.slice(tagEnd + 1, close.index) });
+      openTag.lastIndex = close.index + close[0].length;
+    }
+    return blocks;
+  }
+
   function tallyTagValue(xmlText, tagName) {
-    const match = new RegExp(`<${escapeRegex(tagName)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegex(tagName)}>`, "i").exec(xmlText || "");
-    return cleanTallyText(match?.[1] || "");
+    return cleanTallyText(tallyTagBlocks(xmlText, tagName, 1)[0]?.body || "");
   }
 
   function tallyNestedTagValue(xmlText, listTag, childTag) {
-    const match = new RegExp(`<${escapeRegex(listTag)}\\b[^>]*>([\\s\\S]*?)<\\/${escapeRegex(listTag)}>`, "i").exec(xmlText || "");
-    return match ? tallyTagValue(match[1], childTag) : "";
+    const block = tallyTagBlocks(xmlText, listTag, 1)[0];
+    return block ? tallyTagValue(block.body, childTag) : "";
   }
 
   function tallyRepeatedTagValues(xmlText, tagName) {
-    const pattern = new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "gi");
-    return [...String(xmlText || "").matchAll(pattern)].map((match) => cleanTallyText(match[1])).filter(Boolean);
+    return tallyTagBlocks(xmlText, tagName).map((block) => cleanTallyText(block.body)).filter(Boolean);
   }
 
   function tallyAddress(xmlText) {
@@ -72,16 +92,7 @@ export function createTallyImportService(deps) {
   }
 
   function namedTallyBlocks(xmlText, tagName) {
-    const pattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/${tagName}>`, "gi");
-    const blocks = [];
-    let match;
-    while ((match = pattern.exec(xmlText)) !== null) {
-      const attributes = match[1] || "";
-      const body = match[2] || "";
-      const name = cleanTallyText(tallyAttribute(attributes, "NAME"));
-      blocks.push({ name, attributes, body });
-    }
-    return blocks;
+    return tallyTagBlocks(xmlText, tagName).map(({ attributes, body }) => ({ name: cleanTallyText(tallyAttribute(attributes, "NAME")), attributes, body }));
   }
 
   function uniqueNamedTallyBlocks(xmlText, tagName) {
@@ -95,13 +106,10 @@ export function createTallyImportService(deps) {
   }
 
   function tallyGstRate(xmlText) {
-    const pattern = /<RATEDETAILS\.LIST\b[^>]*>([\s\S]*?)<\/RATEDETAILS\.LIST>/gi;
     let igst = null;
     let cgst = null;
     let sgst = null;
-    let match;
-    while ((match = pattern.exec(xmlText || "")) !== null) {
-      const body = match[1] || "";
+    for (const { body } of tallyTagBlocks(xmlText, "RATEDETAILS.LIST")) {
       const dutyHead = tallyTagValue(body, "GSTRATEDUTYHEAD").toLowerCase();
       const rateValue = parseTallyNumber(tallyTagValue(body, "GSTRATE"));
       if (!Number.isFinite(rateValue)) continue;
@@ -418,12 +426,17 @@ export function createTallyImportService(deps) {
     const extension = path.extname(filePath || "").toLowerCase();
     if (extension !== ".xml") throw new Error("Only Tally XML files are supported in this assistant");
     if (!fs.existsSync(filePath)) throw new Error("Tally XML file was not found");
+    // The file is parsed in full on the app's main thread; the same limit as the migration preview.
+    const bytes = fs.statSync(filePath).size;
+    if (bytes > MAX_TALLY_PREVIEW_BYTES) {
+      throw new Error(`Preview refused: ${path.basename(filePath)} is ${(bytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. In Tally, export the stock items in parts (for example by stock group) and preview each part.`);
+    }
     const xmlText = readXmlText(filePath);
     return parseTallyStockItemsXml(xmlText, path.basename(filePath));
   }
 
   const MAX_TALLY_PREVIEW_FILES = 20;
-  const MAX_TALLY_PREVIEW_BYTES = 25 * 1024 * 1024;
+  const MAX_TALLY_PREVIEW_BYTES = 50 * 1024 * 1024;
 
   function previewTallyMasterMigration(db, files = [], context = {}) {
     enforcePermission(db, "import", { ...context, module: "tally_migration_assistant", table_name: "imports" });
@@ -442,10 +455,16 @@ export function createTallyImportService(deps) {
       throw new Error(`Preview refused: ${sourceFiles.length} files were selected; one preview reads at most ${MAX_TALLY_PREVIEW_FILES}. Preview them in smaller batches.`);
     }
     // Each file is parsed in full on the app's main thread, so the whole preview shares one
-    // size budget: the same 25 MB one import may read.
+    // size budget of 50 MB.
     const totalBytes = sourceFiles.reduce((sum, file) => {
       try { return sum + fs.statSync(file.filePath).size; } catch { return sum; }
     }, 0);
+    const largest = sourceFiles.map((file) => {
+      try { return { name: path.basename(file.filePath), bytes: fs.statSync(file.filePath).size }; } catch { return { name: "", bytes: 0 }; }
+    }).sort((a, b) => b.bytes - a.bytes)[0];
+    if (largest && largest.bytes > MAX_TALLY_PREVIEW_BYTES) {
+      throw new Error(`Preview refused: ${largest.name} is ${(largest.bytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. In Tally, export the masters in parts (for example ledgers and stock items separately) and preview each part.`);
+    }
     if (totalBytes > MAX_TALLY_PREVIEW_BYTES) {
       throw new Error(`Preview refused: the selected files total ${(totalBytes / 1024 / 1024).toFixed(1)} MB; one preview reads at most ${MAX_TALLY_PREVIEW_BYTES / 1024 / 1024} MB. Preview them in smaller batches.`);
     }

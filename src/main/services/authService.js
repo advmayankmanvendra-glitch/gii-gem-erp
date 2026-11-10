@@ -304,7 +304,7 @@ export function createAuthService(deps) {
   }
 
   return {
-    hashPassword, verifyPassword, normalizeRole, enforcePermission,
+    hashPassword, verifyPassword, normalizeRole, enforcePermission, roleCan,
     authenticate, changeUserPassword, markDefaultAdminPasswordForChange,
     userForPermission, setRecoverySecret, recoveryResetPassword, adminResetPassword
   };
