@@ -73,17 +73,18 @@ Dr Inventory                          (return quantity × WAC)
 ### 6. Supplier Return (updated 10 Nov 2026 IST, owner decision CV)
 
 ```
-Dr Goods Received Not Invoiced        (unbilled quantity × supplier's unbilled receipt price)
-Dr Trade Payables                     (billed quantity × supplier's billed receipt price)
+Dr Goods Received Not Invoiced        (unbilled quantity × the receipt's stock value per unit)
+Dr Trade Payables                     (billed quantity × the supplier's rate on the receipt)
 Dr/Cr Purchase Price Variance         (the gap to average cost; Dr when stock cost more)
     Cr Inventory                      (return quantity × WAC)
 ```
 
 - The return is judged per item and supplier over that supplier's receipts (owner decision C2: no link to a single receipt). A return on an order uses that order's receipts; a return with no order may use any of them.
-- Earlier posted returns are replayed by quantity, in date order, against the same receipts, so units one return used are never used again, whichever orders the returns name.
-- This return then uses what is left, oldest receipt first (by receipt date, then entry order): unbilled receipts first, clearing GRNI at their stock value per unit; then billed receipts, clearing Trade Payables at the supplier's rate (without freight or other landed cost; at the stock value when the receipt has no rate). Quantity past every receipt goes to Trade Payables at WAC.
+- Earlier posted returns are replayed by quantity, in the order they were posted (not their return dates), against the same receipts. Each is judged as things stood when it posted: only receipts posted before it, and a receipt counts as billed only if its bill was posted before it. So units one return used are never used again, whichever orders the returns name.
+- This return then uses what is left, oldest receipt first (by receipt date, then entry order): unbilled receipts first, clearing GRNI at their stock value per unit; then billed receipts (a posted purchase bill, or the posted purchase voucher that created the receipt), clearing Trade Payables at the supplier's rate (without freight or other landed cost; at the stock value when the receipt has no rate). Quantity past every receipt goes to Trade Payables at WAC.
 - A free (zero-price) receipt is used after every priced receipt of the same kind.
-- Known limits of the pool (accepted with decision C2): a bill posted after a return, or a receipt entered with an earlier date, changes which receipts the replay gives to earlier returns; the difference ends up in Purchase Price Variance.
+- Known limits of the pool (accepted with decision C2): a bill that clears a whole receipt after part of it was returned still clears GRNI for the returned part, and a return naming an order finds no receipts when the supplier's receipts carry no order (it then goes to Trade Payables at WAC).
+- A purchase voucher set to Accounting Only books to Purchase and brings no stock in, so it creates no goods receipt. A purchase voucher with stock brings the goods in at the voucher's taxable value, the amount it put into GRNI.
 - Input GST on billed goods is not reversed by the return; that treatment is not yet decided.
 - Stock always leaves at WAC. The difference between WAC and the supplier's own price goes to the **Purchase Price Variance** ledger (reported under Purchases; created per company, first free code from 5065).
 - A return with no supplier clears GRNI while the company's GRNI balance is not yet cleared, else Trade Payables, at WAC, with no variance.

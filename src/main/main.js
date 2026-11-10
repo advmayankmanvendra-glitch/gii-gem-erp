@@ -526,18 +526,21 @@ function getUpdateStatus() {
 }
 
 function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
-  const resolvedFolder = path.resolve(updateFolder);
   const resolvedInstaller = path.resolve(installerPath || "");
-  if (!resolvedInstaller.startsWith(`${resolvedFolder}${path.sep}`)) {
-    throw new Error("Selected installer is outside the approved update folder.");
-  }
   if (!/\.exe$/i.test(resolvedInstaller)) {
     throw new Error("Only Windows EXE update installers can be launched.");
   }
   if (!fs.existsSync(resolvedInstaller)) {
-    throw new Error("Update installer file was not found.");
+    throw new Error("Update installer file was not found. Put the installer in the update folder and try again.");
   }
-  return resolvedInstaller;
+  // Links are followed before the check, and the installer must sit directly in the update
+  // folder (not in a sub-folder), so a link or folder cannot point the launch elsewhere.
+  const realFolder = fs.realpathSync(path.resolve(updateFolder));
+  const realInstaller = fs.realpathSync(resolvedInstaller);
+  if (path.dirname(realInstaller) !== realFolder || !fs.lstatSync(realInstaller).isFile()) {
+    throw new Error("Selected installer is not directly inside the update folder. Copy the installer file itself into the update folder (not a shortcut or sub-folder) and try again.");
+  }
+  return realInstaller;
 }
 
 function buildPrintDocument(preview = {}) {

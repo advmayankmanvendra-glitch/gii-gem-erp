@@ -459,3 +459,26 @@ test("605a873 round: a support bundle names the signed-in user and stays small w
   const kept = JSON.parse(fs.readFileSync(small.ok.filePath, "utf8"));
   assert.equal(JSON.parse(kept.context.screenContextJson).crashes[0].message, "kept", "Safe Mode's crash list is still in the bundle");
 });
+
+test("66b024f round: an update installer must be a real file directly in the update folder", async () => {
+  const admin = await adminWindow();
+  const status = await call(admin, "updates:status");
+  const folder = status.ok?.updateFolder;
+  assert.ok(folder, status.err);
+  fs.mkdirSync(path.join(folder, "sub"), { recursive: true });
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-outside-"));
+  const target = path.join(outside, "GII-GeM-ERP-Setup-99.0.0-x64.exe");
+  fs.writeFileSync(target, "x");
+  const nested = path.join(folder, "sub", "GII-GeM-ERP-Setup-99.0.1-x64.exe");
+  fs.writeFileSync(nested, "x");
+  const link = path.join(folder, "GII-GeM-ERP-Setup-99.0.2-x64.exe");
+  try { fs.symlinkSync(target, link); } catch { /* links may be unavailable; the sub-folder case still runs */ }
+  try {
+    assert.match((await call(admin, "updates:install", nested)).err || "", /not directly inside the update folder/);
+    if (fs.existsSync(link)) assert.match((await call(admin, "updates:install", link)).err || "", /not directly inside the update folder/);
+  } finally {
+    fs.rmSync(path.join(folder, "sub"), { recursive: true, force: true });
+    fs.rmSync(link, { force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});

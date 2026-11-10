@@ -40,6 +40,8 @@ const MAX_TEXT_LENGTH = 20000;
 
 function boundedCopy(value, budget, depth) {
   if (budget.left <= 0) return undefined;
+  // Every value visited costs something, so skipped values cannot be visited for free.
+  budget.left -= 1;
   if (value === null || typeof value === "boolean") { budget.left -= 5; return value; }
   if (typeof value === "number") { budget.left -= 24; return Number.isFinite(value) ? value : null; }
   if (typeof value === "string") {
@@ -48,6 +50,9 @@ function boundedCopy(value, budget, depth) {
     return budget.left >= 0 ? text : undefined;
   }
   if (typeof value !== "object" || depth >= MAX_DEPTH) return undefined;
+  // IPC sends an object referenced many times only once; it is copied once, too.
+  if (budget.seen.has(value)) { budget.left -= 12; return "(repeated)"; }
+  budget.seen.add(value);
   if (Array.isArray(value)) {
     const out = [];
     const count = Math.min(value.length, MAX_LIST_ITEMS);
@@ -62,7 +67,9 @@ function boundedCopy(value, budget, depth) {
   if (proto !== Object.prototype && proto !== null) return undefined; // typed arrays, dates, buffers
   const out = {};
   let keys = 0;
-  for (const key of Object.keys(value)) {
+  // for...in stops at the cap without listing every key first.
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
     if (keys >= MAX_KEYS || budget.left <= 0) break;
     if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
     keys += 1;
@@ -79,7 +86,7 @@ export function boundedScreenContext(context) {
   const proto = Object.getPrototypeOf(context);
   if (proto !== Object.prototype && proto !== null) return null;
   const { user_id, userId, user_name, userName, role, userRole, ...rest } = context;
-  const budget = { left: MAX_SCREEN_CONTEXT_BYTES / 2 };
+  const budget = { left: MAX_SCREEN_CONTEXT_BYTES / 2, seen: new WeakSet() };
   const copy = boundedCopy(rest, budget, 0) || {};
   if (budget.left <= 0) copy.omitted = "Some of the screen's details were larger than 1 MB and were left out.";
   let text;

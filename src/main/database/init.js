@@ -1009,6 +1009,10 @@ function assertPositive(value, label) {
 }
 
 function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, voucher) {
+  // An "Accounting Only" purchase is booked to Purchase, not GRNI, so it brings no stock in.
+  if (payload.inventory_enabled === false || payload.inventory_enabled === "0") return null;
+  // The receipt carries the same taxable value the voucher put into GRNI, so the two clear.
+  const voucherTaxable = Number(payload.taxable_value || payload.purchase_value || 0);
   const itemId = Number(payload.item_id || 0);
   const warehouseId = Number(payload.warehouse_id || 0);
   const quantity = Number(payload.quantity || payload.quantity_received || 0);
@@ -1016,6 +1020,8 @@ function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, vouch
   const damaged = Number(payload.damaged_quantity || 0);
   const accepted = Math.max(0, Number(payload.accepted_quantity || (quantity - damaged)));
   if (accepted <= 0) throw new Error("Accepted GRN quantity must be positive");
+  const receiptRate = Number(payload.rate || payload.purchase_rate || 0) || voucherTaxable / accepted;
+  const receiptValue = Number(payload.landed_cost || 0) || voucherTaxable || accepted * receiptRate;
   const grnNumber = nextDocumentNumber(db, guidedVoucher.company_id, "goods_receipts", "grn_number", "GRN");
   const grn = db.prepare(`
     INSERT INTO goods_receipts (company_id, grn_number, purchase_voucher_id, guided_voucher_id, procurement_id, supplier_id, warehouse_id, grn_date, status, remarks, posted_at)
@@ -1041,11 +1047,10 @@ function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, vouch
     inward_date: guidedVoucher.voucher_date,
     purchase_invoice_number: payload.purchase_invoice_number || voucher.voucher_number,
     quantity: accepted,
-    // "Receipt Rate" is per unit; only the bill's total purchase value is shared over the units.
-    rate: Number(payload.rate || payload.purchase_rate || 0) || Number(payload.purchase_value || payload.taxable_value || 0) / (accepted || 1),
+    // "Receipt Rate" is per unit; without one, the voucher's taxable value is shared over the units.
+    rate: receiptRate,
     gst_rate: Number(payload.gst_rate || 0),
-    // The receipt carries the voucher's taxable value, the amount the voucher put into GRNI.
-    landed_cost: Number(payload.landed_cost || payload.purchase_value || payload.taxable_value || 0),
+    landed_cost: receiptValue,
     serial_number: payload.serial_number || "",
     batch_number: payload.batch_number || "",
     remarks: `Auto GRN ${grnNumber}`
@@ -1063,9 +1068,9 @@ function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, vouch
     quantity,
     damaged,
     accepted,
-    Number(payload.rate || payload.purchase_rate || payload.purchase_value || 0) / (accepted || 1),
+    receiptRate,
     Number(payload.gst_rate || 0),
-    Number(payload.landed_cost || payload.purchase_value || 0),
+    receiptValue,
     inward.id,
     payload.remarks || ""
   );

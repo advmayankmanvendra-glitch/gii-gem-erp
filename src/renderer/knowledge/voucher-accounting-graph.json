@@ -539,7 +539,7 @@
     {
       "functionName": "postExpenseAccrualsForOrder",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1655,
+      "lineNumber": 1660,
       "serviceModule": "init",
       "readsFromTables": ["expense_entries", "expense_heads", "supply_orders", "employees", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "expense_entries", "audit_log"],
@@ -557,7 +557,7 @@
     {
       "functionName": "postLedgerEntry",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1277,
+      "lineNumber": 1282,
       "serviceModule": "init",
       "readsFromTables": ["ledger_entries", "accounts"],
       "writesToTables": ["ledger_entries"],
@@ -575,7 +575,7 @@
     {
       "functionName": "updateCashBankLedger",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1292,
+      "lineNumber": 1297,
       "serviceModule": "init",
       "readsFromTables": ["cash_bank_ledger"],
       "writesToTables": ["cash_bank_ledger"],
@@ -593,7 +593,7 @@
     {
       "functionName": "upsertReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1663,
+      "lineNumber": 1668,
       "serviceModule": "init",
       "readsFromTables": ["supply_orders", "receivables"],
       "writesToTables": ["receivables"],
@@ -611,7 +611,7 @@
     {
       "functionName": "refreshReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1688,
+      "lineNumber": 1693,
       "serviceModule": "init",
       "readsFromTables": ["receivables", "payment_allocations", "advance_adjustments"],
       "writesToTables": ["receivables"],
@@ -629,7 +629,7 @@
     {
       "functionName": "markPosted",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1375,
+      "lineNumber": 1380,
       "serviceModule": "init",
       "readsFromTables": ["vouchers"],
       "writesToTables": ["invoices", "procurements", "payments", "supplier_payments", "expense_entries"],
@@ -701,7 +701,7 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 421,
+      "lineNumber": 447,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -714,7 +714,7 @@
       "workflowStage": null,
       "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity, so no receipt unit is returned twice; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units at the receipt's stock value and Dr Trade Payables for billed units (a posted bill, or the purchase voucher that made the receipt) at the supplier's rate, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity in posting order, each as things stood when it posted, so no receipt unit is returned twice; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
     },
     {
       "functionName": "postWarehouseTransfer",
@@ -1089,7 +1089,7 @@
     {
       "reversalFunction": "reverseVoucher",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 316,
+      "lineNumber": 453,
       "voucherTypesSupported": ["Sales", "Purchase", "Receipt", "Payment", "Journal", "Credit Note", "Debit Note", "Contra"],
       "reversalVoucherType": "Journal (always)",
       "reversalSourceModule": "voucher_reversal",
@@ -1116,7 +1116,7 @@
     {
       "reversalFunction": "reverseAdvanceAdjustment",
       "sourceFile": "src/main/services/accountingService.js",
-      "lineNumber": 712,
+      "lineNumber": 1021,
       "voucherTypesSupported": ["Advance Receipt Adjustment", "Supplier Advance Adjustment"],
       "reversalVoucherType": null,
       "reversalSourceModule": null,

@@ -353,16 +353,16 @@ export function createInventoryService(deps) {
   // the supplier's own price (owner decision CV, 10 Nov 2026 IST):
   // - The supplier's receipts of this item are lots, oldest first. A return on an order uses
   //   that order's receipts; a return with no order may use any of them.
-  // - Earlier posted returns are replayed by quantity, in date order, against the same lots, so
-  //   units one return used are never used again, whichever orders the returns name.
+  // - Earlier posted returns are replayed by quantity in the order they were posted, each as
+  //   things stood then (receipts and bills posted before it), so units one return used are
+  //   never used again, whichever orders the returns name.
   // - This return then uses what is left: receipts no posted bill covers first (GRNI, at the
-  //   stock value of the receipt), then billed receipts (Trade Payables, at the supplier's
-  //   rate). Free (zero-price) receipts are used last. Past every receipt, Trade Payables at
-  //   the stock's average cost.
+  //   receipt's stock value), then billed receipts (Trade Payables, at the supplier's rate).
+  //   Free (zero-price) receipts are used last. Past every receipt, Trade Payables at the
+  //   stock's average cost.
   // Stock leaves at the warehouse average cost. The gap between that and the two amounts
   // above is a purchase price variance, not money the supplier owes or is owed.
-  // Returns are not linked to a specific receipt (decision C2: keep the pool), so a bill
-  // posted after an earlier return is judged as it stands today.
+  // Returns are not linked to a specific receipt (decision C2: keep the pool).
   function supplierReturnSplit(db, row, quantity, retValue) {
     if (!row.supplier_id) {
       const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
@@ -370,25 +370,46 @@ export function createInventoryService(deps) {
     }
     // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
     // supplier at the supplier's own rate, without freight or other landed cost (or at its
-    // stock value when the receipt carries no rate).
+    // stock value when the receipt carries no rate). A receipt is billed by a posted purchase
+    // bill, or by the posted purchase voucher that created it.
     const lots = db.prepare(`
-      SELECT si.order_id, sl.inward_quantity quantity, p.id IS NOT NULL billed,
-        CASE WHEN p.id IS NOT NULL AND COALESCE(si.rate, 0) > 0 THEN sl.inward_quantity * si.rate ELSE sl.value_minor / 100.0 END value
+      SELECT si.order_id, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
+        COALESCE(
+          (SELECT MIN(v.id) FROM vouchers v WHERE v.company_id = si.company_id AND v.source_module = 'procurement' AND v.source_id = p.id AND v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0),
+          (SELECT MIN(v.id) FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id
+             JOIN vouchers v ON v.id = gr.purchase_voucher_id AND v.status = 'Posted' AND COALESCE(v.is_deleted, 0) = 0
+           WHERE gri.stock_inward_id = si.id)
+        ) bill_voucher_id,
+        (p.id IS NOT NULL OR EXISTS (SELECT 1 FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id
+             JOIN vouchers v ON v.id = gr.purchase_voucher_id AND v.status = 'Posted' AND COALESCE(v.is_deleted, 0) = 0
+           WHERE gri.stock_inward_id = si.id)) billed
       FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status = 'Posted' AND COALESCE(p.is_deleted, 0) = 0
       WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
       ORDER BY si.inward_date, si.id, sl.id
     `).all(row.company_id, row.supplier_id, row.item_id)
-      .map((lot) => ({ orderId: lot.order_id || null, billed: Boolean(lot.billed), left: Number(lot.quantity || 0), rate: Number(lot.quantity || 0) > 0 ? Number(lot.value || 0) / Number(lot.quantity) : 0 }))
+      .map((lot) => {
+        const quantity = Number(lot.quantity || 0);
+        const stockRate = quantity > 0 ? Number(lot.stock_value || 0) / quantity : 0;
+        const supplierRate = Number(lot.supplier_rate || 0) > 0 ? Number(lot.supplier_rate) : stockRate;
+        return { slId: Number(lot.sl_id), billVoucherId: lot.bill_voucher_id ? Number(lot.bill_voucher_id) : null, billedNow: Boolean(lot.billed), orderId: lot.order_id || null, left: quantity, stockRate, supplierRate };
+      })
       .filter((lot) => lot.left > 0);
-    // Unbilled before billed, and free receipts last within each.
-    const rank = (lot) => (lot.billed ? 2 : 0) + (lot.rate <= 0 ? 1 : 0);
-    const ordered = lots.map((lot, index) => ({ lot, index })).sort((a, b) => rank(a.lot) - rank(b.lot) || a.index - b.index).map(({ lot }) => lot);
-    const take = (orderId, wanted) => {
+    // Each return is judged as things stood when it posted: only receipts posted before it, and
+    // a receipt counts as billed only if its bill was posted before it. Unbilled receipts are
+    // used before billed ones, free receipts last within each, oldest first.
+    const take = (orderId, wanted, asOf = null) => {
+      const billed = (lot) => (asOf ? lot.billVoucherId !== null && (!asOf.voucherId || lot.billVoucherId < asOf.voucherId) : lot.billedNow);
+      const rate = (lot) => (billed(lot) ? lot.supplierRate : lot.stockRate);
+      const rank = (lot) => (billed(lot) ? 2 : 0) + (rate(lot) <= 0 ? 1 : 0);
+      const usable = lots.map((lot, index) => ({ lot, index }))
+        .filter(({ lot }) => !asOf || lot.slId < asOf.slId)
+        .sort((x, y) => rank(x.lot) - rank(y.lot) || x.index - y.index)
+        .map(({ lot }) => lot);
       let left = wanted;
       const taken = { grniValue: 0, billedValue: 0, quantity: 0 };
-      for (const lot of ordered) {
+      for (const lot of usable) {
         if (left <= 1e-9) break;
         if (orderId && lot.orderId !== orderId) continue;
         const units = Math.min(lot.left, left);
@@ -396,17 +417,22 @@ export function createInventoryService(deps) {
         lot.left -= units;
         left -= units;
         taken.quantity += units;
-        if (lot.billed) taken.billedValue += units * lot.rate; else taken.grniValue += units * lot.rate;
+        if (billed(lot)) taken.billedValue += units * lot.supplierRate; else taken.grniValue += units * lot.stockRate;
       }
       return taken;
     };
+    // Earlier returns replay in the order they were posted (their stock ledger rows).
     const earlierReturns = db.prepare(`
-      SELECT order_id, quantity FROM stock_returns
-      WHERE company_id = ? AND supplier_id = ? AND item_id = ? AND return_type = 'Supplier' AND id <> ?
-        AND posting_status = 'Posted' AND COALESCE(is_deleted, 0) = 0
-      ORDER BY return_date, id
+      SELECT sr.order_id, sr.quantity, sr.voucher_id,
+        (SELECT MIN(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id) sl_id
+      FROM stock_returns sr
+      WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
+        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0
+      ORDER BY sl_id, sr.id
     `).all(row.company_id, row.supplier_id, row.item_id, row.id);
-    for (const earlier of earlierReturns) take(earlier.order_id || null, Number(earlier.quantity || 0));
+    for (const earlier of earlierReturns) {
+      take(earlier.order_id || null, Number(earlier.quantity || 0), { slId: Number(earlier.sl_id || 0), voucherId: earlier.voucher_id ? Number(earlier.voucher_id) : null });
+    }
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
     const beyondReceipts = Math.max(0, quantity - mine.quantity);

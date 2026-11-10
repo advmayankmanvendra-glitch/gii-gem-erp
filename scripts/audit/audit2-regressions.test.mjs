@@ -995,10 +995,18 @@ test("d661346 round: a huge sparse list or typed array in a support bundle reque
   const started = Date.now();
   const sparse = bundles.boundedScreenContext({ crashes: new Array(1e8) });
   const typed = bundles.boundedScreenContext({ blob: new Uint8Array(20 * 1024 * 1024), crashes: [{ message: "kept" }] });
-  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms (an unbounded copy took over 10 s)`);
   assert.ok(Buffer.byteLength(sparse) < 64 * 1024);
   assert.deepEqual(JSON.parse(typed), { crashes: [{ message: "kept" }] });
   assert.equal(bundles.boundedScreenContext(new Uint8Array(10)), null);
+  // One object referenced many times is copied once (IPC sends it once, too).
+  const shared = {};
+  for (let i = 0; i < 100000; i += 1) shared[`k${i}`] = i;
+  const refs = { list: new Array(200).fill(shared), nested: Array.from({ length: 200 }, () => Array(200).fill(shared)) };
+  const again = Date.now();
+  const text = bundles.boundedScreenContext(refs);
+  assert.ok(Date.now() - again < 3000, `repeated references took ${Date.now() - again} ms`);
+  assert.match(text, /\(repeated\)/);
 });
 
 test("dc030e6 round: returns with and without an order never clear the same units twice, and the supplier ledger shows the return", async () => {
@@ -1059,7 +1067,7 @@ test("d661346 round: a free receipt is used once, and a billed receipt with no r
   const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-06", quantity: 10 });
   m.postStockReturn(db, ret.id);
   const tp = db.prepare("SELECT COALESCE(SUM(vl.debit), 0) d FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id WHERE v.source_module = 'stock_returns' AND v.source_id = ? AND a.account_name = 'Trade Payables'").get(ret.id).d;
-  assert.ok(tp > 0, "the billed receipt is returned against Trade Payables, not all to variance");
+  assert.equal(tp, 800, "the billed receipt is returned against Trade Payables at its stock value, not all to variance");
 });
 
 test("d661346 round: a billed supplier return keeps party reconciliation matched", () => {
@@ -1076,6 +1084,10 @@ test("d661346 round: a billed supplier return keeps party reconciliation matched
   const after = payable();
   assert.equal(after.difference, before.difference, "the return moves the ledger and the comparison together");
   assert.equal(after.status, before.status);
+  m.reverseStockReturn(db, ret.id);
+  const reversed = payable();
+  assert.equal(reversed.difference, before.difference, "a reversed return nets out of both sides");
+  assert.equal(reversed.status, before.status);
 });
 
 test("d661346 round: a purchase voucher's receipt rate is per unit", () => {
@@ -1087,5 +1099,50 @@ test("d661346 round: a purchase voucher's receipt rate is per unit", () => {
   m.postGuidedVoucher(db, guided.id, 1);
   const inward = db.prepare("SELECT rate FROM stock_inwards WHERE item_id = ? ORDER BY id DESC LIMIT 1").get(item);
   assert.equal(Number(inward.rate), 100);
-  assert.equal(m.stockBalance ? m.stockBalance(db, 1, item, wh).value : 1000, 1000, "10 units at 100 are stock worth 1,000");
+  const stock = db.prepare("SELECT COALESCE(SUM(value_minor), 0) / 100.0 v FROM stock_ledger WHERE item_id = ? AND transaction_type = 'Inward' AND COALESCE(is_deleted, 0) = 0").get(item).v;
+  assert.equal(stock, 1000, "10 units at 100 are stock worth 1,000");
+});
+
+test("66b024f round: an earlier return is judged as it stood when it posted", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 AsOf");
+  const order = newOrder(db, "A2-ASOF");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  const payables = balance(db, "Trade Payables");
+  const variance = () => db.prepare("SELECT COALESCE(SUM(le.debit), 0) - COALESCE(SUM(le.credit), 0) b FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE a.company_id = 1 AND a.account_name = 'Purchase Price Variance'").get()?.b || 0;
+  const ppv = variance();
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-AO-B", purchase_value: 2000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-AO-B", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const ret = (date) => m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: date, quantity: 10 }).id);
+  ret("2026-07-02");
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-03", purchase_invoice_number: "A2-AO-2", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  ret("2026-07-01"); // back-dated, posted last
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "the unbilled receipt is cleared from GRNI");
+  assert.equal(balance(db, "Trade Payables") - payables, 0, "the supplier's 2,000 bill is cleared once, not twice");
+  assert.equal(Math.round(variance() - ppv), 0, "no made-up price variance");
+});
+
+function guidedPurchase(db, item, wh, fields) {
+  const bank = db.prepare("SELECT id FROM accounts WHERE company_id = 1 AND account_name LIKE '%Bank%' AND is_deleted = 0 ORDER BY id LIMIT 1").get()?.id;
+  const guided = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "purchase", voucher_date: "2026-07-01", supplier_id: 1, bank_account_id: bank, purchase_invoice_number: `A2-GP-${item}`, gst_rate: 0, item_id: item, warehouse_id: wh, quantity: 10, accepted_quantity: 10, narration: "guided", ...fields });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, guided.id, step, 1);
+  m.postGuidedVoucher(db, guided.id, 1);
+}
+
+test("66b024f round: purchase-voucher receipts match the voucher, skip Accounting Only, and return against the supplier", () => {
+  const db = fresh();
+  const grni = balance(db, "Goods Received Not Invoiced");
+  const payables = balance(db, "Trade Payables");
+  const a = widget(db, "A2 GP Only");
+  guidedPurchase(db, a.item, a.wh, { taxable_value: 1000, rate: 100, inventory_enabled: false });
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM stock_inwards WHERE item_id = ?").get(a.item).n, 0, "Accounting Only brings no stock in");
+  const b = widget(db, "A2 GP Value");
+  guidedPurchase(db, b.item, b.wh, { taxable_value: 1000, purchase_value: 50000, rate: 100 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "the receipt clears exactly what the voucher put into GRNI");
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", supplier_id: 1, item_id: b.item, warehouse_id: b.wh, return_date: "2026-07-02", quantity: 4 });
+  m.postStockReturn(db, ret.id);
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "a billed receipt is not returned through GRNI");
+  // Two bills of 1,000 (the Accounting Only one too); the return takes 400 off.
+  assert.equal(balance(db, "Trade Payables") - payables, -1600, "the supplier owes back 400 of the 1,000 bill");
 });
