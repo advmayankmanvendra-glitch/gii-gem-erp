@@ -368,7 +368,10 @@ export function createInventoryService(deps) {
       ORDER BY si.inward_date, si.id, sl.id
     `).all(row.company_id, row.supplier_id, row.item_id, orderId, orderId)
       .map((lot) => ({ quantity: Number(lot.quantity || 0), rate: Number(lot.quantity || 0) > 0 ? Number(lot.value || 0) / Number(lot.quantity) : 0 }))
-      .filter((lot) => lot.quantity > 0);
+      .filter((lot) => lot.quantity > 0)
+      // Free (zero-price) receipts go last: what they gave up cannot be traced by value, so
+      // they are only used once every priced receipt is used up, when nothing is left owed.
+      .sort((a, b) => Number(a.rate <= 0) - Number(b.rate <= 0));
     const earlier = (accountName) => Number(db.prepare(`
       SELECT COALESCE(SUM(vl.debit), 0) value FROM stock_returns sr
       JOIN vouchers v ON v.source_module = 'stock_returns' AND v.source_id = sr.id AND COALESCE(v.is_deleted, 0) = 0 AND v.status = 'Posted'

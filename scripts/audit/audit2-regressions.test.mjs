@@ -939,7 +939,15 @@ test("dc030e6 round: a same-name ledger of the wrong type never stops the books 
   db.close();
   db = m.initializeDatabase(root);
   handles.push(db);
-  assert.throws(() => m.ensurePurchasePriceVarianceAccount(db, 1), /Chart of Accounts/);
+  // The books open; posting a return that needs the variance ledger refuses with guidance.
+  const { wh, item } = widget(db, "A2 WrongType");
+  const order = newOrder(db, "A2-WRONGTYPE");
+  const supplier2 = m.createRecord(db, "suppliers", { supplier_name: "A2 WrongType Supplier", status: "active" }).id;
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-WT-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: supplier2, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-WT-2", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: item, warehouse_id: wh, return_date: "2026-07-02", quantity: 2 });
+  assert.throws(() => m.postStockReturn(db, ret.id), /Chart of Accounts/);
+  assert.equal(db.prepare("SELECT posting_status FROM stock_returns WHERE id = ?").get(ret.id).posting_status, "Draft");
 });
 
 test("dc030e6 round: billed goods come off Trade Payables at the supplier's rate, not landed cost, and free receipts cost nothing", () => {
@@ -957,8 +965,12 @@ test("dc030e6 round: billed goods come off Trade Payables at the supplier's rate
   const free = widget(db, "A2 Free");
   const grni = balance(db, "Goods Received Not Invoiced");
   m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-FREE", quantity: 5, rate: 0, landed_cost: 0 }).id);
-  assert.doesNotThrow(() => m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, return_date: "2026-07-03", quantity: 2 }).id));
-  assert.equal(balance(db, "Goods Received Not Invoiced"), grni);
+  // A paid receipt after the free one: an earlier return's value is taken off the paid receipt, never the free one.
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-PAID", quantity: 5, rate: 100, landed_cost: 0 }).id);
+  for (const qty of [2, 4, 4]) {
+    assert.doesNotThrow(() => m.postStockReturn(db, m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Supplier", order_id: order, supplier_id: 1, item_id: free.item, warehouse_id: free.wh, return_date: "2026-07-03", quantity: qty }).id));
+  }
+  assert.equal(Math.round((balance(db, "Goods Received Not Invoiced") - grni) * 100) / 100, 0, "all ten units returned: GRNI is back where it was");
 });
 
 test("dc030e6 round: support bundles keep only the newest twenty", async () => {

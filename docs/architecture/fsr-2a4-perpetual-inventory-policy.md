@@ -82,12 +82,14 @@ Dr/Cr Purchase Price Variance         (the gap to average cost; Dr when stock co
 - The return is judged per item, supplier and order (owner decision C2: no link to a single receipt).
 - GRNI is cleared first. The unbilled receipts are taken oldest first (by receipt date, then entry order), each at its stock value per unit; the value earlier returns already cleared from GRNI is taken off the oldest receipts first.
 - The rest of the quantity comes off Trade Payables from the billed receipts in the same order, each at the supplier's rate (without freight or other landed cost), after the value earlier returns already took off Trade Payables. Quantity past every receipt is valued at WAC.
-- A free (zero-price) receipt is taken at zero.
+- A free (zero-price) receipt is taken at zero, after every priced receipt of the pool.
 - Known limits of the pool (accepted with decision C2): a bill posted after a return, or a receipt entered with an earlier date, changes which receipts later returns are taken from; the difference ends up in Purchase Price Variance.
 - Input GST on billed goods is not reversed by the return; that treatment is not yet decided.
 - Stock always leaves at WAC. The difference between WAC and the supplier's own price goes to the **Purchase Price Variance** ledger (reported under Purchases; created per company, first free code from 5065).
 - A return with no supplier clears GRNI while the company's GRNI balance is not yet cleared, else Trade Payables, at WAC, with no variance.
-- The return itself reduces Trade Payables for the billed part. **Do not also post a Debit Note for the same goods**, or the payable is reduced twice.
+- A return with no order may have used any order's receipts, so it counts against later returns on every order (units are never cleared twice; some value may be left unused).
+- The Trade Payables line names the supplier, so the return shows in the supplier's party ledger (returns posted before 10 Nov 2026 IST have no supplier link).
+- The return itself reduces Trade Payables by the goods value of the billed part. **Do not also post a Debit Note for that value**, or the payable is reduced twice. The input GST on those goods is not reversed (see above).
 - Source table: `stock_returns` with return_type = 'Supplier'
 
 ### 7. Stock Adjustment — Increase

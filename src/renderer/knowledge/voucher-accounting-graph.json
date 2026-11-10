@@ -683,25 +683,25 @@
     {
       "functionName": "postStockAdjustment",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 239,
+      "lineNumber": 281,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_adjustments", "stock_ledger", "items"],
-      "writesToTables": ["stock_ledger", "stock_adjustments", "audit_log"],
-      "voucherTypeCreated": null,
-      "debitAccounts": null,
-      "creditAccounts": null,
-      "transactionBoundary": "db.transaction() - stock ledger + status update",
-      "auditImpact": false,
-      "reportImpact": null,
+      "writesToTables": ["stock_ledger", "stock_adjustments", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
+      "voucherTypeCreated": "Journal",
+      "debitAccounts": ["Inventory", "Inventory Adjustment Loss"],
+      "creditAccounts": ["Inventory Adjustment Gain", "Inventory"],
+      "transactionBoundary": "db.transaction() - stock ledger + Journal voucher + status update",
+      "auditImpact": true,
+      "reportImpact": ["Trial Balance", "Balance Sheet", "Profit and Loss", "Stock Summary"],
       "workflowStage": null,
-      "relatedDG1Tables": ["stock_adjustments", "stock_ledger", "items"],
+      "relatedDG1Tables": ["stock_adjustments", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Requires approval_status=Approved; no accounting voucher created"
+      "safetyRule": "Requires approval_status=Approved. Increase: Dr Inventory, Cr Inventory Adjustment Gain; decrease: Dr Inventory Adjustment Loss, Cr Inventory (FSR-2A4)."
     },
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 407,
+      "lineNumber": 409,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
@@ -714,7 +714,7 @@
       "workflowStage": null,
       "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable; no separate Debit Note for the same goods."
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units and Dr Trade Payables for billed units at the supplier's receipt prices, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). A return with no order counts against later returns on any order. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
     },
     {
       "functionName": "postWarehouseTransfer",
