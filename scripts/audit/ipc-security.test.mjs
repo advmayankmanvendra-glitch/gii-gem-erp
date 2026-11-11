@@ -698,6 +698,7 @@ test("32263ab round: a raw file error is mapped, not shown with its path, and lo
     }, () => call(admin, "updates:install", installer));
     assert.match(result.err || "", /could not be prepared \(EACCES\)/);
     assert.doesNotMatch(result.err || "", /secret/);
+    assert.equal(lastRefusal().detail.file, "GII-GeM-ERP-Setup-99.6.0-x64.exe", "the audit row holds the file name, not its path");
     const long = `${"a".repeat(1000)}.exe`;
     await call(admin, "updates:install", path.join(folder, long));
     const db = side();
@@ -862,6 +863,120 @@ test("ef324d5 round: an installer over 1 GB, or with too little free space, is r
   } finally {
     fs.promises.statfs = statfs;
     fs.rmSync(installer, { force: true });
+  }
+});
+
+test("64124dc round: a staging folder that cannot be moved (a file held open on Windows) is used where it is", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.0-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  fs.mkdirSync(path.join(root, "update-staging"), { recursive: true });
+  const moved = path.join(root, "update-staging.old-leftover");
+  fs.mkdirSync(moved, { recursive: true });
+  const original = fs.promises.rename;
+  fs.promises.rename = async (from, to) => {
+    if (String(from).endsWith("update-staging")) throw Object.assign(new Error("EBUSY: resource busy"), { code: "EBUSY" });
+    return original(from, to);
+  };
+  try {
+    const { result } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /test stops here/, "the install still runs");
+    assert.equal(fs.existsSync(moved), false, "a folder moved aside earlier is swept");
+  } finally {
+    fs.promises.rename = original;
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("64124dc round: a staging folder made by someone else meanwhile is refused", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.1-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const original = fs.promises.mkdir;
+  fs.promises.mkdir = async (target, options) => {
+    if (String(target).endsWith("update-staging") && !options) await original(target, { recursive: true });
+    return original(target, options);
+  };
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+  } finally {
+    fs.promises.mkdir = original;
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("64124dc round: a pipe put in place of the staged copy is not read or launched", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.2-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const { execFileSync } = await import("node:child_process");
+  try {
+    const { result, launches } = await withPatchedOpen(async (open, file, flags) => {
+      if (file.includes("update-staging")) { fs.rmSync(file); execFileSync("mkfifo", [file]); }
+      return open(file, flags);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.match(result.err || "", /changed before it could start/);
+    assert.equal(launches(), 0);
+  } finally {
+    fs.rmSync(installer, { force: true });
+    // The pipe is not something the updater removes (only its own copies), so tidy it here.
+    fs.rmSync(path.join(root, "update-staging"), { recursive: true, force: true });
+    for (const name of fs.readdirSync(root)) if (name.startsWith("update-staging.old-")) fs.rmSync(path.join(root, name), { recursive: true, force: true });
+  }
+});
+
+test("64124dc round: a failed launch writes one audit row, and an unreachable update folder keeps its own message", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.3-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const count = (action) => { const db = side(); try { return db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = ? AND new_value LIKE '%99.8.3%'").get(action).c; } finally { db.close(); } };
+  try {
+    const { result } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /test stops here/);
+    assert.equal(count("update_installer_failed"), 1);
+    assert.equal(count("update_installer_refused"), 0);
+  } finally { fs.rmSync(installer, { force: true }); }
+  const blocker = path.join(root, "not-a-folder");
+  fs.writeFileSync(blocker, "x");
+  const saved = process.env.GII_GEM_ERP_UPDATE_DIR;
+  process.env.GII_GEM_ERP_UPDATE_DIR = path.join(blocker, "updates");
+  try {
+    const result = await call(admin, "updates:install", path.join(blocker, "updates", "GII-GeM-ERP-Setup-99.8.4-x64.exe"));
+    assert.match(result.err || "", /update folder .* could not be created or opened/);
+  } finally {
+    if (saved === undefined) delete process.env.GII_GEM_ERP_UPDATE_DIR; else process.env.GII_GEM_ERP_UPDATE_DIR = saved;
+    fs.rmSync(blocker, { force: true });
+  }
+});
+
+test("64124dc round: clearing the staging folder removes only installer copies and never walks a link", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.5-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), "gii-victim-"));
+  fs.writeFileSync(path.join(victim, "GII-GeM-ERP-Setup-1.0.0-x64.exe"), "victim exe");
+  fs.writeFileSync(path.join(victim, "books.db"), "victim data");
+  const staging = path.join(root, "update-staging");
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(path.join(staging, "install-real"), { recursive: true });
+  fs.writeFileSync(path.join(staging, "install-real", "GII-GeM-ERP-Setup-1.0.0-x64.exe"), "old copy");
+  fs.symlinkSync(victim, path.join(staging, "install-linked"), "dir");
+  fs.symlinkSync(victim, path.join(staging, "install-real", "nested"), "dir");
+  try {
+    const { result } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /test stops here/);
+    assert.deepEqual(fs.readdirSync(victim).sort(), ["GII-GeM-ERP-Setup-1.0.0-x64.exe", "books.db"], "nothing behind a link was deleted");
+    assert.deepEqual(fs.readdirSync(root).filter((name) => name.startsWith("update-staging.old-")), [], "the moved-aside folder was removed");
+  } finally {
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(victim, { recursive: true, force: true });
   }
 });
 

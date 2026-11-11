@@ -56,7 +56,57 @@ export function stagingFolderPath(dataRoot) {
 // Called at start-up, before any install can run: an installer copy from an earlier session
 // is not kept. Removing a planted link removes the link only.
 export function clearInstallerStaging(dataRoot) {
-  try { fs.rmSync(stagingFolderPath(dataRoot), { recursive: true, force: true }); } catch { /* best effort */ }
+  removeStagingTree(stagingFolderPath(dataRoot));
+  sweepMovedStaging(dataRoot);
+}
+// Removes only what the updater itself makes: a staging folder, its install-* folders and
+// the installer copies (and their download marks) inside them. Every entry is checked with
+// lstat and removed with unlink/rmdir, never a recursive delete, so a link swapped in for a
+// folder is only unlinked and nothing it points to is walked. Anything else is left, with a
+// warning.
+export function removeStagingTree(folder, depth = 0) {
+  let stats;
+  try { stats = fs.lstatSync(folder); } catch { return; }
+  if (!stats.isDirectory()) {
+    try { fs.unlinkSync(folder); } catch { /* best effort */ }
+    return;
+  }
+  let names = [];
+  try { names = fs.readdirSync(folder); } catch { /* removed below if empty */ }
+  for (const name of names) {
+    const entry = path.join(folder, name);
+    let entryStats;
+    try { entryStats = fs.lstatSync(entry); } catch { continue; }
+    if (entryStats.isSymbolicLink()) {
+      try { fs.unlinkSync(entry); } catch { /* best effort */ }
+    } else if (entryStats.isDirectory() && depth === 0 && name.startsWith("install-")) {
+      removeStagingTree(entry, 1);
+    } else if (entryStats.isFile() && depth === 1 && /\.exe(:Zone\.Identifier)?$/i.test(name)) {
+      try { fs.unlinkSync(entry); } catch { /* best effort */ }
+    } else {
+      console.warn(`[updates] Left an unexpected item in the update-staging folder: ${name}`);
+    }
+  }
+  try { fs.rmdirSync(folder); } catch { /* not empty or in use: left as is */ }
+}
+// Staging folders moved aside by earlier installs whose removal failed (rm removes a link
+// itself, never what it points to).
+function sweepMovedStaging(dataRoot) {
+  try {
+    for (const name of fs.readdirSync(dataRoot)) {
+      if (name.startsWith("update-staging.old-")) {
+        removeStagingTree(path.join(dataRoot, name));
+      }
+    }
+  } catch { /* best effort */ }
+}
+// The staging folder's real path, compared without case on Windows.
+function isInsideStaging(filePath, dataRoot) {
+  const norm = (value) => (process.platform === "win32" ? value.toLowerCase() : value);
+  let real = stagingFolderPath(dataRoot);
+  try { real = path.join(fs.realpathSync(dataRoot), "update-staging"); } catch { /* use the plain path */ }
+  const target = norm(path.resolve(filePath));
+  return [real, stagingFolderPath(dataRoot)].some((folder) => target === norm(folder) || target.startsWith(norm(folder) + path.sep));
 }
 // The staging folder must be a real folder of the app's own, never a link to somewhere else.
 // Whatever is there is first renamed away under a random name: a rename moves a link itself,
@@ -65,24 +115,38 @@ async function ensureStagingFolder(dataRoot) {
   // Where the staging folder really is when nothing is linked: inside the real data folder.
   const expected = path.join(await fs.promises.realpath(dataRoot), "update-staging");
   const changed = () => guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+  sweepMovedStaging(path.dirname(expected));
   const old = `${expected}.old-${crypto.randomBytes(8).toString("hex")}`;
+  let inPlace = false;
   try {
     await fs.promises.rename(expected, old);
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code === "ENOENT") { /* nothing there yet */ }
+    // Windows cannot rename a folder while a file in it is open (antivirus, a slow installer).
+    // A real folder, not a link, is then used where it is; the check after mkdtemp still holds.
+    else if (["EPERM", "EACCES", "EBUSY"].includes(error.code) && (await fs.promises.lstat(expected)).isDirectory()) inPlace = true;
+    else throw error;
   }
   const moved = await fs.promises.lstat(old).catch(() => null);
   if (moved) {
     // A link is only unlinked; a real folder holds copies from earlier attempts and can go.
-    if (moved.isDirectory()) await fs.promises.rm(old, { recursive: true, force: true }).catch(() => {});
+    if (moved.isDirectory()) removeStagingTree(old);
     else await fs.promises.unlink(old).catch(() => {});
   }
+  if (inPlace) {
+    // Clear what can be cleared; a copy still held open stays until it is released.
+    for (const name of await fs.promises.readdir(expected).catch(() => [])) {
+      if (name.startsWith("install-")) removeStagingTree(path.join(expected, name), 1);
+    }
+  }
   // Not recursive: if something else created the folder in the meantime, this fails.
-  try {
-    await fs.promises.mkdir(expected);
-  } catch (error) {
-    if (error.code === "EEXIST") throw changed();
-    throw error;
+  if (!inPlace) {
+    try {
+      await fs.promises.mkdir(expected);
+    } catch (error) {
+      if (error.code === "EEXIST") throw changed();
+      throw error;
+    }
   }
   // Each install gets a new, empty folder of its own, so nothing planted beforehand is reused,
   // and it must really be inside the staging folder (not a link swapped in meanwhile).
@@ -103,10 +167,13 @@ export function shortInstallerName(installerPath) {
 // hash of what was launched.
 // Read through a handle opened without following links or waiting on a pipe, and only if it
 // is a regular file, so a link or pipe put in its place cannot redirect or stall the check.
-export async function hashFile(filePath) {
+export async function hashFile(filePath, expected = null) {
   const handle = await fs.promises.open(filePath, INSTALLER_OPEN_FLAGS);
   try {
-    if (!(await handle.stat()).isFile()) return "";
+    const stats = await handle.stat({ bigint: true });
+    if (!stats.isFile()) return "";
+    // Only the very file that was copied, at its copied size, is read.
+    if (expected && (stats.dev !== expected.dev || stats.ino !== expected.ino || stats.size !== expected.size)) return "";
     const hash = crypto.createHash("sha256");
     await streamPipeline(handle.createReadStream({ autoClose: false, start: 0 }), hash);
     return hash.digest("hex");
@@ -176,15 +243,16 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
         if (error.code !== "ENOENT") console.warn(`[updates] The installer's download mark could not be copied (${error.code || error.message}).`);
       }
     }
-    return { stagedPath, sha256: hash.digest("hex") };
+    const copiedStats = fs.lstatSync(stagedPath, { bigint: true });
+    return { stagedPath, sha256: hash.digest("hex"), stagedFile: { dev: copiedStats.dev, ino: copiedStats.ino, size: copiedStats.size } };
   } catch (error) {
-    if (stagingDir) { try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* best effort */ } }
+    if (stagingDir) removeStagingTree(stagingDir, 1);
     if (error.guided) throw error;
     console.error("[updates] Preparing the installer failed:", error);
     // A full disk is always the data-folder side: only the copy writes. Otherwise the file
     // named in the error says which side failed.
     const diskFull = error.code === "ENOSPC" || error.code === "EDQUOT";
-    const inStaging = diskFull || (typeof error.path === "string" && path.resolve(error.path).startsWith(stagingFolderPath(dataRoot)));
+    const inStaging = diskFull || (typeof error.path === "string" && isInsideStaging(error.path, dataRoot));
     const advice = diskFull
       ? "The disk that holds the ERP's data is full. Free some space, then try again."
       : error.code === "EACCES" || error.code === "EPERM" || error.code === "EBUSY"

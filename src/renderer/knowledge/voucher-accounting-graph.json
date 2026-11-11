@@ -667,11 +667,11 @@
       "sourceFile": "src/main/services/inventoryService.js",
       "lineNumber": 189,
       "serviceModule": "inventoryService",
-      "readsFromTables": ["stock_inwards", "stock_ledger", "items", "serial_numbers", "batches"],
-      "writesToTables": ["stock_ledger", "serial_numbers", "batches", "stock_inwards", "audit_log"],
-      "voucherTypeCreated": null,
-      "debitAccounts": null,
-      "creditAccounts": null,
+      "readsFromTables": ["stock_inwards", "stock_ledger", "items", "serial_numbers", "batches", "procurements", "accounts"],
+      "writesToTables": ["stock_ledger", "serial_numbers", "batches", "stock_inwards", "vouchers", "voucher_lines", "ledger_entries", "audit_log"],
+      "voucherTypeCreated": "Journal (GRN receipt)",
+      "debitAccounts": ["Inventory"],
+      "creditAccounts": ["Goods Received Not Invoiced", "Purchase"],
       "transactionBoundary": "db.transaction() - stock ledger + serial/batch + status update",
       "auditImpact": false,
       "reportImpact": null,
@@ -1044,8 +1044,9 @@
     {
       "voucherType": "Stock Inward",
       "postingFunction": "postStockInward",
-      "voucherCreated": false,
-      "impact": "Stock ledger quantity increased; weighted average cost recalculated; no accounting voucher",
+      "voucherCreated": true,
+      "voucherTypeCreated": "Journal",
+      "impact": "Stock ledger quantity increased; weighted average cost recalculated; Journal: Inventory Dr, Goods Received Not Invoiced Cr (Purchase Cr when the bill was posted first); no voucher when the value is zero",
       "workflowStage": "GOODS_RECEIPT_GRN"
     },
     {
@@ -1059,15 +1060,16 @@
     {
       "voucherType": "Stock Adjustment",
       "postingFunction": "postStockAdjustment",
-      "voucherCreated": false,
-      "impact": "Stock ledger quantity increased/decreased; no accounting voucher; requires prior approval",
+      "voucherCreated": true,
+      "voucherTypeCreated": "Journal",
+      "impact": "Stock ledger quantity increased/decreased; Journal: Inventory Dr, Inventory Adjustment Gain Cr for an increase, Inventory Adjustment Loss Dr, Inventory Cr for a decrease; no voucher when the value is zero; requires prior approval",
       "workflowStage": null
     },
     {
       "voucherType": "Stock Return (Department)",
       "postingFunction": "postStockReturn",
       "voucherCreated": true,
-      "impact": "Stock ledger inward; return_type=Department; Journal: Inventory Dr, Cost of Goods Sold Cr at weighted average cost",
+      "impact": "Stock ledger inward; return_type=Department; Journal: Inventory Dr, Cost of Goods Sold Cr at weighted average cost (no voucher when the value is zero)",
       "workflowStage": null
     },
     {

@@ -111,7 +111,7 @@ import {
 } from "./database/init.js";
 import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { compareUpdateVersions, isPortableInstaller } from "./services/updateVersion.js";
-import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
+import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, removeStagingTree, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -1319,9 +1319,14 @@ function registerIpc() {
         backup = await createLiveBackup(db, runtimeDataRoot);
       } catch (error) {
         console.error("[updates] Backup before the update failed:", error);
-        throw Object.assign(guidedError(`The backup before the update could not be taken (${error.code || "unexpected error"}), so the installer was not started. Check free disk space and the backups folder, then try again.`), { detail: { code: error.code || null, syscall: error.syscall || null } });
+        const advice = error.code === "ENOSPC" || error.code === "EDQUOT"
+          ? "The disk that holds the ERP's data is full. Free some space, then try again."
+          : error.code === "EACCES" || error.code === "EPERM" || error.code === "EBUSY"
+            ? "The backups folder is locked or cannot be written. Close any program using it, then try again."
+            : "Check free disk space and the backups folder, then try again.";
+        throw Object.assign(guidedError(`The backup before the update could not be taken (${error.code || "unexpected error"}), so the installer was not started. ${advice}`), { detail: { code: error.code || null, syscall: error.syscall || null } });
       }
-      if ((await hashFile(staged.stagedPath)) !== staged.sha256) {
+      if ((await hashFile(staged.stagedPath, staged.stagedFile)) !== staged.sha256) {
         throw guidedError("The prepared installer changed before it could start, so it was not started. Restart the ERP and try again.");
       }
       const failureReason = await shell.openPath(staged.stagedPath);
@@ -1330,7 +1335,7 @@ function registerIpc() {
       if (failureReason) throw Object.assign(guidedError(`The installer could not be opened: ${failureReason}`), { launchFailed: true });
     } catch (error) {
       // Nothing was launched, so the copy is not kept (each retry would add another).
-      try { fs.rmSync(path.dirname(staged.stagedPath), { recursive: true, force: true }); } catch { /* best effort */ }
+      removeStagingTree(path.dirname(staged.stagedPath), 1);
       throw error;
     }
     // The installer cannot replace the program files or the database while the ERP
