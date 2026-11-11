@@ -492,14 +492,16 @@ test("8d5dd67 round: the updater launches a hashed copy of the installer, not th
   const shell = electron.shell || electron.default.shell;
   const original = shell.openPath;
   let opened = "";
+  let openedBytes = "";
   // A failure string keeps the app open after the launch, so the test can look around.
-  shell.openPath = async (target) => { opened = target; return "test stops here"; };
+  shell.openPath = async (target) => { opened = target; openedBytes = fs.readFileSync(target, "utf8"); return "test stops here"; };
   try {
     const result = await call(admin, "updates:install", installer);
     assert.match(result.err || "", /test stops here/);
     assert.notEqual(path.dirname(opened), fs.realpathSync(folder), "the copy runs, not the file in the update folder");
     assert.match(opened, /update-staging/);
-    assert.equal(fs.readFileSync(opened, "utf8"), "installer bytes");
+    assert.equal(openedBytes, "installer bytes");
+    assert.equal(fs.existsSync(opened), false, "a copy that did not launch is not kept");
     const db = side();
     try {
       const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'update_installer_failed' ORDER BY id DESC LIMIT 1").get();
@@ -555,7 +557,7 @@ test("efefcbb round: a second install is refused until the first one has launche
   const held = new Promise((resolve) => { release = resolve; });
   let launches = 0;
   // The first install waits at the launch, after its copy and backup are done.
-  shell.openPath = async () => { launches += 1; await held; return "test stops here"; };
+  shell.openPath = async () => { launches += 1; if (launches === 1) await held; return "test stops here"; };
   try {
     const first = call(admin, "updates:install", installer);
     for (let i = 0; i < 200 && launches === 0; i += 1) await new Promise((r) => setTimeout(r, 10));
@@ -591,11 +593,12 @@ test("efefcbb round: a link planted as the staging folder is not followed", asyn
   const shell = electron.shell || electron.default.shell;
   const original = shell.openPath;
   let opened = "";
-  shell.openPath = async (target) => { opened = target; return "test stops here"; };
+  let openedReal = "";
+  shell.openPath = async (target) => { opened = target; openedReal = fs.realpathSync(target); return "test stops here"; };
   try {
     assert.match((await call(admin, "updates:install", installer)).err || "", /test stops here/);
     assert.ok(opened, "an installer copy was opened");
-    assert.ok(!fs.realpathSync(opened).startsWith(fs.realpathSync(outside)), "the copy is not written through the planted link");
+    assert.ok(!openedReal.startsWith(fs.realpathSync(outside)), "the copy is not written through the planted link");
     assert.equal(fs.readdirSync(outside).length, 0);
     assert.ok(fs.lstatSync(staging).isDirectory(), "the staging folder is a real folder again");
   } finally {
@@ -605,7 +608,7 @@ test("efefcbb round: a link planted as the staging folder is not followed", asyn
   }
 });
 
-test("efefcbb round: a refused installer leaves an audit row and plain errors are not passed through", async () => {
+test("efefcbb round: a refused installer leaves an audit row", async () => {
   const admin = await adminWindow();
   const folder = (await call(admin, "updates:status")).ok.updateFolder;
   const portable = path.join(folder, "Other-Tool-1.0.0.exe");
@@ -621,6 +624,108 @@ test("efefcbb round: a refused installer leaves an audit row and plain errors ar
   } finally {
     fs.rmSync(portable, { force: true });
   }
-  const source = fs.readFileSync(path.join(REPO, "src/main/main.js"), "utf8");
-  assert.doesNotMatch(source, /\|update folder\|installer\/\.test\(error\.message\)/, "errors are passed through by the guided mark only");
+});
+
+// Swaps fs.promises.open for one install, so the steps around the open can be tested.
+async function withPatchedOpen(patch, run) {
+  const original = fs.promises.open;
+  fs.promises.open = (file, flags, mode) => patch(original, String(file), flags, mode);
+  try { return await run(); } finally { fs.promises.open = original; }
+}
+
+test("32263ab round: a link swapped in while the file is opened is refused (the Windows path)", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.4.0-x64.exe");
+  fs.writeFileSync(installer, "real installer");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-swap-"));
+  const target = path.join(outside, "planted.exe");
+  fs.writeFileSync(target, "planted");
+  const shell = electron.shell || electron.default.shell;
+  const originalOpenPath = shell.openPath;
+  let opened = false;
+  shell.openPath = async () => { opened = true; return "test stops here"; };
+  try {
+    // Windows has no O_NOFOLLOW: the swap lands and the open follows the link.
+    const result = await withPatchedOpen(async (open, file) => {
+      if (file.endsWith("GII-GeM-ERP-Setup-99.4.0-x64.exe")) {
+        fs.rmSync(file);
+        fs.symlinkSync(target, file);
+        return open(file, fs.constants.O_RDONLY);
+      }
+      return open(file);
+    }, () => call(admin, "updates:install", installer));
+    assert.match(result.err || "", /changed or is linked|not directly inside/);
+    assert.equal(opened, false, "nothing was launched");
+  } finally {
+    shell.openPath = originalOpenPath;
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("32263ab round: a copy that fails part-way is removed and the size check holds", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.5.0-x64.exe");
+  fs.writeFileSync(installer, "sized installer bytes");
+  try {
+    const result = await withPatchedOpen(async (open, file, flags) => {
+      const handle = await open(file, flags);
+      if (!file.endsWith("GII-GeM-ERP-Setup-99.5.0-x64.exe")) return handle;
+      const stat = handle.stat.bind(handle);
+      // The file reports one byte less than is then read, as a file still growing would.
+      handle.stat = async (options) => { const st = await stat(options); return Object.create(st, { size: { value: typeof st.size === "bigint" ? st.size - 1n : st.size - 1 } }); };
+      return handle;
+    }, () => call(admin, "updates:install", installer));
+    assert.match(result.err || "", /changed size/);
+    const staging = path.join(root, "update-staging");
+    assert.deepEqual(fs.existsSync(staging) ? fs.readdirSync(staging) : [], [], "the partial copy and its folder are removed");
+  } finally {
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("32263ab round: a raw file error is mapped, not shown with its path, and long names are cut in the audit log", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.6.0-x64.exe");
+  fs.writeFileSync(installer, "x");
+  try {
+    const result = await withPatchedOpen(async (open, file, flags) => {
+      if (file.endsWith("GII-GeM-ERP-Setup-99.6.0-x64.exe")) throw Object.assign(new Error("EACCES: open '/secret/update-installers/x.exe'"), { code: "EACCES", syscall: "open", path: file });
+      return open(file, flags);
+    }, () => call(admin, "updates:install", installer));
+    assert.match(result.err || "", /could not be prepared \(EACCES\)/);
+    assert.doesNotMatch(result.err || "", /secret/);
+    const long = `${"a".repeat(1000)}.exe`;
+    await call(admin, "updates:install", path.join(folder, long));
+    const db = side();
+    try {
+      const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'update_installer_refused' ORDER BY id DESC LIMIT 1").get();
+      assert.ok(JSON.parse(row.new_value).installer.length <= 255);
+    } finally { db.close(); }
+  } finally {
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+// Keep this test last: after a real launch the ERP is closing, so the updater stays locked.
+test("32263ab round: after a launch, no second installer can be started", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.9.0-x64.exe");
+  fs.writeFileSync(installer, "launched installer");
+  const shell = electron.shell || electron.default.shell;
+  const original = shell.openPath;
+  let launches = 0;
+  shell.openPath = async () => { launches += 1; return ""; };
+  try {
+    assert.equal((await call(admin, "updates:install", installer)).ok?.closing, true);
+    assert.match((await call(admin, "updates:install", installer)).err || "", /already been opened/);
+    assert.equal(launches, 1);
+  } finally {
+    shell.openPath = original;
+    fs.rmSync(installer, { force: true });
+  }
 });

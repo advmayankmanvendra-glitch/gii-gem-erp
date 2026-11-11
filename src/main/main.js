@@ -1,6 +1,4 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from "electron";
-import crypto from "node:crypto";
-import { pipeline as streamPipeline } from "node:stream/promises";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,6 +111,7 @@ import {
 } from "./database/init.js";
 import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { compareUpdateVersions, isPortableInstaller } from "./services/updateVersion.js";
+import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -262,7 +261,7 @@ function configureRuntimeStorage() {
   APP_FOLDERS.forEach((folder) => {
     fs.mkdirSync(path.join(runtimeDataRoot, folder), { recursive: true });
   });
-  clearInstallerStaging();
+  clearInstallerStaging(runtimeDataRoot);
   const copiedDatabase = copyBundledDatabaseIfNeeded(runtimeDataRoot);
   ensureAppFolders(runtimeDataRoot);
   return { root: runtimeDataRoot, copiedDatabase };
@@ -535,134 +534,9 @@ function getUpdateStatus() {
   };
 }
 
-// Errors the user can act on carry `guided`, so the updater passes them through unchanged
-// and maps everything else to one plain message.
-function guidedError(message) {
-  return Object.assign(new Error(message), { guided: true });
-}
-
-function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
-  const resolvedInstaller = path.resolve(installerPath || "");
-  // A ":" in the name would name a hidden Windows stream, not the file shown in the folder.
-  if (path.basename(resolvedInstaller).includes(":")) {
-    throw guidedError("The installer name cannot contain \":\". Use the GII-GeM-ERP-Setup-<version>-x64.exe file as it is.");
-  }
-  if (!/\.exe$/i.test(resolvedInstaller)) {
-    throw guidedError("Only Windows EXE update installers can be launched.");
-  }
-  if (!fs.existsSync(resolvedInstaller)) {
-    throw guidedError("Update installer file was not found. Put the installer in the update folder and try again.");
-  }
-  // Links are followed before the check, and the installer must sit directly in the update
-  // folder (not in a sub-folder), so a link or folder cannot point the launch elsewhere.
-  let realFolder;
-  let realInstaller;
-  try {
-    realFolder = fs.realpathSync(path.resolve(updateFolder));
-    realInstaller = fs.realpathSync(resolvedInstaller);
-  } catch {
-    throw guidedError("The update folder or installer could not be opened. Use Open Update Folder, put the installer there and try again.");
-  }
-  if (path.dirname(realInstaller) !== realFolder || !fs.lstatSync(realInstaller).isFile()) {
-    throw guidedError("Selected installer is not directly inside the update folder. Copy the installer file itself into the update folder (not a shortcut or sub-folder) and try again.");
-  }
-  return realInstaller;
-}
-
-// The installer is copied into the app's own data folder in one read, hashed as it is copied,
-// and the copy is what runs, so a file changed in the update folder afterwards cannot be
-// launched in its place. Reading in chunks keeps the app responsive on a large file.
-const MAX_INSTALLER_BYTES = 1024 * 1024 * 1024;
+// One install at a time; after a launch the ERP is closing, so the updater stays locked.
 let updateInstallInFlight = false;
-// Open without following a link and without waiting on a pipe. Both flags are 0 on Windows,
-// where the lstat/handle comparison below does the same job.
-const INSTALLER_OPEN_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0);
-function stagingFolderPath() {
-  return path.join(runtimeDataRoot, "update-staging");
-}
-// Called at start-up, before any install can run: an installer copy from an earlier session
-// is not kept. Removing a planted link removes the link only.
-function clearInstallerStaging() {
-  try { fs.rmSync(stagingFolderPath(), { recursive: true, force: true }); } catch { /* best effort */ }
-}
-// The staging folder must be a real folder of the app's own, never a link to somewhere else.
-async function ensureStagingFolder() {
-  const stagingFolder = stagingFolderPath();
-  const existing = await fs.promises.lstat(stagingFolder).catch(() => null);
-  if (existing && !existing.isDirectory()) await fs.promises.rm(stagingFolder, { force: true });
-  await fs.promises.mkdir(stagingFolder, { recursive: true });
-  if (!(await fs.promises.lstat(stagingFolder)).isDirectory()) {
-    throw guidedError("The app's update-staging folder is not a normal folder, so the update was not prepared. Restart the ERP and try again.");
-  }
-  // Each install gets a new, empty folder of its own, so nothing planted beforehand is reused.
-  return fs.promises.mkdtemp(path.join(stagingFolder, "install-"));
-}
-function sameFile(a, b) {
-  return a.dev === b.dev && a.ino === b.ino;
-}
-async function stageInstaller(installerPath, updateFolder) {
-  let handle = null;
-  let stagedPath = "";
-  let stagingDir = "";
-  try {
-    stagingDir = await ensureStagingFolder();
-    // Checked, then opened without following links; the path is checked again after the open
-    // and must still name the very file that is open. Everything after reads the open file,
-    // so a file swapped into the update folder from here on is not what gets copied.
-    const checked = assertInstallerInsideUpdateFolder(installerPath, updateFolder);
-    try {
-      handle = await fs.promises.open(checked, INSTALLER_OPEN_FLAGS);
-    } catch (error) {
-      if (error.code === "ELOOP" || error.code === "EISDIR") throw guidedError("The installer changed or is linked to another file, so it was not started. Copy the installer file itself into the update folder and try again.");
-      throw error;
-    }
-    const stats = await handle.stat({ bigint: true });
-    const recheck = assertInstallerInsideUpdateFolder(installerPath, updateFolder);
-    const pathStats = fs.lstatSync(recheck, { bigint: true });
-    if (recheck !== checked || !stats.isFile() || !pathStats.isFile() || !sameFile(stats, pathStats) || stats.nlink !== 1n) {
-      throw guidedError("The installer changed or is linked to another file, so it was not started. Copy the installer file itself into the update folder and try again.");
-    }
-    const size = Number(stats.size);
-    if (size > MAX_INSTALLER_BYTES) {
-      throw guidedError("This installer is larger than any GII GeM ERP installer (1 GB at most), so it was not started. Download the installer again and put it in the update folder.");
-    }
-    try {
-      const space = await fs.promises.statfs(stagingDir);
-      if (Number(space.bavail) * Number(space.bsize) < size + 64 * 1024 * 1024) {
-        throw guidedError("There is not enough free disk space next to the books to prepare the update. Free some space, then try again.");
-      }
-    } catch (error) { if (error.guided) throw error; /* free space unknown: the copy itself still stops on a full disk */ }
-    stagedPath = path.join(stagingDir, path.basename(checked));
-    const hash = crypto.createHash("sha256");
-    let copied = 0;
-    const reader = handle.createReadStream({ autoClose: false, start: 0 });
-    reader.on("data", (chunk) => {
-      copied += chunk.length;
-      if (copied > MAX_INSTALLER_BYTES) reader.destroy(guidedError("The installer grew while it was being copied, so it was not started. Try again."));
-      hash.update(chunk);
-    });
-    await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
-    if (copied !== size) throw guidedError("The installer changed size while it was being copied, so it was not started. Wait for any download to finish, then try again.");
-    // Keep Windows' "downloaded from the internet" mark, so the usual warning still shows.
-    if (process.platform === "win32") {
-      try {
-        fs.writeFileSync(`${stagedPath}:Zone.Identifier`, fs.readFileSync(`${checked}:Zone.Identifier`));
-      } catch (error) {
-        if (error.code !== "ENOENT") console.warn(`[updates] The installer's download mark could not be copied (${error.code || error.message}).`);
-      }
-    }
-    return { stagedPath, sha256: hash.digest("hex") };
-  } catch (error) {
-    if (stagingDir) { try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* best effort */ } }
-    if (error.guided) throw error;
-    console.error("[updates] Preparing the installer failed:", error);
-    const inStaging = typeof error.path === "string" && path.resolve(error.path).startsWith(stagingFolderPath());
-    const where = inStaging ? "the ERP's data folder" : "the update folder";
-    throw guidedError(`The update could not be prepared (${error.code || "unexpected error"}). Check free disk space and ${where}, then try again. Nothing was installed.`);
-  } finally {
-    if (handle) await handle.close().catch(() => {});
-  }
-}
+let updateInstallLaunched = false;
 
 function buildPrintDocument(preview = {}) {
   const title = escapePrintHtml(preview.title || "GII GeM ERP");
@@ -1386,8 +1260,10 @@ function registerIpc() {
     // One install at a time, from the first check to the launch. After a launch the flag stays
     // set, because the ERP is closing for the installer.
     if (updateInstallInFlight) {
-      const busy = guidedError("An update is already being prepared. Wait for it to finish, then try again.");
-      auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(String(installerPath || "")), reason: busy.message }) });
+      const busy = guidedError(updateInstallLaunched
+        ? "The update installer has already been opened and the ERP is closing. Finish the installer, then start the ERP again."
+        : "An update is already being prepared. Wait for it to finish, then try again.");
+      auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: shortInstallerName(installerPath), reason: busy.message }) });
       throw busy;
     }
     updateInstallInFlight = true;
@@ -1395,11 +1271,15 @@ function registerIpc() {
     try {
       const result = await installUpdateFromFolder(installer, installerPath);
       launched = true;
+      updateInstallLaunched = true;
       return result;
-    } catch (error) {
-      if (error.guided) {
-        auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(String(installerPath || "")), reason: error.message }) });
+    } catch (caught) {
+      let error = caught;
+      if (!error.guided) {
+        console.error("[updates] The update was not started:", error);
+        error = Object.assign(guidedError(`The update was not started (${error.code || "unexpected error"}). Check free disk space and the ERP's data folder, then try again. Nothing was installed.`), { detail: { code: error.code || null, syscall: error.syscall || null } });
       }
+      auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: shortInstallerName(installerPath), reason: error.message, ...(error.detail ? { detail: error.detail } : {}) }) });
       throw error;
     } finally {
       if (!launched) updateInstallInFlight = false;
@@ -1418,12 +1298,27 @@ function registerIpc() {
     if (compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
       throw guidedError(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
     }
-    const staged = await stageInstaller(selectedInstaller, status.updateFolder);
-    // Back up the books before anything is replaced, then hand over to the installer copy.
-    const backup = await createLiveBackup(db, runtimeDataRoot);
-    const failureReason = await shell.openPath(staged.stagedPath);
-    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: staged.sha256, failure: failureReason || null }) });
-    if (failureReason) throw new Error(failureReason);
+    const staged = await stageInstaller(selectedInstaller, status.updateFolder, runtimeDataRoot);
+    let backup;
+    try {
+      // Back up the books before anything is replaced, then hand over to the installer copy.
+      try {
+        backup = await createLiveBackup(db, runtimeDataRoot);
+      } catch (error) {
+        console.error("[updates] Backup before the update failed:", error);
+        throw Object.assign(guidedError(`The backup before the update could not be taken (${error.code || "unexpected error"}), so the installer was not started. Check free disk space and the backups folder, then try again.`), { detail: { code: error.code || null, syscall: error.syscall || null } });
+      }
+      if ((await hashFile(staged.stagedPath)) !== staged.sha256) {
+        throw guidedError("The prepared installer changed before it could start, so it was not started. Restart the ERP and try again.");
+      }
+      const failureReason = await shell.openPath(staged.stagedPath);
+      auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: staged.sha256, failure: failureReason || null }) });
+      if (failureReason) throw guidedError(`The installer could not be opened: ${failureReason}`);
+    } catch (error) {
+      // Nothing was launched, so the copy is not kept (each retry would add another).
+      try { fs.rmSync(path.dirname(staged.stagedPath), { recursive: true, force: true }); } catch { /* best effort */ }
+      throw error;
+    }
     // The installer cannot replace the program files or the database while the ERP
     // is still running, so close it. The window's close handler asks "exit?" and
     // cancels a plain quit, so destroy the windows first; before-quit then closes
