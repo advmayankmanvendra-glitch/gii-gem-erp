@@ -766,7 +766,9 @@
         "goods receipt",
         "goods receipt note",
         "goods received",
-        "receipt note"
+        "receipt note",
+        "receive goods",
+        "grni"
       ],
       "category": "inventory",
       "screenRef": "GoodsReceipt",
@@ -778,9 +780,9 @@
         "goods_receipt_items",
         "stock_ledger"
       ],
-      "voucherTypes": ["Journal"],
+      "voucherTypes": ["journal"],
       "postingFunctions": [
-        "recordGoodsReceipt"
+        "postStockInward"
       ],
       "reportDependencies": [
         "GRN Register",
@@ -809,7 +811,7 @@
       "sourceReferences": [
         "WG-1 stage: GOODS_RECEIPT_GRN",
         "DG-1 table: goods_receipts, stock_ledger",
-        "KG-4 postingFunction: recordGoodsReceipt"
+        "KG-4 postingFunction: postStockInward"
       ],
       "featureName": "GRN / Goods Receipt",
       "status": "active",
@@ -3026,7 +3028,7 @@
       "id": "FNC-09",
       "canonicalName": "recordGoodsReceipt",
       "owningFeatureId": "FEA-14",
-      "description": "Records receipt of goods from supplier. Updates stock ledger with inward movement and triggers inventory valuation.",
+      "description": "Records receipt of goods from supplier. Updates stock ledger with inward movement and inventory valuation, and posts a GRN receipt Journal (Inventory Dr, Goods Received Not Invoiced Cr; Purchase Cr when the bill was posted first). The posting function is postStockInward.",
       "readOnlyForAssistant": true,
       "parameters": [
         "supplierPOId",

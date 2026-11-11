@@ -87,8 +87,9 @@ export function removeStagingTree(folder, depth = 0) {
     const entry = path.join(folder, name);
     let entryStats;
     try { entryStats = fs.lstatSync(entry); } catch { continue; }
-    if (entryStats.isSymbolicLink() && depth === 0 && name.startsWith("install-")) {
-      if (unchanged()) { try { fs.unlinkSync(entry); } catch { /* best effort */ } }
+    if (entryStats.isSymbolicLink()) {
+      // The updater never makes links here, so a link is left alone and only counted.
+      leftOver += 1;
     } else if (entryStats.isDirectory() && !entryStats.isSymbolicLink() && depth === 0 && name.startsWith("install-")) {
       removeStagingTree(entry, 1);
     } else if (entryStats.isFile() && depth === 1 && INSTALLER_COPY_NAME.test(name)) {
@@ -103,11 +104,23 @@ export function removeStagingTree(folder, depth = 0) {
 // Removes one staged copy that the updater made, only if it is still that very file, and
 // then its folder if empty. Nothing is listed, so nothing swapped in is cleared through.
 export function removeStagedCopy(staged) {
-  try {
-    const now = fs.lstatSync(staged.stagedPath, { bigint: true });
-    if (now.isFile() && sameFile(now, staged.stagedFile)) fs.unlinkSync(staged.stagedPath);
-  } catch { /* already gone */ }
-  try { fs.rmdirSync(path.dirname(staged.stagedPath)); } catch { /* not empty or gone */ }
+  removeOwnCopy(staged.stagedPath, staged.stagedFile, staged.stagedDir);
+}
+// Removes a copy only while its folder is still the install-* folder this install made and
+// the file is still the one this install wrote (identities taken from the app's own handles).
+function removeOwnCopy(filePath, fileIdentity, dirIdentity) {
+  const folder = path.dirname(filePath);
+  const folderIsOurs = () => {
+    try { return Boolean(dirIdentity) && sameFile(fs.lstatSync(folder, { bigint: true }), dirIdentity); } catch { return false; }
+  };
+  if (!folderIsOurs()) return;
+  if (fileIdentity) {
+    try {
+      const now = fs.lstatSync(filePath, { bigint: true });
+      if (now.isFile() && sameFile(now, fileIdentity) && folderIsOurs()) fs.unlinkSync(filePath);
+    } catch { /* already gone */ }
+  }
+  if (folderIsOurs()) { try { fs.rmdirSync(folder); } catch { /* not empty or gone */ } }
 }
 // Staging folders moved aside by earlier installs whose removal failed (rm removes a link
 // itself, never what it points to).
@@ -139,6 +152,7 @@ async function ensureStagingFolder(dataRoot) {
   sweepMovedStaging(path.dirname(expected));
   const old = `${expected}.old-${crypto.randomBytes(8).toString("hex")}`;
   let inPlace = false;
+  let madeHere = null;
   try {
     await fs.promises.rename(expected, old);
   } catch (error) {
@@ -165,6 +179,7 @@ async function ensureStagingFolder(dataRoot) {
     try {
       // Owner-only, whatever the umask, so the ownership check below holds.
       await fs.promises.mkdir(expected, { mode: 0o700 });
+      madeHere = await fs.promises.lstat(expected, { bigint: true });
     } catch (error) {
       if (error.code === "EEXIST") throw changed();
       throw error;
@@ -174,7 +189,11 @@ async function ensureStagingFolder(dataRoot) {
   // and it must really be inside the staging folder (not a link swapped in meanwhile).
   const dir = await fs.promises.mkdtemp(path.join(expected, "install-"));
   const realDir = await fs.promises.realpath(dir);
-  if (path.dirname(realDir) !== expected || !ownStagingFolder(await fs.promises.lstat(expected)) || !(await fs.promises.lstat(dir)).isDirectory()) {
+  // A folder made just now must still be that folder (a share may report any owner or mode);
+  // one found in place must be this account's own.
+  const nowStats = await fs.promises.lstat(expected, { bigint: true });
+  const stillOurs = madeHere ? nowStats.isDirectory() && sameFile(nowStats, madeHere) : ownStagingFolder(nowStats);
+  if (path.dirname(realDir) !== expected || !stillOurs || !(await fs.promises.lstat(dir)).isDirectory()) {
     // Remove only the new folder made through the link, then refuse.
     await fs.promises.rmdir(dir).catch(() => {});
     throw changed();
@@ -186,7 +205,7 @@ async function ensureStagingFolder(dataRoot) {
 function ownStagingFolder(stats) {
   if (!stats.isDirectory()) return false;
   if (process.platform === "win32" || typeof process.getuid !== "function") return true;
-  return stats.uid === process.getuid() && (stats.mode & 0o022) === 0;
+  return Number(stats.uid) === process.getuid() && (Number(stats.mode) & 0o022) === 0;
 }
 // The name as the renderer sent it, cut to a file-name length for the audit log.
 export function shortInstallerName(installerPath) {
@@ -225,10 +244,14 @@ function sameFile(a, b) {
 // attempts, which would remove a copy another install is still using.
 export async function stageInstaller(installerPath, updateFolder, dataRoot) {
   let handle = null;
+  let output = null;
+  let stagingDirIdentity = null;
+  let copyIdentity = null;
   let stagedPath = "";
   let stagingDir = "";
   try {
     stagingDir = await ensureStagingFolder(dataRoot);
+    stagingDirIdentity = fs.lstatSync(stagingDir, { bigint: true });
     // Checked, then opened without following links; the path is checked again after the open
     // and must still name the very file that is open. Everything after reads the open file,
     // so a file swapped into the update folder from here on is not what gets copied.
@@ -258,13 +281,25 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
     stagedPath = path.join(stagingDir, path.basename(checked));
     const hash = crypto.createHash("sha256");
     let copied = 0;
+    // Written through a handle of the app's own, so the copy's identity comes from what was
+    // written, never from a path that could be swapped meanwhile.
+    output = await fs.promises.open(stagedPath, "wx", 0o600);
+    copyIdentity = await output.stat({ bigint: true });
+    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity)) {
+      throw guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+    }
+    // The reader starts flowing as soon as it has a data listener, so it is made only now.
     const reader = handle.createReadStream({ autoClose: false, start: 0 });
     reader.on("data", (chunk) => {
       copied += chunk.length;
       if (copied > MAX_INSTALLER_BYTES) reader.destroy(guidedError("The installer grew while it was being copied, so it was not started. Try again."));
       hash.update(chunk);
     });
-    await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
+    // The write stream closes the handle when it finishes.
+    const writer = output.createWriteStream();
+    output = null;
+    await streamPipeline(reader, writer);
+    copyIdentity = { dev: copyIdentity.dev, ino: copyIdentity.ino, size: BigInt(copied) };
     if (copied !== size) throw guidedError("The installer changed size while it was being copied, so it was not started. Wait for any download to finish, then try again.");
     // Keep Windows' "downloaded from the internet" mark, so the usual warning still shows.
     if (process.platform === "win32") {
@@ -280,12 +315,11 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
         if (error.code !== "ENOENT") console.warn(`[updates] The installer's download mark could not be copied (${error.code || error.message}).`);
       }
     }
-    const copiedStats = fs.lstatSync(stagedPath, { bigint: true });
-    return { stagedPath, sha256: hash.digest("hex"), stagedFile: { dev: copiedStats.dev, ino: copiedStats.ino, size: copiedStats.size } };
+    return { stagedPath, sha256: hash.digest("hex"), stagedFile: copyIdentity, stagedDir: { dev: stagingDirIdentity.dev, ino: stagingDirIdentity.ino } };
   } catch (error) {
-    // Remove the copy by its own name and then its folder; nothing is listed.
-    if (stagedPath) { try { if (fs.lstatSync(stagedPath).isFile()) fs.unlinkSync(stagedPath); } catch { /* not written */ } }
-    if (stagingDir) { try { fs.rmdirSync(stagingDir); } catch { /* not empty or gone */ } }
+    if (output) { await output.close().catch(() => {}); output = null; }
+    // Remove only the copy this install wrote, from the folder it made; nothing is listed.
+    if (stagingDir) removeOwnCopy(stagedPath || path.join(stagingDir, "-"), copyIdentity, stagingDirIdentity);
     if (error.guided) throw error;
     console.error("[updates] Preparing the installer failed:", error);
     // A full disk is always the data-folder side: only the copy writes. Otherwise the file
@@ -301,6 +335,7 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
       detail: { code: error.code || null, syscall: error.syscall || null, file: typeof error.path === "string" ? path.basename(error.path) : null, side: inStaging ? "data-folder" : "update-folder" }
     });
   } finally {
+    if (output) await output.close().catch(() => {});
     if (handle) await handle.close().catch(() => {});
   }
 }

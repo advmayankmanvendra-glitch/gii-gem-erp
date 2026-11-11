@@ -727,7 +727,7 @@ test("ef324d5 round: a staged copy that changes before the launch is not opened"
   fs.writeFileSync(installer, "hashed bytes");
   try {
     const { result, launches } = await withPatchedOpen(async (open, file, flags) => {
-      if (file.includes("update-staging")) fs.writeFileSync(file, "other bytes");
+      if (file.includes("update-staging") && flags !== "wx") fs.writeFileSync(file, "other bytes");
       return open(file, flags);
     }, () => installWithStubbedLaunch(admin, installer));
     assert.match(result.err || "", /changed before it could start/);
@@ -765,7 +765,7 @@ test("ef324d5 round: an unexpected error is mapped by the handler, with its code
   fs.writeFileSync(installer, "bytes");
   try {
     const { result } = await withPatchedOpen(async (open, file, flags) => {
-      if (file.includes("update-staging")) throw Object.assign(new Error("EIO: i/o error, read '/secret/x'"), { code: "EIO", syscall: "read" });
+      if (file.includes("update-staging") && flags !== "wx") throw Object.assign(new Error("EIO: i/o error, read '/secret/x'"), { code: "EIO", syscall: "read" });
       return open(file, flags);
     }, () => installWithStubbedLaunch(admin, installer));
     assert.match(result.err || "", /The update was not started \(EIO\)/);
@@ -917,7 +917,7 @@ test("64124dc round: a pipe put in place of the staged copy is not read or launc
   const { execFileSync } = await import("node:child_process");
   try {
     const { result, launches } = await withPatchedOpen(async (open, file, flags) => {
-      if (file.includes("update-staging")) { fs.rmSync(file); execFileSync("mkfifo", [file]); }
+      if (file.includes("update-staging") && flags !== "wx") { fs.rmSync(file); execFileSync("mkfifo", [file]); }
       return open(file, flags);
     }, () => installWithStubbedLaunch(admin, installer));
     assert.match(result.err || "", /changed before it could start/);
@@ -1031,6 +1031,57 @@ test("4f3a9b6 round: a staging folder others can write to is not used in place",
     fs.promises.rename = original;
     fs.rmSync(staging, { recursive: true, force: true });
     fs.rmSync(installer, { force: true });
+  }
+});
+
+test("a11bd45 round: a fresh staging folder is owner-only, and a share that reports another mode still works", async () => {
+  if (typeof process.getuid !== "function") return;
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.8-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const staging = path.join(root, "update-staging");
+  let modeSeen = null;
+  try {
+    const first = await installWithStubbedLaunch(admin, installer, async () => { modeSeen = fs.statSync(staging).mode & 0o777; return "test stops here"; });
+    assert.match(first.result.err || "", /test stops here/);
+    assert.equal(modeSeen, 0o700, "made owner-only");
+    // A share or FAT drive may report every folder as 0777; a folder made just now is still ours.
+    const original = fs.promises.mkdir;
+    fs.promises.mkdir = async (target, options) => {
+      const made = await original(target, options);
+      if (String(target).endsWith("update-staging") && !options?.recursive) fs.chmodSync(target, 0o777);
+      return made;
+    };
+    try {
+      const second = await installWithStubbedLaunch(admin, installer);
+      assert.match(second.result.err || "", /test stops here/);
+    } finally { fs.promises.mkdir = original; }
+  } finally {
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("a11bd45 round: a failed launch never deletes a same-named file reached through a swapped folder", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const name = "GII-GeM-ERP-Setup-99.8.9-x64.exe";
+  const installer = path.join(folder, name);
+  fs.writeFileSync(installer, "bytes");
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), "gii-victim2-"));
+  fs.writeFileSync(path.join(victim, name), "the user's own installer");
+  try {
+    const { result } = await installWithStubbedLaunch(admin, installer, async (target) => {
+      const dir = path.dirname(target);
+      fs.renameSync(dir, `${dir}-moved`);
+      fs.symlinkSync(victim, dir, "dir");
+      return "test stops here";
+    });
+    assert.match(result.err || "", /test stops here/);
+    assert.equal(fs.readFileSync(path.join(victim, name), "utf8"), "the user's own installer");
+  } finally {
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(victim, { recursive: true, force: true });
   }
 });
 
