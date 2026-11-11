@@ -3925,6 +3925,16 @@
       "safeForAnswering": true
     },
     {
+      "from": "FEA-14",
+      "to": "journal",
+      "relationshipType": "feature_creates_voucher",
+      "strength": "primary",
+      "reason": "GRN / Goods Receipt creates journal voucher (GRN receipt Journal via postStockInward)",
+      "sourceGraph": "KG-4",
+      "sourceReference": "voucherTypes array",
+      "safeForAnswering": true
+    },
+    {
       "from": "FEA-15",
       "to": "inventory_reservations",
       "relationshipType": "feature_uses_table",
@@ -5107,6 +5117,11 @@
         },
         {
           "question": "Does GRN affect accounting?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-14"
+        },
+        {
+          "question": "What is GRNI?",
           "expectedAnswerType": "workflow",
           "targetFeatureId": "FEA-14"
         }

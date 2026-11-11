@@ -1085,6 +1085,58 @@ test("a11bd45 round: a failed launch never deletes a same-named file reached thr
   }
 });
 
+test("343ffdd round: a staging folder swapped while the copy is opened is refused, and the clean-up never deletes through it", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const name = "GII-GeM-ERP-Setup-99.8.10-x64.exe";
+  const installer = path.join(folder, name);
+  fs.writeFileSync(installer, "bytes");
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), "gii-victim3-"));
+  fs.writeFileSync(path.join(victim, name), "the user's own installer");
+  let swapped = "";
+  try {
+    const { result, launches } = await withPatchedOpen(async (open, file, flags, mode) => {
+      const handle = await open(file, flags, mode);
+      if (flags === "wx" && file.includes("update-staging") && !swapped) {
+        swapped = path.dirname(file);
+        fs.renameSync(swapped, `${swapped}-moved`);
+        fs.symlinkSync(victim, swapped, "dir");
+      }
+      return handle;
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.ok(swapped, "the copy was opened");
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+    assert.equal(fs.readFileSync(path.join(victim, name), "utf8"), "the user's own installer");
+  } finally {
+    if (swapped) { fs.rmSync(swapped, { force: true }); fs.rmSync(`${swapped}-moved`, { recursive: true, force: true }); }
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(victim, { recursive: true, force: true });
+  }
+});
+
+test("343ffdd round: a fresh staging folder that another account owns is refused", async () => {
+  if (typeof process.getuid !== "function" || process.getuid() !== 0) return;
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.11-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const original = fs.promises.mkdir;
+  fs.promises.mkdir = async (target, options) => {
+    const made = await original(target, options);
+    if (String(target).endsWith("update-staging") && !options?.recursive) fs.chownSync(target, 4242, 4242);
+    return made;
+  };
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+  } finally {
+    fs.promises.mkdir = original;
+    fs.rmSync(installer, { force: true });
+  }
+});
+
 // Keep this test last: after a real launch the ERP is closing, so the updater stays locked.
 test("32263ab round: after a launch, no second installer can be started", async () => {
   const admin = await adminWindow();

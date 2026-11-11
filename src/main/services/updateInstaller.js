@@ -64,10 +64,11 @@ export function clearInstallerStaging(dataRoot) {
 }
 // Removes only what the updater itself makes: a staging folder, its install-* folders and
 // the installer copies inside them (a copy's download mark goes with it). Every entry is
-// checked with lstat and removed with unlink/rmdir, never a recursive delete. A link at the
-// top is only unlinked; below the top it is left alone. The folder is checked again after it
-// is listed and before each removal, so a folder swapped for a link meanwhile is not cleared
-// through. Anything else is left, with one warning per folder.
+// checked with lstat and removed with unlink/rmdir, never a recursive delete. A link inside
+// is never removed, only counted (the folder itself, if it is a link, is only unlinked). The
+// folder is checked again after it is listed and before each removal, so a folder swapped
+// for a link meanwhile is not cleared through. Anything else is left, with one warning per
+// folder.
 const INSTALLER_COPY_NAME = /^GII-GeM-ERP-(?:Setup|Portable)-[^\\/]+\.exe$/i;
 export function removeStagingTree(folder, depth = 0) {
   let stats;
@@ -148,7 +149,7 @@ function isInsideStaging(filePath, dataRoot) {
 async function ensureStagingFolder(dataRoot) {
   // Where the staging folder really is when nothing is linked: inside the real data folder.
   const expected = path.join(await fs.promises.realpath(dataRoot), "update-staging");
-  const changed = () => guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+  const changed = changedStaging;
   sweepMovedStaging(path.dirname(expected));
   const old = `${expected}.old-${crypto.randomBytes(8).toString("hex")}`;
   let inPlace = false;
@@ -189,10 +190,11 @@ async function ensureStagingFolder(dataRoot) {
   // and it must really be inside the staging folder (not a link swapped in meanwhile).
   const dir = await fs.promises.mkdtemp(path.join(expected, "install-"));
   const realDir = await fs.promises.realpath(dir);
-  // A folder made just now must still be that folder (a share may report any owner or mode);
-  // one found in place must be this account's own.
+  // A folder made just now must still be that folder and this account's (a share may report
+  // any mode, so only the owner is checked); one found in place must also allow no one else
+  // to write.
   const nowStats = await fs.promises.lstat(expected, { bigint: true });
-  const stillOurs = madeHere ? nowStats.isDirectory() && sameFile(nowStats, madeHere) : ownStagingFolder(nowStats);
+  const stillOurs = madeHere ? nowStats.isDirectory() && sameFile(nowStats, madeHere) && ownedByThisAccount(nowStats) : ownStagingFolder(nowStats);
   if (path.dirname(realDir) !== expected || !stillOurs || !(await fs.promises.lstat(dir)).isDirectory()) {
     // Remove only the new folder made through the link, then refuse.
     await fs.promises.rmdir(dir).catch(() => {});
@@ -200,12 +202,19 @@ async function ensureStagingFolder(dataRoot) {
   }
   return realDir;
 }
+function changedStaging() {
+  return guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+}
 // A staging folder found in place is used only if it is a real folder of this account that
 // no one else can write to (on Windows the data folder's own permissions apply).
 function ownStagingFolder(stats) {
   if (!stats.isDirectory()) return false;
   if (process.platform === "win32" || typeof process.getuid !== "function") return true;
-  return Number(stats.uid) === process.getuid() && (Number(stats.mode) & 0o022) === 0;
+  return ownedByThisAccount(stats) && (Number(stats.mode) & 0o022) === 0;
+}
+function ownedByThisAccount(stats) {
+  if (process.platform === "win32" || typeof process.getuid !== "function") return true;
+  return Number(stats.uid) === process.getuid();
 }
 // The name as the renderer sent it, cut to a file-name length for the audit log.
 export function shortInstallerName(installerPath) {
@@ -283,10 +292,16 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
     let copied = 0;
     // Written through a handle of the app's own, so the copy's identity comes from what was
     // written, never from a path that could be swapped meanwhile.
+    // The folder is checked before and after the open, and the name must still lead to the
+    // very file that was opened; if not, the file is emptied through the app's own handle.
+    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity)) throw changedStaging();
     output = await fs.promises.open(stagedPath, "wx", 0o600);
     copyIdentity = await output.stat({ bigint: true });
-    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity)) {
-      throw guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+    let named = null;
+    try { named = fs.lstatSync(stagedPath, { bigint: true }); } catch { /* gone */ }
+    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity) || !named || !named.isFile() || !sameFile(named, copyIdentity)) {
+      await output.truncate(0).catch(() => {});
+      throw changedStaging();
     }
     // The reader starts flowing as soon as it has a data listener, so it is made only now.
     const reader = handle.createReadStream({ autoClose: false, start: 0 });
