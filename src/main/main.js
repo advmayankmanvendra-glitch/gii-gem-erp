@@ -463,7 +463,9 @@ function findLatestUpdateInstaller(updateFolder, manifest) {
   if (manifestFileName) {
     const fileName = path.basename(manifestFileName);
     const installerPath = path.join(updateFolder, fileName);
-    const named = fs.existsSync(installerPath)
+    let namedIsFile = false;
+    try { namedIsFile = fs.lstatSync(installerPath).isFile(); } catch { /* missing */ }
+    const named = namedIsFile
       ? { fileName, installerPath, version: parseUpdateVersion(fileName), source: "manifest" }
       : { fileName, installerPath: "", version: parseUpdateVersion(fileName), source: "manifest", missing: true };
     // Only a Setup installer can update the app, and an old latest.json must not

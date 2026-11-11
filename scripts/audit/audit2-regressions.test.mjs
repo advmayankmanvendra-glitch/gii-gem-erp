@@ -1257,3 +1257,27 @@ test("372c89d round: a reversed return gives its units back from the moment it w
   assert.equal(balance(db, "Goods Received Not Invoiced") - before.grni, 0);
   assert.equal(balance(db, "Trade Payables") - before.tp, 0);
 });
+
+test("8d5dd67 round: a reversed receipt keeps the returns made while it stood", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 RevIn");
+  const o = newOrder(db, "A2-REVIN");
+  const o3 = newOrder(db, "A2-REVIN-3");
+  const before = { grni: balance(db, "Goods Received Not Invoiced"), tp: balance(db, "Trade Payables") };
+  const first = m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-RI-1", quantity: 10, rate: 100, landed_cost: 0 });
+  m.postStockInward(db, first.id);
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: "2026-07-02", supplier_id: 1, purchase_invoice_number: "A2-RI-B", purchase_value: 2000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-RI-B", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const a = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-10", quantity: 10 });
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-11", quantity: 10 });
+  m.reverseStockReturn(db, a);
+  m.reverseStockInward(db, first.id);
+  const bill3 = m.createRecord(db, "procurements", { company_id: 1, order_id: o3, purchase_date: "2026-07-03", supplier_id: 1, purchase_invoice_number: "A2-RI-B3", purchase_value: 3000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o3, procurement_id: bill3.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-03", purchase_invoice_number: "A2-RI-B3", quantity: 10, rate: 300, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill3.id);
+  const last = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-12", quantity: 10 });
+  assert.deepEqual(returnLines(db, last).find((line) => line.acc === "Trade Payables"), { acc: "Trade Payables", dr: 3000, cr: 0 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - before.grni, 0);
+  assert.equal(balance(db, "Trade Payables") - before.tp, 0);
+});

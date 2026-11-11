@@ -510,3 +510,17 @@ test("8d5dd67 round: the updater launches a hashed copy of the installer, not th
     fs.rmSync(installer, { force: true });
   }
 });
+
+test("8d5dd67 round: the update folder only offers real installer files", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const fake = path.join(folder, "GII-GeM-ERP-Setup-98.0.0-x64.exe");
+  fs.mkdirSync(fake, { recursive: true });
+  try {
+    const status = await call(admin, "updates:status");
+    assert.ok(status.ok, status.err);
+    assert.notEqual(path.basename(status.ok.installerPath || ""), "GII-GeM-ERP-Setup-98.0.0-x64.exe", "a folder with an installer's name is not offered");
+  } finally {
+    fs.rmSync(fake, { recursive: true, force: true });
+  }
+});

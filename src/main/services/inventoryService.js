@@ -376,14 +376,15 @@ export function createInventoryService(deps) {
       SELECT v.id, (SELECT MIN(r.id) FROM vouchers r WHERE r.source_module = 'voucher_reversal' AND r.source_id = v.id AND COALESCE(r.is_deleted, 0) = 0) reversal_id
       FROM vouchers v WHERE v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0`;
     const lots = db.prepare(`
-      SELECT si.order_id, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
+      SELECT si.order_id, si.posting_status, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
+        (SELECT MAX(r.id) FROM stock_ledger r WHERE r.source_module = 'stock_inwards' AND r.source_id = si.id AND r.id > sl.id AND COALESCE(r.is_deleted, 0) = 0) reversal_sl_id,
         COALESCE(pv.id, gv.id) bill_voucher_id, COALESCE(pv.reversal_id, gv.reversal_id) bill_reversal_id
       FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
       LEFT JOIN procurements p ON p.id = si.procurement_id AND p.company_id = si.company_id AND p.posting_status IN ('Posted', 'Reversed') AND COALESCE(p.is_deleted, 0) = 0
       LEFT JOIN (${billVoucher} AND v.source_module = 'procurement') pv ON pv.id = (SELECT MIN(v2.id) FROM vouchers v2 WHERE v2.source_module = 'procurement' AND v2.source_id = p.id AND v2.company_id = si.company_id AND v2.status IN ('Posted', 'Reversed') AND COALESCE(v2.is_deleted, 0) = 0)
       LEFT JOIN (${billVoucher}) gv ON gv.id = (SELECT MIN(gr.purchase_voucher_id) FROM goods_receipt_items gri JOIN goods_receipts gr ON gr.id = gri.grn_id WHERE gri.stock_inward_id = si.id)
-      WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status = 'Posted' AND COALESCE(si.is_deleted, 0) = 0
+      WHERE si.company_id = ? AND si.supplier_id = ? AND si.item_id = ? AND si.posting_status IN ('Posted', 'Reversed') AND COALESCE(si.is_deleted, 0) = 0
       ORDER BY si.inward_date, si.id, sl.id
     `).all(row.company_id, row.supplier_id, row.item_id)
       .map((lot) => {
@@ -392,8 +393,13 @@ export function createInventoryService(deps) {
         const supplierRate = Number(lot.supplier_rate || 0) > 0 ? Number(lot.supplier_rate) : stockRate;
         const billId = lot.bill_voucher_id ? Number(lot.bill_voucher_id) : null;
         const reversalId = lot.bill_reversal_id ? Number(lot.bill_reversal_id) : null;
-        return { slId: Number(lot.sl_id), billId, reversalId, orderId: lot.order_id || null, left: quantity, stockRate, supplierRate };
+        // A reversed receipt stays in the replay until its reversal row, so returns that used it
+        // while it stood are replayed onto it; what is left of it goes when it is reversed.
+        const reversedAt = lot.posting_status === "Reversed" ? Number(lot.reversal_sl_id || 0) : 0;
+        return { slId: Number(lot.sl_id), billId, reversalId, orderId: lot.order_id || null, left: quantity, stockRate, supplierRate, reversed: lot.posting_status === "Reversed", reversedAt };
       })
+      // A reversed receipt with no reversal row left no trace to replay.
+      .filter((lot) => !lot.reversed || lot.reversedAt > lot.slId)
       .filter((lot) => lot.left > 0);
     // A receipt is billed between its bill (a purchase bill, or the purchase voucher that created
     // it) and that bill's reversal, if any. "Now" is after every voucher posted so far.
@@ -438,6 +444,7 @@ export function createInventoryService(deps) {
       FROM stock_returns sr
       WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
         AND sr.posting_status IN ('Posted', 'Reversed') AND COALESCE(sr.is_deleted, 0) = 0
+      ORDER BY sr.id
     `).all(row.company_id, row.supplier_id, row.item_id, row.id);
     const events = [];
     for (const earlier of earlierReturns) {
@@ -448,11 +455,15 @@ export function createInventoryService(deps) {
       events.push({ at: entry.asOf.slId, entry, give: false });
       if (reversed) events.push({ at: Number(earlier.last_sl_id), entry, give: true });
     }
-    events.sort((x, y) => x.at - y.at || Number(x.give) - Number(y.give));
-    for (const { entry, give } of events) {
-      if (give) entry.used.forEach(({ lot, units }) => { lot.left += units; });
+    for (const lot of lots) if (lot.reversed) events.push({ at: lot.reversedAt, drop: lot });
+    events.sort((x, y) => x.at - y.at || Number(Boolean(x.give)) - Number(Boolean(y.give)));
+    for (const { entry, give, drop } of events) {
+      if (drop) drop.left = 0;
+      else if (give) entry.used.forEach(({ lot, units }) => { lot.left += units; });
       else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
+    // Receipts reversed with no earlier return to replay are gone, too.
+    for (const lot of lots) if (lot.reversed) lot.left = 0;
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
     const beyondReceipts = Math.max(0, quantity - mine.quantity);
