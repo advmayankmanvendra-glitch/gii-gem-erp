@@ -111,7 +111,7 @@ import {
 } from "./database/init.js";
 import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js";
 import { compareUpdateVersions, isPortableInstaller } from "./services/updateVersion.js";
-import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, removeStagingTree, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
+import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, removeStagedCopy, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
@@ -1335,7 +1335,7 @@ function registerIpc() {
       if (failureReason) throw Object.assign(guidedError(`The installer could not be opened: ${failureReason}`), { launchFailed: true });
     } catch (error) {
       // Nothing was launched, so the copy is not kept (each retry would add another).
-      removeStagingTree(path.dirname(staged.stagedPath), 1);
+      removeStagedCopy(staged);
       throw error;
     }
     // The installer cannot replace the program files or the database while the ERP

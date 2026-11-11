@@ -37,6 +37,9 @@ export function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
   }
   let isFile = false;
   try { isFile = fs.lstatSync(realInstaller).isFile(); } catch { /* vanished meanwhile: refused below */ }
+  // The installer itself must not be a link to another file, even one in the same folder.
+  const sameName = (x, y) => (process.platform === "win32" ? x.toLowerCase() === y.toLowerCase() : x === y);
+  if (!sameName(path.basename(realInstaller), path.basename(resolvedInstaller))) isFile = false;
   if (path.dirname(realInstaller) !== realFolder || !isFile) {
     throw guidedError("Selected installer is not directly inside the update folder. Copy the installer file itself into the update folder (not a shortcut or sub-folder) and try again.");
   }
@@ -60,41 +63,58 @@ export function clearInstallerStaging(dataRoot) {
   sweepMovedStaging(dataRoot);
 }
 // Removes only what the updater itself makes: a staging folder, its install-* folders and
-// the installer copies (and their download marks) inside them. Every entry is checked with
-// lstat and removed with unlink/rmdir, never a recursive delete, so a link swapped in for a
-// folder is only unlinked and nothing it points to is walked. Anything else is left, with a
-// warning.
+// the installer copies inside them (a copy's download mark goes with it). Every entry is
+// checked with lstat and removed with unlink/rmdir, never a recursive delete. A link at the
+// top is only unlinked; below the top it is left alone. The folder is checked again after it
+// is listed and before each removal, so a folder swapped for a link meanwhile is not cleared
+// through. Anything else is left, with one warning per folder.
+const INSTALLER_COPY_NAME = /^GII-GeM-ERP-(?:Setup|Portable)-[^\\/]+\.exe$/i;
 export function removeStagingTree(folder, depth = 0) {
   let stats;
-  try { stats = fs.lstatSync(folder); } catch { return; }
+  try { stats = fs.lstatSync(folder, { bigint: true }); } catch { return; }
   if (!stats.isDirectory()) {
-    try { fs.unlinkSync(folder); } catch { /* best effort */ }
+    if (depth === 0) { try { fs.unlinkSync(folder); } catch { /* best effort */ } }
     return;
   }
+  const unchanged = () => {
+    try { return sameFile(fs.lstatSync(folder, { bigint: true }), stats); } catch { return false; }
+  };
   let names = [];
   try { names = fs.readdirSync(folder); } catch { /* removed below if empty */ }
+  if (!unchanged()) return;
+  let leftOver = 0;
   for (const name of names) {
     const entry = path.join(folder, name);
     let entryStats;
     try { entryStats = fs.lstatSync(entry); } catch { continue; }
-    if (entryStats.isSymbolicLink()) {
-      try { fs.unlinkSync(entry); } catch { /* best effort */ }
-    } else if (entryStats.isDirectory() && depth === 0 && name.startsWith("install-")) {
+    if (entryStats.isSymbolicLink() && depth === 0) {
+      if (unchanged()) { try { fs.unlinkSync(entry); } catch { /* best effort */ } }
+    } else if (entryStats.isDirectory() && !entryStats.isSymbolicLink() && depth === 0 && name.startsWith("install-")) {
       removeStagingTree(entry, 1);
-    } else if (entryStats.isFile() && depth === 1 && /\.exe(:Zone\.Identifier)?$/i.test(name)) {
-      try { fs.unlinkSync(entry); } catch { /* best effort */ }
+    } else if (entryStats.isFile() && depth === 1 && INSTALLER_COPY_NAME.test(name)) {
+      if (unchanged()) { try { fs.unlinkSync(entry); } catch { /* best effort */ } }
     } else {
-      console.warn(`[updates] Left an unexpected item in the update-staging folder: ${name}`);
+      leftOver += 1;
     }
   }
-  try { fs.rmdirSync(folder); } catch { /* not empty or in use: left as is */ }
+  if (leftOver) console.warn(`[updates] Left ${leftOver} unexpected item(s) in ${path.basename(folder)}.`);
+  if (unchanged()) { try { fs.rmdirSync(folder); } catch { /* not empty or in use: left as is */ } }
+}
+// Removes one staged copy that the updater made, only if it is still that very file, and
+// then its folder if empty. Nothing is listed, so nothing swapped in is cleared through.
+export function removeStagedCopy(staged) {
+  try {
+    const now = fs.lstatSync(staged.stagedPath, { bigint: true });
+    if (now.isFile() && sameFile(now, staged.stagedFile)) fs.unlinkSync(staged.stagedPath);
+  } catch { /* already gone */ }
+  try { fs.rmdirSync(path.dirname(staged.stagedPath)); } catch { /* not empty or gone */ }
 }
 // Staging folders moved aside by earlier installs whose removal failed (rm removes a link
 // itself, never what it points to).
 function sweepMovedStaging(dataRoot) {
   try {
     for (const name of fs.readdirSync(dataRoot)) {
-      if (name.startsWith("update-staging.old-")) {
+      if (/^update-staging\.old-[0-9a-f]{16}$/.test(name)) {
         removeStagingTree(path.join(dataRoot, name));
       }
     }
@@ -104,7 +124,8 @@ function sweepMovedStaging(dataRoot) {
 function isInsideStaging(filePath, dataRoot) {
   const norm = (value) => (process.platform === "win32" ? value.toLowerCase() : value);
   let real = stagingFolderPath(dataRoot);
-  try { real = path.join(fs.realpathSync(dataRoot), "update-staging"); } catch { /* use the plain path */ }
+  // The native call resolves mapped and subst drives the same way fs.promises.realpath does.
+  try { real = path.join(fs.realpathSync.native(dataRoot), "update-staging"); } catch { /* use the plain path */ }
   const target = norm(path.resolve(filePath));
   return [real, stagingFolderPath(dataRoot)].some((folder) => target === norm(folder) || target.startsWith(norm(folder) + path.sep));
 }
@@ -124,7 +145,7 @@ async function ensureStagingFolder(dataRoot) {
     if (error.code === "ENOENT") { /* nothing there yet */ }
     // Windows cannot rename a folder while a file in it is open (antivirus, a slow installer).
     // A real folder, not a link, is then used where it is; the check after mkdtemp still holds.
-    else if (["EPERM", "EACCES", "EBUSY"].includes(error.code) && (await fs.promises.lstat(expected)).isDirectory()) inPlace = true;
+    else if (["EPERM", "EACCES", "EBUSY"].includes(error.code) && ownStagingFolder(await fs.promises.lstat(expected))) inPlace = true;
     else throw error;
   }
   const moved = await fs.promises.lstat(old).catch(() => null);
@@ -159,6 +180,13 @@ async function ensureStagingFolder(dataRoot) {
   }
   return realDir;
 }
+// A staging folder found in place is used only if it is a real folder of this account that
+// no one else can write to (on Windows the data folder's own permissions apply).
+function ownStagingFolder(stats) {
+  if (!stats.isDirectory()) return false;
+  if (process.platform === "win32" || typeof process.getuid !== "function") return true;
+  return stats.uid === process.getuid() && (stats.mode & 0o022) === 0;
+}
 // The name as the renderer sent it, cut to a file-name length for the audit log.
 export function shortInstallerName(installerPath) {
   return path.basename(typeof installerPath === "string" ? installerPath : "").slice(0, 255);
@@ -172,11 +200,19 @@ export async function hashFile(filePath, expected = null) {
   try {
     const stats = await handle.stat({ bigint: true });
     if (!stats.isFile()) return "";
-    // Only the very file that was copied, at its copied size, is read.
+    // Only the very file that was copied, at its copied size, is read, and never past that size.
     if (expected && (stats.dev !== expected.dev || stats.ino !== expected.ino || stats.size !== expected.size)) return "";
+    const size = expected ? expected.size : stats.size;
     const hash = crypto.createHash("sha256");
-    await streamPipeline(handle.createReadStream({ autoClose: false, start: 0 }), hash);
-    return hash.digest("hex");
+    let read = 0n;
+    if (size > 0n) {
+      const reader = handle.createReadStream({ autoClose: false, start: 0, end: Number(size - 1n) });
+      for await (const chunk of reader) {
+        read += BigInt(chunk.length);
+        hash.update(chunk);
+      }
+    }
+    return read === size ? hash.digest("hex") : "";
   } finally {
     await handle.close().catch(() => {});
   }

@@ -672,13 +672,13 @@
       "voucherTypeCreated": "Journal (GRN receipt)",
       "debitAccounts": ["Inventory"],
       "creditAccounts": ["Goods Received Not Invoiced", "Purchase"],
-      "transactionBoundary": "db.transaction() - stock ledger + serial/batch + status update",
-      "auditImpact": false,
-      "reportImpact": null,
+      "transactionBoundary": "db.transaction() - stock ledger + serial/batch + GRN receipt voucher + status update",
+      "auditImpact": true,
+      "reportImpact": "trialBalance, balanceSheetReport, stock valuation",
       "workflowStage": "GOODS_RECEIPT_GRN",
-      "relatedDG1Tables": ["stock_inwards", "stock_ledger", "items", "serial_numbers", "batches"],
+      "relatedDG1Tables": ["stock_inwards", "stock_ledger", "items", "serial_numbers", "batches", "procurements", "vouchers", "voucher_lines", "ledger_entries", "accounts"],
       "relatedWG1Stage": "GOODS_RECEIPT_GRN",
-      "safetyRule": "No accounting voucher created (valuation impact tracked via weighted average cost); auto-reserves stock if order_id present"
+      "safetyRule": "Posts a GRN receipt Journal (Inventory Dr, Goods Received Not Invoiced Cr; Purchase Cr when the bill was posted first); no voucher when the value is zero; auto-reserves stock if order_id present"
     },
     {
       "functionName": "postStockAdjustment",
@@ -1442,9 +1442,9 @@
     {
       "wg1Stage": "GOODS_RECEIPT_GRN",
       "accountingImpact": "inventory_only",
-      "createsAccountingImpact": false,
-      "description": "Goods Receipt creates stock ledger entries (quantity/valuation) but no accounting voucher. Inventory valuation impact tracked via weighted average cost.",
-      "relatedVoucherTypes": [],
+      "createsAccountingImpact": true,
+      "description": "Goods Receipt creates stock ledger entries (quantity/valuation) and a GRN receipt Journal: Inventory Dr, Goods Received Not Invoiced Cr (Purchase Cr when the bill was posted first). No voucher when the value is zero.",
+      "relatedVoucherTypes": ["journal"],
       "relatedPostingFunctions": ["postStockInward"]
     },
     {
@@ -1763,7 +1763,7 @@
     },
     {
       "gapId": "KG4-GAP-002",
-      "description": "Partly closed by FSR-2A4 (PR #4): stock adjustments and stock returns now post Journal vouchers; warehouse transfers still post none (the value only moves between warehouses). The rest of this graph is brought up to date in KG-4 v1.1 after the branch convergence (see docs/audit/in-house-audits-2026-10/2026-11-10-convergence/).",
+      "description": "Partly closed by FSR-2A4 (PR #4): goods receipts, stock adjustments and stock returns now post Journal vouchers; warehouse transfers still post none (the value only moves between warehouses). The rest of this graph is brought up to date in KG-4 v1.1 after the branch convergence (see docs/audit/in-house-audits-2026-10/2026-11-10-convergence/).",
       "impact": "Until KG-4 v1.1, other entries of this graph may still describe stock movements without their vouchers",
       "workaround": "Read src/main/services/inventoryService.js and docs/architecture/fsr-2a4-perpetual-inventory-policy.md for the current postings"
     },

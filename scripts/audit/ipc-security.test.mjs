@@ -872,7 +872,7 @@ test("64124dc round: a staging folder that cannot be moved (a file held open on 
   const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.0-x64.exe");
   fs.writeFileSync(installer, "bytes");
   fs.mkdirSync(path.join(root, "update-staging"), { recursive: true });
-  const moved = path.join(root, "update-staging.old-leftover");
+  const moved = path.join(root, "update-staging.old-0123456789abcdef");
   fs.mkdirSync(moved, { recursive: true });
   const original = fs.promises.rename;
   fs.promises.rename = async (from, to) => {
@@ -969,14 +969,66 @@ test("64124dc round: clearing the staging folder removes only installer copies a
   fs.writeFileSync(path.join(staging, "install-real", "GII-GeM-ERP-Setup-1.0.0-x64.exe"), "old copy");
   fs.symlinkSync(victim, path.join(staging, "install-linked"), "dir");
   fs.symlinkSync(victim, path.join(staging, "install-real", "nested"), "dir");
+  fs.writeFileSync(path.join(staging, "install-real", "notes.txt"), "not an installer copy");
+  const userFile = path.join(root, "update-staging.old-mine.txt");
+  fs.writeFileSync(userFile, "a user's file with a similar name");
   try {
     const { result } = await installWithStubbedLaunch(admin, installer);
     assert.match(result.err || "", /test stops here/);
     assert.deepEqual(fs.readdirSync(victim).sort(), ["GII-GeM-ERP-Setup-1.0.0-x64.exe", "books.db"], "nothing behind a link was deleted");
-    assert.deepEqual(fs.readdirSync(root).filter((name) => name.startsWith("update-staging.old-")), [], "the moved-aside folder was removed");
+    const moved = fs.readdirSync(root).filter((name) => /^update-staging\.old-[0-9a-f]{16}$/.test(name));
+    assert.equal(moved.length, 1, "the moved-aside folder is kept because it holds something not ours");
+    const kept = path.join(root, moved[0], "install-real");
+    assert.deepEqual(fs.readdirSync(kept).sort(), ["nested", "notes.txt"], "only the installer copy was removed; a link below the top is left alone");
+    assert.ok(fs.existsSync(userFile), "a file that only looks like a moved-aside folder is not swept");
   } finally {
+    fs.rmSync(userFile, { force: true });
+    for (const name of fs.readdirSync(root)) if (name.startsWith("update-staging.old-")) fs.rmSync(path.join(root, name), { recursive: true, force: true });
     fs.rmSync(installer, { force: true });
     fs.rmSync(victim, { recursive: true, force: true });
+  }
+});
+
+test("4f3a9b6 round: an installer name that links to another file in the folder is refused", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const target = path.join(folder, "payload.bin");
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.6-x64.exe");
+  fs.writeFileSync(target, "bytes");
+  fs.symlinkSync(target, installer);
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /not directly inside the update folder/);
+    assert.equal(launches(), 0);
+  } finally {
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(target, { force: true });
+  }
+});
+
+test("4f3a9b6 round: a staging folder others can write to is not used in place", async () => {
+  if (typeof process.getuid !== "function") return;
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.7-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const staging = path.join(root, "update-staging");
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging);
+  fs.chmodSync(staging, 0o777);
+  const original = fs.promises.rename;
+  fs.promises.rename = async (from, to) => {
+    if (String(from).endsWith("update-staging")) throw Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" });
+    return original(from, to);
+  };
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.doesNotMatch(result.err || "", /test stops here/, "the install did not go ahead in that folder");
+    assert.equal(launches(), 0);
+  } finally {
+    fs.promises.rename = original;
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.rmSync(installer, { force: true });
   }
 });
 
