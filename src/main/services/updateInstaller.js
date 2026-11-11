@@ -87,7 +87,7 @@ export function removeStagingTree(folder, depth = 0) {
     const entry = path.join(folder, name);
     let entryStats;
     try { entryStats = fs.lstatSync(entry); } catch { continue; }
-    if (entryStats.isSymbolicLink() && depth === 0) {
+    if (entryStats.isSymbolicLink() && depth === 0 && name.startsWith("install-")) {
       if (unchanged()) { try { fs.unlinkSync(entry); } catch { /* best effort */ } }
     } else if (entryStats.isDirectory() && !entryStats.isSymbolicLink() && depth === 0 && name.startsWith("install-")) {
       removeStagingTree(entry, 1);
@@ -163,7 +163,8 @@ async function ensureStagingFolder(dataRoot) {
   // Not recursive: if something else created the folder in the meantime, this fails.
   if (!inPlace) {
     try {
-      await fs.promises.mkdir(expected);
+      // Owner-only, whatever the umask, so the ownership check below holds.
+      await fs.promises.mkdir(expected, { mode: 0o700 });
     } catch (error) {
       if (error.code === "EEXIST") throw changed();
       throw error;
@@ -173,7 +174,7 @@ async function ensureStagingFolder(dataRoot) {
   // and it must really be inside the staging folder (not a link swapped in meanwhile).
   const dir = await fs.promises.mkdtemp(path.join(expected, "install-"));
   const realDir = await fs.promises.realpath(dir);
-  if (path.dirname(realDir) !== expected || !(await fs.promises.lstat(expected)).isDirectory() || !(await fs.promises.lstat(dir)).isDirectory()) {
+  if (path.dirname(realDir) !== expected || !ownStagingFolder(await fs.promises.lstat(expected)) || !(await fs.promises.lstat(dir)).isDirectory()) {
     // Remove only the new folder made through the link, then refuse.
     await fs.promises.rmdir(dir).catch(() => {});
     throw changed();
@@ -282,7 +283,9 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
     const copiedStats = fs.lstatSync(stagedPath, { bigint: true });
     return { stagedPath, sha256: hash.digest("hex"), stagedFile: { dev: copiedStats.dev, ino: copiedStats.ino, size: copiedStats.size } };
   } catch (error) {
-    if (stagingDir) removeStagingTree(stagingDir, 1);
+    // Remove the copy by its own name and then its folder; nothing is listed.
+    if (stagedPath) { try { if (fs.lstatSync(stagedPath).isFile()) fs.unlinkSync(stagedPath); } catch { /* not written */ } }
+    if (stagingDir) { try { fs.rmdirSync(stagingDir); } catch { /* not empty or gone */ } }
     if (error.guided) throw error;
     console.error("[updates] Preparing the installer failed:", error);
     // A full disk is always the data-folder side: only the copy writes. Otherwise the file

@@ -896,7 +896,7 @@ test("64124dc round: a staging folder made by someone else meanwhile is refused"
   fs.writeFileSync(installer, "bytes");
   const original = fs.promises.mkdir;
   fs.promises.mkdir = async (target, options) => {
-    if (String(target).endsWith("update-staging") && !options) await original(target, { recursive: true });
+    if (String(target).endsWith("update-staging") && !options?.recursive) await original(target, { recursive: true });
     return original(target, options);
   };
   try {
@@ -970,6 +970,7 @@ test("64124dc round: clearing the staging folder removes only installer copies a
   fs.symlinkSync(victim, path.join(staging, "install-linked"), "dir");
   fs.symlinkSync(victim, path.join(staging, "install-real", "nested"), "dir");
   fs.writeFileSync(path.join(staging, "install-real", "notes.txt"), "not an installer copy");
+  fs.symlinkSync(path.join(victim, "books.db"), path.join(staging, "other-link"));
   const userFile = path.join(root, "update-staging.old-mine.txt");
   fs.writeFileSync(userFile, "a user's file with a similar name");
   try {
@@ -978,6 +979,7 @@ test("64124dc round: clearing the staging folder removes only installer copies a
     assert.deepEqual(fs.readdirSync(victim).sort(), ["GII-GeM-ERP-Setup-1.0.0-x64.exe", "books.db"], "nothing behind a link was deleted");
     const moved = fs.readdirSync(root).filter((name) => /^update-staging\.old-[0-9a-f]{16}$/.test(name));
     assert.equal(moved.length, 1, "the moved-aside folder is kept because it holds something not ours");
+    assert.ok(fs.lstatSync(path.join(root, moved[0], "other-link")).isSymbolicLink(), "a top-level link not named install-* is left alone");
     const kept = path.join(root, moved[0], "install-real");
     assert.deepEqual(fs.readdirSync(kept).sort(), ["nested", "notes.txt"], "only the installer copy was removed; a link below the top is left alone");
     assert.ok(fs.existsSync(userFile), "a file that only looks like a moved-aside folder is not swept");

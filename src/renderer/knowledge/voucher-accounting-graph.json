@@ -1441,7 +1441,7 @@
     },
     {
       "wg1Stage": "GOODS_RECEIPT_GRN",
-      "accountingImpact": "inventory_only",
+      "accountingImpact": "inventory_grni",
       "createsAccountingImpact": true,
       "description": "Goods Receipt creates stock ledger entries (quantity/valuation) and a GRN receipt Journal: Inventory Dr, Goods Received Not Invoiced Cr (Purchase Cr when the bill was posted first). No voucher when the value is zero.",
       "relatedVoucherTypes": ["journal"],

@@ -184,7 +184,7 @@
       "helpRef": "docs/manuals/GII-GeM-ERP-Complete-User-Operations-Manual.md",
       "upstreamDeps": ["SUPPLIER_PURCHASE_ORDER"],
       "downstreamDeps": ["INVENTORY_RESERVATION"],
-      "createsAccountingImpact": false,
+      "createsAccountingImpact": true,
       "createsInventoryImpact": true,
       "createsGSTImpact": false,
       "parentEntity": "WORK_ORDER",

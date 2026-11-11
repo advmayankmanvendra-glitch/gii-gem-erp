@@ -778,7 +778,7 @@
         "goods_receipt_items",
         "stock_ledger"
       ],
-      "voucherTypes": [],
+      "voucherTypes": ["Journal"],
       "postingFunctions": [
         "recordGoodsReceipt"
       ],
@@ -790,13 +790,13 @@
         "GRN / Goods Receipt"
       ],
       "safetyBoundary": "inventory-sensitive",
-      "createsAccountingImpact": false,
+      "createsAccountingImpact": true,
       "createsInventoryImpact": true,
       "createsGSTImpact": false,
       "canUserCreateRecordsHere": true,
       "canUserPostHere": false,
-      "whatThisFeatureDoes": "Records receipt of goods from suppliers. Updates stock ledger and triggers inventory valuation.",
-      "whatThisFeatureDoesNotDo": "Does not post accounting vouchers. Purchase voucher posting is a separate step.",
+      "whatThisFeatureDoes": "Records receipt of goods from suppliers. Updates stock ledger and inventory valuation, and posts a GRN receipt Journal: Inventory Dr, Goods Received Not Invoiced Cr (Purchase Cr when the bill was posted first).",
+      "whatThisFeatureDoesNotDo": "Does not post the purchase bill or GST. Purchase voucher posting is a separate step.",
       "commonQuestions": [
         "How do I create a GRN?",
         "What is goods receipt?",
