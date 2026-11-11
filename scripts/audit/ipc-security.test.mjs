@@ -524,3 +524,19 @@ test("8d5dd67 round: the update folder only offers real installer files", async 
     fs.rmSync(fake, { recursive: true, force: true });
   }
 });
+
+test("7955315 round: a hard-linked installer is refused and no copy is left behind", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-hardlink-"));
+  const target = path.join(outside, "planted.exe");
+  fs.writeFileSync(target, "planted");
+  const linked = path.join(folder, "GII-GeM-ERP-Setup-97.0.0-x64.exe");
+  try {
+    try { fs.linkSync(target, linked); } catch { return; /* hard links unavailable here */ }
+    assert.match((await call(admin, "updates:install", linked)).err || "", /linked to another file/);
+  } finally {
+    fs.rmSync(linked, { force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});

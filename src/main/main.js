@@ -262,6 +262,7 @@ function configureRuntimeStorage() {
   APP_FOLDERS.forEach((folder) => {
     fs.mkdirSync(path.join(runtimeDataRoot, folder), { recursive: true });
   });
+  clearInstallerStaging();
   const copiedDatabase = copyBundledDatabaseIfNeeded(runtimeDataRoot);
   ensureAppFolders(runtimeDataRoot);
   return { root: runtimeDataRoot, copiedDatabase };
@@ -566,20 +567,64 @@ function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
 // and the copy is what runs, so a file changed in the update folder afterwards cannot be
 // launched in its place. Reading in chunks keeps the app responsive on a large file.
 const MAX_INSTALLER_BYTES = 1024 * 1024 * 1024;
-async function stageInstaller(installerPath) {
-  const stats = await fs.promises.stat(installerPath);
-  if (stats.size > MAX_INSTALLER_BYTES) {
-    throw new Error(`This installer is ${Math.round(stats.size / 1048576)} MB, larger than any GII GeM ERP installer (1 GB at most), so it was not started. Download the installer again and put it in the update folder.`);
+let installerStaging = false;
+function stagingFolderPath() {
+  return path.join(runtimeDataRoot, "update-staging");
+}
+// Called at start-up: an installer copy from an earlier session is not kept.
+function clearInstallerStaging() {
+  try { fs.rmSync(stagingFolderPath(), { recursive: true, force: true }); } catch { /* best effort */ }
+}
+async function stageInstaller(installerPath, updateFolder) {
+  if (installerStaging) throw new Error("An update is already being prepared. Wait for it to finish, then try again.");
+  installerStaging = true;
+  const stagingFolder = stagingFolderPath();
+  let handle = null;
+  let stagedPath = "";
+  try {
+    await fs.promises.rm(stagingFolder, { recursive: true, force: true });
+    await fs.promises.mkdir(stagingFolder, { recursive: true });
+    // Checked and opened with no wait in between; everything after reads the open file, so a
+    // file swapped into the update folder from here on is not what gets copied.
+    const checked = assertInstallerInsideUpdateFolder(installerPath, updateFolder);
+    const pathStats = fs.statSync(checked);
+    handle = await fs.promises.open(checked, "r");
+    const stats = await handle.stat();
+    if (!stats.isFile() || stats.dev !== pathStats.dev || stats.ino !== pathStats.ino || stats.nlink !== 1) {
+      throw new Error("The installer changed or is linked to another file, so it was not started. Copy the installer file itself into the update folder and try again.");
+    }
+    if (stats.size > MAX_INSTALLER_BYTES) {
+      throw new Error(`This installer is larger than any GII GeM ERP installer (1 GB at most), so it was not started. Download the installer again and put it in the update folder.`);
+    }
+    try {
+      const space = await fs.promises.statfs(stagingFolder);
+      if (Number(space.bavail) * Number(space.bsize) < stats.size + 64 * 1024 * 1024) {
+        throw Object.assign(new Error("There is not enough free disk space next to the books to prepare the update. Free some space, then try again."), { guided: true });
+      }
+    } catch (error) { if (error.guided) throw error; /* free space unknown: the copy itself still stops on a full disk */ }
+    stagedPath = path.join(stagingFolder, path.basename(checked));
+    const hash = crypto.createHash("sha256");
+    let copied = 0;
+    const reader = handle.createReadStream({ autoClose: false, start: 0 });
+    reader.on("data", (chunk) => {
+      copied += chunk.length;
+      if (copied > MAX_INSTALLER_BYTES) reader.destroy(new Error("The installer grew while it was being copied, so it was not started. Try again."));
+      hash.update(chunk);
+    });
+    await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
+    // Keep Windows' "downloaded from the internet" mark, so the usual warning still shows.
+    if (process.platform === "win32") {
+      try { fs.copyFileSync(`${checked}:Zone.Identifier`, `${stagedPath}:Zone.Identifier`); } catch { /* the file had no mark */ }
+    }
+    return { stagedPath, sha256: hash.digest("hex") };
+  } catch (error) {
+    if (stagedPath) { try { fs.rmSync(stagedPath, { force: true }); } catch { /* best effort */ } }
+    if (error.guided || /not started|already being prepared|update folder|installer/.test(error.message)) throw error;
+    throw new Error(`The update could not be prepared (${error.code || error.message}). Check free disk space and the update folder, then try again. Nothing was installed.`);
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+    installerStaging = false;
   }
-  const stagingFolder = path.join(runtimeDataRoot, "update-staging");
-  await fs.promises.rm(stagingFolder, { recursive: true, force: true });
-  await fs.promises.mkdir(stagingFolder, { recursive: true });
-  const stagedPath = path.join(stagingFolder, path.basename(installerPath));
-  const hash = crypto.createHash("sha256");
-  const reader = fs.createReadStream(installerPath);
-  reader.on("data", (chunk) => hash.update(chunk));
-  await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
-  return { stagedPath, sha256: hash.digest("hex") };
 }
 
 function buildPrintDocument(preview = {}) {
@@ -1313,7 +1358,7 @@ function registerIpc() {
     if (compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
       throw new Error(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
     }
-    const staged = await stageInstaller(selectedInstaller);
+    const staged = await stageInstaller(selectedInstaller, status.updateFolder);
     // Back up the books before anything is replaced, then hand over to the installer copy.
     const backup = await createLiveBackup(db, runtimeDataRoot);
     const failureReason = await shell.openPath(staged.stagedPath);
