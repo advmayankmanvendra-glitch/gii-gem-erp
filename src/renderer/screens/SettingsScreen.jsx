@@ -7,6 +7,7 @@ export function SettingsScreen({ notify, apiClient, confirmAction, role, userId,
   const [backups, setBackups] = useState([]);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
   const isAdmin = ["admin", "super_admin"].includes(role);
 
   async function refresh() {
@@ -121,11 +122,13 @@ export function SettingsScreen({ notify, apiClient, confirmAction, role, userId,
       moduleName: "settings"
     });
     if (!confirmed.confirmed) return;
+    setInstallingUpdate(true);
     try {
       const result = await apiClient.installUpdate(updateStatus.installerPath);
       notify(`Backup ${result?.backup || "taken"}. Installer opened; the ERP is closing so the update can be installed.`);
     } catch (error) {
       notify(error.message, "error");
+      setInstallingUpdate(false);
     }
   }
 
@@ -135,6 +138,7 @@ export function SettingsScreen({ notify, apiClient, confirmAction, role, userId,
         backups={backups}
         updateStatus={updateStatus}
         updateLoading={updateLoading}
+        installingUpdate={installingUpdate}
         onCreateBackup={backup}
         onRestoreBackup={restore}
         onRefreshUpdates={refreshUpdates}

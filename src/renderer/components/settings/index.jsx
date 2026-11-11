@@ -13,6 +13,7 @@ export function SettingsPanel({
   backups,
   updateStatus,
   updateLoading,
+  installingUpdate,
   onCreateBackup,
   onRestoreBackup,
   onRefreshUpdates,
@@ -26,6 +27,7 @@ export function SettingsPanel({
       <UpdaterSection
         updateStatus={updateStatus}
         updateLoading={updateLoading}
+        installingUpdate={installingUpdate}
         onRefreshUpdates={onRefreshUpdates}
         onOpenUpdateFolder={onOpenUpdateFolder}
         onInstallUpdate={onInstallUpdate}
@@ -67,6 +69,7 @@ export function SettingsOverview({ backups }) {
 export function UpdaterSection({
   updateStatus,
   updateLoading,
+  installingUpdate,
   onRefreshUpdates,
   onOpenUpdateFolder,
   onInstallUpdate
@@ -91,7 +94,7 @@ export function UpdaterSection({
         <div className="update-actions">
           <button onClick={() => onRefreshUpdates()} disabled={updateLoading}>{updateLoading ? "Checking..." : "Check Updates"}</button>
           <button onClick={onOpenUpdateFolder}>Open Update Folder</button>
-          <button className="primary-btn" onClick={onInstallUpdate} disabled={!updateStatus?.installerPath}>Install Update</button>
+          <button className="primary-btn" onClick={onInstallUpdate} disabled={!updateStatus?.installerPath || installingUpdate}>{installingUpdate ? "Preparing update..." : "Install Update"}</button>
         </div>
       </div>
     </>

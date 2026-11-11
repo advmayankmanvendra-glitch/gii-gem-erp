@@ -464,8 +464,6 @@ export function createInventoryService(deps) {
       else if (give) entry.used.forEach(({ lot, units }) => { if (!lot.gone) lot.left += units; });
       else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
-    // Receipts reversed with no earlier return to replay are gone, too.
-    for (const lot of lots) if (lot.reversed) lot.left = 0;
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
     const beyondReceipts = Math.max(0, quantity - mine.quantity);

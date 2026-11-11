@@ -533,10 +533,94 @@ test("7955315 round: a hard-linked installer is refused and no copy is left behi
   fs.writeFileSync(target, "planted");
   const linked = path.join(folder, "GII-GeM-ERP-Setup-97.0.0-x64.exe");
   try {
-    try { fs.linkSync(target, linked); } catch { return; /* hard links unavailable here */ }
+    fs.linkSync(target, linked);
     assert.match((await call(admin, "updates:install", linked)).err || "", /linked to another file/);
+    const staging = path.join(root, "update-staging");
+    const left = fs.existsSync(staging) ? fs.readdirSync(staging, { recursive: true }).filter((name) => name.endsWith("GII-GeM-ERP-Setup-97.0.0-x64.exe")) : [];
+    assert.deepEqual(left, [], "no copy is left behind");
   } finally {
     fs.rmSync(linked, { force: true });
     fs.rmSync(outside, { recursive: true, force: true });
   }
+});
+
+test("efefcbb round: a second install is refused until the first one has launched or failed", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.2.0-x64.exe");
+  fs.writeFileSync(installer, "first installer");
+  const shell = electron.shell || electron.default.shell;
+  const original = shell.openPath;
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let launches = 0;
+  // The first install waits at the launch, after its copy and backup are done.
+  shell.openPath = async () => { launches += 1; await held; return "test stops here"; };
+  try {
+    const first = call(admin, "updates:install", installer);
+    for (let i = 0; i < 200 && launches === 0; i += 1) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(launches, 1, "the first install reached the launch");
+    const second = await call(admin, "updates:install", installer);
+    assert.match(second.err || "", /already being prepared/);
+    release();
+    assert.match((await first).err || "", /test stops here/);
+    assert.equal(launches, 1, "only one installer was opened");
+    const db = side();
+    try {
+      assert.ok(db.prepare("SELECT id FROM audit_log WHERE action = 'update_installer_refused' AND new_value LIKE '%already being prepared%'").get(), "the refusal is in the audit log");
+    } finally { db.close(); }
+    // After a failed launch the next install may run again.
+    shell.openPath = async () => "test stops here";
+    assert.match((await call(admin, "updates:install", installer)).err || "", /test stops here/);
+  } finally {
+    release();
+    shell.openPath = original;
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("efefcbb round: a link planted as the staging folder is not followed", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.3.0-x64.exe");
+  fs.writeFileSync(installer, "staged bytes");
+  const staging = path.join(root, "update-staging");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-staging-"));
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.symlinkSync(outside, staging, "dir");
+  const shell = electron.shell || electron.default.shell;
+  const original = shell.openPath;
+  let opened = "";
+  shell.openPath = async (target) => { opened = target; return "test stops here"; };
+  try {
+    assert.match((await call(admin, "updates:install", installer)).err || "", /test stops here/);
+    assert.ok(opened, "an installer copy was opened");
+    assert.ok(!fs.realpathSync(opened).startsWith(fs.realpathSync(outside)), "the copy is not written through the planted link");
+    assert.equal(fs.readdirSync(outside).length, 0);
+    assert.ok(fs.lstatSync(staging).isDirectory(), "the staging folder is a real folder again");
+  } finally {
+    shell.openPath = original;
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("efefcbb round: a refused installer leaves an audit row and plain errors are not passed through", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const portable = path.join(folder, "Other-Tool-1.0.0.exe");
+  fs.writeFileSync(portable, "not ours");
+  try {
+    const result = await call(admin, "updates:install", portable);
+    assert.match(result.err || "", /GII-GeM-ERP-Setup-<version>-x64\.exe/);
+    const db = side();
+    try {
+      const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'update_installer_refused' ORDER BY id DESC LIMIT 1").get();
+      assert.equal(JSON.parse(row.new_value).installer, "Other-Tool-1.0.0.exe");
+    } finally { db.close(); }
+  } finally {
+    fs.rmSync(portable, { force: true });
+  }
+  const source = fs.readFileSync(path.join(REPO, "src/main/main.js"), "utf8");
+  assert.doesNotMatch(source, /\|update folder\|installer\/\.test\(error\.message\)/, "errors are passed through by the guided mark only");
 });

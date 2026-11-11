@@ -701,7 +701,7 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 480,
+      "lineNumber": 478,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items", "stock_inwards", "procurements", "vouchers", "goods_receipts", "goods_receipt_items", "accounts"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log", "accounts"],
