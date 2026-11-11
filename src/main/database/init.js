@@ -1021,8 +1021,8 @@ function createAutomaticGrnFromPurchaseVoucher(db, guidedVoucher, payload, vouch
   const accepted = Math.max(0, Number(payload.accepted_quantity || (quantity - damaged)));
   if (accepted <= 0) throw new Error("Accepted GRN quantity must be positive");
   const receiptRate = Number(payload.rate || payload.purchase_rate || 0) || voucherTaxable / accepted;
-  // Only what the voucher put into GRNI comes in, so the two always clear; a landed cost the
-  // voucher did not book is not added to stock.
+  // Only what the voucher put into GRNI comes in, so the two clear; a landed cost the voucher
+  // did not book is not added to stock. (A voucher with no taxable value posts nothing to GRNI.)
   const receiptValue = voucherTaxable || Number(payload.landed_cost || 0) || accepted * receiptRate;
   const grnNumber = nextDocumentNumber(db, guidedVoucher.company_id, "goods_receipts", "grn_number", "GRN");
   const grn = db.prepare(`

@@ -354,8 +354,9 @@ export function createInventoryService(deps) {
   // - The supplier's receipts of this item are lots, oldest first. A return on an order uses
   //   that order's receipts; a return with no order may use any of them.
   // - Earlier posted returns are replayed by quantity in the order they were posted, each as
-  //   things stood then (receipts and bills posted before it), so units one return used are
-  //   never used again, whichever orders the returns name.
+  //   things stood then (receipts posted before it; bills posted before it and not yet
+  //   reversed), so units one return used are never used again, whichever orders the returns
+  //   name. A reversed return gives its units back from the moment it was reversed.
   // - This return then uses what is left: receipts no posted bill covers first (GRNI, at the
   //   receipt's stock value), then billed receipts (Trade Payables, at the supplier's rate).
   //   Free (zero-price) receipts are used last. Past every receipt, Trade Payables at the
@@ -399,13 +400,12 @@ export function createInventoryService(deps) {
     const billedAt = (lot, voucherId) => lot.billId !== null && lot.billId < voucherId && (lot.reversalId === null || lot.reversalId > voucherId);
     // Each return is judged as things stood when it posted: only receipts posted before it, and
     // billing as it stood then. Unbilled receipts are used before billed ones, free receipts last
-    // within each, oldest first. The lots are already oldest first, so each pass is one scan per
-    // group, and used-up lots are dropped as the replay goes.
-    let open = lots;
+    // within each, oldest first. The lots are already oldest first, so each pass is one scan.
     const take = (orderId, wanted, asOf = null) => {
       const voucherId = asOf?.voucherId || Infinity;
       const groups = [[], [], [], []];
-      for (const lot of open) {
+      for (const lot of lots) {
+        if (lot.left <= 1e-9) continue;
         if (asOf && lot.slId >= asOf.slId) continue;
         if (orderId && lot.orderId !== orderId) continue;
         const billed = billedAt(lot, voucherId);
@@ -413,7 +413,7 @@ export function createInventoryService(deps) {
         groups[(billed ? 2 : 0) + (rate <= 0 ? 1 : 0)].push({ lot, billed, rate });
       }
       let left = wanted;
-      const taken = { grniValue: 0, billedValue: 0, quantity: 0 };
+      const taken = { grniValue: 0, billedValue: 0, quantity: 0, used: [] };
       for (const group of groups) {
         for (const { lot, billed, rate } of group) {
           if (left <= 1e-9) break;
@@ -422,23 +422,36 @@ export function createInventoryService(deps) {
           lot.left -= units;
           left -= units;
           taken.quantity += units;
+          taken.used.push({ lot, units });
           if (billed) taken.billedValue += units * rate; else taken.grniValue += units * rate;
         }
       }
-      open = open.filter((lot) => lot.left > 1e-9);
       return taken;
     };
-    // Earlier returns replay in the order they were posted (their stock ledger rows).
+    // Earlier returns replay in the order they were posted (their stock ledger rows). A reversed
+    // return takes its units when it posted and gives them back when it was reversed, so returns
+    // posted while it stood are judged as they were then.
     const earlierReturns = db.prepare(`
-      SELECT sr.order_id, sr.quantity, sr.voucher_id,
-        (SELECT MIN(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id) sl_id
+      SELECT sr.order_id, sr.quantity, sr.voucher_id, sr.posting_status,
+        (SELECT MIN(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id AND COALESCE(sl.is_deleted, 0) = 0) sl_id,
+        (SELECT MAX(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id AND COALESCE(sl.is_deleted, 0) = 0) last_sl_id
       FROM stock_returns sr
       WHERE sr.company_id = ? AND sr.supplier_id = ? AND sr.item_id = ? AND sr.return_type = 'Supplier' AND sr.id <> ?
-        AND sr.posting_status = 'Posted' AND COALESCE(sr.is_deleted, 0) = 0
-      ORDER BY sl_id, sr.id
+        AND sr.posting_status IN ('Posted', 'Reversed') AND COALESCE(sr.is_deleted, 0) = 0
     `).all(row.company_id, row.supplier_id, row.item_id, row.id);
+    const events = [];
     for (const earlier of earlierReturns) {
-      take(earlier.order_id || null, Number(earlier.quantity || 0), { slId: Number(earlier.sl_id || 0), voucherId: earlier.voucher_id ? Number(earlier.voucher_id) : null });
+      const reversed = earlier.posting_status === "Reversed";
+      // A reversed return with no reversal row in the stock ledger left no trace to replay.
+      if (reversed && !(Number(earlier.last_sl_id) > Number(earlier.sl_id))) continue;
+      const entry = { orderId: earlier.order_id || null, quantity: Number(earlier.quantity || 0), asOf: { slId: Number(earlier.sl_id || 0), voucherId: earlier.voucher_id ? Number(earlier.voucher_id) : null }, used: [] };
+      events.push({ at: entry.asOf.slId, entry, give: false });
+      if (reversed) events.push({ at: Number(earlier.last_sl_id), entry, give: true });
+    }
+    events.sort((x, y) => x.at - y.at || Number(x.give) - Number(y.give));
+    for (const { entry, give } of events) {
+      if (give) entry.used.forEach(({ lot, units }) => { lot.left += units; });
+      else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;

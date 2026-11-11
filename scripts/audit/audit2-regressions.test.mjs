@@ -1213,3 +1213,47 @@ test("f9241ed round: a reversed bill and a zero-value return keep GRNI and the s
   postReturn(db, { item_id: z.item, warehouse_id: z.wh, return_date: "2026-07-11", quantity: 10 });
   assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0, "the priced receipt is cleared once, in full");
 });
+
+test("372c89d round: a zero-value return that uses a billed receipt elsewhere reduces the supplier's payable", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 ZeroTP");
+  const wh2 = m.createRecord(db, "warehouses", { company_id: 1, warehouse_name: "A2 ZeroTP 2", status: "active" }).id;
+  const o = newOrder(db, "A2-ZEROTP");
+  const tp = balance(db, "Trade Payables");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "A2-ZT-B", purchase_value: 1000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-ZT-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const other = db.prepare("SELECT id FROM suppliers WHERE id <> 1 LIMIT 1").get()?.id ?? m.createRecord(db, "suppliers", { company_id: 1, supplier_name: "A2 Free Supplier", status: "active" }).id;
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: other, item_id: item, warehouse_id: wh2, inward_date: "2026-07-02", purchase_invoice_number: "A2-ZT-F", quantity: 5, rate: 0, landed_cost: 0 }).id);
+  const zero = postReturn(db, { item_id: item, warehouse_id: wh2, return_date: "2026-07-10", quantity: 5 });
+  assert.deepEqual(returnLines(db, zero).find((line) => line.acc === "Trade Payables"), { acc: "Trade Payables", dr: 500, cr: 0 });
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-11", quantity: 5 });
+  assert.equal(balance(db, "Trade Payables") - tp, 0, "the 1,000 bill is returned in full, once");
+});
+
+test("372c89d round: a purchase-voucher receipt ignores a landed cost the voucher did not book", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 Landed");
+  const grni = balance(db, "Goods Received Not Invoiced");
+  guidedPurchase(db, item, wh, { taxable_value: 1000, landed_cost: 1200, rate: 100 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - grni, 0);
+  assert.equal(db.prepare("SELECT SUM(value_minor) / 100.0 v FROM stock_ledger WHERE item_id = ?").get(item).v, 1000);
+});
+
+test("372c89d round: a reversed return gives its units back from the moment it was reversed", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 RevRet");
+  const o = newOrder(db, "A2-REVRET");
+  const before = { grni: balance(db, "Goods Received Not Invoiced"), tp: balance(db, "Trade Payables") };
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-RR-1", quantity: 10, rate: 100, landed_cost: 0 }).id);
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: "2026-07-02", supplier_id: 1, purchase_invoice_number: "A2-RR-B", purchase_value: 2000, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: "2026-07-02", purchase_invoice_number: "A2-RR-B", quantity: 10, rate: 200, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  const first = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-10", quantity: 10 }); // the unbilled receipt
+  postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-11", quantity: 10 });              // the billed receipt
+  m.reverseStockReturn(db, first);
+  const last = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-12", quantity: 10 });  // the unbilled receipt again
+  assert.deepEqual(returnLines(db, last).find((line) => line.acc === "Goods Received Not Invoiced"), { acc: "Goods Received Not Invoiced", dr: 1000, cr: 0 });
+  assert.equal(balance(db, "Goods Received Not Invoiced") - before.grni, 0);
+  assert.equal(balance(db, "Trade Payables") - before.tp, 0);
+});
