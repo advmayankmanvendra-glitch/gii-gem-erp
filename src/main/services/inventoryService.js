@@ -377,7 +377,7 @@ export function createInventoryService(deps) {
       FROM vouchers v WHERE v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0`;
     const lots = db.prepare(`
       SELECT si.order_id, si.posting_status, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
-        (SELECT MAX(r.id) FROM stock_ledger r WHERE r.source_module = 'stock_inwards' AND r.source_id = si.id AND r.id > sl.id AND COALESCE(r.is_deleted, 0) = 0) reversal_sl_id,
+        CASE WHEN si.posting_status = 'Reversed' THEN (SELECT MAX(r.id) FROM stock_ledger r WHERE r.source_module = 'stock_inwards' AND r.source_id = si.id AND r.id > sl.id AND COALESCE(r.is_deleted, 0) = 0) END reversal_sl_id,
         COALESCE(pv.id, gv.id) bill_voucher_id, COALESCE(pv.reversal_id, gv.reversal_id) bill_reversal_id
       FROM stock_inwards si
       JOIN stock_ledger sl ON sl.source_module = 'stock_inwards' AND sl.source_id = si.id AND sl.transaction_type = 'Inward' AND COALESCE(sl.is_deleted, 0) = 0
@@ -458,8 +458,10 @@ export function createInventoryService(deps) {
     for (const lot of lots) if (lot.reversed) events.push({ at: lot.reversedAt, drop: lot });
     events.sort((x, y) => x.at - y.at || Number(Boolean(x.give)) - Number(Boolean(y.give)));
     for (const { entry, give, drop } of events) {
-      if (drop) drop.left = 0;
-      else if (give) entry.used.forEach(({ lot, units }) => { lot.left += units; });
+      // A reversed receipt is gone for good: units a later-reversed return gives back to it
+      // went out with the receipt's reversal, so they never return to the pool.
+      if (drop) { drop.left = 0; drop.gone = true; }
+      else if (give) entry.used.forEach(({ lot, units }) => { if (!lot.gone) lot.left += units; });
       else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
     // Receipts reversed with no earlier return to replay are gone, too.

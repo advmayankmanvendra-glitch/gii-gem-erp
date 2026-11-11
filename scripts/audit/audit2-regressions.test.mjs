@@ -1281,3 +1281,29 @@ test("8d5dd67 round: a reversed receipt keeps the returns made while it stood", 
   assert.equal(balance(db, "Goods Received Not Invoiced") - before.grni, 0);
   assert.equal(balance(db, "Trade Payables") - before.tp, 0);
 });
+
+test("7955315 round: a return reversed after its receipt was reversed gives nothing back to the pool", () => {
+  const db = fresh();
+  const { wh, item } = widget(db, "A2 GoneLot");
+  const o = newOrder(db, "A2-GONE");
+  const receipt = (n, date) => {
+    const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: o, purchase_date: date, supplier_id: 1, purchase_invoice_number: `A2-GL-${n}`, purchase_value: 1000, purchase_gst: 0 });
+    const row = m.createRecord(db, "stock_inwards", { company_id: 1, order_id: o, procurement_id: bill.id, supplier_id: 1, item_id: item, warehouse_id: wh, inward_date: date, purchase_invoice_number: `A2-GL-${n}`, quantity: 10, rate: 100, landed_cost: 0 });
+    m.postStockInward(db, row.id);
+    m.postPurchaseVoucher(db, bill.id);
+    return row.id;
+  };
+  const x = receipt("X", "2026-07-01");
+  receipt("Y", "2026-07-02");
+  // Other stock, so the warehouse holds enough for every return.
+  const other = db.prepare("SELECT id FROM suppliers WHERE id <> 1 LIMIT 1").get()?.id ?? m.createRecord(db, "suppliers", { company_id: 1, supplier_name: "A2 Gone Other", status: "active" }).id;
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, supplier_id: other, item_id: item, warehouse_id: wh, inward_date: "2026-07-01", purchase_invoice_number: "A2-GL-O", quantity: 30, rate: 40, landed_cost: 0 }).id);
+  const a = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-10", quantity: 10 }); // receipt X
+  try { m.reverseStockInward(db, x); } catch { return; /* a receipt with returns may refuse to reverse; then this case cannot arise */ }
+  m.reverseStockReturn(db, a);
+  const c = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-11", quantity: 10 }); // receipt Y
+  assert.deepEqual(returnLines(db, c).find((line) => line.acc === "Trade Payables"), { acc: "Trade Payables", dr: 1000, cr: 0 });
+  const d = postReturn(db, { item_id: item, warehouse_id: wh, return_date: "2026-07-12", quantity: 5 });  // no receipt left
+  const tp = returnLines(db, d).find((line) => line.acc === "Trade Payables");
+  assert.ok(tp && tp.dr < 500, `receipt Y is not returned twice (Trade Payables ${tp?.dr})`);
+});

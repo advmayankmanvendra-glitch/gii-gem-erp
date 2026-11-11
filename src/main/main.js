@@ -612,6 +612,7 @@ async function stageInstaller(installerPath, updateFolder) {
       hash.update(chunk);
     });
     await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
+    if (copied !== stats.size) throw new Error("The installer changed size while it was being copied, so it was not started. Wait for any download to finish, then try again.");
     // Keep Windows' "downloaded from the internet" mark, so the usual warning still shows.
     if (process.platform === "win32") {
       try { fs.copyFileSync(`${checked}:Zone.Identifier`, `${stagedPath}:Zone.Identifier`); } catch { /* the file had no mark */ }

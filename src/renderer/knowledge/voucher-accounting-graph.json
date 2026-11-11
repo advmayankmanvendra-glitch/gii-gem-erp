@@ -701,7 +701,7 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 478,
+      "lineNumber": 480,
       "serviceModule": "inventoryService",
       "readsFromTables": ["stock_returns", "stock_ledger", "items", "stock_inwards", "procurements", "vouchers", "goods_receipts", "goods_receipt_items", "accounts"],
       "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log", "accounts"],
@@ -714,7 +714,7 @@
       "workflowStage": null,
       "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "vouchers", "voucher_lines", "ledger_entries"],
       "relatedWG1Stage": null,
-      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units at the receipt's stock value and Dr Trade Payables for billed units (a posted bill, or the purchase voucher that made the receipt) at the supplier's rate, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity in posting order, each as things stood when it posted (a bill counts until it is reversed; a reversed return gives its units back when reversed), so no receipt unit is returned twice; a return that clears GRNI or Trade Payables posts a voucher even when its stock is worth nothing at average cost; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units at the receipt's stock value and Dr Trade Payables for billed units (a posted bill, or the purchase voucher that made the receipt) at the supplier's rate, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity in posting order, each as things stood when it posted (a bill counts until it is reversed; a reversed return gives its units back when reversed, except to a receipt already reversed; a reversed receipt keeps the returns made while it stood and what was left of it leaves the pool at its reversal), so no receipt unit is returned twice; known gaps: docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6; a return that clears GRNI or Trade Payables posts a voucher even when its stock is worth nothing at average cost; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
     },
     {
       "functionName": "postWarehouseTransfer",
