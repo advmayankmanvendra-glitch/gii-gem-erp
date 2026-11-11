@@ -483,3 +483,30 @@ test("66b024f round: an update installer must be a real file directly in the upd
     fs.rmSync(outside, { recursive: true, force: true });
   }
 });
+
+test("8d5dd67 round: the updater launches a hashed copy of the installer, not the file in the update folder", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.1.0-x64.exe");
+  fs.writeFileSync(installer, "installer bytes");
+  const shell = electron.shell || electron.default.shell;
+  const original = shell.openPath;
+  let opened = "";
+  // A failure string keeps the app open after the launch, so the test can look around.
+  shell.openPath = async (target) => { opened = target; return "test stops here"; };
+  try {
+    const result = await call(admin, "updates:install", installer);
+    assert.match(result.err || "", /test stops here/);
+    assert.notEqual(path.dirname(opened), fs.realpathSync(folder), "the copy runs, not the file in the update folder");
+    assert.match(opened, /update-staging/);
+    assert.equal(fs.readFileSync(opened, "utf8"), "installer bytes");
+    const db = side();
+    try {
+      const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'update_installer_failed' ORDER BY id DESC LIMIT 1").get();
+      assert.equal(JSON.parse(row.new_value).sha256, crypto.createHash("sha256").update("installer bytes").digest("hex"));
+    } finally { db.close(); }
+  } finally {
+    shell.openPath = original;
+    fs.rmSync(installer, { force: true });
+  }
+});

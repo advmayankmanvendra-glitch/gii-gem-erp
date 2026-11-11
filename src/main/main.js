@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from "electron";
 import crypto from "node:crypto";
+import { pipeline as streamPipeline } from "node:stream/promises";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -417,7 +418,7 @@ function ensureUpdateFolder() {
   try {
     fs.mkdirSync(baseFolder, { recursive: true });
   } catch (error) {
-    throw new Error(`The update folder ${baseFolder} could not be created or opened (${error.code || error.message}). Check that the Documents folder is available, then try again.`);
+    throw new Error(`The update folder ${baseFolder} could not be created or opened (${error.code || error.message}). Check that the folder can be reached (or change the update folder setting), then try again.`);
   }
   return baseFolder;
 }
@@ -559,10 +560,24 @@ function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
   return realInstaller;
 }
 
-function installerFingerprint(installerPath) {
-  const stats = fs.statSync(installerPath);
-  const hash = crypto.createHash("sha256").update(fs.readFileSync(installerPath)).digest("hex");
-  return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeMs}:${hash}`;
+// The installer is copied into the app's own data folder in one read, hashed as it is copied,
+// and the copy is what runs, so a file changed in the update folder afterwards cannot be
+// launched in its place. Reading in chunks keeps the app responsive on a large file.
+const MAX_INSTALLER_BYTES = 1024 * 1024 * 1024;
+async function stageInstaller(installerPath) {
+  const stats = await fs.promises.stat(installerPath);
+  if (stats.size > MAX_INSTALLER_BYTES) {
+    throw new Error(`This installer is ${Math.round(stats.size / 1048576)} MB, larger than any GII GeM ERP installer (1 GB at most), so it was not started. Download the installer again and put it in the update folder.`);
+  }
+  const stagingFolder = path.join(runtimeDataRoot, "update-staging");
+  await fs.promises.rm(stagingFolder, { recursive: true, force: true });
+  await fs.promises.mkdir(stagingFolder, { recursive: true });
+  const stagedPath = path.join(stagingFolder, path.basename(installerPath));
+  const hash = crypto.createHash("sha256");
+  const reader = fs.createReadStream(installerPath);
+  reader.on("data", (chunk) => hash.update(chunk));
+  await streamPipeline(reader, fs.createWriteStream(stagedPath, { flags: "wx" }));
+  return { stagedPath, sha256: hash.digest("hex") };
 }
 
 function buildPrintDocument(preview = {}) {
@@ -1296,16 +1311,11 @@ function registerIpc() {
     if (compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
       throw new Error(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
     }
-    // The installer's identity and contents are fixed before the backup and checked again
-    // after it, so a file replaced, overwritten or linked in meanwhile is not launched.
-    const fingerprint = installerFingerprint(selectedInstaller);
-    // Back up the books before anything is replaced, then hand over to the installer.
+    const staged = await stageInstaller(selectedInstaller);
+    // Back up the books before anything is replaced, then hand over to the installer copy.
     const backup = await createLiveBackup(db, runtimeDataRoot);
-    if (assertInstallerInsideUpdateFolder(selectedInstaller, status.updateFolder) !== selectedInstaller || installerFingerprint(selectedInstaller) !== fingerprint) {
-      throw new Error("The installer changed while the backup was being made, so it was not started. Check the update folder and try again.");
-    }
-    const failureReason = await shell.openPath(selectedInstaller);
-    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: fingerprint.split(":").pop(), failure: failureReason || null }) });
+    const failureReason = await shell.openPath(staged.stagedPath);
+    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: staged.sha256, failure: failureReason || null }) });
     if (failureReason) throw new Error(failureReason);
     // The installer cannot replace the program files or the database while the ERP
     // is still running, so close it. The window's close handler asks "exit?" and

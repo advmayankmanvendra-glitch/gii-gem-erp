@@ -1157,7 +1157,7 @@ test("f9241ed round: the repository tracks no symbolic links and no node_modules
   const entries = listing.split("\0").filter(Boolean);
   const links = entries.filter((line) => line.startsWith("120000 "));
   assert.deepEqual(links, [], "a committed link would point outside the repository on another machine");
-  assert.ok(!entries.some((line) => /\t(.*\/)?node_modules(\/|$)/.test(line)), "node_modules is never committed, at any depth");
+  assert.ok(!entries.some((line) => /\t(.*\/)?node_modules(\/|$)/i.test(line)), "node_modules is never committed, at any depth");
 });
 
 const returnLines = (db, id) => db.prepare("SELECT a.account_name acc, ROUND(vl.debit, 2) dr, ROUND(vl.credit, 2) cr FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id WHERE v.source_module = 'stock_returns' AND v.source_id = ? ORDER BY vl.id").all(id).map((row) => ({ ...row }));
