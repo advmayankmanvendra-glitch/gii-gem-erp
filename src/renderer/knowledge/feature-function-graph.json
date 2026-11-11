@@ -5122,12 +5122,12 @@
         },
         {
           "question": "What is GRNI?",
-          "expectedAnswerType": "workflow",
+          "expectedAnswerType": "accounting_ref",
           "targetFeatureId": "FEA-14"
         },
         {
           "question": "GRNI",
-          "expectedAnswerType": "workflow",
+          "expectedAnswerType": "accounting_ref",
           "targetFeatureId": "FEA-14"
         }
       ]
