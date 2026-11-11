@@ -1203,6 +1203,37 @@ test("f5394f5 round: a copy opened through a folder swapped only for the open ge
   }
 });
 
+test("084a72c round: a staging folder moved out of the data folder while the copy is opened gets no installer bytes", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const name = "GII-GeM-ERP-Setup-99.8.22-x64.exe";
+  const installer = path.join(folder, name);
+  fs.writeFileSync(installer, "installer bytes");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-out-"));
+  const moved = path.join(outside, "moved");
+  let swapped = "";
+  try {
+    // The folder is moved away and a link to it left behind, so the name still leads to the
+    // opened file; only the folder check can catch it.
+    const { result, launches } = await withPatchedOpen(async (open, file, flags, mode) => {
+      if (flags === "wx" && !swapped && file.includes("update-staging")) {
+        swapped = path.dirname(file);
+        fs.renameSync(swapped, moved);
+        fs.symlinkSync(moved, swapped, "dir");
+      }
+      return open(file, flags, mode);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.ok(swapped, "the copy was opened");
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+    for (const entry of fs.readdirSync(moved)) assert.equal(fs.statSync(path.join(moved, entry)).size, 0, "no installer bytes outside the app's folder");
+  } finally {
+    if (swapped) fs.rmSync(swapped, { force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+    fs.rmSync(installer, { force: true });
+  }
+});
+
 // Keep this test last: after a real launch the ERP is closing, so the updater stays locked.
 test("32263ab round: after a launch, no second installer can be started", async () => {
   const admin = await adminWindow();

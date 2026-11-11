@@ -768,8 +768,7 @@
         "goods received",
         "receipt note",
         "receive goods",
-        "grni",
-        "goods received not invoiced"
+        "grni"
       ],
       "category": "inventory",
       "screenRef": "GoodsReceipt",
@@ -5123,6 +5122,11 @@
         },
         {
           "question": "What is GRNI?",
+          "expectedAnswerType": "workflow",
+          "targetFeatureId": "FEA-14"
+        },
+        {
+          "question": "GRNI",
           "expectedAnswerType": "workflow",
           "targetFeatureId": "FEA-14"
         }
