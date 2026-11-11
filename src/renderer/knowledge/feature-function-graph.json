@@ -768,7 +768,8 @@
         "goods received",
         "receipt note",
         "receive goods",
-        "grni"
+        "grni",
+        "goods received not invoiced"
       ],
       "category": "inventory",
       "screenRef": "GoodsReceipt",

@@ -232,6 +232,18 @@ for (const f of graph.featureNodes) {
 check("FF1-31: active features have at least one source reference",
   allHaveSources, `${activeFeatures.length} active features with sources`);
 
+// 32. A feature's voucherTypes and its feature_creates_voucher edges name the same vouchers
+const voucherMismatches = [];
+for (const feature of graph.featureNodes || []) {
+  const declared = [...new Set(feature.voucherTypes || [])].sort();
+  const linked = [...new Set((graph.correlationEdges || [])
+    .filter((e) => e.from === feature.id && e.relationshipType === "feature_creates_voucher")
+    .map((e) => e.to))].sort();
+  if (declared.join(",") !== linked.join(",")) voucherMismatches.push(`${feature.id} [${declared}] vs edges [${linked}]`);
+}
+check("FF1-32: each feature's voucherTypes match its feature_creates_voucher edges",
+  voucherMismatches.length === 0, voucherMismatches.length ? voucherMismatches.join("; ") : "all match");
+
 // ---- Summary ----
 console.log("\n------------------------------------------------------------");
 console.log(`FF-1 Verification:  ${passed} passed,  ${failed} failed,  ${total} total`);

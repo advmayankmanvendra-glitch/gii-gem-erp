@@ -149,7 +149,6 @@ function isInsideStaging(filePath, dataRoot) {
 async function ensureStagingFolder(dataRoot) {
   // Where the staging folder really is when nothing is linked: inside the real data folder.
   const expected = path.join(await fs.promises.realpath(dataRoot), "update-staging");
-  const changed = changedStaging;
   sweepMovedStaging(path.dirname(expected));
   const old = `${expected}.old-${crypto.randomBytes(8).toString("hex")}`;
   let inPlace = false;
@@ -182,7 +181,7 @@ async function ensureStagingFolder(dataRoot) {
       await fs.promises.mkdir(expected, { mode: 0o700 });
       madeHere = await fs.promises.lstat(expected, { bigint: true });
     } catch (error) {
-      if (error.code === "EEXIST") throw changed();
+      if (error.code === "EEXIST") throw changedStaging();
       throw error;
     }
   }
@@ -198,7 +197,7 @@ async function ensureStagingFolder(dataRoot) {
   if (path.dirname(realDir) !== expected || !stillOurs || !(await fs.promises.lstat(dir)).isDirectory()) {
     // Remove only the new folder made through the link, then refuse.
     await fs.promises.rmdir(dir).catch(() => {});
-    throw changed();
+    throw changedStaging();
   }
   return realDir;
 }
@@ -293,16 +292,16 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
     // Written through a handle of the app's own, so the copy's identity comes from what was
     // written, never from a path that could be swapped meanwhile.
     // The folder is checked before and after the open, and the name must still lead to the
-    // very file that was opened; if not, the file is emptied through the app's own handle.
-    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity)) throw changedStaging();
+    // very file that was opened; if not, nothing is written and the update is refused.
+    const folderUnchanged = () => {
+      try { return sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity); } catch { return false; }
+    };
+    if (!folderUnchanged()) throw changedStaging();
     output = await fs.promises.open(stagedPath, "wx", 0o600);
     copyIdentity = await output.stat({ bigint: true });
     let named = null;
     try { named = fs.lstatSync(stagedPath, { bigint: true }); } catch { /* gone */ }
-    if (!sameFile(fs.lstatSync(stagingDir, { bigint: true }), stagingDirIdentity) || !named || !named.isFile() || !sameFile(named, copyIdentity)) {
-      await output.truncate(0).catch(() => {});
-      throw changedStaging();
-    }
+    if (!folderUnchanged() || !named || !named.isFile() || !sameFile(named, copyIdentity)) throw changedStaging();
     // The reader starts flowing as soon as it has a data listener, so it is made only now.
     const reader = handle.createReadStream({ autoClose: false, start: 0 });
     reader.on("data", (chunk) => {

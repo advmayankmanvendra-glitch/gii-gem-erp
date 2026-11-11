@@ -1115,25 +1115,91 @@ test("343ffdd round: a staging folder swapped while the copy is opened is refuse
   }
 });
 
-test("343ffdd round: a fresh staging folder that another account owns is refused", async () => {
-  if (typeof process.getuid !== "function" || process.getuid() !== 0) return;
+test("343ffdd round: a fresh staging folder that another account owns is refused", async (t) => {
+  if (typeof process.getuid !== "function") { t.skip("no POSIX owners on this platform; the data folder's permissions apply"); return; }
   const admin = await adminWindow();
   const folder = (await call(admin, "updates:status")).ok.updateFolder;
   const installer = path.join(folder, "GII-GeM-ERP-Setup-99.8.11-x64.exe");
   fs.writeFileSync(installer, "bytes");
-  const original = fs.promises.mkdir;
-  fs.promises.mkdir = async (target, options) => {
-    const made = await original(target, options);
-    if (String(target).endsWith("update-staging") && !options?.recursive) fs.chownSync(target, 4242, 4242);
-    return made;
+  // The folder reports another account as its owner (no root needed to fake that).
+  const original = fs.promises.lstat;
+  fs.promises.lstat = async (target, options) => {
+    const stats = await original(target, options);
+    if (options?.bigint && String(target).endsWith("update-staging")) stats.uid = BigInt(process.getuid() + 1);
+    return stats;
   };
   try {
     const { result, launches } = await installWithStubbedLaunch(admin, installer);
     assert.match(result.err || "", /update-staging folder changed/);
     assert.equal(launches(), 0);
   } finally {
-    fs.promises.mkdir = original;
+    fs.promises.lstat = original;
     fs.rmSync(installer, { force: true });
+  }
+});
+
+const freshInstallFolder = () => {
+  const staging = path.join(root, "update-staging");
+  const found = fs.readdirSync(staging).filter((name) => name.startsWith("install-"));
+  assert.equal(found.length, 1, "one install folder");
+  return path.join(staging, found[0]);
+};
+
+test("f5394f5 round: a staging folder swapped before the copy is opened gets nothing written into it", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const name = "GII-GeM-ERP-Setup-99.8.20-x64.exe";
+  const installer = path.join(folder, name);
+  fs.writeFileSync(installer, "installer bytes");
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), "gii-victim4-"));
+  let swapped = "";
+  try {
+    const { result, launches } = await withPatchedOpen(async (open, file, flags, mode) => {
+      if (!swapped && path.basename(file) === name && !file.includes("update-staging")) {
+        swapped = freshInstallFolder();
+        fs.renameSync(swapped, `${swapped}-moved`);
+        fs.symlinkSync(victim, swapped, "dir");
+      }
+      return open(file, flags, mode);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.ok(swapped, "the installer was opened");
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+    assert.deepEqual(fs.readdirSync(victim), []);
+  } finally {
+    if (swapped) { fs.rmSync(swapped, { force: true }); fs.rmSync(`${swapped}-moved`, { recursive: true, force: true }); }
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(victim, { recursive: true, force: true });
+  }
+});
+
+test("f5394f5 round: a copy opened through a folder swapped only for the open gets no installer bytes", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const name = "GII-GeM-ERP-Setup-99.8.21-x64.exe";
+  const installer = path.join(folder, name);
+  fs.writeFileSync(installer, "installer bytes");
+  const victim = fs.mkdtempSync(path.join(os.tmpdir(), "gii-victim5-"));
+  let swapped = "";
+  try {
+    const { result, launches } = await withPatchedOpen(async (open, file, flags, mode) => {
+      if (flags !== "wx" || swapped || !file.includes("update-staging")) return open(file, flags, mode);
+      swapped = path.dirname(file);
+      fs.renameSync(swapped, `${swapped}-moved`);
+      fs.symlinkSync(victim, swapped, "dir");
+      try { return await open(file, flags, mode); } finally {
+        fs.unlinkSync(swapped);
+        fs.renameSync(`${swapped}-moved`, swapped);
+      }
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.ok(swapped, "the copy was opened");
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+    const leftover = path.join(victim, name);
+    assert.ok(!fs.existsSync(leftover) || fs.statSync(leftover).size === 0, "no installer bytes outside the app's folder");
+  } finally {
+    fs.rmSync(installer, { force: true });
+    fs.rmSync(victim, { recursive: true, force: true });
   }
 });
 

@@ -1,7 +1,7 @@
 {
   "manifestVersion": "1.0.0",
   "purpose": "Checksums of the preserved in-house audit reports (October to November 2026). A report is never edited after it is preserved; a later audit is added as a new file.",
-  "count": 96,
+  "count": 101,
   "entries": [
     {
       "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/audit-1-current-build.md",
@@ -374,6 +374,21 @@
       "sha256": "9D107BBB75AA30A92861F563626FEADB4732B0D4E42A6096EFEA6BFA8BCB9690"
     },
     {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-architecture.md",
+      "bytes": 4769,
+      "sha256": "9EECDB886E24A7A37AEDC103D8ED353CD436126B3E0D59C4D0926853B16050A9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-correctness.md",
+      "bytes": 11037,
+      "sha256": "165BEAD18CC0A2FA97810B2FFFEA337E221027543484DBE2D494F53BC721397A"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-security.md",
+      "bytes": 7414,
+      "sha256": "8D869E4C2979F59D93B8A0EDD48ACA4DD23B055515F8ACD7AB61978C41EB63CB"
+    },
+    {
       "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f833346-architecture.md",
       "bytes": 22294,
       "sha256": "26EB8B1B4AA3B4731DC4AA6F5D7FFFC5D1A9DEE0AA06B80DA58DAAD5A9C2E7F4"
@@ -417,6 +432,16 @@
       "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-security.md",
       "bytes": 14199,
       "sha256": "5C3208845A0AFD9E7FE3F83D52B6F666BFAEA1A6D01F07DA3A388A03E62268FC"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-343ffdd.md",
+      "bytes": 716,
+      "sha256": "5445831C751D6E3EE11690BE6B83F1289175622C64950B9BE0A836A9A7E56569"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-f5394f5.md",
+      "bytes": 1477,
+      "sha256": "4605F4473C35C9986283689FCED95233BB89B1CB39CB52E16D7C12FAF0E5D76C"
     },
     {
       "path": "docs/audit/in-house-audits-2026-10/2026-11-10-convergence/branch-graph-convergence-audit.md",

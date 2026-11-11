@@ -142,6 +142,11 @@ function classifyQuery(query, currentViewKey) {
     return buildCategoryResult(query, categoryById("inventory"));
   }
 
+  // GRNI is the account the GRN receipt Journal credits, so it is an accounting question.
+  if (/\b(grni|goods received not invoiced)\b/.test(normalized)) {
+    return buildCategoryResult(query, categoryById("voucher_accounting"));
+  }
+
   if (/\b(work order|supply order|\bgrn\b|goods receipt)\b/.test(normalized) && !/\b(stock|accounting voucher|ledger entries|accounting)\b/.test(normalized)) {
     return buildCategoryResult(query, categoryById("workflow"));
   }
