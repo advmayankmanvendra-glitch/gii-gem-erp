@@ -1,3 +1,5 @@
+import { neutralizeFormula } from "../domain/csvSafety.js";
+
 const STATUS_VALUES = new Map([
   ["active", "active"],
   ["inactive", "inactive"],
@@ -208,7 +210,10 @@ function normalizeKey(value) {
 }
 
 function csvCell(value) {
-  const text = value === null || value === undefined ? "" : String(value);
+  const raw = value === null || value === undefined ? "" : String(value);
+  // A value that already starts with an apostrophe gets one more, so importValue's single
+  // strip gives back the stored text exactly (e.g. 'Gold stays 'Gold, =SUM stays =SUM).
+  const text = raw.startsWith("'") ? `'${raw}` : neutralizeFormula(raw);
   return `"${text.replaceAll("\"", "\"\"")}"`;
 }
 
@@ -248,7 +253,9 @@ function exportValue(row, field) {
 }
 
 function importValue(rawValue, field) {
-  const value = normalizeText(rawValue);
+  // Undo the export's guard (one apostrophe before = + - @ or before a stored apostrophe)
+  // so a round-tripped value comes back unchanged.
+  const value = normalizeText(rawValue).replace(/^'(?=[=+\-@'])/, "");
   if (field.key === "is_active") return normalizeStatus(value) || "active";
   if (["amount", "gst_rate"].includes(field.validate) && value !== "") return Number(value);
   return value;

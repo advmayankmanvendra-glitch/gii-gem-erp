@@ -1,0 +1,705 @@
+[
+  {
+    "id": "RPT-trial_balance",
+    "name": "Trial Balance",
+    "purpose": "Debit and credit control report showing all ledger balances",
+    "inputs": ["Ledger Master", "Accounting Vouchers"],
+    "outputs": ["Debit Balances", "Credit Balances", "Net Difference"],
+    "relatedReports": ["RPT-profit_loss", "RPT-balance_sheet"],
+    "usedBy": ["Accounts Department", "Finance Controller"],
+    "typicalUsers": ["Accountant", "Finance Manager"],
+    "commonQuestions": [
+      "What is the total debit balance?",
+      "What is the total credit balance?",
+      "Which ledgers have abnormal balances?",
+      "Does the trial balance tally?"
+    ],
+    "drilldownTargets": [
+      { "name": "General Ledger", "viewKey": "general-ledger" },
+      { "name": "Day Book", "viewKey": "day-book" }
+    ],
+    "relatedKPIs": ["Trial Balance Difference", "Debit-Credit Ratio"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/trial-balance"
+  },
+  {
+    "id": "RPT-profit_loss",
+    "name": "Profit & Loss",
+    "purpose": "Income, expenses and net profit from posted ledger entries",
+    "inputs": ["Revenue Ledgers", "Expense Ledgers", "Trial Balance"],
+    "outputs": ["Gross Profit", "Net Profit", "Expense Breakdown"],
+    "relatedReports": ["RPT-trial_balance", "RPT-balance_sheet"],
+    "usedBy": ["Finance Controller", "Management"],
+    "typicalUsers": ["Finance Manager", "CFO", "Accountant"],
+    "commonQuestions": [
+      "What is the net profit for the period?",
+      "What are the top expenses?",
+      "How does revenue compare to last period?",
+      "What is the operating margin?"
+    ],
+    "drilldownTargets": [
+      { "name": "Trial Balance", "viewKey": "trial-balance" },
+      { "name": "General Ledger", "viewKey": "general-ledger" }
+    ],
+    "relatedKPIs": ["Net Profit Margin", "Operating Expense Ratio", "Revenue Growth"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/profit-loss"
+  },
+  {
+    "id": "RPT-balance_sheet",
+    "name": "Balance Sheet",
+    "purpose": "Assets, liabilities, equity and current profit position",
+    "inputs": ["Asset Ledgers", "Liability Ledgers", "Equity Ledgers", "Profit & Loss"],
+    "outputs": ["Total Assets", "Total Liabilities", "Net Equity"],
+    "relatedReports": ["RPT-trial_balance", "RPT-profit_loss"],
+    "usedBy": ["Finance Controller", "Management", "Auditors"],
+    "typicalUsers": ["CFO", "Finance Manager", "Auditor"],
+    "commonQuestions": [
+      "What is the current ratio?",
+      "What are total assets?",
+      "What is the debt-to-equity ratio?",
+      "What is the net worth?"
+    ],
+    "drilldownTargets": [
+      { "name": "Trial Balance", "viewKey": "trial-balance" },
+      { "name": "Receivables", "viewKey": "receivables" },
+      { "name": "Payables", "viewKey": "payables" }
+    ],
+    "relatedKPIs": ["Current Ratio", "Debt-to-Equity Ratio", "Net Worth", "Working Capital"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/balance-sheet"
+  },
+  {
+    "id": "RPT-day_book",
+    "name": "Day Book",
+    "purpose": "All posted vouchers by date with debit and credit totals",
+    "inputs": ["Accounting Vouchers", "Voucher Types"],
+    "outputs": ["Voucher List", "Daily Totals", "Running Balance"],
+    "relatedReports": ["RPT-cash_book", "RPT-bank_book", "RPT-general_ledger"],
+    "usedBy": ["Accounts Department"],
+    "typicalUsers": ["Accountant", "Accounts Executive"],
+    "commonQuestions": [
+      "What vouchers were posted today?",
+      "What is the total debit for the day?",
+      "Show me vouchers for a specific date range"
+    ],
+    "drilldownTargets": [
+      { "name": "General Ledger", "viewKey": "general-ledger" },
+      { "name": "Cash Book", "viewKey": "cash-book" },
+      { "name": "Bank Book", "viewKey": "bank-book" }
+    ],
+    "relatedKPIs": ["Voucher Count", "Daily Transaction Volume"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/day-book"
+  },
+  {
+    "id": "RPT-cash_book",
+    "name": "Cash Book",
+    "purpose": "Cash-only receipts, payments and running balance",
+    "inputs": ["Cash Vouchers", "Receipt Entries", "Payment Entries"],
+    "outputs": ["Cash Receipts", "Cash Payments", "Running Cash Balance"],
+    "relatedReports": ["RPT-bank_book", "RPT-day_book", "RPT-cash_bank_ledger"],
+    "usedBy": ["Accounts Department", "Treasury"],
+    "typicalUsers": ["Cashier", "Accountant"],
+    "commonQuestions": [
+      "What is the current cash balance?",
+      "What were the cash receipts today?",
+      "What were the cash payments today?"
+    ],
+    "drilldownTargets": [
+      { "name": "Day Book", "viewKey": "day-book" },
+      { "name": "Cash/Bank Ledger", "viewKey": "cash-bank-ledger" }
+    ],
+    "relatedKPIs": ["Cash Balance", "Cash Turnover"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/cash-book"
+  },
+  {
+    "id": "RPT-bank_book",
+    "name": "Bank Book",
+    "purpose": "Bank-only receipts, payments and running balance",
+    "inputs": ["Bank Vouchers", "Bank Receipts", "Bank Payments"],
+    "outputs": ["Bank Receipts", "Bank Payments", "Running Bank Balance"],
+    "relatedReports": ["RPT-cash_book", "RPT-day_book", "RPT-cash_bank_ledger"],
+    "usedBy": ["Accounts Department", "Treasury"],
+    "typicalUsers": ["Accountant", "Treasury Manager"],
+    "commonQuestions": [
+      "What is the current bank balance?",
+      "What cheques were issued today?",
+      "What bank receipts were recorded?"
+    ],
+    "drilldownTargets": [
+      { "name": "Day Book", "viewKey": "day-book" },
+      { "name": "Cash/Bank Ledger", "viewKey": "cash-bank-ledger" }
+    ],
+    "relatedKPIs": ["Bank Balance", "Bank Transaction Count"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/bank-book"
+  },
+  {
+    "id": "RPT-general_ledger",
+    "name": "General Ledger",
+    "purpose": "Ledger entries created from approved vouchers",
+    "inputs": ["Accounting Vouchers", "Ledger Master"],
+    "outputs": ["Ledger-wise Entries", "Running Balance", "Period Summary"],
+    "relatedReports": ["RPT-trial_balance", "RPT-day_book"],
+    "usedBy": ["Accounts Department", "Auditors"],
+    "typicalUsers": ["Accountant", "Auditor", "Finance Manager"],
+    "commonQuestions": [
+      "Show me transactions for a specific ledger",
+      "What is the closing balance of this ledger?",
+      "Which vouchers affect this ledger?"
+    ],
+    "drilldownTargets": [
+      { "name": "Day Book", "viewKey": "day-book" },
+      { "name": "Trial Balance", "viewKey": "trial-balance" }
+    ],
+    "relatedKPIs": ["Ledger Balance", "Transaction Count per Ledger"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/general-ledger"
+  },
+  {
+    "id": "RPT-cash_bank_ledger",
+    "name": "Cash/Bank Ledger",
+    "purpose": "Receipts, payments and running bank/cash balances",
+    "inputs": ["Bank Vouchers", "Cash Vouchers"],
+    "outputs": ["Bank/Cash Receipts", "Bank/Cash Payments", "Running Balance"],
+    "relatedReports": ["RPT-cash_book", "RPT-bank_book", "RPT-general_ledger"],
+    "usedBy": ["Accounts Department", "Treasury"],
+    "typicalUsers": ["Accountant", "Treasury Manager"],
+    "commonQuestions": [
+      "What is the combined cash and bank position?",
+      "Show me all cash and bank transactions",
+      "What is the running balance?"
+    ],
+    "drilldownTargets": [
+      { "name": "Cash Book", "viewKey": "cash-book" },
+      { "name": "Bank Book", "viewKey": "bank-book" },
+      { "name": "Day Book", "viewKey": "day-book" }
+    ],
+    "relatedKPIs": ["Total Liquidity", "Cash-to-Bank Ratio"],
+    "module": "Financial Reports",
+    "navigation": "/erp-brain/reports/financial/cash-bank-ledger"
+  },
+  {
+    "id": "RPT-stock_summary",
+    "name": "Stock Summary",
+    "purpose": "Item and warehouse wise closing quantity and value",
+    "inputs": ["Stock Ledger", "Item Master", "Warehouse Master"],
+    "outputs": ["Item-wise Stock", "Warehouse-wise Stock", "Total Stock Value"],
+    "relatedReports": ["RPT-stock_valuation", "RPT-low_stock", "RPT-inventory_register"],
+    "usedBy": ["Inventory Department", "Operations"],
+    "typicalUsers": ["Store Keeper", "Inventory Manager"],
+    "commonQuestions": [
+      "What is the stock quantity of item X?",
+      "What is the total inventory value?",
+      "Which warehouse has the most stock?",
+      "Show me stock by item category"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Ledger", "viewKey": "stock-ledger" },
+      { "name": "Stock Valuation", "viewKey": "stock-valuation" }
+    ],
+    "relatedKPIs": ["Inventory Turnover Ratio", "Stock Value", "Stock Quantity"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/stock-summary"
+  },
+  {
+    "id": "RPT-stock_ledger",
+    "name": "Stock Ledger",
+    "purpose": "Item-wise inward, outward and running stock ledger",
+    "inputs": ["Stock Transactions", "Item Master"],
+    "outputs": ["Inward Quantity", "Outward Quantity", "Running Stock Balance"],
+    "relatedReports": ["RPT-stock_summary", "RPT-stock_valuation", "RPT-inventory_register"],
+    "usedBy": ["Inventory Department"],
+    "typicalUsers": ["Store Keeper", "Inventory Executive"],
+    "commonQuestions": [
+      "What stock movements happened for item X?",
+      "What is the current stock of item X?",
+      "When was the last inward transaction?"
+    ],
+    "drilldownTargets": [
+      { "name": "Inventory Register", "viewKey": "inventory-register" },
+      { "name": "Stock Summary", "viewKey": "stock-summary" }
+    ],
+    "relatedKPIs": ["Stock Movement Count", "Average Daily Movement"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/stock-ledger"
+  },
+  {
+    "id": "RPT-stock_valuation",
+    "name": "Stock Valuation",
+    "purpose": "Weighted average inventory valuation",
+    "inputs": ["Stock Ledger", "Purchase Invoices", "Stock Transactions"],
+    "outputs": ["Weighted Average Cost", "Total Inventory Value"],
+    "relatedReports": ["RPT-stock_summary", "RPT-cogs_report"],
+    "usedBy": ["Inventory Department", "Finance"],
+    "typicalUsers": ["Inventory Manager", "Cost Accountant"],
+    "commonQuestions": [
+      "What is the current inventory valuation?",
+      "What is the weighted average cost of item X?",
+      "How has valuation changed this month?"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Summary", "viewKey": "stock-summary" },
+      { "name": "COGS Report", "viewKey": "cogs-report" }
+    ],
+    "relatedKPIs": ["Inventory Value", "Weighted Average Cost Variance"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/stock-valuation"
+  },
+  {
+    "id": "RPT-low_stock",
+    "name": "Low Stock",
+    "purpose": "Items at or below reorder level",
+    "inputs": ["Stock Ledger", "Item Master", "Reorder Levels"],
+    "outputs": ["Low Stock Items", "Reorder Quantity Suggestions"],
+    "relatedReports": ["RPT-stock_summary", "RPT-stock_ledger"],
+    "usedBy": ["Inventory Department", "Procurement"],
+    "typicalUsers": ["Store Keeper", "Procurement Officer", "Inventory Manager"],
+    "commonQuestions": [
+      "Which items need reordering?",
+      "What is the reorder level for item X?",
+      "Which items are out of stock?"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Summary", "viewKey": "stock-summary" },
+      { "name": "Stock Ledger", "viewKey": "stock-ledger" }
+    ],
+    "relatedKPIs": ["Stock-out Rate", "Reorder Fill Rate", "Low Stock Count"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/low-stock"
+  },
+  {
+    "id": "RPT-cogs_report",
+    "name": "COGS Report",
+    "purpose": "Cost of Goods Sold entries generated from stock issue",
+    "inputs": ["Stock Issue Vouchers", "Stock Valuation Data"],
+    "outputs": ["COGS by Item", "Total COGS", "COGS Journal Entries"],
+    "relatedReports": ["RPT-stock_valuation", "RPT-profit_loss", "RPT-item_profitability"],
+    "usedBy": ["Finance", "Inventory Department"],
+    "typicalUsers": ["Cost Accountant", "Finance Manager"],
+    "commonQuestions": [
+      "What is the total COGS for the period?",
+      "Which items have the highest COGS?",
+      "How does COGS compare to revenue?"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Valuation", "viewKey": "stock-valuation" },
+      { "name": "Item-wise Profitability", "viewKey": "item-profitability" }
+    ],
+    "relatedKPIs": ["COGS Ratio", "Gross Margin", "COGS Trend"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/cogs-report"
+  },
+  {
+    "id": "RPT-inventory_register",
+    "name": "Inventory Register",
+    "purpose": "Detailed inventory movement audit with source and voucher links",
+    "inputs": ["All Stock Transactions", "Voucher References"],
+    "outputs": ["Transaction Log", "Source Voucher Links", "Audit Trail"],
+    "relatedReports": ["RPT-stock_ledger", "RPT-stock_summary", "RPT-stock_valuation"],
+    "usedBy": ["Inventory Department", "Auditors"],
+    "typicalUsers": ["Auditor", "Inventory Manager", "Store Keeper"],
+    "commonQuestions": [
+      "Show all inventory movements for a date range",
+      "Which voucher caused this stock movement?",
+      "What is the audit trail for item X?"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Ledger", "viewKey": "stock-ledger" },
+      { "name": "Day Book", "viewKey": "day-book" }
+    ],
+    "relatedKPIs": ["Transaction Audit Completeness", "Movement Count"],
+    "module": "Inventory Reports",
+    "navigation": "/erp-brain/reports/inventory/inventory-register"
+  },
+  {
+    "id": "RPT-gst_register",
+    "name": "GST Register",
+    "purpose": "Output GST, input GST and payable reconciliation",
+    "inputs": ["Sales Invoices", "Purchase Invoices", "GST Ledgers"],
+    "outputs": ["Output GST", "Input GST", "Net GST Payable", "GST Reconciliation"],
+    "relatedReports": ["RPT-gst_summary", "RPT-tds_register"],
+    "usedBy": ["Accounts Department", "Compliance"],
+    "typicalUsers": ["GST Accountant", "Tax Manager", "Compliance Officer"],
+    "commonQuestions": [
+      "What is the net GST payable?",
+      "Show output GST for this period",
+      "Show input GST claimed",
+      "Is there any GST mismatch?"
+    ],
+    "drilldownTargets": [
+      { "name": "GST Summary", "viewKey": "gst-summary" },
+      { "name": "Day Book", "viewKey": "day-book" }
+    ],
+    "relatedKPIs": ["GST Payable Ratio", "Input Tax Credit Percentage", "GST Compliance Score"],
+    "module": "GST Reports",
+    "navigation": "/erp-brain/reports/gst/gst-register"
+  },
+  {
+    "id": "RPT-gst_summary",
+    "name": "GST Summary",
+    "purpose": "Purchase GST, sales GST and GST impact reporting",
+    "inputs": ["GST Ledgers", "Sales Data", "Purchase Data"],
+    "outputs": ["Purchase GST Summary", "Sales GST Summary", "GST Impact Analysis"],
+    "relatedReports": ["RPT-gst_register", "RPT-profit_loss"],
+    "usedBy": ["Accounts Department", "Management"],
+    "typicalUsers": ["GST Accountant", "Finance Manager"],
+    "commonQuestions": [
+      "What is the total GST on purchases?",
+      "What is the total GST on sales?",
+      "What is the net GST impact on profitability?"
+    ],
+    "drilldownTargets": [
+      { "name": "GST Register", "viewKey": "gst-register" },
+      { "name": "Profit & Loss", "viewKey": "profit-loss" }
+    ],
+    "relatedKPIs": ["GST-to-Revenue Ratio", "ITC Utilization Rate"],
+    "module": "GST Reports",
+    "navigation": "/erp-brain/reports/gst/gst-summary"
+  },
+  {
+    "id": "RPT-tds_register",
+    "name": "TDS Register",
+    "purpose": "Department-wise and invoice-wise TDS recovery tracking",
+    "inputs": ["Purchase Invoices", "TDS Ledgers", "Supplier Master"],
+    "outputs": ["TDS Deducted", "TDS Deposited", "TDS Certificate Status"],
+    "relatedReports": ["RPT-payables", "RPT-bill_wise_payable"],
+    "usedBy": ["Accounts Department", "Compliance"],
+    "typicalUsers": ["Tax Accountant", "Compliance Officer"],
+    "commonQuestions": [
+      "What TDS was deducted on this invoice?",
+      "Show TDS by department",
+      "Which TDS certificates are pending?"
+    ],
+    "drilldownTargets": [
+      { "name": "Payables", "viewKey": "payables" },
+      { "name": "Bill-wise Payable", "viewKey": "bill-wise-payable" }
+    ],
+    "relatedKPIs": ["TDS Compliance Rate", "TDS Deduction Accuracy"],
+    "module": "GST Reports",
+    "navigation": "/erp-brain/reports/gst/tds-register"
+  },
+  {
+    "id": "RPT-order_lifecycle",
+    "name": "Order Lifecycle",
+    "purpose": "Operational progress from order receipt to procurement, issue, billing and collection",
+    "inputs": ["Orders", "Procurement Records", "Issue Records", "Invoices", "Receipts"],
+    "outputs": ["Order Status", "Stage-wise Progress", "Cycle Time"],
+    "relatedReports": ["RPT-order_items", "RPT-billing_pending", "RPT-payment_readiness", "RPT-operations_dashboard"],
+    "usedBy": ["Operations", "Management"],
+    "typicalUsers": ["Operations Manager", "Project Manager", "Senior Management"],
+    "commonQuestions": [
+      "What is the status of order X?",
+      "Which orders are delayed?",
+      "What is the average cycle time?",
+      "Show me the lifecycle flow for an order"
+    ],
+    "drilldownTargets": [
+      { "name": "Order Items", "viewKey": "order-items" },
+      { "name": "Billing Pending", "viewKey": "billing-pending" },
+      { "name": "Payment Readiness", "viewKey": "payment-readiness" }
+    ],
+    "relatedKPIs": ["Order Cycle Time", "On-time Delivery Rate", "Order Fulfillment Rate"],
+    "module": "Operations Reports",
+    "navigation": "/erp-brain/reports/operations/order-lifecycle"
+  },
+  {
+    "id": "RPT-order_items",
+    "name": "Order Items",
+    "purpose": "Item-wise ordered quantity and billed balance",
+    "inputs": ["Order Items", "Billing Records"],
+    "outputs": ["Ordered Quantity", "Billed Quantity", "Balance Quantity"],
+    "relatedReports": ["RPT-order_lifecycle", "RPT-billing_pending"],
+    "usedBy": ["Operations", "Billing Department"],
+    "typicalUsers": ["Operations Executive", "Billing Executive"],
+    "commonQuestions": [
+      "How many items are still pending billing?",
+      "What was the ordered quantity for item X in order Y?",
+      "Show billed vs unbilled items"
+    ],
+    "drilldownTargets": [
+      { "name": "Order Lifecycle", "viewKey": "order-lifecycle" },
+      { "name": "Billing Pending", "viewKey": "billing-pending" }
+    ],
+    "relatedKPIs": ["Billing Completion Rate", "Order Item Fulfillment"],
+    "module": "Operations Reports",
+    "navigation": "/erp-brain/reports/operations/order-items"
+  },
+  {
+    "id": "RPT-billing_pending",
+    "name": "Billing Pending",
+    "purpose": "Orders where billing is pending",
+    "inputs": ["Orders", "Invoices"],
+    "outputs": ["Billing Pending Orders", "Pending Amount"],
+    "relatedReports": ["RPT-order_lifecycle", "RPT-order_items", "RPT-payment_readiness"],
+    "usedBy": ["Billing Department", "Operations"],
+    "typicalUsers": ["Billing Executive", "Operations Manager"],
+    "commonQuestions": [
+      "Which orders have pending billing?",
+      "What is the total pending billing amount?",
+      "Which orders are overdue for billing?"
+    ],
+    "drilldownTargets": [
+      { "name": "Order Lifecycle", "viewKey": "order-lifecycle" },
+      { "name": "Order Items", "viewKey": "order-items" }
+    ],
+    "relatedKPIs": ["Billing Pending Value", "Billing Delay Days"],
+    "module": "Operations Reports",
+    "navigation": "/erp-brain/reports/operations/billing-pending"
+  },
+  {
+    "id": "RPT-payment_readiness",
+    "name": "Payment Readiness",
+    "purpose": "Identify payment bottlenecks through CRAC, invoice and receipt comparison",
+    "inputs": ["Invoices", "Receipts", "CRAC Data"],
+    "outputs": ["Payment Readiness Score", "Bottleneck Analysis", "CRAC Status"],
+    "relatedReports": ["RPT-order_lifecycle", "RPT-receivables", "RPT-bill_wise_receivable"],
+    "usedBy": ["Finance", "Management"],
+    "typicalUsers": ["Finance Manager", "CFO", "Operations Manager"],
+    "commonQuestions": [
+      "What is blocking payments?",
+      "Show CRAC bottlenecks",
+      "Which payments are ready for release?",
+      "What is the payment readiness score?"
+    ],
+    "drilldownTargets": [
+      { "name": "Receivables", "viewKey": "receivables" },
+      { "name": "Bill-wise Receivable", "viewKey": "bill-wise-receivable" }
+    ],
+    "relatedKPIs": ["Payment Readiness Score", "CRAC Clearance Rate", "Bottleneck Count"],
+    "module": "Operations Reports",
+    "navigation": "/erp-brain/reports/operations/payment-readiness"
+  },
+  {
+    "id": "RPT-receivables",
+    "name": "Receivables",
+    "purpose": "Order-wise billing, receipts, balance and days outstanding",
+    "inputs": ["Orders", "Invoices", "Receipts", "Customer Master"],
+    "outputs": ["Outstanding Balance", "Days Outstanding", "Aging Analysis"],
+    "relatedReports": ["RPT-bill_wise_receivable", "RPT-receivable_ageing", "RPT-payment_readiness"],
+    "usedBy": ["Finance", "Accounts Department"],
+    "typicalUsers": ["Accounts Receivable Executive", "Finance Manager"],
+    "commonQuestions": [
+      "What is the total outstanding receivable?",
+      "Which departments have the highest outstanding?",
+      "What is the average collection period?"
+    ],
+    "drilldownTargets": [
+      { "name": "Bill-wise Receivable", "viewKey": "bill-wise-receivable" },
+      { "name": "Receivable Ageing", "viewKey": "receivable-ageing" }
+    ],
+    "relatedKPIs": ["Days Sales Outstanding", "Collection Efficiency", "Outstanding Ratio"],
+    "module": "Receivables/Payables",
+    "navigation": "/erp-brain/reports/receivables-payables/receivables"
+  },
+  {
+    "id": "RPT-payables",
+    "name": "Payables",
+    "purpose": "Supplier-wise purchase value, amount paid and balance due",
+    "inputs": ["Purchase Orders", "Purchase Invoices", "Payments", "Supplier Master"],
+    "outputs": ["Supplier Balance", "Amount Paid", "Due Amount"],
+    "relatedReports": ["RPT-bill_wise_payable", "RPT-tds_register"],
+    "usedBy": ["Finance", "Accounts Department"],
+    "typicalUsers": ["Accounts Payable Executive", "Finance Manager"],
+    "commonQuestions": [
+      "What is the total payable to suppliers?",
+      "Which suppliers are due for payment?",
+      "What is the average payment period?"
+    ],
+    "drilldownTargets": [
+      { "name": "Bill-wise Payable", "viewKey": "bill-wise-payable" },
+      { "name": "TDS Register", "viewKey": "tds-register" }
+    ],
+    "relatedKPIs": ["Days Payable Outstanding", "Payment Timeliness", "Supplier Overdue %"],
+    "module": "Receivables/Payables",
+    "navigation": "/erp-brain/reports/receivables-payables/payables"
+  },
+  {
+    "id": "RPT-bill_wise_receivable",
+    "name": "Bill-wise Receivable",
+    "purpose": "Invoice-wise department receivable reconciliation",
+    "inputs": ["Sales Invoices", "Receipts", "Department Master"],
+    "outputs": ["Invoice-wise Receivable", "Paid Amount", "Outstanding per Invoice"],
+    "relatedReports": ["RPT-receivables", "RPT-receivable_ageing"],
+    "usedBy": ["Finance", "Accounts Department"],
+    "typicalUsers": ["Accounts Receivable Executive", "Billing Executive"],
+    "commonQuestions": [
+      "What is the outstanding on invoice X?",
+      "Which invoices are partially paid?",
+      "Show me receipts against a specific invoice"
+    ],
+    "drilldownTargets": [
+      { "name": "Receivables", "viewKey": "receivables" },
+      { "name": "Receivable Ageing", "viewKey": "receivable-ageing" }
+    ],
+    "relatedKPIs": ["Invoice Clearance Rate", "Partial Payment Count"],
+    "module": "Receivables/Payables",
+    "navigation": "/erp-brain/reports/receivables-payables/bill-wise-receivable"
+  },
+  {
+    "id": "RPT-bill_wise_payable",
+    "name": "Bill-wise Payable",
+    "purpose": "Purchase bill-wise supplier payable reconciliation",
+    "inputs": ["Purchase Invoices", "Payments", "Supplier Master"],
+    "outputs": ["Bill-wise Payable", "Paid Amount", "Due per Bill"],
+    "relatedReports": ["RPT-payables", "RPT-tds_register"],
+    "usedBy": ["Finance", "Accounts Department"],
+    "typicalUsers": ["Accounts Payable Executive", "Purchase Executive"],
+    "commonQuestions": [
+      "What is the due amount on purchase bill X?",
+      "Which bills are overdue?",
+      "Show payments against a specific bill"
+    ],
+    "drilldownTargets": [
+      { "name": "Payables", "viewKey": "payables" },
+      { "name": "TDS Register", "viewKey": "tds-register" }
+    ],
+    "relatedKPIs": ["Bill Payment Rate", "Overdue Bill Count"],
+    "module": "Receivables/Payables",
+    "navigation": "/erp-brain/reports/receivables-payables/bill-wise-payable"
+  },
+  {
+    "id": "RPT-receivable_ageing",
+    "name": "Receivable Ageing",
+    "purpose": "Department invoice ageing by outstanding bucket",
+    "inputs": ["Sales Invoices", "Receipts", "Department Master"],
+    "outputs": ["Ageing Buckets", "Overdue Amount", "Aging Summary"],
+    "relatedReports": ["RPT-receivables", "RPT-bill_wise_receivable"],
+    "usedBy": ["Finance", "Management"],
+    "typicalUsers": ["Finance Manager", "Credit Controller", "CFO"],
+    "commonQuestions": [
+      "How much is overdue beyond 90 days?",
+      "Which departments have the oldest outstanding?",
+      "What is the ageing profile of receivables?"
+    ],
+    "drilldownTargets": [
+      { "name": "Receivables", "viewKey": "receivables" },
+      { "name": "Bill-wise Receivable", "viewKey": "bill-wise-receivable" }
+    ],
+    "relatedKPIs": ["Overdue Ratio", "90+ Days Outstanding %", "Collection Effectiveness Index"],
+    "module": "Receivables/Payables",
+    "navigation": "/erp-brain/reports/receivables-payables/receivable-ageing"
+  },
+  {
+    "id": "RPT-order_profitability",
+    "name": "Order Profitability",
+    "purpose": "Order-wise gross margin, GST impact, dynamic expenses, employee incentive and net company profit",
+    "inputs": ["Orders", "Billing Data", "Stock Issue Data", "Expense Data", "Employee Incentive Data"],
+    "outputs": ["Gross Margin", "Net Profit per Order", "GST Impact", "Employee Incentive", "Dynamic Expenses"],
+    "relatedReports": ["RPT-item_profitability", "RPT-profit_loss", "RPT-cogs_report"],
+    "usedBy": ["Management", "Finance"],
+    "typicalUsers": ["CFO", "Finance Manager", "Operations Manager"],
+    "commonQuestions": [
+      "What is the profitability of order X?",
+      "Which orders are the most profitable?",
+      "What is the gross margin percentage?",
+      "What is the net profit after all expenses?"
+    ],
+    "drilldownTargets": [
+      { "name": "Item-wise Profitability", "viewKey": "item-profitability" },
+      { "name": "Profit & Loss", "viewKey": "profit-loss" },
+      { "name": "COGS Report", "viewKey": "cogs-report" }
+    ],
+    "relatedKPIs": ["Gross Margin %", "Net Profit %", "Profit per Order", "Incentive-to-Profit Ratio"],
+    "module": "Profitability",
+    "navigation": "/erp-brain/reports/profitability/order-profitability"
+  },
+  {
+    "id": "RPT-item_profitability",
+    "name": "Item-wise Profitability",
+    "purpose": "Billing value compared with issued stock cost",
+    "inputs": ["Billing Data", "Stock Issue Data", "Item Master"],
+    "outputs": ["Billing Value", "Stock Cost", "Margin per Item"],
+    "relatedReports": ["RPT-order_profitability", "RPT-cogs_report"],
+    "usedBy": ["Management", "Finance"],
+    "typicalUsers": ["Finance Manager", "Product Manager"],
+    "commonQuestions": [
+      "Which items have the highest margin?",
+      "Which items are sold at a loss?",
+      "What is the margin on item X?"
+    ],
+    "drilldownTargets": [
+      { "name": "Order Profitability", "viewKey": "order-profitability" },
+      { "name": "COGS Report", "viewKey": "cogs-report" },
+      { "name": "Stock Valuation", "viewKey": "stock-valuation" }
+    ],
+    "relatedKPIs": ["Item Margin %", "Loss-making Item Count", "Revenue per Item"],
+    "module": "Profitability",
+    "navigation": "/erp-brain/reports/profitability/item-profitability"
+  },
+  {
+    "id": "RPT-operations_dashboard",
+    "name": "Operations Dashboard",
+    "purpose": "Order, procurement, billing, collection and document command center",
+    "inputs": ["Orders", "Procurement Records", "Invoices", "Receipts", "Documents"],
+    "outputs": ["Summary Metrics", "Alerts", "Pending Actions", "Performance Charts"],
+    "relatedReports": ["RPT-order_lifecycle", "RPT-billing_pending", "RPT-payment_readiness", "RPT-posting_queue"],
+    "usedBy": ["Management", "Operations"],
+    "typicalUsers": ["Operations Manager", "CEO", "COO"],
+    "commonQuestions": [
+      "What is the total order value in pipeline?",
+      "How many orders are pending billing?",
+      "What is the collection efficiency?",
+      "Show me the operations overview"
+    ],
+    "drilldownTargets": [
+      { "name": "Order Lifecycle", "viewKey": "order-lifecycle" },
+      { "name": "Billing Pending", "viewKey": "billing-pending" },
+      { "name": "Payment Readiness", "viewKey": "payment-readiness" },
+      { "name": "Posting Queue", "viewKey": "posting-queue" }
+    ],
+    "relatedKPIs": ["Pipeline Value", "Order Count", "Billing Efficiency", "Collection Ratio"],
+    "module": "Dashboard/Control",
+    "navigation": "/erp-brain/reports/dashboard/operations-dashboard"
+  },
+  {
+    "id": "RPT-inventory_dashboard",
+    "name": "Inventory Dashboard",
+    "purpose": "Stock value, low-stock alerts, reservation position and movement summary",
+    "inputs": ["Stock Ledger", "Item Master", "Reservations", "Reorder Levels"],
+    "outputs": ["Stock Value Summary", "Low Stock Alerts", "Reservation Status", "Movement Summary"],
+    "relatedReports": ["RPT-stock_summary", "RPT-low_stock", "RPT-stock_ledger"],
+    "usedBy": ["Management", "Inventory Department"],
+    "typicalUsers": ["Inventory Manager", "Operations Manager", "CEO"],
+    "commonQuestions": [
+      "What is the total inventory value?",
+      "Which items are low in stock?",
+      "What is the reservation position?",
+      "How much stock movement happened today?"
+    ],
+    "drilldownTargets": [
+      { "name": "Stock Summary", "viewKey": "stock-summary" },
+      { "name": "Low Stock", "viewKey": "low-stock" },
+      { "name": "Stock Ledger", "viewKey": "stock-ledger" }
+    ],
+    "relatedKPIs": ["Inventory Value", "Low Stock Count", "Reservation Utilization", "Movement Volume"],
+    "module": "Dashboard/Control",
+    "navigation": "/erp-brain/reports/dashboard/inventory-dashboard"
+  },
+  {
+    "id": "RPT-posting_queue",
+    "name": "Posting Queue",
+    "purpose": "Audit whether billing, procurement, receipts and expenses have posted accounting vouchers",
+    "inputs": ["Billing Records", "Procurement Records", "Receipt Records", "Expense Records", "Accounting Vouchers"],
+    "outputs": ["Posted vs Unposted Items", "Posting Gaps", "Audit Trail"],
+    "relatedReports": ["RPT-operations_dashboard", "RPT-day_book", "RPT-general_ledger"],
+    "usedBy": ["Finance", "Auditors"],
+    "typicalUsers": ["Finance Controller", "Auditor", "Accountant"],
+    "commonQuestions": [
+      "Which transactions are not yet posted?",
+      "What is the posting gap?",
+      "Show unposted billing entries",
+      "Is there any missing voucher?"
+    ],
+    "drilldownTargets": [
+      { "name": "Day Book", "viewKey": "day-book" },
+      { "name": "General Ledger", "viewKey": "general-ledger" },
+      { "name": "Operations Dashboard", "viewKey": "operations-dashboard" }
+    ],
+    "relatedKPIs": ["Posting Completeness %", "Posting Lag Days", "Unposted Transaction Count"],
+    "module": "Dashboard/Control",
+    "navigation": "/erp-brain/reports/dashboard/posting-queue"
+  }
+]

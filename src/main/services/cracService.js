@@ -3,6 +3,28 @@
  * Read-heavy operations for CRAC lifecycle management.
  */
 
+// Every CRAC write is audited inside its own transaction, so a write and its audit row are
+// saved together or not at all. The go-live rollback guard relies on these rows. The
+// caller passes its audit writer (main.js passes init.js auditLog).
+// There is no silent default: a caller that forgets the writer is told at once.
+function noAudit() {
+  throw new Error("CRAC write refused: no audit writer was passed, so this change could not be recorded. Nothing was changed.");
+}
+
+function auditCrac(audit, action, oldRecord, newRecord) {
+  const record = newRecord || oldRecord;
+  audit({
+    company_id: record?.company_id || null,
+    action,
+    module: "crac",
+    table_name: "crac_records",
+    record_id: record?.id || null,
+    old_value: oldRecord ? JSON.stringify(oldRecord) : null,
+    // A CRAC also writes its details onto the supply order; the row names that order.
+    new_value: JSON.stringify({ record: newRecord || null, supply_order_id: record?.supply_order_id || null })
+  });
+}
+
 /**
  * List CRAC records with optional filters.
  * @param {object} db - SQLite database handle
@@ -53,20 +75,23 @@ export function getCracRecord(db, id) {
  * @param {object} payload - CRAC record fields
  * @returns {object} Created CRAC record
  */
-export function createCracRecord(db, payload) {
-  const companyId = Number(payload.company_id || 0);
-  if (!companyId) throw new Error("Company context is required for CRAC creation");
-  if (!payload.supply_order_id) throw new Error("Supply order is required for CRAC");
-  const fields = ["company_id", "supply_order_id", "department_id", "invoice_id", "crac_number", "crac_date", "crac_amount", "crac_status", "issued_by", "issuing_designation", "department", "remarks", "created_by"];
-  const data = { company_id: companyId, supply_order_id: payload.supply_order_id, department_id: payload.department_id || null, invoice_id: payload.invoice_id || null, crac_number: payload.crac_number || null, crac_date: payload.crac_date || null, crac_amount: Number(payload.crac_amount || 0), crac_status: payload.crac_status || "Pending", issued_by: payload.issued_by || null, issuing_designation: payload.issuing_designation || null, department: payload.department || null, remarks: payload.remarks || null, created_by: payload.created_by || null };
-  const columns = fields.filter((f) => data[f] !== undefined);
-  const placeholders = columns.map((c) => `@${c}`);
-  const result = db.prepare(`INSERT INTO crac_records (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`).run(data);
-  const record = db.prepare("SELECT * FROM crac_records WHERE id = ?").get(result.lastInsertRowid);
-  if (record && data.crac_status === "Generated") {
-    db.prepare("UPDATE supply_orders SET crac_status = 'Generated', crac_number = ?, crac_date = ?, crac_amount = ?, crac_issued_by = ?, crac_issuing_designation = ?, crac_department = ?, crac_remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(data.crac_number, data.crac_date, data.crac_amount, data.issued_by, data.issuing_designation, data.department, data.remarks, data.supply_order_id);
-  }
-  return record;
+export function createCracRecord(db, payload, audit = noAudit) {
+  return db.transaction(() => {
+    const companyId = Number(payload.company_id || 0);
+    if (!companyId) throw new Error("Company context is required for CRAC creation");
+    if (!payload.supply_order_id) throw new Error("Supply order is required for CRAC");
+    const fields = ["company_id", "supply_order_id", "department_id", "invoice_id", "crac_number", "crac_date", "crac_amount", "crac_status", "issued_by", "issuing_designation", "department", "remarks", "created_by"];
+    const data = { company_id: companyId, supply_order_id: payload.supply_order_id, department_id: payload.department_id || null, invoice_id: payload.invoice_id || null, crac_number: payload.crac_number || null, crac_date: payload.crac_date || null, crac_amount: Number(payload.crac_amount || 0), crac_status: payload.crac_status || "Pending", issued_by: payload.issued_by || null, issuing_designation: payload.issuing_designation || null, department: payload.department || null, remarks: payload.remarks || null, created_by: payload.created_by || null };
+    const columns = fields.filter((f) => data[f] !== undefined);
+    const placeholders = columns.map((c) => `@${c}`);
+    const result = db.prepare(`INSERT INTO crac_records (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`).run(data);
+    const record = db.prepare("SELECT * FROM crac_records WHERE id = ?").get(result.lastInsertRowid);
+    if (record && data.crac_status === "Generated") {
+      db.prepare("UPDATE supply_orders SET crac_status = 'Generated', crac_number = ?, crac_date = ?, crac_amount = ?, crac_issued_by = ?, crac_issuing_designation = ?, crac_department = ?, crac_remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(data.crac_number, data.crac_date, data.crac_amount, data.issued_by, data.issuing_designation, data.department, data.remarks, data.supply_order_id);
+    }
+    auditCrac(audit, "crac_created", null, record);
+    return record;
+  })();
 }
 
 /**
@@ -76,26 +101,29 @@ export function createCracRecord(db, payload) {
  * @param {object} payload - Fields to update
  * @returns {object} Updated CRAC record
  */
-export function updateCracRecord(db, id, payload) {
-  const existing = db.prepare("SELECT * FROM crac_records WHERE id = ? AND is_deleted = 0").get(id);
-  if (!existing) throw new Error("CRAC record not found");
-  const allowed = ["crac_number", "crac_date", "crac_amount", "crac_status", "issued_by", "issuing_designation", "department", "remarks", "invoice_id"];
-  const updates = [];
-  const params = { id };
-  allowed.forEach((field) => {
-    if (payload[field] !== undefined) {
-      updates.push(`${field} = @${field}`);
-      params[field] = payload[field];
+export function updateCracRecord(db, id, payload, audit = noAudit) {
+  return db.transaction(() => {
+    const existing = db.prepare("SELECT * FROM crac_records WHERE id = ? AND is_deleted = 0").get(id);
+    if (!existing) throw new Error("CRAC record not found");
+    const allowed = ["crac_number", "crac_date", "crac_amount", "crac_status", "issued_by", "issuing_designation", "department", "remarks", "invoice_id"];
+    const updates = [];
+    const params = { id };
+    allowed.forEach((field) => {
+      if (payload[field] !== undefined) {
+        updates.push(`${field} = @${field}`);
+        params[field] = payload[field];
+      }
+    });
+    if (updates.length) {
+      db.prepare(`UPDATE crac_records SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run(params);
     }
-  });
-  if (updates.length) {
-    db.prepare(`UPDATE crac_records SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = @id`).run(params);
-  }
-  const record = db.prepare("SELECT * FROM crac_records WHERE id = ?").get(id);
-  if (record && record.crac_status === "Generated" && record.supply_order_id) {
-    db.prepare("UPDATE supply_orders SET crac_status = 'Generated', crac_number = ?, crac_date = ?, crac_amount = ?, crac_issued_by = ?, crac_issuing_designation = ?, crac_department = ?, crac_remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(record.crac_number, record.crac_date, record.crac_amount, record.issued_by, record.issuing_designation, record.department, record.remarks, record.supply_order_id);
-  }
-  return record;
+    const record = db.prepare("SELECT * FROM crac_records WHERE id = ?").get(id);
+    if (record && record.crac_status === "Generated" && record.supply_order_id) {
+      db.prepare("UPDATE supply_orders SET crac_status = 'Generated', crac_number = ?, crac_date = ?, crac_amount = ?, crac_issued_by = ?, crac_issuing_designation = ?, crac_department = ?, crac_remarks = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(record.crac_number, record.crac_date, record.crac_amount, record.issued_by, record.issuing_designation, record.department, record.remarks, record.supply_order_id);
+    }
+    auditCrac(audit, "crac_updated", existing, record);
+    return record;
+  })();
 }
 
 /**
@@ -104,13 +132,16 @@ export function updateCracRecord(db, id, payload) {
  * @param {number} id - CRAC record ID
  * @param {number} deletedBy - User ID
  */
-export function deleteCracRecord(db, id, deletedBy) {
-  const existing = db.prepare("SELECT * FROM crac_records WHERE id = ? AND is_deleted = 0").get(id);
-  if (!existing) throw new Error("CRAC record not found");
-  db.prepare("UPDATE crac_records SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?").run(deletedBy || null, id);
-  if (existing.supply_order_id) {
-    db.prepare("UPDATE supply_orders SET crac_status = 'Not Required', crac_number = NULL, crac_date = NULL, crac_amount = 0, crac_issued_by = NULL, crac_issuing_designation = NULL, crac_department = NULL, crac_remarks = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(existing.supply_order_id);
-  }
+export function deleteCracRecord(db, id, deletedBy, audit = noAudit) {
+  db.transaction(() => {
+    const existing = db.prepare("SELECT * FROM crac_records WHERE id = ? AND is_deleted = 0").get(id);
+    if (!existing) throw new Error("CRAC record not found");
+    db.prepare("UPDATE crac_records SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, deleted_by = ? WHERE id = ?").run(deletedBy || null, id);
+    if (existing.supply_order_id) {
+      db.prepare("UPDATE supply_orders SET crac_status = 'Not Required', crac_number = NULL, crac_date = NULL, crac_amount = 0, crac_issued_by = NULL, crac_issuing_designation = NULL, crac_department = NULL, crac_remarks = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(existing.supply_order_id);
+    }
+    auditCrac(audit, "crac_deleted", existing, null);
+  })();
 }
 
 /**

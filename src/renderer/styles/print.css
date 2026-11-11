@@ -1,0 +1,59 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body.erp-printing {
+    background: #fff;
+  }
+
+  body.erp-printing .app-shell > aside,
+  body.erp-printing .app-shell > main,
+  body.erp-printing .toast,
+  body.erp-printing .print-preview-toolbar {
+    display: none !important;
+  }
+
+  body.erp-printing .modal-backdrop {
+    position: static;
+    inset: auto;
+    display: block;
+    padding: 0;
+    background: #fff;
+  }
+
+  body.erp-printing .print-preview-dialog {
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  body.erp-printing .print-preview-page {
+    width: auto;
+    min-height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  body.erp-printing .print-page-content .panel,
+  body.erp-printing .print-page-content .table-wrap {
+    border-color: #cfd8df;
+    overflow: visible;
+  }
+
+  body.erp-printing .print-page-content {
+    padding-top: 14px;
+  }
+
+  body.erp-printing .print-page-content th,
+  body.erp-printing .print-page-content td {
+    font-size: 11px;
+    padding: 5px 6px;
+  }
+}

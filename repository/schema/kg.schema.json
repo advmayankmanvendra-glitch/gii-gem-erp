@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:gii-gem-erp:kg-1:schema:1.0.0",
+  "title": "KG-1 Metadata Registry Schema",
+  "description": "Versioned JSON Schema for the KG-1 Metadata Registry. Frozen at schemaVersion 1.0.0.",
+  "type": "object",
+  "schemaVersion": "1.0.0",
+  "graphId": "KG-1",
+  "required": [
+    "schemaVersion", "graphId", "generatedAt", "owner", "description",
+    "dependencies", "relationships", "risk", "metadata", "statistics",
+    "compatibility", "futureExtensions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the KG-1 schema.",
+      "enum": ["1.0.0"]
+    },
+    "graphId": {
+      "type": "string",
+      "description": "Unique graph identifier.",
+      "enum": ["KG-1"]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of last update."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owning team or module."
+    },
+    "description": {
+      "type": "string",
+      "description": "Purpose of this registry."
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Dependencies on other intelligence layers.",
+      "properties": {
+        "references": {
+          "type": "array",
+          "description": "List of graph IDs that KG-1 depends on.",
+          "items": { "type": "string" }
+        },
+        "dependedBy": {
+          "type": "array",
+          "description": "List of graph IDs that depend on KG-1.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "relationships": {
+      "type": "object",
+      "description": "Cross-module relationship counts.",
+      "properties": {
+        "entriesWithReports": { "type": "integer" },
+        "entriesWithDashboards": { "type": "integer" },
+        "entriesWithModules": { "type": "integer" },
+        "totalCrossReferences": { "type": "integer" }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "description": "Risk metadata for the registry.",
+      "properties": {
+        "overallRiskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "entriesByRiskLevel": { "type": "object" },
+        "entriesByStatus": { "type": "object" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Registry metadata.",
+      "required": ["name", "version", "lastUpdated", "totalEntries", "modules"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "totalEntries": { "type": "integer" },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "prefix": { "type": "string" },
+              "entryCount": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Aggregate statistics for the registry.",
+      "properties": {
+        "entriesByScreenType": { "type": "object" },
+        "entriesByModuleGroup": { "type": "object" },
+        "entriesByRiskLevel": { "type": "object" },
+        "entriesByStatus": { "type": "object" },
+        "accountingImpactCount": { "type": "integer" },
+        "gstImpactCount": { "type": "integer" },
+        "inventoryImpactCount": { "type": "integer" },
+        "profitabilityImpactCount": { "type": "integer" },
+        "orphanEntries": { "type": "integer" },
+        "orphanDetails": { "type": "array" }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "description": "Compatibility and versioning policy.",
+      "properties": {
+        "schemaVersion": { "type": "string" },
+        "backwardCompatible": { "type": "boolean" },
+        "allowedChanges": { "type": "array", "items": { "type": "string" } },
+        "breakingChanges": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "futureExtensions": {
+      "type": "object",
+      "description": "Planned future additions.",
+      "properties": {
+        "nextVersion": { "type": "string" },
+        "plannedAdditions": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      }
+    },
+    "entrySchema": {
+      "type": "object",
+      "description": "Schema for individual KG-1 metadata entries.",
+      "required": ["id", "title", "moduleGroup", "screenType", "purpose", "riskLevel", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^KNG-(MST|OPS|INV|ACC|GST|REC|RPT|DSH|UTL|HLP)-\\d{3}$", "description": "Unique identifier with module prefix." },
+        "title": { "type": "string", "description": "Display name." },
+        "moduleGroup": { "type": "string", "description": "Group this entry belongs to." },
+        "routeKey": { "type": "string", "description": "View/route key if applicable." },
+        "screenType": { "type": "string", "enum": ["Master", "Transaction", "Register", "Report", "Dashboard", "Utility", "Help", "Migration", "Control"], "description": "Classification of the screen." },
+        "purpose": { "type": "string", "description": "What this module/screen does." },
+        "dataEnteredHere": { "type": "array", "items": { "type": "string" }, "description": "Fields/data entered on this screen." },
+        "dataComesFrom": { "type": "array", "items": { "type": "string" }, "description": "Sources that feed data into this screen." },
+        "feedsInto": { "type": "array", "items": { "type": "string" }, "description": "Modules/screens that consume data from this." },
+        "sourceTables": { "type": "array", "items": { "type": "string" }, "description": "Database tables read by this screen." },
+        "dependentTables": { "type": "array", "items": { "type": "string" }, "description": "Database tables written by this screen." },
+        "relatedModules": { "type": "array", "items": { "type": "string" }, "description": "Related module IDs." },
+        "relatedReports": { "type": "array", "items": { "type": "string" }, "description": "Related report IDs." },
+        "relatedDashboards": { "type": "array", "items": { "type": "string" }, "description": "Related dashboard IDs." },
+        "accountingImpact": { "type": "string", "description": "Description of accounting impact." },
+        "gstImpact": { "type": "string", "description": "Description of GST impact." },
+        "inventoryImpact": { "type": "string", "description": "Description of inventory impact." },
+        "profitabilityImpact": { "type": "string", "description": "Description of profitability impact." },
+        "correctionPolicy": { "type": "string", "description": "How corrections are handled." },
+        "editDeletePolicy": { "type": "string", "description": "Edit/delete restrictions." },
+        "riskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"], "description": "Risk classification." },
+        "permissions": { "type": "array", "items": { "type": "string" }, "description": "Required permissions." },
+        "helpTopics": { "type": "array", "items": { "type": "string" }, "description": "Related help topics." },
+        "auditEvents": { "type": "array", "items": { "type": "string" }, "description": "Audit events logged for this screen." },
+        "verificationChecks": { "type": "array", "items": { "type": "string" }, "description": "Verification checks applicable." },
+        "status": { "type": "string", "enum": ["Active", "Partial", "Planned", "Deprecated"], "description": "Current status." }
+      }
+    },
+    "idPrefixes": {
+      "type": "object",
+      "description": "Module-to-ID prefix mapping.",
+      "properties": {
+        "masters": { "type": "string", "enum": ["KNG-MST"] },
+        "operations": { "type": "string", "enum": ["KNG-OPS"] },
+        "inventory": { "type": "string", "enum": ["KNG-INV"] },
+        "accounting": { "type": "string", "enum": ["KNG-ACC"] },
+        "gstTax": { "type": "string", "enum": ["KNG-GST"] },
+        "receivablesPayables": { "type": "string", "enum": ["KNG-REC"] },
+        "reports": { "type": "string", "enum": ["KNG-RPT"] },
+        "dashboards": { "type": "string", "enum": ["KNG-DSH"] },
+        "utilities": { "type": "string", "enum": ["KNG-UTL"] },
+        "helpTraining": { "type": "string", "enum": ["KNG-HLP"] }
+      }
+    }
+  }
+}

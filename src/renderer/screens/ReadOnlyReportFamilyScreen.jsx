@@ -346,7 +346,11 @@ export function buildReadOnlyReportFamilyConfig(view, data = {}) {
     const summary = data.balanceSheet || {};
     return {
       title: `Balance Sheet - Assets ${formatCurrency(summary.assets || 0)} / Liabilities+Equity ${formatCurrency(summary.liabilitiesAndEquity || 0)}`,
-      rows: enrichAccountingRows(summary.rows || []),
+      rows: [
+        ...enrichAccountingRows(summary.rows || []),
+        { account_code: "P&L", account_name: "Profit for the current year", account_type: "Equity", amount: summary.currentProfit || 0 },
+        ...(Number(summary.unclosedPriorProfit || 0) ? [{ account_code: "P&L", account_name: "Profit of earlier years (year not yet closed)", account_type: "Equity", amount: summary.unclosedPriorProfit }] : [])
+      ],
       columns: [
         { key: "account_code", label: "Code" },
         { key: "account_name", label: "Account" },
@@ -423,6 +427,8 @@ export function ReadOnlyReportFamilyTable({
 
 function renderReadOnlyReportCell(row, column, handlers) {
   if (column.type === "drill_account") {
+    // Summary rows such as current-year profit have no ledger account to open.
+    if (!row.id && !row.account_id) return null;
     return (
       <button className="ghost-btn small-btn" type="button" onClick={() => handlers.onDrillAccount?.(row)}>
         Ledger

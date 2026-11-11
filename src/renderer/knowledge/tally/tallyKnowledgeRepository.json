@@ -1,0 +1,629 @@
+{
+  "schemaVersion": "2.0",
+  "graphId": "air-v2",
+  "name": "Accounting Intelligence Repository (AIR)",
+  "generatedAt": "2026-07-01T00:00:00.000Z",
+  "owner": "gii-erp",
+  "description": "Enterprise-wide accounting intelligence repository. Maps TallyPrime entities to ERP workflows, screens, database, accounting/inventory/GST impacts, reports, and AI explanations. Designed to extend to other source ERPs (Busy, Marg, SAP, Oracle, QuickBooks, Zoho Books).",
+  "dependencies": ["tally-installation-map", "kg-1", "rg-1"],
+  "metadata": {
+    "tallyVersion": "TallyPrime v1.1.7",
+    "companyName": "GESTURE INDIA INFRASTRUCTURE PRIVATE LIMITED",
+    "companyGSTIN": "10AAJCG3823D1Z7",
+    "companyState": "Bihar",
+    "tallyInstallPath": "C:\\Program Files\\TallyPrime",
+    "dataPath": "C:\\Users\\Public\\TallyPrime\\data",
+    "odbcPort": 9000,
+    "entityTypesCovered": ["GROUP","LEDGER","STOCKITEM","STOCKGROUP","VOUCHER","VOUCHERTYPE","UNIT","COSTCENTRE","GODOWN","COSTCATEGORY"],
+    "conceptualPatternEntities": ["LEDGER", "VOUCHER"],
+    "fieldClassification": {
+      "A_Required": "Must be mapped for accurate migration",
+      "B_Useful": "Keep as optional; enhances ERP functionality",
+      "C_Ignore": "Internal Tally behavior; no migration needed"
+    }
+  },
+  "entityTypes": {
+    "GROUP": {
+      "giiModule": "Master",
+      "risk": "P0",
+      "fieldMapping": {
+        "NAME": { "giiField": "group_name", "target": "Group Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "parent_group_id", "target": "Group Master", "type": "reference", "required": false, "classification": "A" },
+        "ISBILLWISEON": { "giiField": "bill_wise_tracking", "target": "Group Master", "type": "boolean", "required": false, "classification": "B" },
+        "ISCOSTCENTRESON": { "giiField": "cost_centre_tracking", "target": "Group Master", "type": "boolean", "required": false, "classification": "B" },
+        "ISDEEMEDPOSITIVE": { "giiField": "is_deemed_positive", "target": "Group Master", "type": "boolean", "required": false, "classification": "A" },
+        "AFFECTSGROSSPROFIT": { "giiField": "affects_gross_profit", "target": "Group Master", "type": "boolean", "required": false, "classification": "A" },
+        "SORTPOSITION": { "giiField": "sort_order", "target": "Group Master", "type": "integer", "required": false, "classification": "C" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Group Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Group Master", "type": "string", "required": false, "classification": "B" },
+        "OBJECTUPDATEACTION": { "giiField": null, "target": null, "type": "string", "required": false, "classification": "C" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {
+        "Sundry Debtors": "receivable",
+        "Sundry Creditors": "payable",
+        "Bank Accounts": "bank",
+        "Cash-in-Hand": "cash",
+        "Sales Accounts": "income",
+        "Purchase Accounts": "expense",
+        "Fixed Assets": "fixed_asset",
+        "Current Assets": "current_asset",
+        "Current Liabilities": "current_liability",
+        "Direct Incomes": "income",
+        "Indirect Incomes": "income",
+        "Direct Expenses": "expense",
+        "Indirect Expenses": "expense",
+        "Capital Account": "equity",
+        "Loans (Liability)": "liability",
+        "Branch / Divisions": "equity",
+        "Reserves & Surplus": "equity",
+        "Suspense A/c": "suspense",
+        "Misc. Expenses (ASSET)": "current_asset",
+        "Duties & Taxes": "current_liability",
+        "Provisions": "current_liability",
+        "Stock-in-Hand": "current_asset",
+        "Investments": "fixed_asset",
+        "Secured Loans": "liability",
+        "Unsecured Loans": "liability",
+        "GEM Debtors": "receivable",
+        "GEM Creditors": "payable"
+      },
+      "voucherTypeMapping": {},
+      "concept": {
+        "name": "Group (Account Head)",
+        "description": "A classification category that organizes ledgers into functional groups for reporting and hierarchy.",
+        "businessContext": "Groups define the structure of the Chart of Accounts. Every ledger belongs to exactly one group. Groups determine financial statement placement (Balance Sheet vs P&L), debit/credit nature, and reporting behaviour.",
+        "erpModule": "Chart of Accounts",
+        "sourceSystem": "TallyPrime"
+      },
+      "workflow": {
+        "creationPath": "Chart of Accounts → Group → Add Group",
+        "involvedScreens": ["Chart of Accounts", "Chart of Accounts Group Master"],
+        "businessProcesses": ["Chart of Accounts Design", "Financial Year Setup", "Migration Data Load"]
+      },
+      "accountingImpact": {
+        "debitNature": "Depends on group type (Asset/Expense = debit; Liability/Income = credit)",
+        "creditNature": "Inverse of debit nature",
+        "affectsTrialBalance": true,
+        "affectsBalanceSheet": true,
+        "affectsProfitAndLoss": true,
+        "notes": "Primary groups directly determine financial statement placement. Sub-groups inherit parent behaviour unless overridden."
+      },
+      "inventoryImpact": {
+        "hasImpact": false
+      },
+      "gstImpact": {
+        "hasImpact": false,
+        "notes": "Groups do not carry GST data directly. GST is configured at the ledger level."
+      },
+      "reports": {
+        "primaryReports": ["Group Summary", "Group Voucher Summary"],
+        "financialReports": ["Trial Balance", "Balance Sheet", "Profit & Loss Account"],
+        "reportingImpact": "Group hierarchy determines the drill-down structure in all financial reports"
+      },
+      "aiExplanation": {
+        "simpleDefinition": "A group is a folder that organises ledgers by function for reporting.",
+        "businessContext": "Think of it like departments in an office — all Sales ledgers go under 'Sales Accounts', all bank accounts under 'Bank Accounts'.",
+        "relatedConcepts": ["Ledger", "Chart of Accounts", "Trial Balance"],
+        "commonQuestions": ["Which group does this ledger belong to?", "Show all groups and their ledgers"]
+      }
+    },
+    "LEDGER": {
+      "giiModule": "Accounting",
+      "risk": "P0",
+      "fieldMapping": {
+        "NAME": { "giiField": "ledger_name", "target": "Ledger Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "group_id", "target": "Ledger Master", "type": "reference", "required": true, "classification": "A" },
+        "OPENINGBALANCE": { "giiField": "opening_balance", "target": "Ledger Master", "type": "number", "required": false, "classification": "A" },
+        "OBSTATUS": { "giiField": "opening_balance_type", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "CURRENCYNAME": { "giiField": "currency", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "ISBILLWISEON": { "giiField": "bill_wise_tracking", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "B" },
+        "ISCOSTCENTRESON": { "giiField": "cost_centre_tracking", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "B" },
+        "MAILINGNAME": { "giiField": "contact_person", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "ADDRESS": { "giiField": "address", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "STATE": { "giiField": "state", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "COUNTRY": { "giiField": "country", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "PINCODE": { "giiField": "pincode", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "GSTREGISTRATIONTYPE": { "giiField": "gst_registration_type", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "PLACEOFSUPPLY": { "giiField": "place_of_supply", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "GSTIN": { "giiField": "gstin", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "PARTYGSTIN": { "giiField": "party_gstin", "target": "Ledger Master", "type": "string", "required": false, "classification": "A" },
+        "PRIORSTATENAME": { "giiField": "prior_state_name", "target": "Ledger Master", "type": "string", "required": false, "classification": "C" },
+        "STARTINGFROM": { "giiField": "effective_from", "target": "Ledger Master", "type": "date", "required": false, "classification": "B" },
+        "COUNTRYOFRESIDENCE": { "giiField": "country_of_residence", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "VATDEALERTYPE": { "giiField": "vat_dealer_type", "target": "Ledger Master", "type": "string", "required": false, "classification": "C" },
+        "GSTTYPE": { "giiField": "gst_type", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "GSTTYPEOFSUPPLY": { "giiField": "gst_type_of_supply", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "GSTNATUREOFSUPPLY": { "giiField": "gst_nature_of_supply", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "TAXCLASSIFICATIONNAME": { "giiField": "tax_classification", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "ISCOMMONPARTY": { "giiField": "is_common_party", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "C" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Ledger Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Ledger Master", "type": "string", "required": false, "classification": "B" },
+        "SORTPOSITION": { "giiField": "sort_order", "target": "Ledger Master", "type": "integer", "required": false, "classification": "C" },
+        "LANGUAGEID": { "giiField": "language_id", "target": "Ledger Master", "type": "integer", "required": false, "classification": "C" },
+        "OBJECTUPDATEACTION": { "giiField": null, "target": null, "type": "string", "required": false, "classification": "C" },
+        "TAXTYPE": { "giiField": "tax_type", "target": "Ledger Master", "type": "string", "required": false, "classification": "C" },
+        "ISDELETED": { "giiField": "is_deleted", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "C" },
+        "AFFECTSSTOCK": { "giiField": "affects_stock", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "C" },
+        "ISGSTAPPLICABLE": { "giiField": "is_gst_applicable", "target": "Ledger Master", "type": "boolean", "required": false, "classification": "B" },
+        "APPLICABLEFROM": { "giiField": "applicable_from", "target": "Ledger Master", "type": "date", "required": false, "classification": "B" }
+      },
+      "requiredFields": ["NAME", "PARENT"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {},
+      "concept": {
+        "name": "Ledger (Account)",
+        "description": "An individual account within a group that records all financial transactions for a specific entity or head.",
+        "businessContext": "Every party (customer, supplier, employee), bank account, expense head, and income head is a ledger. Ledgers are the atomic unit of accounting — all voucher entries reference ledgers.",
+        "erpModule": "Ledger Master / Party Master",
+        "sourceSystem": "TallyPrime",
+        "universalEquivalent": {
+          "sap": "Customer/Vendor/GL Account",
+          "oracle": "Customer/Supplier/Account",
+          "quickbooks": "Customer/Vendor/Chart of Accounts",
+          "zoho": "Contact/Account"
+        }
+      },
+      "workflow": {
+        "creationPath": "Chart of Accounts → Ledger → Add Ledger (or Create Party)",
+        "involvedScreens": [
+          "Chart of Accounts (creation)",
+          "Ledger Master (review/edit)",
+          "Party Ledger (if Sundry Debtors/Creditors)",
+          "Voucher Entry (when referenced)"
+        ],
+        "voucherPostingPath": "Ledger → Voucher Entry → Ledger Entry Receivable/Payable → Outstanding Management",
+        "businessProcesses": [
+          "Party Onboarding (customer/supplier setup)",
+          "Chart of Accounts Maintenance",
+          "Opening Balance Loading",
+          "GST Registration Setup for E-Way Bill / E-Invoice"
+        ],
+        "lifecycleEvents": [
+          "Creation → Opening Balance Entry → Regular Transaction Posting → Period-End Reconciliation → Closing Transfer"
+        ]
+      },
+      "database": {
+        "primaryTable": "Ledger Master",
+        "relatedTables": [
+          "ledger_entries (voucher line items)",
+          "vouchers (parent transaction headers)",
+          "receivables (outstanding tracking)",
+          "payables (outstanding tracking)",
+          "gst_details (GSTIN, HSN mapping)"
+        ],
+        "keyFields": {
+          "ledger_name": { "source": "NAME", "type": "varchar", "classification": "A" },
+          "group_id": { "source": "PARENT", "type": "integer (FK)", "classification": "A" },
+          "opening_balance": { "source": "OPENINGBALANCE", "type": "decimal", "classification": "A" },
+          "opening_balance_type": { "source": "OBSTATUS", "type": "varchar(2)", "classification": "A" },
+          "gstin": { "source": "GSTIN", "type": "varchar(15)", "classification": "A" },
+          "gst_registration_type": { "source": "GSTREGISTRATIONTYPE", "type": "varchar(20)", "classification": "A" },
+          "place_of_supply": { "source": "PLACEOFSUPPLY", "type": "varchar(50)", "classification": "A" },
+          "state": { "source": "STATE", "type": "varchar(50)", "classification": "A" },
+          "currency": { "source": "CURRENCYNAME", "type": "varchar(10)", "classification": "A" },
+          "bill_wise_tracking": { "source": "ISBILLWISEON", "type": "boolean", "classification": "B" },
+          "cost_centre_tracking": { "source": "ISCOSTCENTRESON", "type": "boolean", "classification": "B" },
+          "legacy_id": { "source": "ALTERID", "type": "integer", "classification": "B" },
+          "legacy_guid": { "source": "GUID", "type": "varchar(40)", "classification": "B" }
+        }
+      },
+      "accountingImpact": {
+        "debitEntries": "Debit increases asset/expense ledgers; debit decreases liability/income ledgers.",
+        "creditEntries": "Credit increases liability/income ledgers; credit decreases asset/expense ledgers.",
+        "affectsTrialBalance": true,
+        "affectsBalanceSheet": true,
+        "affectsProfitAndLoss": true,
+        "affectsCashFlow": true,
+        "affectsReceivables": "Only if parent group is Sundry Debtors or GEM Debtors",
+        "affectsPayables": "Only if parent group is Sundry Creditors or GEM Creditors",
+        "accountingEffectDetails": {
+          "onCreate": "Adds row to Ledger Master. Opening balance (if any) creates initial ledger entry.",
+          "onVoucherPost": "Creates debit/credit entries in ledger_entries. Updates outstanding for bill-wise ledgers.",
+          "onPeriodEnd": "Closing balance calculated from all entries. Used in Trial Balance, P&L, Balance Sheet."
+        },
+        "entriesInvolved": ["ledger_entries (one per voucher line)", "receivables/payables (if bill-wise)"]
+      },
+      "inventoryImpact": {
+        "hasImpact": false,
+        "conditions": "Only affects stock if parent group is Purchase/Sales and AFFECTSSTOCK is enabled.",
+        "notes": "Inventory impact is indirect — ledgers record the value, stock items record the quantity."
+      },
+      "gstImpact": {
+        "hasGstImpact": true,
+        "gstFields": ["GSTIN", "GSTREGISTRATIONTYPE", "PLACEOFSUPPLY", "GSTTYPEOFSUPPLY", "GSTNATUREOFSUPPLY"],
+        "affectsGstReturns": true,
+        "gstRelevantFor": ["GST Input (purchases from registered dealers)", "GST Output (sales to registered dealers)", "GST TDS/TCS (government transactions)", "E-Way Bill generation", "E-Invoice generation"],
+        "gstValidationRules": ["GSTIN must be 15 characters (if populated)", "GST Registration Type must be Regular/Composition/Unregistered", "Place of Supply determines IGST vs CGST+SGST"]
+      },
+      "reports": {
+        "primaryReports": ["Ledger Report", "Ledger Voucher Summary", "Party Outstanding"],
+        "financialReports": ["Trial Balance (all ledgers aggregated)", "Balance Sheet (asset/liability ledgers)", "Profit & Loss Account (income/expense ledgers)", "Cash Flow Statement (bank/cash ledgers)"],
+        "regulatoryReports": ["GST Return (party-wise summary)", "TCS Return (government party transactions)", "E-Way Bill (inter-state party movements)"],
+        "operationalReports": ["Receivable Ageing", "Payable Ageing", "Party-wise Outstanding", "Department-wise Summary"],
+        "dashboardWidgets": ["Outstanding Summary", "Top Parties by Volume", "Overdue Receivables"],
+        "reportingImpact": "Modifying a ledger affects all historical and future reports. Group reclassification re-states financial statements."
+      },
+      "aiExplanation": {
+        "simpleDefinition": "A ledger is an account that tracks all money movement for a person, company, bank, or expense head.",
+        "businessContext": "If a customer buys goods, their ledger shows how much they owe, what they paid, and what remains due. If you open a bank account, that bank's ledger shows every deposit and withdrawal.",
+        "relatedConcepts": ["Group", "Voucher", "Receivable", "Payable", "Trial Balance", "GST Register", "Outstanding Report"],
+        "commonQuestions": [
+          "What is the current outstanding balance for this party?",
+          "Show all transactions in this ledger for April 2026",
+          "Why does this ledger appear in the Balance Sheet?",
+          "Is this party registered under GST?"
+        ],
+        "impactExplanation": "Changing a ledger's group moves it to a different section of financial statements. Moving 'Rent' from Indirect Expenses to Direct Expenses reclassifies P&L. Changing a party's GSTIN affects all future invoice validations and GST returns.",
+        "helpAssistantIntegration": "Searchable via Help Assistant by ledger name, party name, group, GSTIN. Shows outstanding, ageing, and recent transactions."
+      }
+    },
+    "STOCKITEM": {
+      "giiModule": "Inventory",
+      "risk": "P0",
+      "fieldMapping": {
+        "NAME": { "giiField": "item_name", "target": "Item Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "stock_group_id", "target": "Item Master", "type": "reference", "required": false, "classification": "A" },
+        "CATEGORY": { "giiField": "category_id", "target": "Item Master", "type": "reference", "required": false, "classification": "A" },
+        "BASEUNITS": { "giiField": "base_uom", "target": "Item Master", "type": "string", "required": true, "classification": "A" },
+        "ADDITIONALUNITS": { "giiField": "additional_uom", "target": "Item Master", "type": "string", "required": false, "classification": "B" },
+        "COSTINGMETHOD": { "giiField": "costing_method", "target": "Item Master", "type": "string", "required": false, "classification": "A" },
+        "VALUATIONMETHOD": { "giiField": "valuation_method", "target": "Item Master", "type": "string", "required": false, "classification": "A" },
+        "GSTAPPLICABLE": { "giiField": "is_gst_applicable", "target": "Item Master", "type": "boolean", "required": false, "classification": "A" },
+        "TAXCLASSIFICATIONNAME": { "giiField": "tax_classification", "target": "Item Master", "type": "string", "required": false, "classification": "A" },
+        "GSTTYPEOFSUPPLY": { "giiField": "gst_type_of_supply", "target": "Item Master", "type": "string", "required": false, "classification": "A" },
+        "ISBATCHWISEON": { "giiField": "batch_tracking", "target": "Item Master", "type": "boolean", "required": false, "classification": "B" },
+        "ISPERISHABLEON": { "giiField": "is_perishable", "target": "Item Master", "type": "boolean", "required": false, "classification": "C" },
+        "IGNORENEGATIVESTOCK": { "giiField": "allow_negative_stock", "target": "Item Master", "type": "boolean", "required": false, "classification": "B" },
+        "IGNOREGODOWNS": { "giiField": "ignore_godowns", "target": "Item Master", "type": "boolean", "required": false, "classification": "C" },
+        "RATEOFDUTY": { "giiField": "duty_rate", "target": "Item Master", "type": "number", "required": false, "classification": "C" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Item Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Item Master", "type": "string", "required": false, "classification": "B" },
+        "OPENINGBALANCE": { "giiField": "opening_stock_qty", "target": "Item Master", "type": "number", "required": false, "classification": "A" },
+        "OPENINGVALUE": { "giiField": "opening_stock_value", "target": "Item Master", "type": "number", "required": false, "classification": "A" },
+        "SORTPOSITION": { "giiField": "sort_order", "target": "Item Master", "type": "integer", "required": false, "classification": "C" }
+      },
+      "requiredFields": ["NAME", "BASEUNITS"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    },
+    "STOCKGROUP": {
+      "giiModule": "Inventory",
+      "risk": "P1",
+      "fieldMapping": {
+        "NAME": { "giiField": "stock_group_name", "target": "Stock Group Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "parent_group_id", "target": "Stock Group Master", "type": "reference", "required": false, "classification": "A" },
+        "COSTINGMETHOD": { "giiField": "costing_method", "target": "Stock Group Master", "type": "string", "required": false, "classification": "A" },
+        "VALUATIONMETHOD": { "giiField": "valuation_method", "target": "Stock Group Master", "type": "string", "required": false, "classification": "A" },
+        "BASEUNITS": { "giiField": "base_uom", "target": "Stock Group Master", "type": "string", "required": false, "classification": "B" },
+        "ISBATCHWISEON": { "giiField": "batch_tracking", "target": "Stock Group Master", "type": "boolean", "required": false, "classification": "B" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Stock Group Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Stock Group Master", "type": "string", "required": false, "classification": "B" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    },
+    "UNIT": {
+      "giiModule": "Inventory",
+      "risk": "P2",
+      "fieldMapping": {
+        "NAME": { "giiField": "uom_name", "target": "Unit of Measure", "type": "string", "required": true, "classification": "A" },
+        "ISSIMPLEUNIT": { "giiField": "is_simple_unit", "target": "Unit of Measure", "type": "boolean", "required": false, "classification": "C" },
+        "ISGSTEXCLUDED": { "giiField": "is_gst_excluded", "target": "Unit of Measure", "type": "boolean", "required": false, "classification": "C" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Unit of Measure", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Unit of Measure", "type": "string", "required": false, "classification": "B" },
+        "UQC": { "giiField": "uqc_code", "target": "Unit of Measure", "type": "string", "required": false, "classification": "A" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    },
+    "VOUCHER": {
+      "giiModule": "Transactions",
+      "risk": "P0",
+      "fieldMapping": {
+        "VOUCHERTYPENAME": { "giiField": "voucher_type", "target": "Voucher", "type": "string", "required": true, "classification": "A" },
+        "VOUCHERNUMBER": { "giiField": "voucher_number", "target": "Voucher", "type": "string", "required": true, "classification": "A" },
+        "DATE": { "giiField": "voucher_date", "target": "Voucher", "type": "date", "required": true, "classification": "A" },
+        "EFFECTIVEDATE": { "giiField": "effective_date", "target": "Voucher", "type": "date", "required": false, "classification": "A" },
+        "PARTYLEDGERNAME": { "giiField": "party_ledger_name", "target": "Voucher", "type": "string", "required": false, "classification": "A" },
+        "CMPGSTIN": { "giiField": "company_gstin", "target": "Voucher", "type": "string", "required": false, "classification": "A" },
+        "CMPGSTREGISTRATIONTYPE": { "giiField": "company_gst_reg_type", "target": "Voucher", "type": "string", "required": false, "classification": "B" },
+        "CMPGSTSTATE": { "giiField": "company_gst_state", "target": "Voucher", "type": "string", "required": false, "classification": "A" },
+        "PARTYGSTIN": { "giiField": "party_gstin", "target": "Voucher", "type": "string", "required": false, "classification": "A" },
+        "PARTYLEDGERSTATE": { "giiField": "party_state", "target": "Voucher", "type": "string", "required": false, "classification": "A" },
+        "PARTYGSTREGISTRATIONTYPE": { "giiField": "party_gst_reg_type", "target": "Voucher", "type": "string", "required": false, "classification": "B" },
+        "ISOPTIONAL": { "giiField": "is_optional", "target": "Voucher", "type": "boolean", "required": false, "classification": "C" },
+        "ISCANCELLED": { "giiField": "is_cancelled", "target": "Voucher", "type": "boolean", "required": false, "classification": "A" },
+        "NARRATION": { "giiField": "narration", "target": "Voucher", "type": "textarea", "required": false, "classification": "B" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Voucher", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Voucher", "type": "string", "required": false, "classification": "B" },
+        "OBJECTUPDATEACTION": { "giiField": null, "target": null, "type": "string", "required": false, "classification": "C" }
+      },
+      "requiredFields": ["VOUCHERTYPENAME", "VOUCHERNUMBER", "DATE"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {
+        "Receipt": "receipt",
+        "Payment": "payment",
+        "Sales": "sales",
+        "Purchase": "purchase",
+        "Journal": "journal",
+        "Contra": "contra",
+        "Credit Note": "credit_note",
+        "Debit Note": "debit_note",
+        "Stock Journal": "stock_journal",
+        "Delivery Note": "delivery_note",
+        "Receipt Note": "receipt_note",
+        "Material Out": "material_out",
+        "Material In": "material_in",
+        "Physical Stock": "physical_stock",
+        "Purchase Order": "purchase_order",
+        "Sales Order": "sales_order",
+        "Rejection Out": "rejection_out",
+        "Rejection In": "rejection_in",
+        "Payroll": "payroll",
+        "Attendance": "attendance"
+      },
+      "concept": {
+        "name": "Voucher (Transaction)",
+        "description": "A financial transaction record that documents movement of money, goods, or value between accounts.",
+        "businessContext": "Vouchers are the primary data entry mechanism. Every business event — a sale, purchase, payment, receipt, journal adjustment — is recorded as a voucher. Vouchers carry ledger entries, inventory entries, tax calculations, and bill allocations.",
+        "erpModule": "Voucher Entry (transaction processing)",
+        "sourceSystem": "TallyPrime",
+        "universalEquivalent": {
+          "sap": "FI Document (FB01/FB50)",
+          "oracle": "Journal Entry / Transaction",
+          "quickbooks": "Transaction (Invoice/Bill/Check)",
+          "zoho": "Transaction Record"
+        }
+      },
+      "workflow": {
+        "creationPath": "Voucher Type → Voucher Entry → Select Ledgers → Enter Amounts → Save → Post",
+        "voucherSubTypes": {
+          "Receipt": "Cash/Bank receipt from debtor or customer",
+          "Payment": "Cash/Bank payment to creditor or supplier",
+          "Sales": "Goods/services sold → debtor debited, sales credited, inventory reduced",
+          "Purchase": "Goods/services purchased → purchase debited, creditor credited, inventory increased",
+          "Journal": "Non-cash adjustments between ledgers (depreciation, provisions, transfers)",
+          "Contra": "Transfer between cash/bank accounts (cash deposit, bank transfer)",
+          "Credit Note": "Sales return or reduction in amount receivable",
+          "Debit Note": "Purchase return or reduction in amount payable"
+        },
+        "involvedScreens": [
+          "Voucher Entry (new/edit)",
+          "Voucher Type Selection",
+          "Ledger Selection (auto-suggest)",
+          "Inventory Allocation (for Sales/Purchase)",
+          "Bill Allocation (for outstanding tracking)",
+          "GST Detail Entry (e-invoice generation)"
+        ],
+        "businessProcesses": [
+          "Day-to-Day Transaction Recording",
+          "Monthly Closure",
+          "GST Return Filing (voucher summaries)",
+          "E-Way Bill Generation (inter-state sales)",
+          "E-Invoice Generation (B2B sales)"
+        ],
+        "lifecycleEvents": [
+          "Draft → Save → Post → Reverse (if incorrect) → Re-post",
+          "Audit: Voucher → Ledger → Trial Balance → Financial Statement"
+        ]
+      },
+      "database": {
+        "primaryTable": "vouchers",
+        "relatedTables": [
+          "voucher_lines (debit/credit entries per ledger)",
+          "stock_ledger (inventory movement for stock-impacting vouchers)",
+          "gst_details (GST calculation per line item)",
+          "bill_allocations (outstanding management)",
+          "audit_log (voucher lifecycle tracking)",
+          "e_invoice_details (e-invoice reference)"
+        ],
+        "keyFields": {
+          "voucher_type": { "source": "VOUCHERTYPENAME", "type": "varchar(20)", "classification": "A" },
+          "voucher_number": { "source": "VOUCHERNUMBER", "type": "varchar(20)", "classification": "A" },
+          "voucher_date": { "source": "DATE", "type": "date", "classification": "A" },
+          "effective_date": { "source": "EFFECTIVEDATE", "type": "date", "classification": "A" },
+          "company_gstin": { "source": "CMPGSTIN", "type": "varchar(15)", "classification": "A" },
+          "party_gstin": { "source": "PARTYGSTIN", "type": "varchar(15)", "classification": "A" },
+          "party_state": { "source": "PARTYLEDGERSTATE", "type": "varchar(50)", "classification": "A" },
+          "narration": { "source": "NARRATION", "type": "text", "classification": "B" },
+          "is_cancelled": { "source": "ISCANCELLED", "type": "boolean", "classification": "A" },
+          "legacy_id": { "source": "ALTERID", "type": "integer", "classification": "B" }
+        }
+      },
+      "accountingImpact": {
+        "debitEntries": "Every voucher has at least one debit entry (which ledger is debited and by how much).",
+        "creditEntries": "Every voucher has at least one credit entry (which ledger is credited and by how much). Total debits must equal total credits.",
+        "doubleEntryRule": "For every voucher, sum(debits) = sum(credits). Vouchers with inventory also update stock valuation.",
+        "affectsTrialBalance": true,
+        "affectsBalanceSheet": true,
+        "affectsProfitAndLoss": true,
+        "affectsCashFlow": true,
+        "affectsReceivables": "Receipt/Sales/Credit Note vouchers update receivables",
+        "affectsPayables": "Payment/Purchase/Debit Note vouchers update payables",
+        "entriesInvolved": ["voucher_lines (one per debit/credit line)", "stock_ledger (if inventory)", "bill_allocations (if outstanding)", "gst_details (if taxable)"],
+        "accountingEffectDetails": {
+          "Sales": "Debit: Debtor (+Receivable) | Credit: Sales (+Income) | Credit: GST Output (+Liability) | Stock: Reduce inventory",
+          "Purchase": "Debit: Purchase (+Expense) | Debit: GST Input (+Asset) | Credit: Creditor (+Payable) | Stock: Increase inventory",
+          "Receipt": "Debit: Bank/Cash (+Asset) | Credit: Debtor (-Receivable)",
+          "Payment": "Debit: Creditor (-Payable) | Credit: Bank/Cash (-Asset)",
+          "Journal": "Debit: Target Ledger | Credit: Source Ledger | No cash/stock impact"
+        }
+      },
+      "inventoryImpact": {
+        "hasImpact": true,
+        "affectsStockValuation": true,
+        "affectsStockQuantity": true,
+        "conditions": "Only Sales, Purchase, Stock Journal, Delivery Note, Receipt Note, Material In/Out affect inventory. Receipt and Payment do not.",
+        "stockImpactDetails": {
+          "Sales": "Reduces stock quantity and value (COGS debited, stock credited)",
+          "Purchase": "Increases stock quantity and value (Purchase cost, valuation method applied)",
+          "Stock Journal": "Transfers stock between godowns or stock groups (no value change)",
+          "Sales Return": "Increases stock back (debit stock, credit COGS)",
+          "Purchase Return": "Decreases stock (debit creditor, credit stock)"
+        },
+        "valuationMethods": ["FIFO", "Average Cost", "Standard Cost"]
+      },
+      "gstImpact": {
+        "hasGstImpact": true,
+        "gstFields": ["CMPGSTIN", "PARTYGSTIN", "CMPGSTSTATE", "PARTYLEDGERSTATE", "VCHGSTCLASSIFICATION"],
+        "affectsGstReturns": true,
+        "gstTaxTypes": ["CGST+SGST (intra-state)", "IGST (inter-state)", "Nil Rated", "Exempted", "SEZ"],
+        "gstReturnMapping": {
+          "Sales": "GSTR-1 (outward supply)",
+          "Purchase": "GSTR-2A/2B (inward supply auto-populated)",
+          "Credit Note": "GSTR-1 (negative entry)",
+          "Debit Note": "GSTR-2A (amendment)"
+        },
+        "hsnSacMapping": "HSN codes from stock items (goods) / SAC codes from service ledgers",
+        "eInvoiceRelevant": true,
+        "eWayBillRelevant": "Inter-state stock transfers and sales > Rs. 50,000"
+      },
+      "reports": {
+        "primaryReports": ["Voucher Register", "Day Book", "Voucher Type Summary"],
+        "financialReports": ["Trial Balance (aggregated)", "General Ledger (drill-down)", "Profit & Loss (monthly)", "Balance Sheet (period-end)"],
+        "regulatoryReports": ["GSTR-1 (sales voucher summary)", "GSTR-3B (monthly return)", "E-Invoice (IRN generation)", "E-Way Bill (transport document)"],
+        "operationalReports": ["Outstanding Receivables (from sales/receipt)", "Outstanding Payables (from purchase/payment)", "Cash Flow Forecast (receipt/payment patterns)", "GST Credit Reconciliation (purchase vs GSTR-2A)"],
+        "dashboardWidgets": ["Today's Vouchers", "Pending E-Way Bills", "Unreconciled Payments", "GST Liability Summary"],
+        "reportingImpact": "Every voucher posted immediately affects all downstream reports. Reversing a historical voucher restates Trial Balance and GST returns for the affected period."
+      },
+      "aiExplanation": {
+        "simpleDefinition": "A voucher is a financial record that shows money moving from one account to another, like a digital receipt or payment slip.",
+        "businessContext": "When you sell goods, a Sales voucher is created — it debits the customer's account (they owe you money) and credits your Sales account (you earned income). If the customer pays later, a Receipt voucher moves money from cash to reduce what they owe.",
+        "relatedConcepts": ["Ledger", "Voucher Type", "GST", "Stock Item", "Receivable", "Payable", "Day Book"],
+        "commonQuestions": [
+          "Show all sales vouchers for this month",
+          "Find voucher number INV-2026-042",
+          "Why is this voucher not reflecting in GST return?",
+          "Can I reverse a posted voucher?"
+        ],
+        "impactExplanation": "Posting a Sales voucher increases your income and the customer's receivable. It reduces inventory. It generates GST liability. It feeds into GSTR-1. Reversing it requires an equal and opposite entry or a credit note.",
+        "helpAssistantIntegration": "Vouchers are searchable by number, date, party, amount, type, and GSTIN. The Help Assistant can show the voucher's accounting effect, GST calculation, and impact on outstanding balances."
+      }
+    },
+    "VOUCHERTYPE": {
+      "giiModule": "Configuration",
+      "risk": "P1",
+      "fieldMapping": {
+        "NAME": { "giiField": "voucher_type_name", "target": "Voucher Type Config", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "parent_type", "target": "Voucher Type Config", "type": "reference", "required": false, "classification": "A" },
+        "NUMBERINGMETHOD": { "giiField": "numbering_method", "target": "Voucher Type Config", "type": "string", "required": false, "classification": "A" },
+        "ISACTIVE": { "giiField": "is_active", "target": "Voucher Type Config", "type": "boolean", "required": false, "classification": "A" },
+        "ISOPTIONAL": { "giiField": "is_optional", "target": "Voucher Type Config", "type": "boolean", "required": false, "classification": "C" },
+        "AFFECTSSTOCK": { "giiField": "affects_stock", "target": "Voucher Type Config", "type": "boolean", "required": false, "classification": "A" },
+        "USEZEROENTRIES": { "giiField": "allow_zero_entries", "target": "Voucher Type Config", "type": "boolean", "required": false, "classification": "C" },
+        "PREVENTDUPLICATES": { "giiField": "prevent_duplicates", "target": "Voucher Type Config", "type": "boolean", "required": false, "classification": "B" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Voucher Type Config", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Voucher Type Config", "type": "string", "required": false, "classification": "B" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    },
+    "COSTCENTRE": {
+      "giiModule": "Accounting",
+      "risk": "P2",
+      "fieldMapping": {
+        "NAME": { "giiField": "cost_centre_name", "target": "Cost Centre Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "parent_cost_centre_id", "target": "Cost Centre Master", "type": "reference", "required": false, "classification": "A" },
+        "CATEGORY": { "giiField": "cost_category", "target": "Cost Centre Master", "type": "string", "required": false, "classification": "A" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Cost Centre Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Cost Centre Master", "type": "string", "required": false, "classification": "B" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    },
+    "GODOWN": {
+      "giiModule": "Inventory",
+      "risk": "P2",
+      "fieldMapping": {
+        "NAME": { "giiField": "godown_name", "target": "Godown Master", "type": "string", "required": true, "classification": "A" },
+        "PARENT": { "giiField": "parent_godown_id", "target": "Godown Master", "type": "reference", "required": false, "classification": "A" },
+        "ADDRESS": { "giiField": "address", "target": "Godown Master", "type": "textarea", "required": false, "classification": "B" },
+        "ALTERID": { "giiField": "legacy_id", "target": "Godown Master", "type": "integer", "required": false, "classification": "B" },
+        "GUID": { "giiField": "legacy_guid", "target": "Godown Master", "type": "string", "required": false, "classification": "B" }
+      },
+      "requiredFields": ["NAME"],
+      "reservedGroupMapping": {},
+      "voucherTypeMapping": {}
+    }
+  },
+  "unmappedEntityTypes": [
+    "COSTCATEGORY",
+    "TAXJURISDICTION",
+    "DUTYHEAD",
+    "ATTENDANCEPERIOD",
+    "EMPLOYEE",
+    "PAYHEAD",
+    "CURRENCY",
+    "BANKINGMASTER",
+    "EMAILCONFIG",
+    "EXPORTFILEFORMAT"
+  ],
+  "validationRules": {
+    "requiredGSTFields": ["GSTIN", "GSTREGISTRATIONTYPE", "PLACEOFSUPPLY"],
+    "requiredBaseUnits": ["BASEUNITS"],
+    "requiredHSNFields": ["TAXCLASSIFICATIONNAME"],
+    "missingParentGroupRefs": {
+      "GROUP": { "field": "PARENT", "refEntity": "GROUP", "riskLevel": "P0" },
+      "LEDGER": { "field": "PARENT", "refEntity": "GROUP", "riskLevel": "P0" },
+      "STOCKITEM": { "field": "PARENT", "refEntity": "STOCKGROUP", "riskLevel": "P1" },
+      "STOCKGROUP": { "field": "PARENT", "refEntity": "STOCKGROUP", "riskLevel": "P1" },
+      "GODOWN": { "field": "PARENT", "refEntity": "GODOWN", "riskLevel": "P2" },
+      "COSTCENTRE": { "field": "PARENT", "refEntity": "COSTCENTRE", "riskLevel": "P2" }
+    },
+    "highRiskFields": {
+      "LEDGER": ["OPENINGBALANCE", "OBSTATUS"],
+      "VOUCHER": ["ALLLEDGERENTRIES.LIST", "ALLINVENTORYENTRIES.LIST", "BILLALLOCATIONS.LIST", "VOUCHERTAXENTRIES.LIST"],
+      "STOCKITEM": ["OPENINGBALANCE", "OPENINGVALUE", "RATEOFDUTY"],
+      "GROUP": ["ISDEEMEDPOSITIVE", "AFFECTSGROSSPROFIT"]
+    }
+  },
+  "uqcMap": {
+    "PCS": { "uqcCode": "NOS", "description": "Numbers", "gstUqc": "NOS" },
+    "NOS": { "uqcCode": "NOS", "description": "Numbers", "gstUqc": "NOS" },
+    "KGS": { "uqcCode": "KGS", "description": "Kilograms", "gstUqc": "KGS" },
+    "GMS": { "uqcCode": "GMS", "description": "Grams", "gstUqc": "GMS" },
+    "MTR": { "uqcCode": "MTR", "description": "Meters", "gstUqc": "MTR" },
+    "SQF": { "uqcCode": "SQF", "description": "Square Feet", "gstUqc": "SQF" },
+    "SQM": { "uqcCode": "SQM", "description": "Square Meters", "gstUqc": "SQM" },
+    "LTR": { "uqcCode": "LTR", "description": "Liters", "gstUqc": "LTR" },
+    "BOX": { "uqcCode": "BXS", "description": "Boxes", "gstUqc": "BXS" },
+    "ROL": { "uqcCode": "ROL", "description": "Rolls", "gstUqc": "ROL" },
+    "PAC": { "uqcCode": "PAC", "description": "Packs", "gstUqc": "PAC" },
+    "SET": { "uqcCode": "SET", "description": "Sets", "gstUqc": "SET" },
+    "BAG": { "uqcCode": "BAG", "description": "Bags", "gstUqc": "BAG" },
+    "DOC": { "uqcCode": "DOC", "description": "Dozen", "gstUqc": "DOZ" },
+    "DOZ": { "uqcCode": "DOZ", "description": "Dozen", "gstUqc": "DOZ" },
+    "TBS": { "uqcCode": "TBS", "description": "Tablets", "gstUqc": "TBS" },
+    "BTL": { "uqcCode": "BTL", "description": "Bottles", "gstUqc": "BTL" },
+    "CAN": { "uqcCode": "CAN", "description": "Cans", "gstUqc": "CAN" },
+    "DRM": { "uqcCode": "DRM", "description": "Drums", "gstUqc": "DRM" },
+    "PKT": { "uqcCode": "PKT", "description": "Pockets", "gstUqc": "PKT" },
+    "TIN": { "uqcCode": "TIN", "description": "Tins", "gstUqc": "TIN" }
+  },
+  "conceptualIntelligence": {
+    "description": "Next-generation conceptual intelligence mapping. Each concept documents its full ERP lifecycle: workflow, screens, database, accounting/inventory/GST impact, reports, and AI explanation. Pattern entities: LEDGER, VOUCHER.",
+    "patternEntities": ["LEDGER", "VOUCHER"],
+    "extendToAllEntities": "Pending. Current coverage: GROUP (partial), LEDGER (full), VOUCHER (full). STOCKITEM, STOCKGROUP, UNIT, VOUCHERTYPE, COSTCENTRE, GODOWN have entity-to-table mapping only.",
+    "crossPlatformReference": {
+      "description": "Maps universal accounting concepts across ERP platforms. Extensible to SAP, Oracle, QuickBooks, Zoho Books, Busy, Marg.",
+      "currentlyMapped": ["tally", "gii-erp"],
+      "targetPlatforms": []
+    },
+    "intelligenceChain": {
+      "concept": "Tally Concept",
+      "erpWorkflow": "ERP Workflow",
+      "erpScreen": "ERP Screen",
+      "erpDatabase": "ERP Database",
+      "accountingImpact": "ERP Accounting Impact",
+      "inventoryImpact": "ERP Inventory Impact",
+      "gstImpact": "ERP GST Impact",
+      "reports": "ERP Reports",
+      "aiExplanation": "ERP AI Explanation"
+    }
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gii-gem-erp.internal/schemas/feature-function-graph.schema.json",
+  "title": "FF-1 Feature Function Correlation Graph Schema",
+  "description": "Schema for FF-1 — maps ERP features to functions, screens, workflows, database tables, voucher types, reports, manuals, and safety boundaries",
+  "type": "object",
+  "required": [
+    "schemaVersion", "graphId", "graphName", "version", "generatedAt", "owner",
+    "description", "sourceFilesReviewed", "featureNodes", "functionNodes",
+    "correlationEdges", "aliasMap", "naturalQuestionMap", "safetyBoundaryMap",
+    "knownGaps", "compatibility", "futureExtensions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0.0" },
+    "graphId": { "type": "string", "pattern": "^FF-1$" },
+    "graphName": { "type": "string", "const": "Feature Function Correlation Graph" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "owner": { "type": "string" },
+    "description": { "type": "string" },
+    "sourceFilesReviewed": { "type": "array", "items": { "type": "string" } },
+    "featureNodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "featureName", "canonicalName", "category", "status",
+          "whatThisFeatureDoes", "whatThisFeatureDoesNotDo",
+          "safetyBoundary", "preferredSourceGraph", "fallbackSourceGraph",
+          "sourceReferences"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^FEA-\\d+$" },
+          "featureName": { "type": "string" },
+          "canonicalName": { "type": "string" },
+          "commonUserNames": { "type": "array", "items": { "type": "string" } },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "category": { "type": "string", "enum": ["masters", "operations", "procurement", "workflow", "inventory", "billing", "accounting", "reporting", "gst", "import_export", "intelligence", "administration", "general"] },
+          "status": { "type": "string", "enum": ["active", "partial", "planned", "deprecated"] },
+          "screenRef": { "type": "string" },
+          "viewKey": { "type": "string" },
+          "menuPath": { "type": "string" },
+          "workflowStage": { "type": "string" },
+          "databaseTables": { "type": "array", "items": { "type": "string" } },
+          "voucherTypes": { "type": "array", "items": { "type": "string" } },
+          "postingFunctions": { "type": "array", "items": { "type": "string" } },
+          "reportDependencies": { "type": "array", "items": { "type": "string" } },
+          "manualSections": { "type": "array", "items": { "type": "string" } },
+          "safetyBoundary": { "type": "string", "enum": ["read-only guidance", "accounting-sensitive", "inventory-sensitive", "gst-sensitive", "database-sensitive", "workflow-sensitive", "import-export-sensitive", "action-refused", "administration-sensitive"] },
+          "createsAccountingImpact": { "type": "boolean" },
+          "createsInventoryImpact": { "type": "boolean" },
+          "createsGSTImpact": { "type": "boolean" },
+          "canUserCreateRecordsHere": { "type": "boolean" },
+          "canUserPostHere": { "type": "boolean" },
+          "whatThisFeatureDoes": { "type": "string" },
+          "whatThisFeatureDoesNotDo": { "type": "string" },
+          "commonQuestions": { "type": "array", "items": { "type": "string" } },
+          "expectedAnswerType": { "type": "string", "enum": ["navigation", "definition", "workflow", "procedure", "table_ref", "voucher_ref", "report_ref", "accounting_ref", "safety_notice", "refusal"] },
+          "preferredSourceGraph": { "type": "string" },
+          "fallbackSourceGraph": { "type": "string" },
+          "knownGaps": { "type": "array", "items": { "type": "string" } },
+          "sourceReferences": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "functionNodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "functionName", "functionPurpose", "owningFeatureId",
+          "safetyBoundary", "userFacing", "internalOnly", "readOnlyForAssistant",
+          "sourceReferences"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^FNC-\\d+$" },
+          "functionName": { "type": "string" },
+          "functionPurpose": { "type": "string" },
+          "owningFeatureId": { "type": "string", "pattern": "^FEA-\\d+$" },
+          "sourceModule": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "relatedScreen": { "type": "string" },
+          "relatedWorkflowStage": { "type": "string" },
+          "readsFromTables": { "type": "array", "items": { "type": "string" } },
+          "writesToTables": { "type": "array", "items": { "type": "string" } },
+          "relatedVoucherTypes": { "type": "array", "items": { "type": "string" } },
+          "relatedReports": { "type": "array", "items": { "type": "string" } },
+          "safetyBoundary": { "type": "string" },
+          "userFacing": { "type": "boolean" },
+          "internalOnly": { "type": "boolean" },
+          "readOnlyForAssistant": { "type": "boolean", "const": true },
+          "sourceReferences": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "correlationEdges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relationshipType", "strength", "reason", "safeForAnswering"],
+        "additionalProperties": false,
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "relationshipType": { "type": "string", "enum": [
+            "feature_has_screen", "feature_belongs_to_workflow_stage", "feature_uses_table",
+            "feature_creates_voucher", "feature_affects_report", "feature_explained_by_manual",
+            "feature_has_function", "function_reads_table", "function_writes_table",
+            "feature_has_alias", "feature_has_known_gap", "feature_requires_safety_boundary"
+          ] },
+          "strength": { "type": "string", "enum": ["primary", "secondary", "reference"] },
+          "reason": { "type": "string" },
+          "sourceGraph": { "type": "string" },
+          "sourceReference": { "type": "string" },
+          "safeForAnswering": { "type": "boolean" }
+        }
+      }
+    },
+    "aliasMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "minProperties": 20
+    },
+    "naturalQuestionMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "featureId": { "type": "string" },
+          "expectedAnswerType": { "type": "string" },
+          "questions": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["featureId", "expectedAnswerType", "questions"]
+      },
+      "minProperties": 10
+    },
+    "safetyBoundaryMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "minProperties": 5
+    },
+    "knownGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gapId": { "type": "string" },
+          "description": { "type": "string" },
+          "affectedFeatures": { "type": "array", "items": { "type": "string" } },
+          "impact": { "type": "string" }
+        },
+        "required": ["gapId", "description", "impact"]
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["ff1CompatibleWith", "graphRegistry"],
+      "properties": {
+        "ff1CompatibleWith": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "graphRegistry": {
+          "type": "object",
+          "properties": {
+            "requiresRegistryVersion": { "type": "string" },
+            "requiresEILVersion": { "type": "string" }
+          },
+          "required": ["requiresRegistryVersion", "requiresEILVersion"]
+        }
+      }
+    },
+    "futureExtensions": {
+      "type": "object",
+      "properties": {
+        "plannedFeatures": { "type": "array", "items": { "type": "string" } },
+        "runtimeIntegrationPhase": { "type": "string" },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["runtimeIntegrationPhase"]
+    }
+  }
+}

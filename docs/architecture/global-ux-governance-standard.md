@@ -123,6 +123,16 @@ Keyboard shortcuts must never bypass confirmations, approvals, posting validatio
 
 ## Search Standards
 
+### Dynamic Selection Order
+
+Dynamic master and reference choices must be displayed in strict alphabetical order by their visible user-facing label. Sorting must be case-insensitive, whitespace-normalized and natural-numeric so that `Item 2` appears before `Item 10`.
+
+This applies to user-maintained choices such as companies, departments, suppliers, customers, items, brands, warehouses, ledgers, employees, orders, document sources, profiles and imported column names.
+
+Placeholder options such as `Select`, `All` and `Not mapped` remain pinned before the sorted choices.
+
+Do not alphabetize controlled sequences where order carries business meaning, including workflow stages, statuses, action menus, period presets, voucher lifecycles and approval progressions.
+
 ### Global ERP Search
 
 Global ERP Search is opened with Ctrl+K. It should search across modules, records, reports and help entries where data is available.
@@ -205,6 +215,47 @@ Screen Guidance is current-screen driven. It should explain:
 - relevant shortcuts
 
 Help Mode and Screen Guidance must feel clearly different.
+
+### Navigation and Location Questions
+
+Navigation and location questions are always safe guidance.
+
+The Help Assistant must answer user questions about where to find ERP features, screens, menus, reports, documents, workflows and record-entry areas.
+
+Examples:
+- Where is bill history?
+- How do I open purchase bills?
+- Which menu has GST reports?
+- Where can I see opening balances?
+- How do I create a supply order?
+
+These are navigation/help lookups, not live record inspection. They should be resolved from the route/view registry, navigation map, screen titles, help metadata and user-facing labels.
+
+The assistant must not refuse these questions because it cannot inspect live records.
+
+The assistant must not expose internal governance terms to end users, including:
+- H1-H5
+- safe summary
+- arbitrary live records
+- route registry
+- permission layer
+- capability boundary
+
+If the user asks to see actual records, totals, balances, pending bills, payments, customer-wise lists or company-specific data, the assistant must explain the limitation in user language.
+
+Bad:
+
+```text
+The H1-H5 assistant is only allowed to answer guidance questions.
+```
+
+Good:
+
+```text
+You can find Bill History under Operations -> Purchase Bills. I can guide you to the screen, but I cannot show your specific bills from here yet.
+```
+
+The response should always provide the navigation answer first, then mention any live-data limitation only if relevant.
 
 ### Question Input
 

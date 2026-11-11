@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { keyboardGuideSections, shortcutsForScope } from "../../config/keyboardShortcuts.js";
+import { keyboardGuideSections, shortcutGroupsForView } from "../../config/keyboardShortcuts.js";
 import { FocusTrap } from "../FocusTrap.jsx";
 import { flatNavItems, inventoryReportViews, viewTitles } from "../../config/navigation.js";
 import { masterViews, transactionViews } from "../../config/viewDefinitions.js";
@@ -7,6 +7,7 @@ import { buildScreenHelpProfile } from "../../modules/helpAssistant/screenHelpCa
 import { safeArray, safeObject } from "../../stability/rendererStabilityUtils.js";
 import { formatCurrency } from "../../utils/formatters.js";
 import { HelpList } from "../helpTraining/index.jsx";
+import { sumRupees } from "../../utils/money.js";
 
 export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, onAction, onLearn }) {
   const [shortcutQuery, setShortcutQuery] = useState("");
@@ -57,7 +58,8 @@ export function ContextShortcutPanel({ view, role, stats, collapsed, onToggle, o
             <div className="productivity-actions">
               {quickActions.map((action) => (
                 <button type="button" key={action.label} onClick={() => onAction(action)} disabled={action.disabled} title={action.disabled ? "Hidden by role or unavailable on this screen" : action.label}>
-                  {action.label}
+                  <span className="productivity-action-label">{action.label}</span>
+                  {action.shortcut && <kbd className="productivity-action-shortcut">{action.shortcut}</kbd>}
                 </button>
               ))}
             </div>
@@ -120,39 +122,6 @@ export function ProductivityLearnDialog({ view, onClose, onOpenTraining }) {
   );
 }
 
-function shortcutGroupsForView(view) {
-  const navigationItems = safeArray(flatNavItems);
-  const meta = navigationItems.find((item) => item.key === view) || {};
-  const groupId = meta.groupId;
-  const groups = [];
-  if (view === "supply_orders") {
-    groups.push({
-      title: "Supply Orders",
-      items: [["F2", "New Order"], ["F3", "Edit Order"], ["F4", "View Order"], ["F6", "Generate Procurement"], ["F7", "Reserve Stock"], ["F8", "Generate Invoice"]]
-    });
-  } else if (groupId === "inventory" || inventoryReportViews.has(view) || ["stock_inwards", "stock_outwards", "stock_adjustments", "stock_returns"].includes(view)) {
-    groups.push({
-      title: "Inventory",
-      items: [["F2", "Stock Receipt"], ["F3", "Stock Issue"], ["F4", "Stock Transfer"], ["F5", "Stock Adjustment"]]
-    });
-  } else if (groupId === "accounting" || view === "voucher_dashboard" || view === "manual_voucher") {
-    groups.push({
-      title: "Accounting",
-      items: [["Alt+R", "Receipt Voucher"], ["Alt+P", "Payment Voucher"], ["Alt+S", "Sales Voucher"], ["Alt+U", "Purchase Voucher"], ["Alt+J", "Journal Voucher"]]
-    });
-  } else if (groupId === "reports" || ["reports", "cash_flow", "gst", "receivables", "payables"].includes(view)) {
-    groups.push({
-      title: "Reports",
-      items: [["Ctrl+P", "Print"], ["Ctrl+E", "Export"], ["Ctrl+F", "Search"], ["Ctrl+R", "Refresh"]]
-    });
-  }
-  groups.push({
-    title: "Always",
-    items: [["Ctrl+S", "Save"], ["Esc", "Exit"], ["F1", "Help"]]
-  });
-  return groups;
-}
-
 export function productivityScopeForView(view) {
   const meta = safeArray(flatNavItems).find((item) => item.key === view) || {};
   if (view === "supply_orders") return "supply_orders";
@@ -213,7 +182,7 @@ function quickActionsForView(view, role) {
       { label: "Ageing Report", type: "navigate", view: "payable_ageing", scope: "report" }
     ],
     reports: [
-      { label: "Refresh", type: "refresh", scope: "report" },
+      { label: "Refresh", type: "refresh", shortcut: "Ctrl+R / F5", scope: "report" },
       { label: "Export", type: "export", scope: "report" },
       { label: "Print", type: "print", scope: "report" },
       { label: "PDF", type: "pdf", scope: "report" },
@@ -250,12 +219,12 @@ function productivityStatsForView(view, stats) {
       ["Draft Vouchers", safeArray(accounting.guidedVouchers).filter((row) => row.status === "Draft").length || 0]
     ],
     receivables: [
-      ["Outstanding Amount", formatCurrency(safeArray(accounting.billWiseReceivables || accounting.receivables).reduce((sum, row) => sum + Number(row.balance_outstanding || row.outstanding || 0), 0))],
+      ["Outstanding Amount", formatCurrency(sumRupees(safeArray(accounting.billWiseReceivables || accounting.receivables).map((row) => row.balance_outstanding || row.outstanding)))],
       ["Overdue Invoices", safeArray(accounting.receivableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Receipts Today", safeArray(accounting.payments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
     payables: [
-      ["Outstanding Payables", formatCurrency(safeArray(accounting.billWisePayables || accounting.payables).reduce((sum, row) => sum + Number(row.balance_due || 0), 0))],
+      ["Outstanding Payables", formatCurrency(sumRupees(safeArray(accounting.billWisePayables || accounting.payables).map((row) => row.balance_due)))],
       ["Overdue Supplier Bills", safeArray(accounting.payableAgeing).filter((row) => String(row.age_bucket || "").includes("90") || row.status === "Overdue").length || 0],
       ["Payments Today", safeArray(accounting.supplierPayments).filter((row) => row.payment_date === todayIso()).length || 0]
     ],
@@ -373,7 +342,7 @@ export function ShortcutHelpDialog({ onClose }) {
   );
 }
 
-export function UserPreferencesDialog({ onClose, compactSidebar }) {
+export function UserPreferencesDialog({ onClose, compactSidebar, keyLayout = "standard", onKeyLayoutChange }) {
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key === "Escape" || event.key === "F12") {
@@ -400,6 +369,18 @@ export function UserPreferencesDialog({ onClose, compactSidebar }) {
             <h3>Keyboard Layer</h3>
             <div className="shortcut-row"><kbd>F12</kbd><span>Open or close this preferences panel.</span></div>
             <div className="shortcut-row"><kbd>F1</kbd><span>Open the full keyboard shortcut guide.</span></div>
+          </div>
+          <div className="shortcut-group">
+            <h3>Key Layout</h3>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="standard" checked={keyLayout !== "tally"} onChange={() => onKeyLayoutChange?.("standard")} />
+              <span>Standard: F2 Receipt, F3 Payment, F4 Sales, F5 Purchase, F6 Contra, F7 Journal on Accounting screens.</span>
+            </label>
+            <label className="shortcut-row">
+              <input type="radio" name="key-layout" value="tally" checked={keyLayout === "tally"} onChange={() => onKeyLayoutChange?.("tally")} />
+              <span>Tally style: F4 Contra, F5 Payment, F6 Receipt, F7 Journal, F8 Sales, F9 Purchase, Ctrl+F8 Credit Note, Ctrl+F9 Debit Note, F2 change date, Alt+C create master, Enter on the last voucher line adds a line.</span>
+            </label>
+            <p>Kept on this computer. The mouse and menus work the same in both.</p>
           </div>
           <div className="shortcut-group">
             <h3>Current Session</h3>
@@ -448,7 +429,7 @@ export function FirstTimeTour({ onClose, onOpenHelp }) {
   );
 }
 
-export function ContextHelpDialog({ view, onClose, onOpenTraining }) {
+export function ContextHelpDialog({ view, onClose, onOpenTraining, onOpenAssistant }) {
   const help = helpForView(view);
   return (
     <div className="modal-backdrop" role="presentation">
@@ -477,6 +458,7 @@ export function ContextHelpDialog({ view, onClose, onOpenTraining }) {
           <span>{help.safetyRule}</span>
         </div>
         <div className="confirm-actions">
+          <button type="button" className="ghost-btn" onClick={onOpenAssistant}>Ask a Question About This Screen</button>
           <button type="button" className="ghost-btn" onClick={onOpenTraining}>Open Training Mode</button>
           <button type="button" className="primary-btn" onClick={onClose}>Understood</button>
         </div>
@@ -594,8 +576,8 @@ export function helpForView(view) {
 }
 
 export function ContextShortcutOverlay({ view, onClose }) {
-  const scope = productivityScopeForView(view);
-  const items = shortcutsForScope(scope).slice(0, 12);
+  const groups = shortcutGroupsForView(view);
+  const shortcutCount = groups.reduce((count, group) => count + group.items.length, 0);
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <FocusTrap active onEscape={onClose}>
@@ -603,19 +585,22 @@ export function ContextShortcutOverlay({ view, onClose }) {
           <div className="panel-head">
             <div>
               <h3>Shortcuts for this Screen</h3>
-              <p>{items.length} shortcut(s) available</p>
+              <p>{shortcutCount} shortcut(s) available</p>
             </div>
             <button type="button" className="ghost-btn" onClick={onClose}>Close</button>
           </div>
           <div className="shortcut-grid" style={{ maxHeight: 400, overflowY: "auto" }}>
-            <div className="shortcut-group">
-              {items.map((s) => (
-                <div className="shortcut-row" key={s.keys + s.action}>
-                  <kbd>{s.keys}</kbd>
-                  <span>{s.action}</span>
-                </div>
-              ))}
-            </div>
+            {groups.map((group) => (
+              <div className="shortcut-group" key={group.title}>
+                <h3>{group.title}</h3>
+                {group.items.map(([keys, action]) => (
+                  <div className="shortcut-row" key={`${group.title}-${keys}-${action}`}>
+                    <kbd>{keys}</kbd>
+                    <span>{action}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </section>
       </FocusTrap>

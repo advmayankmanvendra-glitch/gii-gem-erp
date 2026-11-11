@@ -66,7 +66,7 @@ const masterViews = {
     primary: "item_name",
     fields: [
       ["item_name", "Item Name", "text"],
-      ["brand", "Brand", "text"],
+      ["brand", "Brand", "select"],
       ["model", "Model", "text"],
       ["hsn_code", "HSN Code", "text"],
       ["gst_rate", "GST Rate", "number"],
@@ -225,6 +225,53 @@ const transactionViews = {
       ["remarks", "Remarks", "textarea"]
     ]
   },
+  purchase_orders: {
+    title: "Purchase Orders / GeM Orders",
+    description: "Manage purchase orders and GeM order references before work order conversion.",
+    primary: "po_number",
+    required: ["po_number", "po_date", "department_id", "employee_id", "supplier_id", "status"],
+    fields: [
+      ["po_number", "PO Number", "text"],
+      ["po_date", "PO Date", "date"],
+      ["supply_type", "Supply Type", "supply_type"],
+      ["gem_order_number", "GeM Order Number", "text"],
+      ["gem_contract_number", "Contract Number", "text"],
+      ["negotiation_id", "Negotiation ID", "number"],
+      ["department_id", "Department", "department"],
+      ["employee_id", "Responsible Employee", "employee"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["title", "Title", "text"],
+      ["description", "Description", "textarea"],
+      ["total_value", "Total Value", "number"],
+      ["delivery_period", "Delivery Period", "text"],
+      ["payment_terms", "Payment Terms", "text"],
+      ["status", "Status", "purchase_order_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  procurement_plans: {
+    title: "Procurement Plans",
+    description: "Plan procurement quantities based on stock shortage analysis and supply order requirements.",
+    primary: "plan_number",
+    required: ["plan_number", "plan_date", "order_id", "item_id", "warehouse_id", "status"],
+    fields: [
+      ["plan_number", "Plan Number", "text"],
+      ["plan_date", "Plan Date", "date"],
+      ["order_id", "Supply Order", "order"],
+      ["item_id", "Item", "item"],
+      ["warehouse_id", "Warehouse", "warehouse"],
+      ["required_quantity", "Required Quantity", "number"],
+      ["available_stock", "Available Stock", "computed_number"],
+      ["short_quantity", "Short Quantity", "computed_number"],
+      ["planned_quantity", "Planned Quantity", "number"],
+      ["expected_rate", "Expected Rate", "number"],
+      ["estimated_value", "Estimated Value", "computed_number"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["priority", "Priority", "plan_priority"],
+      ["status", "Status", "procurement_plan_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
   stock_inwards: {
     title: "Stock Inward",
     description: "Record stock received from procurement. Stock increases only after posting.",
@@ -293,6 +340,104 @@ const transactionViews = {
       ["quantity", "Quantity", "number"],
       ["condition_status", "Condition", "condition_status"],
       ["reason", "Reason", "text"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  leads: {
+    title: "Leads / Tenders",
+    description: "Manage sales leads and tender opportunities.",
+    primary: "lead_number",
+    required: ["lead_number", "title", "status"],
+    fields: [
+      ["lead_number", "Lead Number", "text"],
+      ["title", "Title", "text"],
+      ["description", "Description", "textarea"],
+      ["source", "Source", "lead_source"],
+      ["tender_number", "Tender Number", "text"],
+      ["issuing_authority", "Issuing Authority", "text"],
+      ["department_id", "Department", "department"],
+      ["expected_value", "Expected Value", "number"],
+      ["bid_submission_date", "Bid Submission Date", "date"],
+      ["status", "Status", "lead_status"],
+      ["probability", "Win Probability (%)", "number"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  requirement_queries: {
+    title: "Requirement Queries",
+    description: "Track government department requirements and queries.",
+    primary: "query_number",
+    required: ["query_number", "title", "status"],
+    fields: [
+      ["query_number", "Query Number", "text"],
+      ["title", "Title", "text"],
+      ["description", "Description", "textarea"],
+      ["department_id", "Department", "department"],
+      ["employee_id", "Contact Person", "employee"],
+      ["lead_id", "Lead Number", "number"],
+      ["priority", "Priority", "query_priority"],
+      ["expected_quantity", "Expected Quantity", "number"],
+      ["expected_value", "Expected Value", "number"],
+      ["status", "Status", "query_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  quotations: {
+    title: "Quotations",
+    description: "Manage supplier quotations against requirements.",
+    primary: "quotation_number",
+    required: ["quotation_number", "supplier_id", "quotation_date", "status"],
+    fields: [
+      ["quotation_number", "Quotation Number", "text"],
+      ["requirement_query_id", "Requirement Query", "number"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["quotation_date", "Quotation Date", "date"],
+      ["valid_until", "Valid Until", "date"],
+      ["item_description", "Item Description", "textarea"],
+      ["quantity", "Quantity", "number"],
+      ["unit_price", "Unit Price", "number"],
+      ["total_amount", "Total Amount", "number"],
+      ["tax_amount", "Tax Amount", "number"],
+      ["grand_total", "Grand Total", "number"],
+      ["status", "Status", "quotation_status"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  negotiations: {
+    title: "Negotiations",
+    description: "Track pricing and terms negotiations with suppliers.",
+    primary: "negotiation_number",
+    required: ["negotiation_number", "supplier_id", "negotiation_date", "status"],
+    fields: [
+      ["negotiation_number", "Negotiation Number", "text"],
+      ["quotation_id", "Quotation", "number"],
+      ["supplier_id", "Supplier", "supplier"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["negotiation_date", "Negotiation Date", "date"],
+      ["negotiator_name", "Negotiator Name", "text"],
+      ["initial_amount", "Initial Amount", "number"],
+      ["negotiated_amount", "Negotiated Amount", "number"],
+      ["savings_amount", "Savings Amount", "number"],
+      ["status", "Status", "negotiation_status"],
+      ["outcome_notes", "Outcome Notes", "textarea"],
+      ["remarks", "Remarks", "textarea"]
+    ]
+  },
+  installations: {
+    title: "Installations",
+    description: "Track installation progress for delivered goods.",
+    primary: "installation_number",
+    required: ["installation_number", "supply_order_id", "status"],
+    fields: [
+      ["installation_number", "Installation Number", "text"],
+      ["delivery_challan_id", "Delivery Challan", "number"],
+      ["supply_order_id", "Supply Order", "order"],
+      ["department_id", "Department", "department"],
+      ["supervisor_employee_id", "Supervisor", "employee"],
+      ["installation_date", "Installation Date", "date"],
+      ["completion_date", "Completion Date", "date"],
+      ["status", "Status", "installation_status"],
       ["remarks", "Remarks", "textarea"]
     ]
   }

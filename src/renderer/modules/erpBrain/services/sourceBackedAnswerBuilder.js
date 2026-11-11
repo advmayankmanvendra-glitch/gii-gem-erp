@@ -1,0 +1,316 @@
+import { sourceBackedSearch } from "./sourceBackedSearchService.js";
+
+function buildAnswer(query) {
+  if (!query || typeof query !== "string") {
+    return {
+      query: query || "",
+      answer: null,
+      confidence: "low",
+      sourceReferences: [],
+      safetyBoundary: "read-only",
+      needsReview: false
+    };
+  }
+
+  const searchResult = sourceBackedSearch(query);
+  const { results, bestCandidate, confidence } = searchResult;
+  const needsReview = confidence === "low" || !bestCandidate;
+  const preferredSource = getPreferredSource(query);
+  const reRanked = preferSource(results, preferredSource);
+  const selectedCandidate = reRanked[0] || bestCandidate;
+
+  const answer = selectedCandidate ? generateAnswerText(selectedCandidate, query, confidence) : null;
+
+  const sourceReferences = reRanked.slice(0, 3).map((r) => ({
+    title: r.title,
+    sourceKind: r.sourceKind,
+    sourcePath: r.sourcePath,
+    graphId: r.graphId,
+    summary: r.summary
+  }));
+
+  const relatedWorkflowStages = [...new Set(results.flatMap((r) => r.relatedWorkflowStages || []))];
+  const relatedTables = [...new Set(results.flatMap((r) => r.relatedTables || []))];
+  const relatedVoucherTypes = [...new Set(results.flatMap((r) => r.relatedVoucherTypes || []))];
+  const relatedReports = [...new Set(results.flatMap((r) => r.relatedReports || []))];
+  const relatedScreens = [...new Set(results.flatMap((r) => r.relatedScreens || []))];
+
+  const safetyWarning = detectSafetyBoundary(query, results);
+
+  return {
+    query,
+    answer,
+    confidence,
+    sourceReferences,
+    reRankedSource: reRanked.slice(0, 3),
+    relatedWorkflowStages,
+    relatedTables,
+    relatedVoucherTypes,
+    relatedReports,
+    relatedScreens,
+    safetyBoundary: safetyWarning || "read-only guidance",
+    needsReview
+  };
+}
+
+function generateAnswerText(best, query, confidence) {
+  const sourceLabel = getSourceLabel(best.sourceKind);
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  return `${confidenceLabel} that "${best.title}" is the most relevant result. ${best.summary ? best.summary + " " : ""}Source: ${sourceLabel} (${best.sourcePath}).`;
+}
+
+function getSourceLabel(sourceKind) {
+  const labels = {
+    "workflow-graph": "WG-1 Workflow Intelligence Graph",
+    "database-graph": "DG-1 Database Intelligence Graph",
+    "voucher-accounting-graph": "KG-4 Voucher and Accounting Graph",
+    "renderer-graph": "RG-1 Renderer Intelligence Graph",
+    "repository": "BRAIN-1 ERP Knowledge Repository",
+    "manual": "User Manual / Documentation"
+  };
+  return labels[sourceKind] || "ERP Knowledge Source";
+}
+
+function getPreferredSource(query) {
+  const q = query.toLowerCase();
+  if (q.includes("voucher") || q.includes("debit") || q.includes("credit") || q.includes("ledger") || q.includes("accounting") || q.includes("journal") || q.includes("posting")) return "voucher-accounting-graph";
+  if (q.includes("table") || q.includes("column") || q.includes("database") || q.includes("schema")) return "database-graph";
+  if (q.includes("workflow") || q.includes("stage") || q.includes("order") || q.includes("work order") || q.includes("supply order") || q.includes("crac") || q.includes("closure")) return "workflow-graph";
+  if (q.includes("screen") || q.includes("route") || q.includes("ui") || q.includes("component") || q.includes("view")) return "renderer-graph";
+  if (q.includes("manual") || q.includes("guide") || q.includes("how to") || q.includes("checklist") || q.includes("troubleshoot")) return "manual";
+  return null;
+}
+
+function preferSource(results, preferredKind) {
+  if (!preferredKind) return results;
+  const preferred = results.filter((r) => r.sourceKind === preferredKind);
+  const others = results.filter((r) => r.sourceKind !== preferredKind);
+  return [...preferred, ...others];
+}
+
+function detectSafetyBoundary(query, results) {
+  const q = query.toLowerCase();
+  if (q.includes("post") || q.includes("reverse") || q.includes("delete") || q.includes("approve") || q.includes("import") || q.includes("export data")) {
+    return "This action is accounting-sensitive. I cannot post, reverse, approve, delete, or import ERP data. Please use the relevant module screen.";
+  }
+  if (results.some((r) => r.sourceKind === "voucher-accounting-graph")) {
+    return "This question touches voucher or accounting logic. I provide sourced guidance only — no live record mutation is possible.";
+  }
+  return null;
+}
+
+function formatSourceReferences(references) {
+  if (!references || references.length === 0) return "No source references available.";
+  return references.map((ref) => `- ${ref.title} (${ref.sourceKind}, ${ref.sourcePath})`).join("\n");
+}
+
+function explainWorkflowStage(stageId) {
+  const result = sourceBackedSearch(stageId);
+  const stage = result.results.find((r) => r.sourceKind === "workflow-graph" && (r.title === stageId || r.sourceId === `wg1-${stageId}`));
+  if (stage) {
+    return {
+      stageId,
+      title: stage.title,
+      summary: stage.summary,
+      relatedTables: stage.relatedTables,
+      relatedScreens: stage.relatedScreens,
+      source: "WG-1 Workflow Intelligence Graph"
+    };
+  }
+  return { stageId, title: null, summary: `Stage "${stageId}" not found in WG-1.`, source: null };
+}
+
+function explainDatabaseTable(tableName) {
+  const result = sourceBackedSearch(tableName);
+  const table = result.results.find((r) => r.sourceKind === "database-graph" && r.title === tableName);
+  if (table) {
+    return {
+      tableName,
+      title: table.title,
+      summary: table.summary,
+      relatedWorkflowStages: table.relatedWorkflowStages,
+      source: "DG-1 Database Intelligence Graph"
+    };
+  }
+  return { tableName, title: null, summary: `Table "${tableName}" not found in DG-1.`, source: null };
+}
+
+function explainVoucherType(voucherType) {
+  const result = sourceBackedSearch(voucherType);
+  const vt = result.results.find((r) => r.sourceKind === "voucher-accounting-graph" && r.relatedVoucherTypes?.includes(voucherType));
+  if (vt) {
+    return {
+      voucherType,
+      title: vt.title,
+      summary: vt.summary,
+      source: "KG-4 Voucher and Accounting Graph"
+    };
+  }
+  return { voucherType, title: null, summary: `Voucher type "${voucherType}" not found in KG-4.`, source: null };
+}
+
+function explainReport(reportId) {
+  const result = sourceBackedSearch(reportId);
+  const report = result.results.find((r) => r.sourceKind === "voucher-accounting-graph" && r.relatedReports?.includes(reportId))
+    || result.results.find((r) => r.repoName === "reports" && (r.title === reportId || r.sourceId === reportId));
+  if (report) {
+    return {
+      reportId,
+      title: report.title,
+      summary: report.summary,
+      relatedTables: report.relatedTables,
+      relatedWorkflowStages: report.relatedWorkflowStages,
+      source: report.graphId ? `${report.graphId} graph` : "BRAIN-1 repository"
+    };
+  }
+  return { reportId, title: null, summary: `Report "${reportId}" not found.`, source: null };
+}
+
+function getManualHelp(topic) {
+  const result = sourceBackedSearch(topic);
+  const manualResults = result.results.filter((r) => r.sourceKind === "manual");
+  if (manualResults.length > 0) {
+    return {
+      topic,
+      sections: manualResults.slice(0, 5).map((r) => ({
+        title: r.title,
+        summary: r.summary,
+        sourcePath: r.sourcePath
+      })),
+      source: "User Manual"
+    };
+  }
+  return { topic, sections: [], source: null };
+}
+
+function getKnownGaps(topic) {
+  const result = sourceBackedSearch(topic);
+  const gapResults = result.results.filter((r) => {
+    const text = `${r.title} ${r.summary}`.toLowerCase();
+    return text.includes("gap") || text.includes("known") || text.includes("limitation") || r.sourceId?.startsWith("kg4-gap");
+  });
+  return {
+    topic,
+    gaps: gapResults.slice(0, 10).map((r) => ({
+      title: r.title,
+      summary: r.summary,
+      sourceKind: r.sourceKind,
+      sourcePath: r.sourcePath
+    })),
+    source: gapResults.length > 0 ? "KG-4 Voucher and Accounting Graph / known gaps" : "No known gaps found for this topic"
+  };
+}
+
+function buildAnswerContract(query, searchResult, classification, safetyInfo, screenContext) {
+  const { results, bestCandidate, confidence, categoryUsed, sourceUsed } = searchResult;
+  const cat = classification || {};
+  const safety = safetyInfo || { boundary: "read-only guidance", rules: [] };
+  const context = screenContext || {};
+  const needsReview = cat.needsReview || confidence === "low" || !bestCandidate;
+  const selectedCandidate = results?.[0] || null;
+  const answer = cat.category === "unsafe_action"
+    ? generateUnsafeRefusal(query, cat)
+    : !selectedCandidate
+      ? "I do not have a source-backed answer for this query yet."
+      : cat.category === "report"
+        ? generateReportAnswer(selectedCandidate, results || [], confidence)
+        : cat.category === "voucher_accounting" && isVoucherDashboardQuery(query)
+          ? generateVoucherDashboardAnswer(selectedCandidate, confidence)
+          : generateCategoryAnswer(selectedCandidate, cat, confidence, context);
+  const sourceReferences = (results || []).slice(0, 3).map((r) => ({
+    title: r.title,
+    sourceKind: r.sourceKind,
+    sourcePath: r.sourcePath,
+    graphId: r.graphId,
+    summary: r.summary
+  }));
+  const relatedWorkflowStages = [...new Set((results || []).flatMap((r) => r.relatedWorkflowStages || []))];
+  const relatedTables = [...new Set((results || []).flatMap((r) => r.relatedTables || []))];
+  const relatedVoucherTypes = [...new Set((results || []).flatMap((r) => r.relatedVoucherTypes || []))];
+  const relatedReports = [...new Set((results || []).flatMap((r) => r.relatedReports || []))];
+  const relatedScreens = [...new Set((results || []).flatMap((r) => r.relatedScreens || []))];
+  const knownGaps = (results || []).filter((r) => {
+    const text = `${r.title} ${r.summary}`.toLowerCase();
+    return text.includes("gap") || text.includes("limitation") || text.includes("known");
+  }).map((r) => ({ title: r.title, summary: r.summary, sourceKind: r.sourceKind }));
+  return {
+    query,
+    answer,
+    confidence,
+    needsReview: needsReview || answer === "I do not have a source-backed answer for this query yet.",
+    sourceReferences,
+    relatedWorkflowStages,
+    relatedScreens,
+    relatedTables,
+    relatedVoucherTypes,
+    relatedReports,
+    safetyBoundary: safety.boundary || "read-only guidance",
+    knownGaps,
+    suggestedNextHelpTopic: null,
+    prohibitedActions: getProhibitedActions(safety.boundary),
+    rolePresentation: { depth: "standard", showSources: true, showSafety: true, showGaps: false }
+  };
+}
+
+function generateUnsafeRefusal(query, category) {
+  const action = query.toLowerCase().trim();
+  return `I cannot ${action}. I am a read-only guidance assistant. To perform this action, use the relevant controlled ERP module or screen. I can help you navigate to the correct screen if you tell me what you need to do.`;
+}
+
+function generateCategoryAnswer(candidate, category, confidence, context) {
+  const sourceLabel = getSourceLabel(candidate.sourceKind);
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  let answer = `${confidenceLabel} that "${candidate.title}" is the most relevant result. ${candidate.summary || ""}`;
+  if (context.screenName) {
+    answer += ` You are currently on the ${context.screenName} screen.`;
+  }
+  if (context.workflowInfo) {
+    answer += ` This relates to the ${context.workflowInfo.label} stage.`;
+  }
+  answer += ` Source: ${sourceLabel}.`;
+  return answer;
+}
+
+function generateReportAnswer(candidate, results, confidence) {
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  const repositoryReports = results.filter((r) => r.sourceKind === "repository" && r.repoName === "reports");
+  const categories = inferReportCategories(results);
+  const countText = repositoryReports.length > 0
+    ? `I found ${repositoryReports.length} matching source-backed report entr${repositoryReports.length === 1 ? "y" : "ies"} in the repository result set.`
+    : "The source-backed result set points to report definitions and report dependency mappings.";
+  return `${confidenceLabel} this is a report question. ${countText} ERP report coverage includes ${categories.join(", ")} where available. ${candidate.summary || ""} Source: ${getSourceLabel(candidate.sourceKind)}.`;
+}
+
+function inferReportCategories(results) {
+  const text = results.map((r) => `${r.title} ${r.summary} ${(r.relatedReports || []).join(" ")}`).join(" ").toLowerCase();
+  const categories = [];
+  if (/trial balance|profit and loss|balance sheet|financial|cash|bank/.test(text)) categories.push("accounting and financial reports");
+  if (/gst|tds|tax/.test(text)) categories.push("GST/TDS reports");
+  if (/receivable|payable|aging|outstanding|party/.test(text)) categories.push("receivable/payable reports");
+  if (/stock|inventory|grn|valuation|cogs/.test(text)) categories.push("inventory reports");
+  if (/profitability|margin/.test(text)) categories.push("profitability reports");
+  if (/audit|control|approval/.test(text)) categories.push("audit/control reports");
+  return categories.length > 0 ? categories : ["financial, operational, inventory, GST, profitability, and control reports"];
+}
+
+function isVoucherDashboardQuery(query) {
+  return /voucher dashboard|business voucher|guided voucher/i.test(String(query || ""));
+}
+
+function generateVoucherDashboardAnswer(candidate, confidence) {
+  const confidenceLabel = confidence === "high" ? "I am confident" : confidence === "medium" ? "I have moderate confidence" : "I have low confidence";
+  return `${confidenceLabel} this is about the Voucher Dashboard / Business Voucher area. It is for guided and manual accounting voucher workflows such as receipt, payment, sales, purchase, journal, contra, debit note, and credit note style accounting workflows where applicable. It does not replace Work Order / Supply Order as the operational root; Work Order / Supply Order remains the source business file for government supply lifecycle tracking. ${candidate.summary || ""} Source: ${getSourceLabel(candidate.sourceKind)}.`;
+}
+
+function getProhibitedActions(boundary) {
+  const all = ["post", "reverse", "approve", "delete", "restore", "import", "export"];
+  if (!boundary || boundary === "read-only guidance") return all;
+  if (boundary.includes("accounting")) return all;
+  if (boundary.includes("inventory")) return all.filter((a) => a !== "import");
+  if (boundary.includes("gst")) return all;
+  if (boundary.includes("workflow")) return all.filter((a) => a !== "import" && a !== "export");
+  if (boundary.includes("import")) return ["import", "export"];
+  return all;
+}
+
+export { buildAnswer, buildAnswerContract, formatSourceReferences, explainWorkflowStage, explainDatabaseTable, explainVoucherType, explainReport, getManualHelp, getKnownGaps };

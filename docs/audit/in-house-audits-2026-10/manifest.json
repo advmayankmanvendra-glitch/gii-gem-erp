@@ -1,0 +1,557 @@
+{
+  "manifestVersion": "1.0.0",
+  "purpose": "Checksums of the preserved in-house audit reports (October to November 2026). A report is never edited after it is preserved; a later audit is added as a new file.",
+  "count": 110,
+  "entries": [
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/audit-1-current-build.md",
+      "bytes": 26462,
+      "sha256": "D3035CA8C321E5A29096DF1C8DB4C671190B7FB4D27E9D5A556DDB298F1CA766"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/audit-2-architecture-sustainability.md",
+      "bytes": 29342,
+      "sha256": "044B125D38508A30CC88EFD51764BEA910BBAD101216920A0F135162940C4027"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/phase-report.md",
+      "bytes": 11450,
+      "sha256": "C8DC67D1714A8189367436B3240D11C9E6D3627F85107C2591ED1C3120F5FCBF"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-084a72c-architecture.md",
+      "bytes": 4564,
+      "sha256": "13716E3EE9F91A9D3D63B83F331160465ED38FA2572A35E2DB7E6932D7558B71"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-084a72c-correctness.md",
+      "bytes": 12235,
+      "sha256": "0CCF3961A0D62AE9BCDD53CB96CBC4AA3B7409FAE525C9CC308D50CD1F08D95D"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-084a72c-security.md",
+      "bytes": 5605,
+      "sha256": "D71CE18EF92095B9BD55AF45CE85193D2E22B0EFF9A5B52260474B2595E37916"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-182b11f-architecture.md",
+      "bytes": 22088,
+      "sha256": "94810DA17CDB4AEAC46BA961991DA1A6B689CF8313DE0BDE7532F2E68C1BD735"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-182b11f-correctness-security.md",
+      "bytes": 22494,
+      "sha256": "4B295242D375608B3ABBF4C9A5AFE5EFDF1B53A6D79ED3F4751F24A5B368C191"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-219b2d3-architecture.md",
+      "bytes": 28197,
+      "sha256": "1B7229AAF46244D81EF29F423C54C69B934103266E015056AAE07D6D761C47B9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-219b2d3-correctness.md",
+      "bytes": 22128,
+      "sha256": "7EDD81B1CAD3A31E46598E18BEBFFC9E7F0ABC56ABF9BF8BE8FF32FDDDE8A11C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-219b2d3-security.md",
+      "bytes": 23632,
+      "sha256": "E280E06C868AEEAD131728E00EEDFB4956EFC2217294FC8E6270ADB6E0CEC807"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-32263ab-architecture.md",
+      "bytes": 18006,
+      "sha256": "BBBEF1855BA8476648732CF17F203FB504CCDBEA498EE733CD8B7BA3FAB79A44"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-32263ab-correctness.md",
+      "bytes": 18794,
+      "sha256": "A2320F4736FA9DF89A9D69B0020E2010041222D3238484D9BC6928A94485576E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-32263ab-security.md",
+      "bytes": 17427,
+      "sha256": "2936806289F48D10E5852960BB78FB555BBA2BD56AF8D62BF815BC91692BAC9B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-343ffdd-architecture.md",
+      "bytes": 4704,
+      "sha256": "20F3D7FA594B5276CC53027C111AA96F57A0603FA67EBB16F90BF1B5D6488DF7"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-343ffdd-correctness.md",
+      "bytes": 7656,
+      "sha256": "FB8BD0373468795485BA5B7B46553170A3519A4060268B1247EF806C9305E0A3"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-343ffdd-security.md",
+      "bytes": 8900,
+      "sha256": "0D222343D14F3A3CC701C7BFDE379B61D17649E904DEE8A23096BAEFB0B45CFD"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-372c89d-architecture.md",
+      "bytes": 16232,
+      "sha256": "150BC6333893C39B66077C2E71FFCB4E8F11DEAD54EE16C60C8A06DF6ACE40A6"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-372c89d-correctness.md",
+      "bytes": 15620,
+      "sha256": "97A86AA5E861A955B6867E7F72A0B6FDE8773CD4684D4BD36AE36A3201B21CF7"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-372c89d-security.md",
+      "bytes": 13995,
+      "sha256": "48E808B2A9BF6CD373FEF46BEF26C0C80BD557BD32BEA73FFC945DE96D6DF7EC"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-architecture.md",
+      "bytes": 34904,
+      "sha256": "6623EA11EC1E0AA6A9B890591558B429B5E8D21AFA02D36B555266448719B754"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-correctness.md",
+      "bytes": 18812,
+      "sha256": "7C25ECD9720985E49898346C7FC4D1F1A73EFC5615B7B0E49E53C31A50EE7F40"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3c12e50-security.md",
+      "bytes": 28291,
+      "sha256": "58D425B5AC3753243D5690A0A749C1EB4502C79B75D1CB9A3AA83697DB28317C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3f6c5d5-architecture.md",
+      "bytes": 3938,
+      "sha256": "4AC606CD21AB027EC9DF02A9E484667EB871B3D5999056D974E76DF05FBFC3BB"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-3f6c5d5-correctness.md",
+      "bytes": 8356,
+      "sha256": "9CE01F90BF06F14D0E486718EC59A131A4D88A9115991D232AAE98F2F5A56D54"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-4f3a9b6-architecture.md",
+      "bytes": 13335,
+      "sha256": "7AB4A54F0458B8D10A589C656CB40FD4D557DAF32F97FE85214FC374DCBF17D0"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-4f3a9b6-correctness.md",
+      "bytes": 14530,
+      "sha256": "8558595F3F65EC8452949441AC5424799540659840CDB8F03C2B2E09349F7BDA"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-4f3a9b6-security.md",
+      "bytes": 15787,
+      "sha256": "36398B1068AB58BB2647C0485A1443B6C5E00F4E642E290E33213880AEC3F483"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-605a873-architecture.md",
+      "bytes": 18548,
+      "sha256": "7A21630E61BC05A8EC9DE9F1CD14FA3C16B325FBA801D43530729A6A06A41AA3"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-605a873-correctness.md",
+      "bytes": 17014,
+      "sha256": "AC50974CB165B37F5F079096A30FC8E686B3F90437F58026188198C42B5297AA"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-605a873-security.md",
+      "bytes": 10691,
+      "sha256": "2A4D3AF8472913C918950696F669ACF7EF44DD7A18B8358F3AD2E817189E503B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-61dfe2b-architecture.md",
+      "bytes": 24556,
+      "sha256": "10604A82C637641166FEFED439BAA7E438FFF105560BF507F3E8B8C90FB4D400"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-61dfe2b-correctness.md",
+      "bytes": 14977,
+      "sha256": "C35FF6DC16650177672FB43DAEF723150556034E3979AB45FB601FF0B09165F4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-61dfe2b-security.md",
+      "bytes": 14199,
+      "sha256": "0641CC905878C48DEFD56B397D3C4FB1CA2CAD32DA2DF70386FDD826D05ECD85"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-64124dc-architecture.md",
+      "bytes": 17854,
+      "sha256": "0DC189052F068994603318A001F6DEC0DF3ED485422F108678BC03628F601FBC"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-64124dc-correctness.md",
+      "bytes": 17174,
+      "sha256": "AF7CE2D3EC1B68D155BEFA468016C0D5160680D35F68E08E1B0D3AAB0FE76254"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-64124dc-security.md",
+      "bytes": 15418,
+      "sha256": "47B0A2204972A135E1236A81465DF25B1CCA73C0A2A36A194E9038C3A4277C5D"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-66b024f-architecture.md",
+      "bytes": 19429,
+      "sha256": "E9DD7C15F09BA2826483C6873A91A32A688156C784790B4D3D46C38CB5B91DE1"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-66b024f-correctness.md",
+      "bytes": 19624,
+      "sha256": "6C4560E51D7B1BB808A0F35C0B377564B553D2BC77EC219C68CE60A25A2C4F6E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-66b024f-security.md",
+      "bytes": 15139,
+      "sha256": "6CE20F4DFFF5C0C75533D17DF1111E4C224D44671FDC3C2C4993FDEBE18DBBBA"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-6fa5734-architecture.md",
+      "bytes": 16635,
+      "sha256": "7AD88080C2DF9E1DC9C46D3E91337384A427A31E1D348A6A8FAD570D7E033EFB"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-6fa5734-correctness.md",
+      "bytes": 12827,
+      "sha256": "19CC1C15CABEAB836C25C7C06F32C3E2BECA42718FD736A2DED382C986BCDF73"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-6fa5734-security.md",
+      "bytes": 13595,
+      "sha256": "D804DC006B63CAFA8C37DE9F5D4059583991BF87057E966AF31F28C994EE5F08"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-7955315-architecture.md",
+      "bytes": 25831,
+      "sha256": "878F2E831F0217B085BBDD645766F2F80DB885385E070DB9566B5C44792C831F"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-7955315-correctness.md",
+      "bytes": 15744,
+      "sha256": "24F46DE6B3DE5F2322423DA3B996E595F9A93B0F8138021BE5C5C6C02009E7ED"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-7955315-security.md",
+      "bytes": 19723,
+      "sha256": "EC115D5E2694A7F9BB72C28C618ECCF7E4AD8B57C5DA82C15EBDE72AADBA8B9B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-7ea3e03-architecture.md",
+      "bytes": 2991,
+      "sha256": "F66EFBA80A7C200A1546FD5BA6505EEBF138CF6D4CB69A3F1FBE98915E9131F2"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-7ea3e03-correctness.md",
+      "bytes": 4494,
+      "sha256": "35E792A92E35296D8CD86974E3BA57B77DB944E423EAB883E32538F066C09FF9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-8d5dd67-architecture.md",
+      "bytes": 20030,
+      "sha256": "51189BF5ECEDC6214BF73ECC3D8D7788BDBB432E09679860C7BC7E25342899E1"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-8d5dd67-correctness.md",
+      "bytes": 16413,
+      "sha256": "26E743F06C30570CC12B1226A91C96A69F1031C47FB50E2669B94C9B4DE2E7A8"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-8d5dd67-security.md",
+      "bytes": 13696,
+      "sha256": "4B3FBB9A141A55647087FF3C61178528066BF0333968E6B10CFB21A4C2BC8763"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-92071b3-architecture.md",
+      "bytes": 19663,
+      "sha256": "9F57E9329A45C65406EAB25A98F57A33592CDC5CE567B7690806F0E8527A648C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-92071b3-correctness.md",
+      "bytes": 15698,
+      "sha256": "568BBD8285D44C8DA778C02B678E5D4E8B48C9E6A92246A9633C309DAFB4FB09"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-92071b3-security.md",
+      "bytes": 17326,
+      "sha256": "57E49B0070FFD38510FE3EBA79152717BF14DECB9DCE93C316FCC240B1004434"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-9dac174-architecture.md",
+      "bytes": 32486,
+      "sha256": "CAD74D9FAED827C9D09AFFF8EE866E9312342F95B4732EAEDDE09FA760FC06E7"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-9dac174-correctness.md",
+      "bytes": 10997,
+      "sha256": "9BEAB6877DEA94A74BE5C732B26C773E4F0039DB1EE06D304D448AFE7DD482A4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-9dac174-security.md",
+      "bytes": 14426,
+      "sha256": "FE5965BCF3023DE0CD82033FCD86E423C1675EABA704B90984DD517B89DA1871"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a11bd45-architecture.md",
+      "bytes": 7637,
+      "sha256": "C32E6B5A7AFC5881E85BB98AD39BFB7C192CC5D436B1B3F82CBFF5007E7BDE25"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a11bd45-correctness.md",
+      "bytes": 9444,
+      "sha256": "E54300A6766A28D9A30B7BF1235C7916842273820765014AB4E9C3066752B98F"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a11bd45-security.md",
+      "bytes": 12744,
+      "sha256": "5620017C1DD20FEC4640380F489CFEC39F0325F81153BCF1298EA84E35013301"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a55b2d0-architecture.md",
+      "bytes": 30725,
+      "sha256": "E2B202E30E5BD88CE3D16CA8432869A27127B01A194902428136A08DE159FD9D"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a55b2d0-correctness.md",
+      "bytes": 20551,
+      "sha256": "72B7ADEAB93C3C5290CD7BB6EB553D04057C392D621CC8E8ECA916258D671B9A"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a55b2d0-security.md",
+      "bytes": 30266,
+      "sha256": "6168B586C542E0FCDCD18745F55FC222EF4B34B42A7049063E5CF702D4092D81"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a8c64af-architecture.md",
+      "bytes": 12961,
+      "sha256": "A7B2ABB170196EFBEF4D2035B6B2A12E2998BA0B39D8F98D0E6C6D826FDB3345"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a8c64af-correctness.md",
+      "bytes": 11498,
+      "sha256": "51DC63D47BF6EC9748216327AD0C08A6CC64236B214677F35342D99A0690CA1B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a8c64af-security.md",
+      "bytes": 17522,
+      "sha256": "152C3F958090D9D42422A9902B593F95083EAD425D0E387EAFD054AEAED6A465"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a97daf4-architecture.md",
+      "bytes": 35012,
+      "sha256": "C067D86A85582F93AA5D17B2880D1807AE65FC05B34B08FC5FF417D9C0FEDAC8"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a97daf4-correctness.md",
+      "bytes": 25508,
+      "sha256": "03EB248B84701D724CB9DF5831956EF50A6854CA10D707B6869185EF669E3708"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-a97daf4-security.md",
+      "bytes": 29486,
+      "sha256": "91A0E7C186CE111B466FBA9540FDC8D7D370C151F80D04917D737AE6C2D9F1F5"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-d661346-architecture.md",
+      "bytes": 16693,
+      "sha256": "E8CBA6BD3A7D1FCB4CFC877DBA251E0C16EEBDB00DF20CBA177782FEEBA4E6E4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-d661346-correctness.md",
+      "bytes": 16939,
+      "sha256": "38ED2F7D29A791B89EA7454B77A281395850981377C8A8DAB20E70C9E14D8895"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-d661346-security.md",
+      "bytes": 12871,
+      "sha256": "C56949E3C3BC3DEA7AFDBC8AEB3CB8FD56FC5107E55FA08FDE8BE20B40AC2954"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-dc030e6-architecture.md",
+      "bytes": 17724,
+      "sha256": "82275086515D781F70CC8CA77A571DB8D0F3FCAE4FA296F1BA1347832498D597"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-dc030e6-correctness.md",
+      "bytes": 16426,
+      "sha256": "E8D11FE8BEA5EFB963631774DE2FB01FECE3152296127BEA397970B47F86528A"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-dc030e6-security.md",
+      "bytes": 13170,
+      "sha256": "72779E63C7AFDF34F8C8B7606AEAD7A757906E7EEAD1A18AF1DE153CE21A3352"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-ef324d5-architecture.md",
+      "bytes": 18237,
+      "sha256": "11BBB9E52128F7A9589ABFDF294AECE109B3D09A78BA6BD1FBB530134208D3B9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-ef324d5-correctness.md",
+      "bytes": 19127,
+      "sha256": "5FA860DE446B7F7D868EBA60AE5C5C44DC84B29DA90CC1D199F419EC4A03E2B3"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-ef324d5-security.md",
+      "bytes": 18732,
+      "sha256": "75E3B4DFD01CDE2F49971793A594495E5214DD950155FD6DAF8D3DAA5D7A8369"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-efefcbb-architecture.md",
+      "bytes": 21559,
+      "sha256": "082CEA74EDA978DB3D8292E6E48E22052D12E1774E35270B09AD3B3FB337A998"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-efefcbb-correctness.md",
+      "bytes": 15690,
+      "sha256": "A52CC0C2D734186F68D895986E6B7D7F48927479AA9C6F7FFBA852E2D5858EF8"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-efefcbb-security.md",
+      "bytes": 17637,
+      "sha256": "9D107BBB75AA30A92861F563626FEADB4732B0D4E42A6096EFEA6BFA8BCB9690"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-architecture.md",
+      "bytes": 4769,
+      "sha256": "9EECDB886E24A7A37AEDC103D8ED353CD436126B3E0D59C4D0926853B16050A9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-correctness.md",
+      "bytes": 11037,
+      "sha256": "165BEAD18CC0A2FA97810B2FFFEA337E221027543484DBE2D494F53BC721397A"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f5394f5-security.md",
+      "bytes": 7414,
+      "sha256": "8D869E4C2979F59D93B8A0EDD48ACA4DD23B055515F8ACD7AB61978C41EB63CB"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f833346-architecture.md",
+      "bytes": 22294,
+      "sha256": "26EB8B1B4AA3B4731DC4AA6F5D7FFFC5D1A9DEE0AA06B80DA58DAAD5A9C2E7F4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f833346-correctness.md",
+      "bytes": 22151,
+      "sha256": "CD8DD9C82B61099521A93E4FF5F60D1819980218B21BC58A1238384B0BDA8E04"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f833346-security.md",
+      "bytes": 18338,
+      "sha256": "4723370049D687D6C56B1DA596F48168AF7CE911A1DF0064BA7E800EABC3CF47"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f9241ed-architecture.md",
+      "bytes": 23701,
+      "sha256": "3F7D23B20DE65C6C88F5DF659DF169F170A785691C50FDFADF20B12AA08EA532"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f9241ed-correctness.md",
+      "bytes": 13906,
+      "sha256": "E5821217CA338EB43D26C3847777F1F99B9F0510E90B91D644D34877D2F6B12C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-f9241ed-security.md",
+      "bytes": 12997,
+      "sha256": "7BCDC0371ECC7604B44CAD58FBD352253D43AF06DD3B48052F401A9F09DCE262"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-round-1-current-build.md",
+      "bytes": 10624,
+      "sha256": "00D8BABC358B061A910F7C8544EDFCFBA3FD50AF16FA5ED24AF56035DF3178BC"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-round-2-architecture-sustainability.md",
+      "bytes": 14217,
+      "sha256": "190321A79DF2EE2FFDF26FF93AB3FAC98EAF980C44B8C460AEE71E595FE5C337"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/audit-security.md",
+      "bytes": 14199,
+      "sha256": "5C3208845A0AFD9E7FE3F83D52B6F666BFAEA1A6D01F07DA3A388A03E62268FC"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-084a72c.md",
+      "bytes": 1451,
+      "sha256": "D6A469F141722C86FCE36EBA732710D19A005576A3851694EDF73A95DF568384"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-343ffdd.md",
+      "bytes": 716,
+      "sha256": "5445831C751D6E3EE11690BE6B83F1289175622C64950B9BE0A836A9A7E56569"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-3f6c5d5.md",
+      "bytes": 802,
+      "sha256": "D65796D8260000266EF7560A3A526D13C08262EB2DA13A4249C3F60103F9B74B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-10-22-pr4-inhouse/responses-f5394f5.md",
+      "bytes": 1477,
+      "sha256": "4605F4473C35C9986283689FCED95233BB89B1CB39CB52E16D7C12FAF0E5D76C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-10-convergence/branch-graph-convergence-audit.md",
+      "bytes": 8893,
+      "sha256": "49838F3F89505CF596FD87D32EEDEF38759B05816508533B4CC3B55107F94F90"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/acf6d02-verification/README.md",
+      "bytes": 10732,
+      "sha256": "4042D47560C83130C11638CB2BDC1F8A1913FFF04EB3BDC68F6B81388C36A695"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/acf6d02-verification/run-full.txt",
+      "bytes": 23616,
+      "sha256": "97508878A84656AC5AA249721B934C4D4EB0B4E4B785B53ED9B2E8863AE9F971"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/README.md",
+      "bytes": 11700,
+      "sha256": "1FA1B918374C9B818A68A4E9609D90C13D07AFFE182375583F09314D4F25BFDE"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/accounting.md",
+      "bytes": 28315,
+      "sha256": "BEFA9D91C4F6E8A27408BE0EB69AB55615B15CAEBA5F6717DFC1E55832F46F93"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/architecture.md",
+      "bytes": 23704,
+      "sha256": "E67E35C18989C28E5D851BFE3F719FB38BF4B4676CE3CAA47918F0143788AF1E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/data-safety.md",
+      "bytes": 20943,
+      "sha256": "1135B236D9F0063037AA664A6A64337D71357E46E0F3BF3334BFA73F4578981E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/inventory-ops.md",
+      "bytes": 19825,
+      "sha256": "27FA1B687132757DA816CBECCD582A63225E6606E44B18713F0B295884403B5F"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/security.md",
+      "bytes": 36551,
+      "sha256": "FBD1B78F32D685E123C78B4DAFFAFE06AD4434885642EE2A72F67C828B0B2B51"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/full-audit-acf6d02-2026-10-14/area-notes/smoke.md",
+      "bytes": 1240,
+      "sha256": "1C3FE47EA027EB0D693498E26E6E79048751E6C69DF2455ECD64EB27ACB949F4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/repo-audit-2026-10-07.md",
+      "bytes": 12452,
+      "sha256": "B9375016B34A255482D5BB195E9DC924E5C7658E4D796F55E251D28F3C6E12D9"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/tally-style-checks-2026-10-29.md",
+      "bytes": 10011,
+      "sha256": "EBF72E5AC4698CAD0B956F99964E514B0D342C9930B3DF8887520BED03DB100E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/thorough-audit-2026-10-07.md",
+      "bytes": 17404,
+      "sha256": "4E74F7BCE4BCD2C50EF775DF71412B7FD678519FE398732A067A6EDD277F32B8"
+    }
+  ]
+}

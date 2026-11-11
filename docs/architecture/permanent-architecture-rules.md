@@ -1,8 +1,10 @@
 # Permanent Architecture Rules for GII GeM ERP
 
-Version: 3.1  
+Version: 3.4  
 Status: Active governance constitution  
-Last updated: 2026-06-25
+Last updated: 2026-08-21
+
+This file is the canonical constitution. `AGENTS.md` is its synchronized developer-facing entry point.
 
 This document records the standing engineering and safety rules for GII GeM ERP. It is intended for developers, accountants, auditors, Codex, OpenCode, and future maintainers.
 
@@ -561,12 +563,228 @@ Before final response, confirm:
 - [ ] production readiness gate result recorded
 - [ ] safe to lock stated clearly
 
+## 25. Enterprise Intelligence Layer Governance
+
+The Enterprise Intelligence Layer is a controlled architectural asset defined in `docs/architecture/enterprise-intelligence-layer.md`.
+
+Future AI tools shall read the graph registry first, load only relevant graphs, avoid repository-wide scans where graph data is sufficient, and respect schema compatibility rules.
+
+Every future graph must register itself, declare dependencies, declare schema compatibility, provide validation, provide regeneration instructions and follow the Enterprise Intelligence Layer schema contract.
+
+Every implementation phase must reference the Enterprise Intelligence Layer where applicable and update affected graphs if graph structure changes.
+
+## 26. Major Program Baseline Rule v2
+
+Every major architectural program must begin by establishing a named baseline.
+
+Covered programs include Renderer, Database, Workflow, CRM, AI and Mobile.
+
+Baseline sequence:
+
+1. Clean git working tree.
+2. Verification pass.
+3. Named git tag.
+4. Remote push.
+5. External backup.
+
+Baseline tags must follow:
+
+```text
+<program>-baseline-<YYYY-MM-DD>
+```
+
+Minor subphases inside an already-baselined program do not require a new baseline.
+
+## 27. Programme Stabilization and Certification Law
+
+No major programme shall directly transition into another major programme.
+
+Every programme must complete:
+
+```text
+Implementation
+  -> Stabilization Programme
+  -> Certification Programme
+  -> Lock Report
+  -> Architecture Gate Decision
+  -> Next Programme
+```
+
+No step may be skipped.
+
+If verification failure, production readiness failure, reset inconsistency, dashboard/source mismatch, accounting imbalance, database inconsistency, dirty architecture baseline, failed desktop certification or missing lock report remains unresolved, no subsequent major programme may begin.
+
+## 28. GII Operational Chain of Command Governance Rule
+
+All current government supply modules must follow the approved operational lifecycle before future module changes are made.
+
+Approved core workflow:
+
+```text
+Lead / Tender
+  -> Query / Requirement
+  -> Quotation
+  -> Negotiation
+  -> Purchase Order / GeM Order
+  -> Work Order
+  -> Procurement Planning
+  -> Supplier Purchase Orders
+  -> Goods Receipt / GRN
+  -> Inventory Reservation
+  -> Delivery Challan
+  -> Installation
+  -> CRAC
+  -> Sales Invoice / GST Invoice
+  -> Department Receivable
+  -> Receipt
+  -> Order Closure
+  -> Profitability Analysis
+```
+
+This rule is defined in `docs/architecture/gii-operational-chain-of-command-rule.md`.
+
+## 29. Work Order / Supply Order Parent Entity Rule
+
+For the current GII government supply lifecycle, Work Order / Supply Order is the parent operational entity.
+
+Current implementation mapping:
+
+- Business parent concept: `WORK_ORDER`
+- Current code parent entity: `SUPPLY_ORDER`
+- Current table: `supply_orders`
+- Current line table: `order_items`
+- Current primary route: `supply_orders`
+
+Work Order / Supply Order is operational, not accounting.
+
+Work Order / Supply Order must not post ledger entries by itself.
+
+All downstream government supply modules must preserve traceability back to Work Order / Supply Order where applicable.
+
+This rule is defined in `docs/architecture/work-order-parent-entity-rule.md`.
+
+## 30. Workflow Governance Registry Rule
+
+Every workflow-bearing ERP domain must define or comply with a workflow registry entry.
+
+Each workflow must declare:
+
+- workflow_id
+- workflow_name
+- business_domain
+- parent_entity
+- lifecycle_stages
+- required_stage_order
+- optional_stages
+- allowed_skip_rules
+- accounting_start_stage
+- inventory_start_stage
+- GST_start_stage
+- closure_stage
+- reporting_stage
+- future_extension_notes
+
+The current registered workflow is `GOVERNMENT_SUPPLY_LIFECYCLE`.
+
+The registry must remain future-proof for Payroll, AMC / Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing and Internal Expense lifecycles.
+
+This rule is defined in `docs/architecture/workflow-governance-registry.md`.
+
+## 31. Accounting Intelligence Repository (AIR) Governance
+
+The Accounting Intelligence Repository (AIR) is the canonical accounting knowledge layer of GII GeM ERP.
+
+AIR defines accounting concepts independently of any ERP software.
+
+AIR shall derive accounting principles from authoritative accounting standards and regulations.
+
+ERP systems such as:
+
+- TallyPrime
+- Tally ERP9
+- SAP
+- Oracle
+- QuickBooks
+- Zoho Books
+- BUSY
+- Marg
+
+shall be treated as implementation references only, not as accounting authorities.
+
+AIR shall contain:
+
+- Universal accounting concepts
+- Accounting relationships
+- Accounting validation rules
+- Financial reporting concepts
+- Inventory accounting concepts
+- GST and taxation concepts
+- Internal control concepts
+- Audit concepts
+- ERP implementation mappings
+- Migration intelligence
+- AI reasoning metadata
+
+Every AIR concept shall define:
+
+- Definition
+- Purpose
+- Business meaning
+- Accounting rules
+- Validation rules
+- Relationships
+- Workflow impact
+- Database mapping
+- Report impact
+- AI explanation
+- Migration notes
+- References
+
+AIR shall integrate with:
+
+- Enterprise Intelligence Layer
+- ERP Brain
+- Knowledge Graph
+- Help Assistant
+- Future Data Assistant
+
+Future AI shall explain accounting concepts using AIR before consulting ERP-specific implementations.
+
+## 32. Navigation & Location Queries Are Always Safe
+
+The ERP Help Assistant must answer questions about where to find ERP features, screens, menus, reports, documents, workflows and record-entry areas.
+
+Questions such as "where is bill history", "how do I open purchase bills", or "which menu has GST reports" are navigation/help lookups. They do not require live database record inspection and must not be refused on that basis.
+
+The assistant must resolve these answers using route/view registry, navigation map, screen titles, help metadata and user-facing labels.
+
+The assistant must not expose internal governance terms such as H1-H5, safe summary, arbitrary live records, route registry, permission layer or capability boundary to end users.
+
+If the user asks to view actual records, totals, balances, pending bills, payments, customer-wise lists or company-specific live data, the assistant must explain the limitation in plain user language.
+
+Bad:
+
+```text
+The H1-H5 assistant is only allowed to answer guidance questions.
+```
+
+Good:
+
+```text
+You can find Bill History under Operations -> Purchase Bills. I can guide you to the screen, but I cannot show your specific bills from here yet.
+```
+
+The navigation answer must come first. Any limitation about live records must appear only when relevant.
+
 ---
 
 ## Version History
 
 | Version | Date | Description |
 | --- | --- | --- |
+| v3.4 | 2026-08-21 | GGR-1 reconciled the active version metadata, restored Accounting Intelligence Repository Governance as Rule 31 in the canonical constitution, preserved Navigation and Location Queries as Rule 32, and declared the canonical/synchronized document relationship. No rule identifier or runtime behavior changed. |
+| v3.3 | 2026-07-10 | Added Rule 32: Navigation & Location Queries Are Always Safe for Help Assistant user-facing guidance. |
+| v3.2 | 2026-07-09 | Added Enterprise Intelligence Layer Governance, Major Program Baseline Rule, Programme Stabilization and Certification Law, Operational Chain of Command, Work Order Parent Entity and Workflow Governance Registry rules. |
 | v3.1 | 2026-06-25 | Added Feature Classification, Dependency Assessment and Production Readiness Gate governance rules. |
 | v3.0 | 2026-06-25 | Integrated Product Governance, Git Governance, Verification Sequencing, Expanded Desktop Smoke Test and Governance Layer Hierarchy. |
 | v2.1 | 2026-06-25 | Added Global UX Governance and the mandatory Phase Governance Pipeline. Renumbered final checklist. |

@@ -13,7 +13,7 @@ const viewTitles = {
   department_profitability: ["Department Profitability", "Department-focused profitability review."],
   supplier_profitability: ["Supplier Profitability", "Supplier-focused purchase and profitability review."],
   employee_performance: ["Employee Profitability", "Employee-wise order value, collections, profit and incentive summary."],
-  profit_simulator: ["Profit Simulator", "Scenario review for billing, procurement, expenses and incentive impact."],
+  profit_simulator: ["Profit Simulator", "What-if scenario modeling: adjust billing, cost, expenses, incentive and GST rate to see impact on net profit and ROI."],
   receivables: ["Receivables", "Order-wise billing, receipts, balance and days outstanding."],
   payables: ["Payables", "Supplier-wise purchase value, amount paid and balance due."],
   cash_flow: ["Cash Flow", "Opening balance, receipts, payouts and closing cash visibility."],
@@ -24,6 +24,8 @@ const viewTitles = {
   outstanding_reports: ["Outstanding Reports", "Receivable and payable outstanding reports."],
   employee_reports: ["Employee Reports", "Employee performance and incentive reports."],
   documents: ["Documents", "Uploaded supporting document register."],
+  supply_orders: ["Supply Orders", "Create and manage Work Order / Supply Order records and their operational lifecycle."],
+  invoices: ["Billing Voucher", "Create and review sales and GST invoice records linked to Supply Orders."],
   operations_dashboard: ["Operations Dashboard", "Order, procurement, billing, collection and document command center."],
   order_items: ["Order Items", "Item-wise ordered quantity, taxable value, GST and billed balance."],
   order_lifecycle: ["Order Lifecycle", "Operational progress from order receipt to procurement, issue, billing and collection."],
@@ -142,11 +144,31 @@ const viewTitles = {
   master_import_templates: ["Master Import Templates", "Download, validate, map and import controlled master templates."],
   tally_xml_import: ["Tally XML Import Assistant", "Preview, validate and import Tally Prime stock item XML safely."],
   tally_migration_assistant: ["Tally Master Migration Assistant", "Stage 1 Tally master migration for ledgers, parties, items, units, banks and warehouses."],
+  leads: ["Leads / Tenders", "Manage sales leads and tender opportunities."],
+  requirement_queries: ["Requirement Queries", "Track government department requirements and queries."],
+  quotations: ["Quotations", "Manage supplier quotations against requirements."],
+  negotiations: ["Negotiations", "Track pricing and terms negotiations with suppliers."],
+  purchase_orders: ["Purchase Orders / GeM Orders", "Manage purchase orders and GeM order references before work order conversion."],
+  procurement_plans: ["Procurement Plans", "Plan procurement quantities based on stock shortage analysis and supply order requirements."],
+  installations: ["Installations", "Track installation progress for delivered goods."],
   crac_management: ["CRAC Management", "Consignee Receipt and Acceptance Certificate tracking and lifecycle management."],
   crac_entry: ["CRAC Entry", "Create and manage CRAC records linked to supply orders."],
   crac_tracker: ["CRAC Tracker", "Track CRAC status, timeline and linked invoice progress."],
   payment_readiness: ["Payment Readiness Report", "Identify payment bottlenecks through CRAC, invoice and receipt comparison."],
   order_closure_tracking: ["Order Closure Tracking", "Checklist-driven operational closure certification."],
+  environment_manager: ["Environment Manager", "Go-live preparation, environment status, operational data counts and production readiness."],
+  production_readiness: ["Production Readiness Certification", "Readiness assessment, Go-Live checklist, scoring and certificate generation."],
+  go_live_wizard: ["Go-Live Initialization", "First controlled production reset and Go-Live initialization workflow."],
+  billing_drilldown: ["Billing This Month", "Invoice-wise billing explanation drill-down."],
+  collections_drilldown: ["Collections This Month", "Receipt-wise collection explanation drill-down."],
+  receivables_drilldown: ["Outstanding Receivables", "Bill-wise receivable ageing drill-down."],
+  profit_drilldown: ["Net Profit", "Order-wise profitability explanation drill-down."],
+  orders_drilldown: ["Orders Pending", "Pending order work queue drill-down."],
+  treasury_drilldown: ["Treasury Overview", "Cash and bank balance drill-down."],
+  gst_drilldown: ["GST Position", "Output GST, input GST and net payable drill-down."],
+  stock_drilldown: ["Stock Value", "Item-wise stock valuation drill-down."],
+  trial_balance_drilldown: ["Trial Balance", "Ledger-wise trial balance drill-down."],
+  unposted_drilldown: ["Unposted Vouchers", "Voucher posting queue drill-down."],
   health_center: ["ERP Health Center", "Runtime diagnostics, recovery guidance, support bundles and verification checklist."],
   safe_mode: ["Safe Mode Recovery", "Renderer crash recovery, diagnostics and support options."],
   help_keyboard: ["Keyboard Shortcuts", "Complete keyboard guide with Smart Enter flow and module-specific shortcuts."],
@@ -163,16 +185,18 @@ const navGroups = [
     icon: "clipboard",
     sections: [
       { id: "dashboard", label: "Dashboard", items: [["operations_dashboard", "Dashboard", "Operations Dashboard"]] },
+      { id: "pre_order", label: "Pre-Order", items: [["leads", "Leads / Tenders"], ["requirement_queries", "Requirements"], ["quotations", "Quotations"], ["negotiations", "Negotiations"], ["purchase_orders", "Purchase Orders / GeM Orders"]] },
       { id: "orders", label: "Orders", items: [["supply_orders", "Supply Orders"], ["order_items", "Order Items"], ["order_lifecycle", "Order Lifecycle"]] },
-      { id: "procurement", label: "Procurement", items: [["procurements", "Procurement"], ["purchase_bills", "Purchase Bills"], ["procurement_requirements", "Procurement Requirements"], ["grn_status", "GRN Status"]] },
+      { id: "procurement", label: "Procurement", items: [["procurements", "Procurement"], ["purchase_bills", "Purchase Bills"], ["procurement_requirements", "Procurement Requirements"], ["procurement_plans", "Procurement Plans"], ["grn_status", "GRN Status"]] },
       { id: "expenses", label: "Expenses", items: [["expense_entries", "Order Expenses", "Expense Entry Expenses"], ["expense_posting_status", "Expense Posting Status"]] },
       { id: "billing", label: "Billing", items: [["invoices", "Billing Voucher", "Billing"], ["business_credit_note", "Credit Note"], ["business_debit_note", "Debit Note"], ["billing_pending", "Billing Pending"]] },
       { id: "collections", label: "Collections", items: [["payments", "Payments"], ["receipt_allocation_workflow", "Receipt Allocation"], ["tds_reconciliation", "TDS Review"], ["gst_tds_reconciliation", "GST TDS Review"]] },
       { id: "documents", label: "Documents", items: [["order_documents", "Order Documents"], ["invoice_documents", "Invoice Documents"], ["payment_documents", "Payment Documents"], ["missing_documents", "Missing Documents"]] },
+      { id: "delivery", label: "Delivery", items: [["installations", "Installations"]] },
       { id: "crac", label: "CRAC Management", items: [["crac_management", "CRAC Management"], ["crac_entry", "CRAC Entry"], ["crac_tracker", "CRAC Tracker"]] },
       { id: "reports", label: "Operational Reports", items: [["pending_procurement", "Pending Procurement"], ["pending_billing", "Pending Billing"], ["pending_payment", "Pending Payment"], ["stock_issue_vs_billing", "Stock Issue vs Billing"], ["order_profitability_exceptions", "Order Profitability Exceptions"], ["order_posting_status_report", "Order Posting Status Report"], ["grn_pending_report", "GRN Pending Report"]] }
     ],
-    items: [["operations_dashboard", "Dashboard", "Operations Dashboard"], ["supply_orders", "Supply Orders"], ["order_items", "Order Items"], ["order_lifecycle", "Order Lifecycle"], ["procurements", "Procurement"], ["purchase_bills", "Purchase Bills"], ["procurement_requirements", "Procurement Requirements"], ["grn_status", "GRN Status"], ["expense_entries", "Order Expenses", "Expense Entry Expenses"], ["expense_posting_status", "Expense Posting Status"], ["invoices", "Billing Voucher", "Billing"], ["business_credit_note", "Credit Note"], ["business_debit_note", "Debit Note"], ["billing_pending", "Billing Pending"], ["payments", "Payments"], ["receipt_allocation_workflow", "Receipt Allocation"], ["tds_reconciliation", "TDS Review"], ["gst_tds_reconciliation", "GST TDS Review"], ["order_documents", "Order Documents"], ["invoice_documents", "Invoice Documents"], ["payment_documents", "Payment Documents"], ["missing_documents", "Missing Documents"], ["crac_management", "CRAC Management"], ["crac_entry", "CRAC Entry"], ["crac_tracker", "CRAC Tracker"], ["pending_procurement", "Pending Procurement"], ["pending_billing", "Pending Billing"], ["pending_payment", "Pending Payment"], ["stock_issue_vs_billing", "Stock Issue vs Billing"], ["order_profitability_exceptions", "Order Profitability Exceptions"], ["order_posting_status_report", "Order Posting Status Report"], ["grn_pending_report", "GRN Pending Report"]]
+    items: [["operations_dashboard", "Dashboard", "Operations Dashboard"], ["leads", "Leads / Tenders"], ["requirement_queries", "Requirements"], ["quotations", "Quotations"], ["negotiations", "Negotiations"], ["purchase_orders", "Purchase Orders / GeM Orders"], ["supply_orders", "Supply Orders"], ["order_items", "Order Items"], ["order_lifecycle", "Order Lifecycle"], ["procurements", "Procurement"], ["purchase_bills", "Purchase Bills"], ["procurement_requirements", "Procurement Requirements"], ["procurement_plans", "Procurement Plans"], ["grn_status", "GRN Status"], ["expense_entries", "Order Expenses", "Expense Entry Expenses"], ["expense_posting_status", "Expense Posting Status"], ["invoices", "Billing Voucher", "Billing"], ["business_credit_note", "Credit Note"], ["business_debit_note", "Debit Note"], ["billing_pending", "Billing Pending"], ["payments", "Payments"], ["receipt_allocation_workflow", "Receipt Allocation"], ["tds_reconciliation", "TDS Review"], ["gst_tds_reconciliation", "GST TDS Review"], ["order_documents", "Order Documents"], ["invoice_documents", "Invoice Documents"], ["payment_documents", "Payment Documents"], ["missing_documents", "Missing Documents"], ["installations", "Installations"], ["crac_management", "CRAC Management"], ["crac_entry", "CRAC Entry"], ["crac_tracker", "CRAC Tracker"], ["pending_procurement", "Pending Procurement"], ["pending_billing", "Pending Billing"], ["pending_payment", "Pending Payment"], ["stock_issue_vs_billing", "Stock Issue vs Billing"], ["order_profitability_exceptions", "Order Profitability Exceptions"], ["order_posting_status_report", "Order Posting Status Report"], ["grn_pending_report", "GRN Pending Report"]]
   },
   {
     id: "inventory",
@@ -252,9 +276,10 @@ const navGroups = [
     icon: "settings",
     sections: [
       { id: "import_export", label: "Import / Export", items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"]] },
-      { id: "support_recovery", label: "Support & Recovery", items: [["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]] }
+      { id: "support_recovery", label: "Support & Recovery", items: [["health_center", "ERP Health Center", "Diagnostics Error Console Errors Integrity Recovery Safe Mode Support Bundle Verification"]] },
+      { id: "go_live", label: "Go-Live Preparation", items: [["environment_manager", "Environment Manager", "Go-Live Preparation Environment Readiness Production Initialization"], ["production_readiness", "Production Readiness", "Readiness Certification Go-Live Certificate Assessment Scoring Checklist"], ["go_live_wizard", "Go-Live Initialization", "First Controlled Production Reset Go-Live Certification Production Launch"]] }
     ],
-    items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Recovery Safe Mode Support Bundle Verification"]]
+    items: [["master_data_tools", "Master Data Tools", "Export Masters Bulk Update Reimport Data Quality Templates"], ["master_import_templates", "Master Import Templates", "Templates Import Export Tally Mapping"], ["tally_migration_assistant", "Tally Migration Assistant", "Tally Stage 1 Master Migration Ledgers Suppliers Departments Items Banks Godowns"], ["tally_xml_import", "Tally XML Import Assistant", "Tally Prime XML Stock Items Units Godowns Warehouses HSN GST Mapping"], ["health_center", "ERP Health Center", "Diagnostics Error Console Errors Integrity Recovery Safe Mode Support Bundle Verification"], ["environment_manager", "Environment Manager", "Go-Live Preparation Environment Readiness Production Initialization"], ["production_readiness", "Production Readiness Certification", "Readiness Certification Go-Live Certificate Assessment Scoring Checklist"], ["go_live_wizard", "Go-Live Initialization", "First Controlled Production Reset Go-Live Certification Production Launch"]]
   },
   { id: "help", label: "Help & Training", icon: "help", items: [["help_training", "Help & Training"], ["help_keyboard", "Keyboard Shortcuts"], ["help_assistant", "GII ERP Help Assistant", "Ask ERP Help Assistant Guidance Questions"]] },
   { id: "settings", label: "Settings", icon: "settings", items: [["settings", "Settings"]] }
@@ -277,7 +302,7 @@ const routeAliases = {
   reversal_voucher: "voucher_register",
   department_profitability: "profitability",
   supplier_profitability: "profitability",
-  profit_simulator: "profitability",
+
   profitability_reports: "reports",
   gst_reports: "reports",
   outstanding_reports: "reports",

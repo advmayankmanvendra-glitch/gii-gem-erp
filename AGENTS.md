@@ -1,6 +1,20 @@
 # PERMANENT ARCHITECTURE AND FUNCTIONAL SAFETY RULES FOR GII GeM ERP
 
-Version: 3.1
+Version: 3.4
+Last updated: 2026-08-21
+
+Canonical constitution: `docs/architecture/permanent-architecture-rules.md`. This file is the synchronized developer-facing entry point.
+
+## GI-EGS Compliance Reference
+
+Apply GI-EGS (Gesture India Engineering Standards) standards.
+
+Canonical GI-EGS repository:
+https://github.com/advmayankmanvendra-glitch/GI-ENGINEERING-STANDARDS
+
+Refer to the GI-EGS master governance rules for engineering standards, documentation discipline, audit procedure, architecture control, naming conventions, acronym expansion, Codex/OpenCode review process, and clearance protocol.
+
+Do not redefine, duplicate, override, or maintain separate engineering standards inside this project. This project must only consume and comply with GI-EGS standards.
 
 Apply these rules before implementing any new phase.
 
@@ -467,3 +481,465 @@ Before final response, confirm:
 - [ ] production readiness classification recorded
 - [ ] production readiness gate result recorded
 - [ ] safe to lock stated clearly
+- [ ] Enterprise Intelligence Layer referenced where applicable
+- [ ] graph-registry.json updated if graph structure changed
+- [ ] relevant graph schemas remain backward compatible
+
+## 25. Enterprise Intelligence Layer Governance
+
+The Enterprise Intelligence Layer is a controlled architectural asset defined in `docs/architecture/enterprise-intelligence-layer.md`.
+
+### 25.1 Definition
+
+The Enterprise Intelligence Layer consists of all nine active structured knowledge graphs (BRAIN-1, KG-1, RG-1, DG-1, WG-1, KG-4, FF-1, AG-1 and KG-5) and is documented in `repository/graph-registry.json`.
+
+### 25.2 AI Consumption Rules
+
+Future AI tools shall:
+
+1. Read `repository/graph-registry.json` first to discover available graphs.
+2. Determine which graph(s) are required for the current task.
+3. Load only required graph(s) — avoid loading all graphs when one suffices.
+4. Avoid repository-wide source scans whenever graph data is sufficient.
+
+### 25.3 Schema Changes Require Governance Approval
+
+- No graph schema may change without version increment.
+- Breaking changes (remove/rename required fields, change semantics) require Major version increment and full review.
+- Additive changes (new optional fields, new enums) are allowed in minor versions.
+- The `compatibility` section of each schema documents allowed vs. breaking changes.
+
+### 25.4 Every Future Graph Must
+
+1. Register itself in `repository/graph-registry.json`
+2. Declare dependencies on existing graphs
+3. Declare compatibility with existing graph schemas
+4. Provide a validation audit pack in `scripts/verify-audit.js`
+5. Provide regeneration instructions in its schema documentation
+6. Follow the Enterprise Intelligence Layer schema contract (include all required top-level fields: `schemaVersion`, `graphId`, `generatedAt`, `owner`, `description`, `dependencies`, `relationships`, `risk`, `metadata`, `statistics`, `compatibility`, `futureExtensions`)
+
+### 25.5 Phase Requirements
+
+Every implementation phase must:
+
+1. Load the graph registry to understand current architecture state.
+2. Load relevant graphs for navigation and analysis before modifying any source code.
+3. Reference the Enterprise Intelligence Layer in the phase report.
+4. Update affected graphs if the phase changes any architecture element.
+5. Verify all active graphs pass their audit packs after the phase.
+
+## 26. Major Program Baseline Rule v2
+
+Every major architectural program must begin by establishing a named baseline.
+
+### 26.1 Programs Covered
+
+This rule applies to:
+
+- **Renderer Program** — any phase group that structurally modifies the renderer (CSS segmentation, presentation extraction, route registry, navigation, App.jsx reduction, dead code removal)
+- **Database Program** — DG-1 implementation or any schema-level database restructuring
+- **Workflow Program** — WG-1 implementation or workflow engine changes
+- **CRM Program** — any future CRM integration phase group
+- **AI Program** — any future AI integration phase group
+- **Mobile Program** — any future mobile platform phase group
+
+### 26.2 Baseline Sequence
+
+Before the first subphase of any major program begins, execute this exact sequence:
+
+```
+Step 1: Git Working Tree
+        ↓
+        Clean (git status — no uncommitted changes)
+
+Step 2: Verification
+        ↓
+        PASS (npm run verify:erp or applicable suite)
+
+Step 3: Named Git Tag
+        ↓
+        Program Baseline (e.g. renderer-baseline-2026-07-01)
+
+Step 4: Remote Push
+        ↓
+        GitHub synchronized (git push --tags)
+
+Step 5: External Backup
+        ↓
+        Offline copy (SQLite DB + full repo outside working directory)
+```
+
+All five steps must complete before any code change for the program begins.
+
+### 26.3 Tag Naming Convention
+
+All baseline tags follow this format:
+
+```
+<program>-baseline-<YYYY-MM-DD>
+```
+
+Standard program identifiers:
+
+| Program   | Example Tag                          |
+|-----------|--------------------------------------|
+| Renderer  | `renderer-baseline-2026-07-01`       |
+| Database  | `database-baseline-2026-08-15`       |
+| Workflow  | `workflow-baseline-2026-09-25`       |
+| CRM       | `crm-baseline-2026-09-01`            |
+| AI        | `ai-baseline-2026-10-10`             |
+| Mobile    | `mobile-baseline-2027-01-15`         |
+
+Tags are always lowercase, hyphen-separated. The date is the actual baseline date (not the planning date).
+
+### 26.4 Why
+
+A named baseline ensures that:
+
+- Every major program can be rolled back to its starting state if needed.
+- Verification regressions can be compared against a known-good reference.
+- Future auditors can identify exactly where a program began.
+- The program's end state can be measured against its start.
+- External backup protects against data loss during structural changes.
+- Tag naming is predictable across all future programs.
+
+### 26.5 Exception
+
+Minor subphases within an already-baselined program (e.g., 17C.2 after 17C.1 is complete) do not require a new baseline. The original program baseline remains valid until the program concludes.
+
+## 27. Programme Stabilization and Certification Law
+
+Note: This rule was submitted as "Permanent Architecture Rule 25 - Programme Stabilization & Certification Law". It is stored here as Rule 27 to preserve existing Rule 25, Enterprise Intelligence Layer Governance, and Rule 26, Major Program Baseline Rule v2.
+
+### 27.1 Principle
+
+No major programme shall directly transition into another major programme.
+
+Every programme must complete the following mandatory lifecycle:
+
+```text
+Implementation
+        |
+        v
+Stabilization Programme
+        |
+        v
+Certification Programme
+        |
+        v
+Lock Report
+        |
+        v
+Architecture Gate Decision
+        |
+        v
+Next Programme
+```
+
+No step may be skipped.
+
+### 27.2 Mandatory Sequence
+
+Every major programme shall follow:
+
+1. Programme Implementation
+2. Programme Stabilization
+3. Programme Certification
+4. Programme Lock Report
+5. Executive Architecture Gate Decision
+6. Begin Next Programme
+
+### 27.3 Stabilization Programme
+
+Purpose:
+
+- Remove implementation defects
+- Correct inconsistencies
+- Complete unfinished workflows
+- Verify operational behaviour
+- Resolve integration issues
+- Complete desktop smoke testing
+- Eliminate regression risks
+
+No feature expansion shall occur during stabilization.
+
+### 27.4 Certification Programme
+
+Purpose:
+
+Certify that the implemented programme satisfies:
+
+- Accounting integrity
+- Inventory integrity
+- GST integrity
+- Report integrity
+- Dashboard integrity
+- Document integrity
+- Navigation integrity
+- Security
+- Performance
+- Verification
+- Production readiness
+
+Certification is evidence-based.
+
+Verification reports alone do not constitute certification.
+
+### 27.5 Lock Report
+
+A Lock Report shall record:
+
+- Scope completed
+- Verification results
+- Certification status
+- Known limitations
+- Outstanding risks
+- Safe-to-lock decision
+- Next recommended programme
+
+The Lock Report becomes the permanent historical reference for that programme.
+
+### 27.6 Executive Architecture Gate
+
+Before any new programme begins, an Executive Architecture Gate Audit shall determine:
+
+- Safe to Proceed
+- Proceed After Fixing Blockers
+- Do Not Proceed
+
+Only one decision shall be issued.
+
+### 27.7 Deployment Cautions
+
+Beginning a new programme without completing Stabilization, Certification and Lock shall be considered an architectural governance violation.
+
+Potential consequences include:
+
+1. Architecture Drift - unfinished work accumulates across multiple programmes, making ownership and responsibility unclear.
+2. Hidden Regression - features appear to work individually but fail when interacting with other modules because integration was never stabilized.
+3. Certification Debt - verification reports may pass while operational workflows remain uncertified, leading to false confidence.
+4. Technical Debt Growth - large files, duplicated logic, inconsistent UI behaviour and undocumented dependencies accumulate rapidly.
+5. Knowledge Repository Divergence - KG, ERP Brain, Help Assistant and documentation begin describing different system behaviour.
+6. Dashboard Mismatch - dashboards may diverge from certified accounting reports if source certification is skipped.
+7. Operational Inconsistency - Reset, Go-Live, Imports, Documents, Reports and Accounting may produce conflicting results because cross-programme stabilization never occurred.
+8. Audit Weakness - government, GST, statutory or internal audits become more difficult because certification history is incomplete.
+9. User Confidence Loss - users lose trust when recently completed features behave inconsistently despite successful builds.
+10. AI Reliability Reduction - future ERP Brain and AI assistants depend upon certified system knowledge; uncertified modules reduce reasoning quality and may produce incorrect guidance.
+
+### 27.8 Mandatory Stop Rule
+
+If any of the following remain unresolved:
+
+- Verification failure
+- Production readiness failure
+- Reset inconsistency
+- Dashboard/source mismatch
+- Accounting imbalance
+- Database inconsistency
+- Dirty architecture baseline
+- Failed desktop certification
+- Missing Lock Report
+
+then:
+
+No subsequent major programme shall begin.
+
+Only stabilization, certification or corrective work is permitted.
+
+### 27.9 Executive Principle
+
+The ERP shall never measure progress by the number of implemented features.
+
+Progress shall instead be measured by:
+
+- Stabilized programmes
+- Certified programmes
+- Locked programmes
+- Production-ready programmes
+
+A completed programme is one that has been implemented, stabilized, certified and locked, not merely coded.
+
+## 28. GII Operational Chain of Command Governance Rule
+
+All current government supply modules must follow the approved operational lifecycle before future module changes are made.
+
+Approved core workflow:
+
+```text
+Lead / Tender
+  -> Query / Requirement
+  -> Quotation
+  -> Negotiation
+  -> Purchase Order / GeM Order
+  -> Work Order
+  -> Procurement Planning
+  -> Supplier Purchase Orders
+  -> Goods Receipt / GRN
+  -> Inventory Reservation
+  -> Delivery Challan
+  -> Installation
+  -> CRAC
+  -> Sales Invoice / GST Invoice
+  -> Department Receivable
+  -> Receipt
+  -> Order Closure
+  -> Profitability Analysis
+```
+
+This rule is defined in `docs/architecture/gii-operational-chain-of-command-rule.md`.
+
+No module may bypass the approved lifecycle without a documented exception.
+
+## 29. Work Order / Supply Order Parent Entity Rule
+
+For the current GII government supply lifecycle, Work Order / Supply Order is the parent operational entity.
+
+In current implementation terms:
+
+- Business parent concept: `WORK_ORDER`
+- Current code parent entity: `SUPPLY_ORDER`
+- Current table: `supply_orders`
+- Current line table: `order_items`
+- Current primary route: `supply_orders`
+
+Work Order / Supply Order is operational, not accounting.
+
+Work Order / Supply Order must not post ledger entries by itself.
+
+All downstream government supply modules must preserve traceability back to Work Order / Supply Order where applicable.
+
+This rule is defined in `docs/architecture/work-order-parent-entity-rule.md`.
+
+## 30. Workflow Governance Registry Rule
+
+Every workflow-bearing ERP domain must define or comply with a workflow registry entry.
+
+Each workflow must declare:
+
+- workflow_id
+- workflow_name
+- business_domain
+- parent_entity
+- lifecycle_stages
+- required_stage_order
+- optional_stages
+- allowed_skip_rules
+- accounting_start_stage
+- inventory_start_stage
+- GST_start_stage
+- closure_stage
+- reporting_stage
+- future_extension_notes
+
+The current registered workflow is `GOVERNMENT_SUPPLY_LIFECYCLE`.
+
+The registry must remain future-proof for Payroll, AMC / Service Contract, Project Work, Manufacturing, Asset Purchase, Legal Case Billing and Internal Expense lifecycles.
+
+This rule is defined in `docs/architecture/workflow-governance-registry.md`.
+
+## 31. Accounting Intelligence Repository (AIR) Governance
+
+The Accounting Intelligence Repository (AIR) is the canonical accounting knowledge layer of GII GeM ERP.
+
+AIR defines accounting concepts independently of any ERP software.
+
+AIR shall derive accounting principles from authoritative accounting standards and regulations.
+
+ERP systems such as:
+
+- TallyPrime
+- Tally ERP9
+- SAP
+- Oracle
+- QuickBooks
+- Zoho Books
+- BUSY
+- Marg
+
+shall be treated as implementation references only, not as accounting authorities.
+
+AIR shall contain:
+
+- Universal accounting concepts
+- Accounting relationships
+- Accounting validation rules
+- Financial reporting concepts
+- Inventory accounting concepts
+- GST and taxation concepts
+- Internal control concepts
+- Audit concepts
+- ERP implementation mappings
+- Migration intelligence
+- AI reasoning metadata
+
+Every AIR concept shall define:
+
+- Definition
+- Purpose
+- Business meaning
+- Accounting rules
+- Validation rules
+- Relationships
+- Workflow impact
+- Database mapping
+- Report impact
+- AI explanation
+- Migration notes
+- References
+
+AIR shall integrate with:
+
+- Enterprise Intelligence Layer
+- ERP Brain
+- Knowledge Graph
+- Help Assistant
+- Future Data Assistant
+
+Future AI shall explain accounting concepts using AIR before consulting ERP-specific implementations.
+
+---
+
+## 32. Navigation & Location Queries Are Always Safe
+
+The ERP Help Assistant must answer user questions about where to find ERP features, screens, menus, reports, documents, workflows, and record-entry areas.
+
+Examples:
+- Where is bill history?
+- How do I open purchase bills?
+- Which menu has GST reports?
+- Where can I see opening balances?
+- How do I create a supply order?
+
+These are navigation/help lookups, not live record inspection. They must be resolved from the route/view registry, navigation map, screen titles, help metadata, and user-facing labels.
+
+The assistant must not refuse these questions on the basis that it cannot inspect live records.
+
+The assistant must not use internal governance language such as:
+- H1-H5
+- safe summary
+- arbitrary live records
+- route registry
+- permission layer
+- capability boundary
+
+If the user asks to see actual records, totals, balances, pending bills, payments, customer-wise lists, or company-specific data, the assistant must explain the limitation in user language.
+
+Bad:
+"The H1-H5 assistant is only allowed to answer guidance questions."
+
+Good:
+"You can find Bill History under Operations → Purchase Bills. I can guide you to the screen, but I cannot show your specific bills from here yet."
+
+The response should always provide the navigation answer first, then mention any live-data limitation only if relevant.
+
+---
+
+## Audit Log (AIR Rule 31)
+
+| Date | Severity | Phase | Summary | File |
+|------|----------|-------|---------|------|
+| 2026-07-09 | MEDIUM | 6 (Database init.js Audit) | `init.js` is 9,277-line monolith — 40+ internal reports hidden, no section headers, no `//` comments. Safe to refactor only after `database-baseline` tag. | `reports/audit-database-init-architecture.md` |
+| 2026-07-09 | LOW | 7A (Extract Report Builders) | Extracted 43 internal report builders from `init.js` into `reportBuilders.js`. init.js reduced from 8,763 → 7,978 lines (−785). Baseline `database-baseline-2026-07-09` created. Restore tag `init-refactor-phase-7a-restore-2026-07-09`. | `reports/init-refactor-phase-7a-report-builders-extraction-report.md` |
+| 2026-07-10 | LOW | 7B (Extract CRUD Helpers) | Extracted generic CRUD operations (assertTable, cleanPayload, createRecord, updateRecord, deleteRecord, getRecord, listRecords, etc.) into `crudHelpers.js` via factory pattern. init.js reduced from 7,978 → 7,572 lines (−406). Restore tag `init-refactor-phase-7b-restore-2026-07-10`. | `reports/init-refactor-phase-7b-crud-helpers-extraction-report.md` |
+| 2026-07-10 | LOW | 7C (Extract Seed Data) | Extracted seed/demo record functions (seed, seedPhaseTwo, seedPhaseThreeAccountingFlow, seedPhase7Inventory, etc.) into `seedData.js` via factory pattern. init.js reduced from 7,572 → 7,160 lines (−412). seedFinancialYears retained in init.js for migration path. Restore tag `init-refactor-phase-7c-restore-2026-07-10`. | `reports/init-refactor-phase-7c-seed-data-extraction-report.md` |
+| 2026-10-29 | HIGH | Paise exactness, ledger guards, Tally key layout | Every amount exact to the paisa; SQLite triggers refuse unbalanced or edited posted vouchers; labelled Rounding Off journal settles older 1 to 100 paise mismatches without changing them; optional Tally key layout. 2 lakh amounts posted with trial balance 0.00. Owner approved rule-4 items 29 Oct 2026. | `reports/paise-tally-dblock-report.md` |

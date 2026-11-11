@@ -1,6 +1,8 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { bookIntegrityChecks } from "./errorConsoleService.js";
+import { subtractRupees } from "../domain/money.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -155,20 +157,22 @@ function accountingBalanceCheck(db) {
       "Review database schema compatibility before using accounting reports."
     );
   }
-  const totals = safeGet(db, "SELECT COALESCE(SUM(debit), 0) AS debit, COALESCE(SUM(credit), 0) AS credit FROM ledger_entries");
+  const totals = safeGet(db, `SELECT COALESCE(SUM(le.debit_minor), 0) / 100.0 AS debit, COALESCE(SUM(le.credit_minor), 0) / 100.0 AS credit
+    FROM ledger_entries le JOIN vouchers v ON v.id = le.voucher_id
+    WHERE COALESCE(le.is_deleted, 0) = 0 AND COALESCE(v.is_deleted, 0) = 0 AND v.status IN ('Posted', 'Reversed')`);
   if (!totals.ok) {
     return check("accounting_balance", "Ledger Entry Balance", "fail", "critical", totals.error, "Run verify:accounting and review database errors.");
   }
   const debit = Number(totals.row?.debit || 0);
   const credit = Number(totals.row?.credit || 0);
-  const difference = Number((debit - credit).toFixed(2));
+  const difference = subtractRupees(debit, credit);
   return check(
     "accounting_balance",
     "Ledger Entry Balance",
-    Math.abs(difference) <= 0.01 ? "pass" : "fail",
-    Math.abs(difference) <= 0.01 ? "normal" : "critical",
+    difference === 0 ? "pass" : "fail",
+    difference === 0 ? "normal" : "critical",
     `Debit ${debit.toFixed(2)}, credit ${credit.toFixed(2)}, difference ${difference.toFixed(2)}.`,
-    Math.abs(difference) <= 0.01 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
+    difference === 0 ? "No action required." : "Do not post new vouchers until accounting verification is reviewed.",
     { debit, credit, difference }
   );
 }
@@ -300,6 +304,12 @@ export function runHealthChecks(db, runtimeDataRoot, context = {}) {
     checks.push(accountingBalanceCheck(db));
     checks.push(auditLogCheck(db));
     checks.push(cracHealthCheck(db));
+    try {
+      bookIntegrityChecks(db, Number(context.company_id || 0) || null, { verifyAuditChain: context.verifyAuditChain })
+        .forEach((item) => checks.push(check(`books_${item.id}`, item.label, item.status, item.status === "pass" ? "normal" : "critical", item.detail, item.action)));
+    } catch (error) {
+      checks.push(check("books_integrity", "Book Integrity", "warn", "warning", `Integrity checks could not run: ${error.message}`, "Run Health Checks again; if it repeats, export a support bundle."));
+    }
     const company = resolveCompanyStatus(db, context);
     checks.push(check(
       "company_context",

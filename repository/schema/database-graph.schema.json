@@ -1,0 +1,552 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gii-gem-erp.schema/repository/schema/database-graph.schema.json",
+  "title": "DG-1 Database Graph Schema",
+  "description": "Validates the DG-1 database graph file for GII GeM ERP. Defines all database tables, columns, relationships, service mappings, posting functions, report sources, audit trails, accounting protection boundaries, and workflow alignment.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "graphId",
+    "graphName",
+    "version",
+    "generatedAt",
+    "owner",
+    "status",
+    "description",
+    "sourceFiles",
+    "dependencies",
+    "tables",
+    "relationships",
+    "serviceMappings",
+    "postingMappings",
+    "reportSourceMappings",
+    "auditMappings",
+    "writePolicyMappings",
+    "migrationMappings",
+    "seedMappings",
+    "accountingProtectionMappings",
+    "workflowAlignment",
+    "knownGaps",
+    "compatibilityNotes",
+    "futureExtensions",
+    "risk",
+    "statistics",
+    "metadata"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semantic version of the graph schema"
+    },
+    "graphId": {
+      "type": "string",
+      "const": "DG-1",
+      "description": "Must be DG-1 for database graph"
+    },
+    "graphName": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "sourceFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["graphId", "description"],
+        "properties": {
+          "graphId": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "tableName",
+          "title",
+          "category",
+          "status",
+          "sourceFile",
+          "owningModule",
+          "primaryKey",
+          "columns",
+          "foreignKeys",
+          "hasSoftDelete",
+          "hasPostingStatus",
+          "hasApprovalStatus",
+          "hasAuditImpact",
+          "createsAccountingImpact",
+          "createsInventoryImpact",
+          "createsGSTImpact",
+          "genericCrudAllowed",
+          "accountingProtected",
+          "notes",
+          "knownGaps"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "tableName": { "type": "string" },
+          "title": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Core System",
+              "Company Context",
+              "Masters",
+              "Tender / Lead",
+              "Work Order / Supply Order",
+              "Procurement",
+              "Expenses",
+              "Inventory",
+              "Delivery / Installation / CRAC",
+              "Billing / GST Invoice",
+              "Receivables",
+              "Receipts",
+              "Supplier Payments",
+              "Business Vouchers",
+              "Accounting Core",
+              "Reports",
+              "Import / Export",
+              "Tally Migration",
+              "Audit / Logs",
+              "Backup / Restore",
+              "Settings / Configuration",
+              "Knowledge / Help",
+              "Bank Reconciliation",
+              "Operations"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "partial", "planned", "deprecated"]
+          },
+          "sourceFile": { "type": "string" },
+          "schemaVersion": { "type": "string" },
+          "owningModule": { "type": "string" },
+          "relatedWorkflowStage": { "type": ["string", "null"] },
+          "relatedScreen": { "type": ["string", "null"] },
+          "primaryKey": { "type": "string" },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type", "pk", "nullable", "description"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "pk": { "type": "boolean" },
+                "nullable": { "type": "boolean" },
+                "default": {},
+                "description": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "foreignKeys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["columns", "references", "refColumns", "description"],
+              "properties": {
+                "columns": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "references": { "type": "string" },
+                "refColumns": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "description": { "type": "string" },
+                "onDelete": { "type": "string" },
+                "unique": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "columns": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "unique": { "type": "boolean" },
+                "description": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "hasSoftDelete": { "type": "boolean" },
+          "hasPostingStatus": { "type": "boolean" },
+          "hasApprovalStatus": { "type": "boolean" },
+          "hasAuditImpact": { "type": "boolean" },
+          "createsAccountingImpact": { "type": "boolean" },
+          "createsInventoryImpact": { "type": "boolean" },
+          "createsGSTImpact": { "type": "boolean" },
+          "genericCrudAllowed": { "type": "boolean" },
+          "accountingProtected": { "type": "boolean" },
+          "notes": { "type": "string" },
+          "knownGaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": { "accountingProtected": { "const": true } }
+            },
+            "then": {
+              "properties": { "genericCrudAllowed": { "const": false } }
+            }
+          }
+        ]
+      },
+      "description": "Tables array with unique id and tableName enforcement (requires programmatic validation)"
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "fromTable",
+          "toTable",
+          "relationshipType",
+          "sourceColumn",
+          "targetColumn",
+          "businessMeaning",
+          "relatedWorkflowStage"
+        ],
+        "properties": {
+          "fromTable": { "type": "string" },
+          "toTable": { "type": "string" },
+          "relationshipType": { "type": "string" },
+          "sourceColumn": { "type": "string" },
+          "targetColumn": { "type": "string" },
+          "businessMeaning": { "type": "string" },
+          "relatedWorkflowStage": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "serviceMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["service", "tables"],
+        "properties": {
+          "service": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "postingMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "postingFunction",
+          "sourceFile",
+          "createsVoucherType",
+          "ledgerImpact",
+          "auditImpact"
+        ],
+        "properties": {
+          "postingFunction": { "type": "string" },
+          "sourceFile": { "type": "string" },
+          "reads": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "writes": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "createsVoucherType": { "type": ["string", "null"] },
+          "ledgerImpact": { "type": "boolean" },
+          "auditImpact": { "type": "boolean" },
+          "stockImpact": { "type": "boolean" },
+          "gstImpact": { "type": "boolean" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "reportSourceMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["report", "tables"],
+        "properties": {
+          "report": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "auditMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["table", "auditTable", "auditActions", "relatedPostingFunctions"],
+        "properties": {
+          "table": { "type": "string" },
+          "auditTable": { "type": "string" },
+          "auditActions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "relatedPostingFunctions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "writePolicyMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["service", "canWrite"],
+        "properties": {
+          "service": { "type": "string" },
+          "canWrite": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "migrationMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["migrationVersion", "migrationName", "tables"],
+        "properties": {
+          "migrationVersion": { "type": "string" },
+          "migrationName": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "seedMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["seedFunction", "tables"],
+        "properties": {
+          "seedFunction": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "accountingProtectionMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["table", "reason", "blockedCRUD", "controllingService", "relatedReports", "verificationScript"],
+        "properties": {
+          "table": { "type": "string" },
+          "reason": { "type": "string" },
+          "blockedCRUD": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "controllingService": { "type": "string" },
+          "relatedReports": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "verificationScript": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "workflowAlignment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stageId", "stageName", "tables"],
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "enum": [
+              "LEAD_TENDER",
+              "QUERY_REQUIREMENT",
+              "QUOTATION",
+              "NEGOTIATION",
+              "PURCHASE_ORDER_GEM_ORDER",
+              "WORK_ORDER",
+              "PROCUREMENT_PLANNING",
+              "SUPPLIER_PURCHASE_ORDER",
+              "GOODS_RECEIPT_GRN",
+              "INVENTORY_RESERVATION",
+              "DELIVERY_CHALLAN",
+              "INSTALLATION",
+              "CRAC",
+              "SALES_INVOICE_GST_INVOICE",
+              "DEPARTMENT_RECEIVABLE",
+              "RECEIPT",
+              "ORDER_CLOSURE",
+              "PROFITABILITY_ANALYSIS"
+            ]
+          },
+          "stageName": { "type": "string" },
+          "tables": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "knownGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["area", "description"],
+        "properties": {
+          "area": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "compatibilityNotes": {
+      "type": "object",
+      "required": ["schemaVersionCompatibility", "kg1Integration", "wg1Integration", "accountingBaseline"],
+      "properties": {
+        "schemaVersionCompatibility": { "type": "string" },
+        "kg1Integration": { "type": "string" },
+        "wg1Integration": { "type": "string" },
+        "accountingBaseline": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "futureExtensions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk": {
+      "type": "object",
+      "required": ["initJsMonolith", "partialFKMetadata", "columnTypeMismatch", "cascadeBehavior"],
+      "properties": {
+        "initJsMonolith": { "type": "string" },
+        "partialFKMetadata": { "type": "string" },
+        "columnTypeMismatch": { "type": "string" },
+        "cascadeBehavior": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "statistics": {
+      "type": "object",
+      "required": [
+        "totalTables",
+        "totalRelationships",
+        "totalServiceModules",
+        "totalPostingFunctions",
+        "totalReportSources",
+        "totalAccountingProtectedTables",
+        "totalWorkflowMappings",
+        "totalKnownGaps",
+        "totalAuditMappings",
+        "totalWritePolicyMappings",
+        "totalMigrationMappings",
+        "totalSeedMappings"
+      ],
+      "properties": {
+        "totalTables": { "type": "integer" },
+        "totalRelationships": { "type": "integer" },
+        "totalServiceModules": { "type": "integer" },
+        "totalPostingFunctions": { "type": "integer" },
+        "totalReportSources": { "type": "integer" },
+        "totalAccountingProtectedTables": { "type": "integer" },
+        "totalWorkflowMappings": { "type": "integer" },
+        "totalKnownGaps": { "type": "integer" },
+        "totalAuditMappings": { "type": "integer" },
+        "totalWritePolicyMappings": { "type": "integer" },
+        "totalMigrationMappings": { "type": "integer" },
+        "totalSeedMappings": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["generationTool", "generationCommand", "lastValidated", "validationMethod"],
+      "properties": {
+        "generationTool": { "type": "string" },
+        "generationCommand": { "type": "string" },
+        "lastValidated": { "type": "string" },
+        "validationMethod": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "description": "supply_orders must be present and categorized as Work Order / Supply Order",
+      "if": {
+        "not": {
+          "contains": {
+            "type": "object",
+            "properties": {
+              "id": { "const": "supply_orders" },
+              "category": { "const": "Work Order / Supply Order" }
+            },
+            "required": ["id", "category"]
+          }
+        }
+      },
+      "then": {
+        "description": "supply_orders must exist and be categorized as 'Work Order / Supply Order'"
+      }
+    }
+  ]
+}

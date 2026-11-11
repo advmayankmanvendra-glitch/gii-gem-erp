@@ -1,0 +1,17 @@
+import * as m from "../src/main/domain/money.js";
+console.log("Keys:", Object.keys(m).length);
+console.log("parse 0:", m.parseMoneyToMinor(0));
+console.log("parse 1:", m.parseMoneyToMinor(1));
+console.log("parse 0.10:", m.parseMoneyToMinor(0.10));
+console.log("parse -50.25:", m.parseMoneyToMinor(-50.25));
+console.log("minorToDecimalString 0:", m.minorToDecimalString(0));
+console.log("minorToDecimalString 100:", m.minorToDecimalString(100));
+console.log("minorToDecimalString 123456:", m.minorToDecimalString(123456));
+console.log("minorToDecimalString -5025:", m.minorToDecimalString(-5025));
+console.log("0.10+0.20 == 0.30:", m.exactEqual(m.addMoney(m.parseMoneyToMinor(0.10), m.parseMoneyToMinor(0.20)), m.parseMoneyToMinor(0.30)));
+console.log("format 123456:", m.formatMoneyForDisplay(123456));
+console.log("assertMoney 100.5:", (()=>{try{m.assertMoney(100.5);return "OK"}catch(e){return e.message}})());
+console.log("assertMoney 100:", (()=>{try{m.assertMoney(100);return "OK"}catch(e){return e.message}})());
+console.log("sum 10+20+30:", m.sumMoney([10,20,30]));
+console.log("roundToMinor 0.10:", m.roundToMinor(0.10));
+console.log("roundToMinor 1.234:", m.roundToMinor(1.234));

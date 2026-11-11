@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { EmptyState, Metric } from "../components/common.jsx";
 import { ReportToolbar } from "../components/forms/index.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import { addRupees } from "../utils/money.js";
 
 export function ProfitabilityScreen({ notify, companyContext, apiClient, onNavigate }) {
   const [rows, setRows] = useState([]);
@@ -11,13 +12,13 @@ export function ProfitabilityScreen({ notify, companyContext, apiClient, onNavig
   }, [companyContext?.company_id, companyContext?.company_scope]);
 
   const totals = rows.reduce((acc, row) => ({
-    billingValue: acc.billingValue + row.billingValue,
-    purchaseValue: acc.purchaseValue + (row.inventoryCostBasis ?? row.purchaseValue),
-    grossMargin: acc.grossMargin + row.grossMargin,
-    gstInputLoss: acc.gstInputLoss + row.gstInputLoss,
-    totalExpenses: acc.totalExpenses + row.totalExpenses,
-    employeeIncentive: acc.employeeIncentive + row.employeeIncentive,
-    netCompanyProfit: acc.netCompanyProfit + row.netCompanyProfit
+    billingValue: addRupees(acc.billingValue, row.billingValue),
+    purchaseValue: addRupees(acc.purchaseValue, row.inventoryCostBasis ?? row.purchaseValue),
+    grossMargin: addRupees(acc.grossMargin, row.grossMargin),
+    gstInputLoss: addRupees(acc.gstInputLoss, row.gstInputLoss),
+    totalExpenses: addRupees(acc.totalExpenses, row.totalExpenses),
+    employeeIncentive: addRupees(acc.employeeIncentive, row.employeeIncentive),
+    netCompanyProfit: addRupees(acc.netCompanyProfit, row.netCompanyProfit)
   }), { billingValue: 0, purchaseValue: 0, grossMargin: 0, gstInputLoss: 0, totalExpenses: 0, employeeIncentive: 0, netCompanyProfit: 0 });
 
   return (

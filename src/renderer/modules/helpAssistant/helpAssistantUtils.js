@@ -5,8 +5,24 @@ import { SUGGESTED_KEYWORDS, expandQueryTerms } from "./helpAssistantIntentMap.j
 import { searchHelpTopics } from "./helpAssistantScoring.js";
 import { answerReadOnlyDataQuestion } from "./helpAssistantReadiness.js";
 import { buildCurrentScreenTopic } from "./screenHelpAnswer.js";
+import { brainSearchAsTopics } from "./helpAssistantKnowledge.js";
+import { sourceBackedSearch } from "../erpBrain/services/sourceBackedSearchService.js";
+import { resolveQuery } from "../erpAssistant/sources/knowledgeBridge.js";
+import { resolveContext, getAccountingSafetyBoundary, resolveWorkflowGuidance, getWorkOrderBoundary, VIEW_KEY_TO_SCREEN } from "./contextualBrainHelp.js";
 
 const LOW_CONFIDENCE_THRESHOLD = 0.24;
+const SOURCE_BACKED_GUIDANCE_TERMS = [
+  "bill history", "work order", "receipt voucher", "trial balance", "crac",
+  "cash book", "party ledger", "business voucher", "accounting voucher", "profitability"
+];
+const SOURCE_DISPLAY_NAMES = {
+  "workflow-graph": "Workflow guide",
+  "database-graph": "ERP data guidance",
+  "voucher-accounting-graph": "Accounting guidance",
+  "renderer-graph": "Screen guidance",
+  repository: "ERP knowledge",
+  manual: "User manual"
+};
 
 /**
  * Normalizes answer text for local rule checks.
@@ -16,6 +32,57 @@ function normalizeText(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * Collapses an exact repeated question produced by duplicate desktop input events.
+ */
+function normalizeSubmittedQuestion(value) {
+  const question = String(value || "").trim();
+  if (!question || question.length % 2 !== 0) return question;
+  const midpoint = question.length / 2;
+  const first = question.slice(0, midpoint).trim();
+  const second = question.slice(midpoint).trim();
+  return first && first === second ? first : question;
+}
+
+/**
+ * Resolves governance-approved location questions before broad knowledge retrieval.
+ */
+function buildNavigationLocationAnswer(query) {
+  const normalized = normalizeText(query);
+  if (!normalized.includes("bill history") && !normalized.includes("purchase bill history")) return null;
+  return {
+    mode: "Help",
+    title: "Purchase Bills",
+    type: "Screen guidance",
+    summary: "Supplier bill history is available under Operations > Purchase Bills. Customer sales invoices are available under Operations > Billing Voucher.",
+    directAnswer: "Open Operations > Purchase Bills for supplier bill history. For customer billing history, open Operations > Billing Voucher. I can guide you to these screens, but I cannot display your specific bills here.",
+    menuPath: "Dashboard > Operations > Purchase Bills",
+    viewKey: "purchase_bills",
+    sourceLabel: "ERP navigation",
+    sourceReferences: ["ERP navigation"],
+    steps: [
+      "Open Operations from the left sidebar.",
+      "Select Purchase Bills to review supplier bills.",
+      "Use Billing Voucher when you need customer sales invoice history."
+    ],
+    commonMistakes: ["Do not use Bill-wise Receivable when you are looking for supplier purchase bills."],
+    whatToCheckNext: ["Purchase Bills", "Billing Voucher", "Bill-wise Payable when supplier outstanding is required"],
+    suggestedNextAction: "Open Purchase Bills and use its filters to find the required supplier bill.",
+    relatedTopics: [
+      { id: "screen-invoices", title: "Billing Voucher", type: "Screen", menuPath: "Dashboard > Operations > Billing Voucher", viewKey: "invoices" }
+    ],
+    safetyNote: "This is navigation guidance. No ERP record has been opened, changed, or posted."
+  };
+}
+
+function navigationLocationTopics(query, topics = []) {
+  const normalized = normalizeText(normalizeSubmittedQuestion(query));
+  if (!normalized.includes("bill history") && !normalized.includes("purchase bill history")) return [];
+  return ["purchase_bills", "invoices"]
+    .map((viewKey) => topics.find((topic) => topic.viewKey === viewKey))
+    .filter(Boolean);
 }
 
 /**
@@ -49,10 +116,28 @@ function isScreenGuidanceQuestion(query) {
 /**
  * Builds the help assistant answer while preserving the existing answer object shape.
  */
-function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness, coach, stats, conversationHistory = [] }) {
-  const submittedQuestion = String(query || "").trim();
+function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, currentView, readiness, coach, stats, conversationHistory = [] }) {
+  const submittedQuestion = normalizeSubmittedQuestion(query);
   const effectiveQuery = inferFollowUpQuery(submittedQuestion, conversationHistory);
   const extractedEntities = extractEntities(submittedQuestion);
+  const unsafeActionAnswer = buildUnsafeActionAnswer(submittedQuestion, currentView);
+  if (unsafeActionAnswer) {
+    return enrichAnswer(unsafeActionAnswer, {
+      query: submittedQuestion,
+      extractedEntities: [],
+      intent: "unsafe_action",
+      relatedQuestions: ["Where is the correct screen for this task?", "What should I check before completing this action?"]
+    });
+  }
+  const navigationAnswer = buildNavigationLocationAnswer(submittedQuestion);
+  if (navigationAnswer) {
+    return enrichAnswer(navigationAnswer, {
+      query: submittedQuestion,
+      extractedEntities: [],
+      intent: "navigation",
+      relatedQuestions: ["Where do I enter a purchase bill?", "Where can I review customer invoices?", "Where is Bill-wise Payable?"]
+    });
+  }
   const intent = detectHelpAssistantIntent(effectiveQuery, mode, conversationHistory);
   const intentAnswer = buildIntentAnswer({ intent, readiness, coach });
   if (intentAnswer) {
@@ -93,20 +178,22 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
   const matches = screenMode ? [] : searchHelpTopics(topics, effectiveQuery, 6);
   const topConfidence = matches[0]?.confidence || 0;
   if (!screenMode && normalizedQuery && topConfidence < LOW_CONFIDENCE_THRESHOLD) {
-    return buildNoMatchAnswer({
+    let noMatchAnswer = buildNoMatchAnswer({
       query: submittedQuestion,
       matches,
       topics,
       extractedEntities
     });
+    noMatchAnswer = enrichWithBrainSearch(noMatchAnswer, submittedQuestion);
+    return noMatchAnswer;
   }
 
   const topic = screenMode
-    ? buildCurrentScreenTopic(currentHelp)
+    ? buildScreenTopicWithBrain(currentHelp, currentView)
     : normalizedQuery ? matches[0] : buildHelpIntroTopic();
   const related = screenMode ? searchHelpTopics(topics, topic.title, 5).filter((item) => item.id !== topic.id) : matches.slice(1, 6);
 
-  return enrichAnswer({
+  let answer = enrichAnswer({
     mode: screenMode ? "Screen Guidance Mode" : "Help Mode",
     title: topic.title,
     type: topic.type,
@@ -136,6 +223,9 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
     relatedTopics: related.map((item) => ({ id: item.id, title: item.title, type: item.type, menuPath: item.menuPath, viewKey: item.viewKey })),
     sourceLabel: topic.type || "Help knowledge base",
     confidence: topConfidence || undefined,
+    workflowStage: topic.workflowStage,
+    accountingSafetyBoundary: topic.accountingSafetyBoundary,
+    workOrderBoundary: topic.workOrderBoundary,
     safetyNote: "Guidance only: this assistant does not save, post, reverse, import, restore, delete or alter ERP records."
   }, {
     query: submittedQuestion,
@@ -143,6 +233,46 @@ function buildHelpAssistantAnswer({ query, mode, topics, currentHelp, readiness,
     intent,
     relatedQuestions: buildRelatedQuestions(topic, intent)
   });
+
+  if (screenMode) {
+    answer = enrichWithBrainSearch(answer, topic.title);
+  } else if (isSourceBackedGuidanceQuery(submittedQuestion)) {
+    answer = enrichWithBrainSearch(answer, submittedQuestion, true);
+  } else if (answer.confidence && answer.confidence < 0.4 && !answer.noMatch) {
+    answer = enrichWithBrainSearch(answer, submittedQuestion);
+  }
+
+  return answer;
+}
+
+/**
+ * Applies the existing read-only assistant boundary before general Help retrieval.
+ */
+function buildUnsafeActionAnswer(query, currentView) {
+  if (!query) return null;
+  try {
+    const result = resolveQuery(query, currentView);
+    if (result?.safetyBoundary !== "action-refused") return null;
+    return {
+      mode: "Help",
+      title: "Action unavailable",
+      type: "Action refused",
+      summary: "Help Assistant provides read-only guidance and cannot perform or trigger ERP actions.",
+      directAnswer: result.answer || "I cannot perform this action. Use the relevant controlled ERP screen with an authorized role.",
+      sourceLabel: "ERP safety guidance",
+      sourceReferences: ["ERP safety guidance"],
+      safetyBoundary: "action-refused",
+      prohibitedActions: result.prohibitedActions || ["post", "reverse", "approve", "delete", "restore", "import", "export", "run command"],
+      whatToCheckNext: [
+        "Open the relevant ERP screen for the record.",
+        "Confirm your role is authorized before using the screen action."
+      ],
+      suggestedNextAction: "Use the relevant controlled ERP screen. Help Assistant can guide you there, but it cannot execute the action.",
+      safetyNote: "No ERP record has been opened, changed, approved, posted, reversed, deleted, imported, or executed."
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -217,6 +347,83 @@ function buildNoMatchAnswer({ query, matches, topics, extractedEntities }) {
 }
 
 /**
+ * Builds screen topic enriched with contextual brain data (workflow stage, DB tables, manual ref, safety boundary).
+ */
+function buildScreenTopicWithBrain(currentHelp, currentView) {
+  const topic = buildCurrentScreenTopic(currentHelp);
+  if (!currentView) return topic;
+
+  const context = resolveContext(currentView);
+  if (!context.screenName) return topic;
+
+  topic.brainBacked = true;
+  topic.screenName = context.screenName;
+
+  if (context.workflowInfo) {
+    const flowGuidance = resolveWorkflowGuidance(context.workflowInfo.stage);
+    topic.workflowStage = { stage: context.workflowInfo.label, guidance: flowGuidance };
+  }
+
+  if (context.impact.accounting) {
+    topic.accountingSafetyBoundary = getAccountingSafetyBoundary();
+  }
+
+  if (context.workflowInfo && !context.impact.accounting && !context.impact.inventory) {
+    topic.workOrderBoundary = getWorkOrderBoundary();
+  }
+
+  return topic;
+}
+
+/**
+ * Enriches a help answer with BRAIN-2 source-backed search results.
+ */
+function enrichWithBrainSearch(answer, query, preferBrainAnswer = false) {
+  try {
+    const searchResult = sourceBackedSearch(query);
+    const brainResults = brainSearchAsTopics(() => searchResult, query);
+    if (!brainResults || brainResults.length === 0) return answer;
+    const useBrainAnswer = answer.noMatch || preferBrainAnswer;
+
+    return {
+      ...answer,
+      brainBacked: true,
+      title: useBrainAnswer ? brainResults[0].title : answer.title,
+      type: useBrainAnswer ? "ERP Knowledge" : answer.type,
+      brainResults: brainResults.map((r) => ({
+        title: r.title,
+        summary: r.summary,
+        sourceKind: userFacingSourceName(r.sourceKind),
+        sourcePath: r.sourcePath,
+        graphId: r.graphId,
+        confidence: r.confidence,
+        relatedTables: r.relatedTables,
+        relatedReports: r.relatedReports,
+        manualReference: r.manualReference
+      })),
+      summary: answer.noMatch
+        ? `${answer.summary} ${brainResults.length} related source-backed result(s) were found in ERP guidance.`
+        : answer.summary,
+      directAnswer: useBrainAnswer && brainResults.length > 0
+        ? brainResults[0].summary
+        : answer.directAnswer,
+      sourceLabel: useBrainAnswer ? "Source-backed ERP guidance" : answer.sourceLabel,
+      sourceReferences: brainResults.filter((r) => r.sourceKind).map((r) => userFacingSourceName(r.sourceKind)),
+      relatedTables: mergeUnique(answer.relatedTables, brainResults.flatMap((r) => r.relatedTables || [])),
+      relatedReports: mergeUnique(answer.relatedReports, brainResults.flatMap((r) => r.relatedReports || [])),
+      manualReferences: mergeUnique(answer.manualReferences, brainResults.map((r) => r.manualReference).filter(Boolean)),
+      needsReview: answer.needsReview || brainResults.some((r) => r.needsReview)
+    };
+  } catch {
+    return answer;
+  }
+}
+
+function userFacingSourceName(sourceKind) {
+  return SOURCE_DISPLAY_NAMES[sourceKind] || "ERP knowledge";
+}
+
+/**
  * Adds optional intelligence metadata while preserving the existing answer shape.
  */
 function enrichAnswer(answer, additions) {
@@ -227,6 +434,15 @@ function enrichAnswer(answer, additions) {
     relatedQuestions: additions.relatedQuestions || [],
     intent: additions.intent
   };
+}
+
+function mergeUnique(existing = [], additions = []) {
+  return [...new Set([...(existing || []), ...(additions || [])].filter(Boolean))];
+}
+
+function isSourceBackedGuidanceQuery(query) {
+  const normalized = normalizeText(query);
+  return SOURCE_BACKED_GUIDANCE_TERMS.some((term) => normalized.includes(term));
 }
 
 /**
@@ -298,4 +514,27 @@ function normalizeList(value, fallback = []) {
   return fallback;
 }
 
-export { buildHelpAssistantAnswer, normalizeText, searchHelpTopics };
+function dispatchToAssistant(query, currentView) {
+  try {
+    const result = resolveQuery(query, currentView);
+    return {
+      brainAssistant: true,
+      answer: result.answer,
+      confidence: result.confidence,
+      needsReview: result.needsReview,
+      sourceReferences: result.sourceReferences,
+      safetyBoundary: result.safetyBoundary,
+      relatedWorkflowStages: result.relatedWorkflowStages,
+      relatedTables: result.relatedTables,
+      relatedVoucherTypes: result.relatedVoucherTypes,
+      relatedReports: result.relatedReports,
+      knownGaps: result.knownGaps,
+      suggestedNextHelpTopic: result.suggestedNextHelpTopic,
+      prohibitedActions: result.prohibitedActions
+    };
+  } catch {
+    return { brainAssistant: false };
+  }
+}
+
+export { buildHelpAssistantAnswer, navigationLocationTopics, normalizeSubmittedQuestion, normalizeText, searchHelpTopics, dispatchToAssistant };

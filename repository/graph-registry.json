@@ -1,0 +1,355 @@
+{
+  "enterpriseIntelligenceLayer": "1.0.0",
+  "registryVersion": "1.4.0",
+  "generatedAt": "2026-08-21T00:00:00.000Z",
+  "description": "Single discovery point for all Enterprise Intelligence Layer repositories. AI tools must load this registry first before loading any graph.",
+  "lifecyclePolicy": {
+    "version": "1.0.0",
+    "canonicalField": "lifecycleStatus",
+    "legacyField": "status",
+    "legacyValueMap": {
+      "Active": "ACTIVE"
+    },
+    "statuses": {
+      "ACTIVE": {
+        "definition": "The graph asset is implemented, registered, schema-valid and verified. ACTIVE does not imply runtime consumption, absence of future work, production readiness or completion of a wider programme lifecycle.",
+        "successorRequired": false
+      },
+      "COMPLETED": {
+        "definition": "A historical stage or phase finished with concrete implementation and verification evidence; it is not a standalone active graph unless separately registered in graphs[].",
+        "successorRequired": false
+      },
+      "MERGED": {
+        "definition": "The stage's implemented scope was absorbed into the identified successor and remains traceable there.",
+        "successorRequired": true
+      },
+      "SUPERSEDED": {
+        "definition": "The stage or identifier was replaced by the identified successor and must not be treated as the current implementation.",
+        "successorRequired": true
+      },
+      "PLANNED": {
+        "definition": "The graph or stage is approved or defined for future work but lacks sufficient implementation and verification evidence for ACTIVE or COMPLETED.",
+        "successorRequired": false
+      },
+      "DEFERRED": {
+        "definition": "The graph or stage is deliberately postponed and is not authorized as the current next programme.",
+        "successorRequired": false
+      },
+      "RETIRED": {
+        "definition": "The graph or stage was intentionally withdrawn from current use; its history remains traceable.",
+        "successorRequired": false
+      },
+      "UNVERIFIED": {
+        "definition": "Repository evidence is insufficient or conflicting, so no implementation or completion claim is permitted.",
+        "successorRequired": false
+      }
+    }
+  },
+  "dependencySemantics": {
+    "dependsOn": "Registry-level discovery and validation prerequisites that should be loaded or understood before the dependent graph.",
+    "dependedBy": "The exact reverse index of registry dependsOn edges. Every forward edge must have one reciprocal reverse edge.",
+    "artifactLocalDependencies": "A graph artefact may separately describe semantic or source cross-references. Those local declarations are not automatically equivalent to registry load prerequisites."
+  },
+  "compatibilityPolicy": {
+    "basis": "compatibleWith ranges describe graph schema-version compatibility; graph data versions are recorded separately in each graph record and compatibilityMatrix version field.",
+    "rangeFormat": "Semantic version range"
+  },
+  "reconciliation": {
+    "phase": "GGR-1",
+    "reconciledAt": "2026-08-21",
+    "registryPendingDefinition": "Primary graphs[] records whose canonical lifecycleStatus is PLANNED.",
+    "effectivePendingDefinition": "ACTIVE primary graphs that retain at least one material, explicitly unimplemented obligation in the graph artefact or approved roadmap.",
+    "counts": {
+      "primaryRegisteredGraphs": 9,
+      "activePrimaryGraphs": 9,
+      "historicalOnlyStages": 15,
+      "uniqueIdentifiers": 24,
+      "crossSectionConflicts": 0,
+      "registryPendingCount": 0,
+      "effectivePendingCount": 6,
+      "statusCounts": {
+        "ACTIVE": 9,
+        "COMPLETED": 6,
+        "MERGED": 5,
+        "SUPERSEDED": 2,
+        "PLANNED": 0,
+        "DEFERRED": 1,
+        "RETIRED": 0,
+        "UNVERIFIED": 1
+      }
+    },
+    "effectivePendingGraphs": ["DG-1", "WG-1", "KG-4", "FF-1", "AG-1", "KG-5"],
+    "statusTransitions": [
+      {
+        "id": "KG-5",
+        "from": "PLANNED",
+        "to": "ACTIVE",
+        "effectiveDate": "2026-08-14",
+        "implementationCommit": "2244bb8",
+        "certificationAndLockCommit": "8ce3a42",
+        "evidence": [
+          "src/renderer/knowledge/manual-graph.json",
+          "repository/schema/manual-graph.schema.json",
+          "scripts/verify-manual-graph.js",
+          "docs/architecture/kg-5-document-and-manual-graph-lifecycle-reconciliation-addendum.md"
+        ]
+      }
+    ],
+    "nextGraphProgramme": {
+      "id": "BRAIN-3.5",
+      "title": "KG-5 runtime consumption",
+      "lifecycleStatus": "PLANNED",
+      "executionGate": "BLOCKED",
+      "reason": "Do not begin until GGR-1 is approved and the separate corrective programme sequence reaches stabilization, certification and baseline lock."
+    }
+  },
+  "compatibilityMatrix": {
+    "BRAIN-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "RG-1": "^1.0" } },
+    "KG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "RG-1": "^1.0" } },
+    "RG-1": { "version": "2.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0" } },
+    "DG-1": { "version": "1.1.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
+    "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
+    "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
+    "AG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
+    "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } },
+    "KG-5": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0", "FF-1": "^1.0" } }
+  },
+  "dependencies": {
+    "BRAIN-1": { "dependsOn": [], "dependedBy": ["KG-1", "RG-1", "DG-1", "WG-1", "KG-4", "FF-1", "AG-1", "KG-5"] },
+    "KG-1": { "dependsOn": ["BRAIN-1"], "dependedBy": ["RG-1", "DG-1", "WG-1", "KG-4", "FF-1", "AG-1", "KG-5"] },
+    "RG-1": { "dependsOn": ["BRAIN-1", "KG-1"], "dependedBy": ["DG-1", "WG-1", "KG-4", "FF-1", "AG-1", "KG-5"] },
+    "DG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1"], "dependedBy": ["WG-1", "KG-4", "FF-1", "AG-1"] },
+    "WG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1"], "dependedBy": ["KG-4", "FF-1", "AG-1", "KG-5"] },
+    "KG-4": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1"], "dependedBy": ["AG-1", "FF-1"] },
+    "FF-1": { "dependsOn": ["KG-1", "WG-1", "DG-1", "KG-4", "RG-1", "BRAIN-1"], "dependedBy": ["KG-5"] },
+    "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"], "dependedBy": [] },
+    "KG-5": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"], "dependedBy": [] }
+  },
+  "graphs": [
+    {
+      "graphId": "BRAIN-1",
+      "title": "ERP Knowledge Repository",
+      "version": "1.0.0",
+      "schema": "repository/schema/brain.schema.json",
+      "location": "src/renderer/modules/erpBrain/repository/",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Business knowledge, glossary, modules, workflows, navigation, business rules",
+      "entryCount": 224,
+      "lastUpdated": "2026-08-21",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": ["src/renderer/modules/erpBrain/repository/"],
+      "validationMethod": "verify:audit --phase=brain-1",
+      "regenerationTrigger": "Architecture audit phase",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "KG-1",
+      "title": "Metadata Registry",
+      "version": "1.0.0",
+      "schema": "repository/schema/kg.schema.json",
+      "location": "src/renderer/knowledge/",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Metadata, ownership, permissions, risks, traceability, correction policies",
+      "entryCount": 167,
+      "lastUpdated": "2026-06-30",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": ["src/renderer/knowledge/modules/"],
+      "validationMethod": "verify:audit --phase=kg-1",
+      "regenerationTrigger": "Architecture audit phase",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "RG-1",
+      "title": "Renderer Intelligence Graph",
+      "version": "2.0.0",
+      "schema": "repository/schema/renderer-graph.schema.json",
+      "location": "src/renderer/knowledge/renderer-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Renderer dependency graph, routes, screens, components, contexts, dialogs, IPC",
+      "entryCount": 252,
+      "lastUpdated": "2026-08-21",
+      "generationTool": "scripts/build-renderer-graph.js",
+      "generationCommand": "node scripts/build-renderer-graph.js",
+      "sourceDirectories": ["src/renderer/"],
+      "validationMethod": "verify:audit --phase=rg-1",
+      "regenerationTrigger": "Phase 17L.1 or when renderer source changes significantly",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "DG-1",
+      "title": "Database Intelligence Graph",
+      "version": "1.1.0",
+      "schema": "repository/schema/database-graph.schema.json",
+      "location": "src/renderer/knowledge/database-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Database schema, tables, columns, relationships, indices, posting functions, report sources, accounting protection boundaries",
+      "entryCount": 74,
+      "lastUpdated": "2026-11-10",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": ["src/main/database/", "src/main/services/"],
+      "validationMethod": "npm run verify:database-graph",
+      "regenerationTrigger": "When database schema or service structure changes significantly",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "WG-1",
+      "title": "Workflow Intelligence Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/workflow-graph.schema.json",
+      "location": "src/renderer/knowledge/workflow-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Workflow graph, lifecycle states, transitions, boundary rules (accounting/inventory/GST), known gaps, validation rules",
+      "entryCount": 18,
+      "lastUpdated": "2026-07-20",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": [
+        "docs/architecture/workflow-governance-registry.md",
+        "src/renderer/modules/erpBrain/repository/workflows/index.json",
+        "src/renderer/config/navigation.js",
+        "src/main/services/operationsService.js",
+        "src/main/services/orderClosureService.js"
+      ],
+      "validationMethod": "npm run verify:workflow-graph",
+      "regenerationTrigger": "When lifecycle stages or governance rules change",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "KG-4",
+      "title": "Voucher and Accounting Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/voucher-accounting-graph.schema.json",
+      "location": "src/renderer/knowledge/voucher-accounting-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Voucher types, posting functions, debit/credit patterns, ledger impact, receivable/payable impact, cash/bank impact, GST impact, inventory impact, report dependencies, reversal rules, audit trail, accounting protection boundaries",
+      "entryCount": 14,
+      "lastUpdated": "2026-07-14",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": ["src/main/services/accountingService.js", "src/main/database/init.js", "src/main/services/inventoryService.js", "src/main/database/reportBuilders.js"],
+      "validationMethod": "npm run verify:voucher-accounting-graph",
+      "regenerationTrigger": "When voucher types, posting functions, or accounting logic change significantly",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "FF-1",
+      "title": "Feature Function Correlation Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/feature-function-graph.schema.json",
+      "location": "src/renderer/knowledge/feature-function-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Correlate ERP features to functions, screens, workflows, database tables, voucher types, reports, manuals, and safety boundaries. Provides relationship-based query routing for Ask ERP Brain.",
+      "entryCount": 50,
+      "lastUpdated": "2026-08-21",
+      "generationTool": "Manual curation",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": [
+        "src/renderer/knowledge/",
+        "src/renderer/modules/erpBrain/",
+        "src/renderer/modules/erpAssistant/",
+        "src/renderer/modules/helpAssistant/",
+        "docs/manuals/",
+        "docs/architecture/"
+      ],
+      "validationMethod": "npm run verify:feature-function-graph",
+      "regenerationTrigger": "When features, screens, workflows, or database tables change significantly",
+      "documentation": "docs/architecture/ff-1-feature-function-correlation-graph-report.md",
+"schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "AG-1",
+      "title": "Audit Intelligence Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/audit-graph.schema.json",
+      "location": "src/renderer/knowledge/audit-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Audit events, mutations, users, approvals, compliance",
+      "entryCount": 98,
+      "lastUpdated": "2026-08-11",
+      "generationTool": "Manual curation from audit action catalog",
+      "generationCommand": "N/A (hand-authored)",
+      "sourceDirectories": [
+        "src/main/services/",
+        "src/main/database/"
+      ],
+      "validationMethod": "npm run verify:audit-graph",
+      "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    },
+    {
+      "graphId": "KG-5",
+      "title": "Document and Manual Graph",
+      "version": "1.0.0",
+      "schema": "repository/schema/manual-graph.schema.json",
+      "location": "src/renderer/knowledge/manual-graph.json",
+      "owner": "Architecture & Governance",
+      "status": "Active",
+      "lifecycleStatus": "ACTIVE",
+      "purpose": "Document and manual inventory with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors",
+      "entryCount": 10,
+      "lastUpdated": "2026-08-14",
+      "generationTool": "scripts/build-manual-graph.js",
+      "generationCommand": "node scripts/build-manual-graph.js",
+      "sourceDirectories": [
+        "docs/manuals/",
+        "src/renderer/modules/erpBrain/data/manualIndex.js"
+      ],
+      "validationMethod": "npm run verify:manual-graph",
+      "regenerationTrigger": "When manuals change, when the manual section index changes, or when referenced graphs change",
+      "documentation": "docs/architecture/enterprise-intelligence-layer.md",
+      "schemaVersion": "1.0.0",
+      "futureGraph": "N/A"
+    }
+  ],
+  "historicalStages": [
+    { "id": "BRAIN-2", "title": "Source-backed ERP Brain search and answer service", "recommendedStatus": "COMPLETED", "successor": "BRAIN-1 service layer", "evidence": ["docs/architecture/brain-2-source-backed-intelligence-upgrade-report.md", "npm run verify:erp-brain"] },
+    { "id": "BRAIN-3", "title": "Contextual Help Assistant integration", "recommendedStatus": "COMPLETED", "successor": "Help Assistant over BRAIN-2", "evidence": ["docs/architecture/brain-3-contextual-help-assistant-integration-report.md", "npm run verify:help-assistant-brain"] },
+    { "id": "BRAIN-4", "title": "Read-only Ask ERP Brain assistant", "recommendedStatus": "COMPLETED", "successor": "Ask ERP Brain runtime assistant", "evidence": ["docs/architecture/brain-4-combined-phase-report.md", "docs/architecture/brain-4-3b-ff1-runtime-routing-report.md"] },
+    { "id": "BRAIN-5", "title": "LLM gateway feasibility", "recommendedStatus": "DEFERRED", "successor": null, "evidence": ["docs/architecture/brain-5-llm-gateway-feasibility-study.md"] },
+    { "id": "KG-2", "title": "Historical workflow graph stage", "recommendedStatus": "MERGED", "successor": "WG-1", "evidence": ["docs/architecture/kg-2-wg-1-workflow-graph-foundation-report.md"] },
+    { "id": "KG-3", "title": "Historical database graph stage", "recommendedStatus": "SUPERSEDED", "successor": "DG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md"] },
+    { "id": "KG-6", "title": "Historical renderer dependency graph stage", "recommendedStatus": "MERGED", "successor": "RG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md", "src/renderer/knowledge/renderer-graph.json"] },
+    { "id": "KG-7", "title": "Historical verification and audit graph stage", "recommendedStatus": "SUPERSEDED", "successor": "AG-1", "evidence": ["docs/architecture/ki-0-intelligence-layer-status-audit-and-continuation-plan.md", "src/renderer/knowledge/audit-graph.json"] },
+    { "id": "KG-8", "title": "Knowledge Search Index", "recommendedStatus": "MERGED", "successor": "BRAIN-2", "evidence": ["src/renderer/modules/erpBrain/services/sourceBackedSearchIndex.js", "npm run verify:erp-brain"] },
+    { "id": "KG-9", "title": "Contextual Help Mapping", "recommendedStatus": "MERGED", "successor": "BRAIN-3", "evidence": ["src/renderer/modules/helpAssistant/contextualBrainHelp.js", "npm run verify:help-assistant-brain"] },
+    { "id": "KG-10", "title": "Knowledge validation and governance", "recommendedStatus": "MERGED", "successor": "AG-1", "evidence": ["scripts/verify-audit.js", "src/renderer/knowledge/audit-graph.json"] },
+    { "id": "RG-2", "title": "Stray AIR renderer graph reference", "recommendedStatus": "UNVERIFIED", "successor": null, "evidence": ["docs/tally-intelligence/AIR/erp9-air-integration.md"] },
+    { "id": "WG-2", "title": "Workflow Enforcement Readiness Audit", "recommendedStatus": "COMPLETED", "successor": "WG-3A", "evidence": ["docs/architecture/wg-2-workflow-enforcement-readiness-audit.md"] },
+    { "id": "WG-3", "title": "Workflow Enforcement Foundation family", "recommendedStatus": "COMPLETED", "successor": "WG-3A workflow stage engine", "evidence": ["docs/architecture/wg-3a-workflow-enforcement-foundation-report.md", "src/renderer/modules/workflow/workflowStageEngine.js"] },
+    { "id": "FF-2", "title": "Runtime routing phase named as future in FF-1 metadata", "recommendedStatus": "COMPLETED", "successor": "BRAIN-4.3B using FF-1", "evidence": ["docs/architecture/brain-4-3b-ff1-runtime-routing-report.md", "src/renderer/knowledge/feature-function-graph.json"] }
+  ]
+}

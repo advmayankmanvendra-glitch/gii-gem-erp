@@ -15,6 +15,7 @@ const HELP_ASSISTANT_SUGGESTIONS = [
   "Do I have low stock items?",
   "Where do I enter a supply order?",
   "Why is a voucher not posting?",
+  "Where do I see what went wrong?",
   "How do I allocate a receipt?",
   "Where can I check stock value?",
   "How do I review GST reports?",
@@ -160,4 +161,34 @@ function safeArray(value, fallback = []) {
   return Array.isArray(value) && value.length ? value : fallback;
 }
 
-export { HELP_ASSISTANT_SUGGESTIONS, buildHelpAssistantKnowledge };
+function brainSearchAsTopics(brainSearchFn, query) {
+  try {
+    const result = brainSearchFn(query);
+    if (!result || !result.results) return [];
+    return result.results.slice(0, 5).map((r, i) => ({
+      id: `brain-${r.sourceKind}-${i}`,
+      type: "ERP Knowledge",
+      title: r.title || "Knowledge result",
+      summary: r.summary || "",
+      sourceKind: r.sourceKind,
+      sourcePath: r.sourcePath,
+      graphId: r.graphId,
+      menuPath: "Source-backed ERP guidance",
+      viewKey: "",
+      steps: [],
+      commonMistakes: [],
+      relatedTopics: [r.title, r.sourceKind].filter(Boolean),
+      keywords: [r.title, r.summary, r.sourceKind].filter(Boolean),
+      confidence: result.confidence === "high" ? 0.85 : result.confidence === "medium" ? 0.55 : 0.3,
+      needsReview: result.confidence === "low",
+      relatedTables: r.relatedTables || [],
+      relatedReports: r.relatedReports || [],
+      relatedWorkflowStages: r.relatedWorkflowStages || [],
+      manualReference: r.sourceKind === "manual" ? r.sourcePath : ""
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export { HELP_ASSISTANT_SUGGESTIONS, buildHelpAssistantKnowledge, brainSearchAsTopics };

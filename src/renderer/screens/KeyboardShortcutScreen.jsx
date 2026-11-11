@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import { keyboardShortcuts, moduleKeys } from "../config/keyboardShortcuts.js";
+import { keyboardShortcuts as standardShortcuts, moduleKeys as standardModules } from "../config/keyboardShortcuts.js";
+import { tallyKeyboardShortcuts } from "../config/keyLayout.js";
+
+const keyboardShortcuts = [...standardShortcuts, ...tallyKeyboardShortcuts];
+const moduleKeys = [...standardModules, "Tally Key Layout"];
+import { sortOptions } from "../utils/optionSorting.js";
 
 export function KeyboardShortcutScreen({ onNavigate }) {
   const [search, setSearch] = useState("");
@@ -32,7 +37,7 @@ export function KeyboardShortcutScreen({ onNavigate }) {
         />
         <select value={activeModule} onChange={(e) => setActiveModule(e.target.value)}>
           <option value="">All Modules</option>
-          {moduleKeys.map((m) => <option key={m} value={m}>{m}</option>)}
+          {sortOptions(moduleKeys).map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <span className="filter-count">{filtered.length} shortcut(s)</span>
       </div>

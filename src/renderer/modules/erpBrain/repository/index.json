@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "name": "ERP Brain Knowledge Repository",
+    "version": "1.0.0",
+    "phase": "BRAIN-1",
+    "description": "Permanent structured knowledge layer for GII GeM ERP",
+    "lastUpdated": "2026-08-21",
+    "totalEntries": 224,
+    "repositories": {
+      "modules": {
+        "path": "repository/modules/index.json",
+        "entryCount": 17,
+        "description": "Structured definitions for all ERP modules"
+      },
+      "workflows": {
+        "path": "repository/workflows/index.json",
+        "entryCount": 6,
+        "description": "Structured workflow definitions covering end-to-end processes"
+      },
+      "reports": {
+        "path": "repository/reports/index.json",
+        "entryCount": 31,
+        "description": "ERP report definitions with drill-down targets and KPIs"
+      },
+      "screens": {
+        "path": "repository/screens/index.json",
+        "entryCount": 30,
+        "description": "Screen metadata with fields, actions, shortcuts and business rules"
+      },
+      "rules": {
+        "path": "repository/rules/index.json",
+        "entryCount": 40,
+        "description": "Business rule definitions with conditions, exceptions and priorities"
+      },
+      "glossary": {
+        "path": "repository/glossary/index.json",
+        "entryCount": 50,
+        "description": "ERP terminology with definitions, modules and examples"
+      },
+      "navigation": {
+        "path": "repository/navigation/index.json",
+        "entryCount": 20,
+        "description": "Navigation paths with permissions and related reports"
+      },
+      "errors": {
+        "path": "repository/errors/index.json",
+        "entryCount": 30,
+        "description": "Common error definitions with causes, resolutions and related screens"
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import React from "react";
 import { flatNavItems } from "../../config/navigation.js";
 import { Icon } from "../common.jsx";
+import { sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function NavigationSidebar({
   compactSidebar,
@@ -49,7 +50,7 @@ export function NavigationSidebar({
           const groupActive = groupItems.some(([key]) => key === view || key === effectiveView);
           return (
             <div className={`nav-group ${isExpanded ? "expanded" : ""}`} key={group.id}>
-              <button type="button" className={`nav-group-trigger ${groupActive ? "active-group" : ""} ${isExpanded ? "expanded-group" : ""}`} title={group.label} onClick={() => onSetExpandedGroups((current) => current[group.id] ? {} : { [group.id]: true })}>
+              <button type="button" className={`nav-group-trigger ${groupActive ? "active-group" : ""} ${isExpanded ? "expanded-group" : ""}`} title={group.label} onClick={() => onSetExpandedGroups((current) => { if (current[group.id]) { const next = { ...current }; delete next[group.id]; return next; } return { [group.id]: true }; })}>
                 <Icon name={group.icon} />
                 <span>{group.label}</span>
                 <strong>{isExpanded ? "-" : "+"}</strong>
@@ -60,7 +61,7 @@ export function NavigationSidebar({
                     const sectionKey = `${group.id}:${section.id}`;
                     const sectionItems = Array.isArray(section.items) ? section.items : [];
                     const sectionActive = sectionItems.some(([key]) => key === view || key === effectiveView);
-                    const sectionExpanded = !section.label || Boolean(navSearch) || sectionActive || expandedGroups[sectionKey];
+                    const sectionExpanded = !section.label || Boolean(navSearch) || (expandedGroups[sectionKey] !== undefined ? expandedGroups[sectionKey] : sectionActive);
                     return (
                       <div className={`nav-subgroup ${sectionExpanded ? "expanded" : ""}`} key={sectionKey}>
                         {section.label && (
@@ -88,7 +89,7 @@ export function NavigationSidebar({
         {safeRecentScreens.length > 0 && <NavQuickSection title="Recent" items={safeRecentScreens} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
         {safeFavorites.length > 0 && <NavQuickSection title="Favorites" items={safeFavorites} current={view} compact={compactSidebar} onNavigate={onNavigate} onFavorite={onFavorite} />}
       </nav>
-      <div className="version">v0.4.0 - Accounting Controls</div>
+      <div className="version">v{typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev"}</div>
     </aside>
   );
 }
@@ -124,10 +125,6 @@ export function RightUtilitySidebar({
   collapsed,
   onToggle,
   session,
-  trainingMode,
-  onHelp,
-  onHelpAssistant,
-  onTraining,
   onLogout,
   companies,
   companyContext,
@@ -137,6 +134,7 @@ export function RightUtilitySidebar({
   onCreateCompany,
   onAlterCompany,
   onSettings,
+  onLearnThisScreen,
   onShortcutPanelToggle,
   productivityPanel,
   extension
@@ -145,15 +143,16 @@ export function RightUtilitySidebar({
 
   if (collapsed) {
     return (
-      <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
-        <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
-        <button type="button" className="utility-compact-action" onClick={onHelp} title="Help">?</button>
-        <button type="button" className="utility-compact-action" onClick={onHelpAssistant} title="Ask ERP Help">A</button>
-        <button type="button" className={`utility-compact-action ${trainingMode ? "active" : ""}`} onClick={onTraining} title={trainingMode ? "Training Mode On" : "Training"}>T</button>
-        <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
-        <button type="button" className="utility-compact-action" onClick={onShortcutPanelToggle} title="Productivity Panel">P</button>
-        <button type="button" className="utility-compact-action" onClick={onLogout} title="Logout">L</button>
-      </aside>
+      <div className="right-utility-compact-wrap">
+        <aside className="right-utility-sidebar compact" aria-label="Utilities sidebar">
+          <button type="button" className="utility-toggle" onClick={onToggle} title="Expand utilities sidebar">+</button>
+          <button type="button" className="utility-compact-action" onClick={onSettings} title={companyContext.company_name || "Company Settings"}>Co</button>
+          <button type="button" className="utility-compact-action" onClick={onLearnThisScreen} title="Learn This Screen (Shift + F1)" aria-label="Learn This Screen"><Icon name="book" /></button>
+          <button type="button" className="utility-compact-action" onClick={onToggle} title="Productivity Panel">P</button>
+          <button type="button" className="utility-compact-action" onClick={onLogout} title="Logout">L</button>
+        </aside>
+        {productivityPanel}
+      </div>
     );
   }
 
@@ -167,27 +166,12 @@ export function RightUtilitySidebar({
         <button type="button" className="utility-toggle" onClick={onToggle} title="Compact utilities sidebar">-</button>
       </div>
 
-      <div className="utility-section utility-actions">
-        <button type="button" className="ghost-btn help-btn" title="Open context-sensitive help for this screen" onClick={onHelp}>
-          <Icon name="help" />
-          <span>Help</span>
-        </button>
-        <button type="button" className={`ghost-btn help-btn ${trainingMode ? "active" : ""}`} title="Open safe sample-data training mode" onClick={onTraining}>
-          <Icon name="book" />
-          <span>{trainingMode ? "Training On" : "Training"}</span>
-        </button>
-        <button type="button" className="ghost-btn help-btn ask-help-btn" title="Ask the ERP Help Assistant" onClick={onHelpAssistant}>
-          <Icon name="help" />
-          <span>Ask ERP Help</span>
-        </button>
-      </div>
-
       <div className="company-context utility-section" title="Current company context controls">
         <label>
           <span>Current Company</span>
           <select value={companyContext.company_scope === "all" ? "__all" : currentCompanyId} onChange={(event) => onCompanyChange(event.target.value)}>
             {!safeCompanies.length && <option value="">Create company first</option>}
-            {safeCompanies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+            {sortRecordsBy(safeCompanies, (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
             {adminUser && <option value="__all">All Companies View</option>}
           </select>
         </label>
@@ -199,14 +183,15 @@ export function RightUtilitySidebar({
         {companyContext.company_scope === "all" && <small>Read-only group summary</small>}
       </div>
 
+      {productivityPanel}
+      {extension}
+
       <div className="user-pill utility-user">
         <Icon name="shield" />
         <span>{session.displayName}</span>
         <button type="button" onClick={onLogout}>Logout</button>
       </div>
 
-      {productivityPanel}
-      {extension}
     </aside>
   );
 }

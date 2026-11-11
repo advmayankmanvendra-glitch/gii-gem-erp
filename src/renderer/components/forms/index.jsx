@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
+import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
 
 export function SelectField({ label, value, onChange, options }) {
   return (
     <label className="field">
       {label}
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => {
+        {sortOptions(options).map((option) => {
           const valueLabel = Array.isArray(option) ? option : [option, option];
           return <option key={valueLabel[0]} value={valueLabel[0]}>{valueLabel[1]}</option>;
         })}
@@ -20,7 +21,7 @@ export function SelectBox({ label, value, onChange, options }) {
       {label}
       <select value={value || ""} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select</option>
-        {options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
+        {sortOptions(options).map(([id, text]) => <option key={id} value={id}>{text}</option>)}
       </select>
     </label>
   );
@@ -30,9 +31,10 @@ export function SearchableSelect({ label, value, onChange, options = [], placeho
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const focusedRef = useRef(false);
-  const selected = options.find(([id]) => String(id) === String(value));
+  const sorted = sortOptions(options);
+  const selected = sorted.find(([id]) => String(id) === String(value));
   const displayValue = open ? query : selected?.[1] || "";
-  const filtered = options
+  const filtered = sorted
     .filter(([, text, note]) => `${text || ""} ${note || ""}`.toLowerCase().includes(query.toLowerCase()))
     .slice(0, 30);
 
@@ -62,7 +64,7 @@ export function SearchableSelect({ label, value, onChange, options = [], placeho
         placeholder={placeholder}
         disabled={disabled}
         onKeyDown={(event) => {
-          if (event.key === "F10" && onQuickCreate) {
+          if ((event.key === "F10" || (event.key === "Insert" && event.altKey)) && onQuickCreate) {
             event.preventDefault();
             onQuickCreate();
             return;
@@ -107,7 +109,7 @@ export function MetricLine({ label, value }) {
   return <div className="metric-line"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-export function Field({ name, label, type, value, onChange }) {
+export function Field({ name, label, type, value, onChange, options }) {
   if (type === "textarea") {
     return <label className="field wide">{label}<textarea value={value} onChange={(event) => onChange(event.target.value)} /></label>;
   }
@@ -139,6 +141,18 @@ export function Field({ name, label, type, value, onChange }) {
       <label className="field checkbox-field">
         <input type="checkbox" checked={Boolean(Number(value || 0))} onChange={(event) => onChange(event.target.checked ? 1 : 0)} />
         <span>{label}</span>
+      </label>
+    );
+  }
+  if (type === "select") {
+    const sorted = sortOptions(options || []);
+    return (
+      <label className="field">
+        {label}
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
+          <option value="">Select</option>
+          {sorted.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+        </select>
       </label>
     );
   }
@@ -184,7 +198,7 @@ function toISODate(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function getPresetDates(preset) {
+export function getPresetDates(preset) {
   const today = new Date();
   const todayStr = toISODate(today);
   switch (preset) {
@@ -263,7 +277,7 @@ export function ReportDateFilters({ companyId, companies = [], dateFrom, dateTo,
     <>
       {onCompanyChange && (
         <select value={companyId || ""} onChange={(event) => onCompanyChange(event.target.value)}>
-          {companies.map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
+          {sortRecordsBy(companies, (company) => company.company_name).map((company) => <option key={company.id} value={company.id}>{company.company_name}</option>)}
         </select>
       )}
       <div className="period-presets">
@@ -284,7 +298,7 @@ export function ReportSelectFilter({ value, onChange, options = [], placeholderL
   return (
     <select value={value || ""} onChange={(event) => onChange(event.target.value)}>
       {placeholderLabel !== undefined && <option value={placeholderValue}>{placeholderLabel}</option>}
-      {options.map((option) => {
+      {sortOptions(options).map((option) => {
         const [optionValue, optionLabel] = Array.isArray(option) ? option : [option.value, option.label];
         return <option key={optionValue} value={optionValue}>{optionLabel}</option>;
       })}
