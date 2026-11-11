@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from "electron";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -413,7 +414,11 @@ function ensureUpdateFolder() {
   const baseFolder = configured
     ? path.resolve(configured)
     : path.join(app.getPath("documents"), "GII GeM ERP Updates");
-  fs.mkdirSync(baseFolder, { recursive: true });
+  try {
+    fs.mkdirSync(baseFolder, { recursive: true });
+  } catch (error) {
+    throw new Error(`The update folder ${baseFolder} could not be created or opened (${error.code || error.message}). Check that the Documents folder is available, then try again.`);
+  }
   return baseFolder;
 }
 
@@ -470,9 +475,10 @@ function findLatestUpdateInstaller(updateFolder, manifest) {
 }
 
 function newestSetupInFolder(updateFolder) {
-  const candidates = fs.readdirSync(updateFolder)
-    .filter((fileName) => /^GII-GeM-ERP-Setup-.+-x64\.exe$/i.test(fileName))
-    .map((fileName) => {
+  const candidates = fs.readdirSync(updateFolder, { withFileTypes: true })
+    // Only real files are offered; a link or folder with an installer's name is skipped.
+    .filter((entry) => entry.isFile() && /^GII-GeM-ERP-Setup-.+-x64\.exe$/i.test(entry.name))
+    .map(({ name: fileName }) => {
       const installerPath = path.join(updateFolder, fileName);
       const stats = fs.statSync(installerPath);
       return { fileName, installerPath, version: parseUpdateVersion(fileName), modifiedAt: stats.mtimeMs, source: "folder" };
@@ -551,6 +557,12 @@ function assertInstallerInsideUpdateFolder(installerPath, updateFolder) {
     throw new Error("Selected installer is not directly inside the update folder. Copy the installer file itself into the update folder (not a shortcut or sub-folder) and try again.");
   }
   return realInstaller;
+}
+
+function installerFingerprint(installerPath) {
+  const stats = fs.statSync(installerPath);
+  const hash = crypto.createHash("sha256").update(fs.readFileSync(installerPath)).digest("hex");
+  return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeMs}:${hash}`;
 }
 
 function buildPrintDocument(preview = {}) {
@@ -1284,15 +1296,16 @@ function registerIpc() {
     if (compareUpdateVersions(selectedVersion, app.getVersion()) < 0) {
       throw new Error(`This installer is version ${selectedVersion}, older than the running version ${app.getVersion()}. Installing an older version can damage a newer database, so it was not started.`);
     }
+    // The installer's identity and contents are fixed before the backup and checked again
+    // after it, so a file replaced, overwritten or linked in meanwhile is not launched.
+    const fingerprint = installerFingerprint(selectedInstaller);
     // Back up the books before anything is replaced, then hand over to the installer.
     const backup = await createLiveBackup(db, runtimeDataRoot);
-    // The path is checked again after the backup (links followed, directly in the folder), so a
-    // link or sub-folder swapped in meanwhile is not launched.
-    if (assertInstallerInsideUpdateFolder(selectedInstaller, status.updateFolder) !== selectedInstaller) {
+    if (assertInstallerInsideUpdateFolder(selectedInstaller, status.updateFolder) !== selectedInstaller || installerFingerprint(selectedInstaller) !== fingerprint) {
       throw new Error("The installer changed while the backup was being made, so it was not started. Check the update folder and try again.");
     }
     const failureReason = await shell.openPath(selectedInstaller);
-    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, failure: failureReason || null }) });
+    auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: fingerprint.split(":").pop(), failure: failureReason || null }) });
     if (failureReason) throw new Error(failureReason);
     // The installer cannot replace the program files or the database while the ERP
     // is still running, so close it. The window's close handler asks "exit?" and
