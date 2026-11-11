@@ -59,26 +59,41 @@ export function clearInstallerStaging(dataRoot) {
   try { fs.rmSync(stagingFolderPath(dataRoot), { recursive: true, force: true }); } catch { /* best effort */ }
 }
 // The staging folder must be a real folder of the app's own, never a link to somewhere else.
+// Whatever is there is first renamed away under a random name: a rename moves a link itself,
+// never what it points to, so clearing it cannot delete through a link swapped in meanwhile.
 async function ensureStagingFolder(dataRoot) {
-  const stagingFolder = stagingFolderPath(dataRoot);
-  const existing = await fs.promises.lstat(stagingFolder).catch(() => null);
-  if (existing && !existing.isDirectory()) await fs.promises.rm(stagingFolder, { force: true });
-  await fs.promises.mkdir(stagingFolder, { recursive: true });
-  if (!(await fs.promises.lstat(stagingFolder)).isDirectory()) {
-    throw guidedError("The app's update-staging folder is not a normal folder, so the update was not prepared. Restart the ERP and try again.");
+  // Where the staging folder really is when nothing is linked: inside the real data folder.
+  const expected = path.join(await fs.promises.realpath(dataRoot), "update-staging");
+  const changed = () => guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+  const old = `${expected}.old-${crypto.randomBytes(8).toString("hex")}`;
+  try {
+    await fs.promises.rename(expected, old);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
   }
-  // Only one install runs at a time, so copies left by earlier failed attempts can go.
-  for (const name of await fs.promises.readdir(stagingFolder)) {
-    await fs.promises.rm(path.join(stagingFolder, name), { recursive: true, force: true }).catch(() => {});
+  const moved = await fs.promises.lstat(old).catch(() => null);
+  if (moved) {
+    // A link is only unlinked; a real folder holds copies from earlier attempts and can go.
+    if (moved.isDirectory()) await fs.promises.rm(old, { recursive: true, force: true }).catch(() => {});
+    else await fs.promises.unlink(old).catch(() => {});
+  }
+  // Not recursive: if something else created the folder in the meantime, this fails.
+  try {
+    await fs.promises.mkdir(expected);
+  } catch (error) {
+    if (error.code === "EEXIST") throw changed();
+    throw error;
   }
   // Each install gets a new, empty folder of its own, so nothing planted beforehand is reused,
   // and it must really be inside the staging folder (not a link swapped in meanwhile).
-  const dir = await fs.promises.mkdtemp(path.join(stagingFolder, "install-"));
+  const dir = await fs.promises.mkdtemp(path.join(expected, "install-"));
   const realDir = await fs.promises.realpath(dir);
-  if (path.dirname(realDir) !== (await fs.promises.realpath(stagingFolder)) || !(await fs.promises.lstat(dir)).isDirectory()) {
-    throw guidedError("The app's update-staging folder changed while the update was being prepared, so it was not started. Restart the ERP and try again.");
+  if (path.dirname(realDir) !== expected || !(await fs.promises.lstat(expected)).isDirectory() || !(await fs.promises.lstat(dir)).isDirectory()) {
+    // Remove only the new folder made through the link, then refuse.
+    await fs.promises.rmdir(dir).catch(() => {});
+    throw changed();
   }
-  return dir;
+  return realDir;
 }
 // The name as the renderer sent it, cut to a file-name length for the audit log.
 export function shortInstallerName(installerPath) {
@@ -86,14 +101,24 @@ export function shortInstallerName(installerPath) {
 }
 // The staged copy is hashed again just before it runs, so the hash in the audit log is the
 // hash of what was launched.
+// Read through a handle opened without following links or waiting on a pipe, and only if it
+// is a regular file, so a link or pipe put in its place cannot redirect or stall the check.
 export async function hashFile(filePath) {
-  const hash = crypto.createHash("sha256");
-  await streamPipeline(fs.createReadStream(filePath), hash);
-  return hash.digest("hex");
+  const handle = await fs.promises.open(filePath, INSTALLER_OPEN_FLAGS);
+  try {
+    if (!(await handle.stat()).isFile()) return "";
+    const hash = crypto.createHash("sha256");
+    await streamPipeline(handle.createReadStream({ autoClose: false, start: 0 }), hash);
+    return hash.digest("hex");
+  } finally {
+    await handle.close().catch(() => {});
+  }
 }
 function sameFile(a, b) {
   return a.dev === b.dev && a.ino === b.ino;
 }
+// The caller must allow only one install at a time: staging clears copies left by earlier
+// attempts, which would remove a copy another install is still using.
 export async function stageInstaller(installerPath, updateFolder, dataRoot) {
   let handle = null;
   let stagedPath = "";
@@ -140,8 +165,13 @@ export async function stageInstaller(installerPath, updateFolder, dataRoot) {
     // Keep Windows' "downloaded from the internet" mark, so the usual warning still shows.
     if (process.platform === "win32") {
       try {
-        const mark = fs.readFileSync(`${checked}:Zone.Identifier`);
-        if (mark.length <= 64 * 1024) fs.writeFileSync(`${stagedPath}:Zone.Identifier`, mark);
+        const markPath = `${checked}:Zone.Identifier`;
+        // A real mark is a few hundred bytes; anything far larger is not read into memory.
+        if (fs.statSync(markPath).size > 64 * 1024) {
+          console.warn("[updates] The installer's download mark is too large to copy; it was skipped.");
+        } else {
+          fs.writeFileSync(`${stagedPath}:Zone.Identifier`, fs.readFileSync(markPath));
+        }
       } catch (error) {
         if (error.code !== "ENOENT") console.warn(`[updates] The installer's download mark could not be copied (${error.code || error.message}).`);
       }

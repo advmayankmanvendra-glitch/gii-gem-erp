@@ -31,6 +31,8 @@ export class BrowserWindow {
 }
 export const dialog = { showOpenDialog: async () => ({ canceled: true, filePaths: [] }), showSaveDialog: async () => ({ canceled: true }) };
 export const Menu = { setApplicationMenu: noop, buildFromTemplate: () => ({}) };
-export const shell = { openPath: async () => "" };
+// Opening a file fails unless a test says otherwise, so a broken updater check cannot reach a
+// "successful" launch that locks the updater for every later test.
+export const shell = { openPath: async () => "opening files is turned off in tests" };
 export const safeStorage = { isEncryptionAvailable: () => true, encryptString: (value) => Buffer.from(`enc:${value}`), decryptString: (buffer) => buffer.toString().slice(4) };
 export default { ipcMain, app, BrowserWindow, dialog, Menu, shell, safeStorage };

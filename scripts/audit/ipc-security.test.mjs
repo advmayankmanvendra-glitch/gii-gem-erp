@@ -710,6 +710,161 @@ test("32263ab round: a raw file error is mapped, not shown with its path, and lo
   }
 });
 
+async function installWithStubbedLaunch(admin, installer, onLaunch = async () => "test stops here") {
+  const shell = electron.shell || electron.default.shell;
+  const original = shell.openPath;
+  let launches = 0;
+  shell.openPath = async (target) => { launches += 1; return onLaunch(target); };
+  try { return { result: await call(admin, "updates:install", installer), launches: () => launches }; } finally { shell.openPath = original; }
+}
+const lastRefusal = () => { const db = side(); try { const row = db.prepare("SELECT new_value FROM audit_log WHERE action = 'update_installer_refused' ORDER BY id DESC LIMIT 1").get(); return row ? JSON.parse(row.new_value) : null; } finally { db.close(); } };
+
+test("ef324d5 round: a staged copy that changes before the launch is not opened", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.0-x64.exe");
+  fs.writeFileSync(installer, "hashed bytes");
+  try {
+    const { result, launches } = await withPatchedOpen(async (open, file, flags) => {
+      if (file.includes("update-staging")) fs.writeFileSync(file, "other bytes");
+      return open(file, flags);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.match(result.err || "", /changed before it could start/);
+    assert.equal(launches(), 0);
+  } finally { fs.rmSync(installer, { force: true }); }
+});
+
+test("ef324d5 round: a link swapped in for the staging folder is moved away, never deleted through", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.6-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const staging = path.join(root, "update-staging");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-keep-"));
+  fs.mkdirSync(path.join(outside, "install-precious"));
+  fs.writeFileSync(path.join(outside, "install-precious", "keep.txt"), "keep me");
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.symlinkSync(outside, staging, "dir");
+  try {
+    const { result } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /test stops here/);
+    assert.equal(fs.readFileSync(path.join(outside, "install-precious", "keep.txt"), "utf8"), "keep me", "the link's target is untouched");
+    assert.ok(fs.lstatSync(staging).isDirectory());
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("ef324d5 round: an unexpected error is mapped by the handler, with its code", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.1-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  try {
+    const { result } = await withPatchedOpen(async (open, file, flags) => {
+      if (file.includes("update-staging")) throw Object.assign(new Error("EIO: i/o error, read '/secret/x'"), { code: "EIO", syscall: "read" });
+      return open(file, flags);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.match(result.err || "", /The update was not started \(EIO\)/);
+    assert.doesNotMatch(result.err || "", /secret/);
+    assert.deepEqual(lastRefusal().detail, { code: "EIO", syscall: "read" });
+  } finally { fs.rmSync(installer, { force: true }); }
+});
+
+test("ef324d5 round: a failed backup stops the update with its own message", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.2-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const backups = path.join(root, "backups");
+  const aside = `${backups}-aside`;
+  const had = fs.existsSync(backups);
+  if (had) fs.renameSync(backups, aside);
+  fs.writeFileSync(backups, "a file where the backups folder should be");
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /backup before the update could not be taken/);
+    assert.equal(launches(), 0);
+  } finally {
+    fs.rmSync(backups, { force: true });
+    if (had) fs.renameSync(aside, backups);
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("ef324d5 round: copies left by earlier attempts are cleared, and a full disk names the data folder", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.3-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const old = path.join(root, "update-staging", "install-old");
+  fs.mkdirSync(old, { recursive: true });
+  fs.writeFileSync(path.join(old, "GII-GeM-ERP-Setup-1.0.0-x64.exe"), "old copy");
+  try {
+    const { result } = await withPatchedOpen(async (open, file, flags) => {
+      if (file.endsWith("GII-GeM-ERP-Setup-99.7.3-x64.exe")) throw Object.assign(new Error("ENOSPC: no space left"), { code: "ENOSPC", syscall: "write" });
+      return open(file, flags);
+    }, () => installWithStubbedLaunch(admin, installer));
+    assert.equal(fs.existsSync(old), false, "the old copy is gone");
+    assert.deepEqual(fs.readdirSync(root).filter((name) => name.startsWith("update-staging.old-")), [], "nothing moved aside is left behind");
+    assert.match(result.err || "", /disk that holds the ERP's data is full/);
+    assert.equal(lastRefusal().detail.side, "data-folder");
+  } finally { fs.rmSync(installer, { force: true }); }
+});
+
+test("ef324d5 round: a link swapped in as the staging folder at the last moment is refused", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.4-x64.exe");
+  fs.writeFileSync(installer, "bytes");
+  const staging = path.join(root, "update-staging");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "gii-mkdtemp-"));
+  const original = fs.promises.mkdtemp;
+  fs.promises.mkdtemp = async (prefix, options) => {
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.symlinkSync(outside, staging, "dir");
+    return original(prefix, options);
+  };
+  try {
+    const { result, launches } = await installWithStubbedLaunch(admin, installer);
+    assert.match(result.err || "", /update-staging folder changed/);
+    assert.equal(launches(), 0);
+    assert.deepEqual(fs.readdirSync(outside), [], "nothing is left in the link's target");
+  } finally {
+    fs.promises.mkdtemp = original;
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+    fs.rmSync(installer, { force: true });
+  }
+});
+
+test("ef324d5 round: an installer over 1 GB, or with too little free space, is refused before any copy", async () => {
+  const admin = await adminWindow();
+  const folder = (await call(admin, "updates:status")).ok.updateFolder;
+  const installer = path.join(folder, "GII-GeM-ERP-Setup-99.7.5-x64.exe");
+  fs.writeFileSync(installer, "small bytes");
+  const fakeSize = (bytes) => (open, file, flags) => open(file, flags).then((handle) => {
+    if (!file.endsWith("GII-GeM-ERP-Setup-99.7.5-x64.exe")) return handle;
+    const stat = handle.stat.bind(handle);
+    handle.stat = async (options) => { const st = await stat(options); return Object.create(st, { size: { value: typeof st.size === "bigint" ? BigInt(bytes) : bytes } }); };
+    return handle;
+  });
+  const statfs = fs.promises.statfs;
+  try {
+    const big = await withPatchedOpen(fakeSize(1024 * 1024 * 1024 + 1), () => installWithStubbedLaunch(admin, installer));
+    assert.match(big.result.err || "", /larger than any GII GeM ERP installer/);
+    fs.promises.statfs = async (target) => Object.assign(await statfs(target), { bavail: 0 });
+    const full = await installWithStubbedLaunch(admin, installer);
+    assert.match(full.result.err || "", /not enough free disk space/);
+    assert.equal(big.launches() + full.launches(), 0);
+  } finally {
+    fs.promises.statfs = statfs;
+    fs.rmSync(installer, { force: true });
+  }
+});
+
 // Keep this test last: after a real launch the ERP is closing, so the updater stays locked.
 test("32263ab round: after a launch, no second installer can be started", async () => {
   const admin = await adminWindow();

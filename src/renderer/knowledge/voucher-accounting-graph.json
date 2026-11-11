@@ -1066,15 +1066,15 @@
     {
       "voucherType": "Stock Return (Department)",
       "postingFunction": "postStockReturn",
-      "voucherCreated": false,
-      "impact": "Stock ledger inward; return_type=Department; no accounting voucher",
+      "voucherCreated": true,
+      "impact": "Stock ledger inward; return_type=Department; Journal: Inventory Dr, Cost of Goods Sold Cr at weighted average cost",
       "workflowStage": null
     },
     {
       "voucherType": "Stock Return (Supplier)",
       "postingFunction": "postStockReturn",
-      "voucherCreated": false,
-      "impact": "Stock ledger outward; return_type=Supplier; no accounting voucher",
+      "voucherCreated": true,
+      "impact": "Stock ledger outward; return_type=Supplier; Journal: Goods Received Not Invoiced and/or Trade Payables Dr, Inventory Cr, difference to Purchase Price Variance (no voucher when nothing is worth posting)",
       "workflowStage": null
     },
     {

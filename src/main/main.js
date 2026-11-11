@@ -418,7 +418,7 @@ function ensureUpdateFolder() {
   try {
     fs.mkdirSync(baseFolder, { recursive: true });
   } catch (error) {
-    throw new Error(`The update folder ${baseFolder} could not be created or opened (${error.code || error.message}). Check that the folder can be reached (or change the update folder setting), then try again.`);
+    throw guidedError(`The update folder ${baseFolder} could not be created or opened (${error.code || error.message}). Check that the folder can be reached (or change the update folder setting), then try again.`);
   }
   return baseFolder;
 }
@@ -1263,7 +1263,7 @@ function registerIpc() {
       const busy = guidedError(updateInstallLaunched
         ? "The update installer has already been opened and the ERP is closing. Finish the installer, then start the ERP again."
         : "An update is already being prepared. Wait for it to finish, then try again.");
-      auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: shortInstallerName(installerPath), reason: busy.message }) });
+      auditUpdate("update_installer_refused", installer, { installer: shortInstallerName(installerPath), reason: busy.message });
       throw busy;
     }
     updateInstallInFlight = true;
@@ -1277,14 +1277,27 @@ function registerIpc() {
       let error = caught;
       if (!error.guided) {
         console.error("[updates] The update was not started:", error);
-        error = Object.assign(guidedError(`The update was not started (${error.code || "unexpected error"}). Check free disk space and the ERP's data folder, then try again. Nothing was installed.`), { detail: { code: error.code || null, syscall: error.syscall || null } });
+        const locked = error.code === "EACCES" || error.code === "EPERM" || error.code === "EBUSY" || /locked|busy/i.test(String(error.message));
+        const advice = locked
+          ? "A file the update needs is locked or not readable. Close any program using the ERP's files, then try again."
+          : "Check free disk space and the ERP's data folder, then try again.";
+        error = Object.assign(guidedError(`The update was not started (${error.code || "unexpected error"}). ${advice} Nothing was installed.`), { detail: { code: error.code || null, syscall: error.syscall || null } });
       }
-      auditLog(db, { action: "update_installer_refused", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: shortInstallerName(installerPath), reason: error.message, ...(error.detail ? { detail: error.detail } : {}) }) });
+      // A failed launch already has its own update_installer_failed row.
+      if (!error.launchFailed) auditUpdate("update_installer_refused", installer, { installer: shortInstallerName(installerPath), reason: error.message, ...(error.detail ? { detail: error.detail } : {}) });
       throw error;
     } finally {
       if (!launched) updateInstallInFlight = false;
     }
   });
+  // An audit row that cannot be written must not hide the real outcome from the user.
+  function auditUpdate(action, installer, details) {
+    try {
+      auditLog(db, { action, module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify(details) });
+    } catch (error) {
+      console.error(`[updates] The ${action} audit row could not be written:`, error);
+    }
+  }
   async function installUpdateFromFolder(installer, installerPath) {
     const status = getUpdateStatus();
     const selectedInstaller = assertInstallerInsideUpdateFolder(installerPath || status.installerPath, status.updateFolder);
@@ -1312,8 +1325,9 @@ function registerIpc() {
         throw guidedError("The prepared installer changed before it could start, so it was not started. Restart the ERP and try again.");
       }
       const failureReason = await shell.openPath(staged.stagedPath);
-      auditLog(db, { action: failureReason ? "update_installer_failed" : "update_installer_launched", module: "updates", table_name: "system", user_id: installer.id, new_value: JSON.stringify({ installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: staged.sha256, failure: failureReason || null }) });
-      if (failureReason) throw guidedError(`The installer could not be opened: ${failureReason}`);
+      // Once the installer is open it is running: an audit write that fails is only logged.
+      auditUpdate(failureReason ? "update_installer_failed" : "update_installer_launched", installer, { installer: path.basename(selectedInstaller), version: selectedVersion, fromVersion: app.getVersion(), backup: backup?.fileName || null, sha256: staged.sha256, failure: failureReason || null });
+      if (failureReason) throw Object.assign(guidedError(`The installer could not be opened: ${failureReason}`), { launchFailed: true });
     } catch (error) {
       // Nothing was launched, so the copy is not kept (each retry would add another).
       try { fs.rmSync(path.dirname(staged.stagedPath), { recursive: true, force: true }); } catch { /* best effort */ }
