@@ -11086,33 +11086,6 @@
   ],
   "relationships": [
     {
-      "fromTable": "stock_return_receipts",
-      "toTable": "stock_returns",
-      "relationshipType": "FK",
-      "sourceColumn": "stock_return_id",
-      "targetColumn": "id",
-      "businessMeaning": "Return-receipt row belongs to a supplier return",
-      "relatedWorkflowStage": null
-    },
-    {
-      "fromTable": "stock_return_receipts",
-      "toTable": "stock_ledger",
-      "relationshipType": "FK",
-      "sourceColumn": "stock_ledger_id",
-      "targetColumn": "id",
-      "businessMeaning": "Return-receipt row points at the receipt's inward stock-ledger row",
-      "relatedWorkflowStage": null
-    },
-    {
-      "fromTable": "stock_return_receipts",
-      "toTable": "stock_inwards",
-      "relationshipType": "FK",
-      "sourceColumn": "stock_inward_id",
-      "targetColumn": "id",
-      "businessMeaning": "Return-receipt row names the receipt",
-      "relatedWorkflowStage": null
-    },
-    {
       "fromTable": "supply_orders",
       "toTable": "government_departments",
       "relationshipType": "FK",
@@ -11623,6 +11596,33 @@
       "sourceColumn": "default_warehouse_id",
       "targetColumn": "id",
       "businessMeaning": "Item default warehouse",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_returns",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_return_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row belongs to a supplier return",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_ledger",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_ledger_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row points at the receipt's inward stock-ledger row",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_inwards",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_inward_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row names the receipt",
       "relatedWorkflowStage": null
     }
   ],
@@ -12654,14 +12654,6 @@
   ],
   "migrationMappings": [
     {
-      "migrationVersion": "039",
-      "migrationName": "stock_return_receipts",
-      "tables": [
-        "stock_return_receipts",
-        "stock_ledger"
-      ]
-    },
-    {
       "migrationVersion": "001",
       "migrationName": "initial_schema",
       "tables": [
@@ -12821,6 +12813,14 @@
         "account_groups",
         "financial_statement_mappings",
         "account_group_assignments"
+      ]
+    },
+    {
+      "migrationVersion": "039",
+      "migrationName": "stock_return_receipts",
+      "tables": [
+        "stock_return_receipts",
+        "stock_ledger"
       ]
     }
   ],
@@ -13245,7 +13245,7 @@
   "metadata": {
     "generationTool": "Manual curation",
     "generationCommand": "N/A (hand-authored)",
-    "lastValidated": "2026-11-10",
+    "lastValidated": "2026-11-16",
     "validationMethod": "npm run verify:database-graph"
   }
 }

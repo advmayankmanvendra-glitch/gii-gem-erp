@@ -129,8 +129,14 @@ test("an existing database gets the table and the stock-ledger index, with a bac
 
 test("every migration after the 036 baseline gets the pre-upgrade backup", () => {
   const source = fs.readFileSync(path.join(REPO, "src/main/database/init.js"), "utf8");
-  const constants = Object.fromEntries([...source.matchAll(/const ([A-Z0-9_]+) = "([^"]+)";/g)].map((x) => [x[1], x[2]]));
-  const names = [...source.matchAll(/runMigration\(db, (?:"([^"]+)"|([A-Z0-9_]+))/g)].map((x) => x[1] || constants[x[2]]);
+  // Names may be constants here or in the database modules init.js imports from.
+  const dir = path.join(REPO, "src/main/database");
+  const allSources = fs.readdirSync(dir).filter((f) => f.endsWith(".js")).map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n");
+  const constants = Object.fromEntries([...allSources.matchAll(/const ([A-Z0-9_]+) = "([^"]+)";/g)].map((x) => [x[1], x[2]]));
+  const calls = [...source.matchAll(/^\s+runMigration\(db, ([^,]+),/gm)].map((x) => x[1].trim());
+  const names = calls.map((arg) => (/^"[^"]+"$/.test(arg) ? arg.slice(1, -1) : constants[arg]));
+  // A name this test cannot read (a template string, an import) fails rather than slipping by.
+  calls.forEach((arg, i) => assert.ok(names[i], `runMigration name ${arg} is a plain string or a const in init.js`));
   const later = names.filter((name) => name && name.localeCompare("036", undefined, { numeric: true }) >= 0);
   assert.ok(later.length >= 2);
   for (const name of later) assert.ok(m.MIGRATIONS_WITH_BACKUP.includes(name), `${name} is in MIGRATIONS_WITH_BACKUP`);
@@ -186,4 +192,62 @@ test("each return's recorded rows add up to the GRNI it clears, to the paisa", (
     const grniDebit = db.prepare("SELECT COALESCE(SUM(le.debit), 0) d FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE le.voucher_id = ? AND a.account_name = 'Goods Received Not Invoiced'").get(r.voucher_id).d;
     assert.equal(rows, Math.round(grniDebit * 100), `return ${r.id}: rows add up to the GRNI debit`);
   }
+});
+
+test("billed rows add up to the Trade Payables debit when receipts cover the return", () => {
+  const db = fresh();
+  const s = setup(db, "RR Billed");
+  // Two billed receipts of 3 units for 100.00 each (33.333... a unit): one unit from each is 66.67.
+  for (const no of ["RR-BL1", "RR-BL2"]) {
+    const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: s.order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: no, purchase_value: 100, purchase_gst: 0 });
+    m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: s.order, procurement_id: bill.id, supplier_id: 1, item_id: s.item, warehouse_id: s.wh, inward_date: "2026-07-01", purchase_invoice_number: no, quantity: 3, rate: 33.3333, landed_cost: 0 }).id);
+    m.postPurchaseVoucher(db, bill.id);
+  }
+  for (const [qty, date] of [[2, "2026-07-02"], [2, "2026-07-03"]]) {
+    const r = s.ret(qty, date);
+    const rows = recorded(db, r.id);
+    assert.ok(rows.length && rows.every((x) => x.billed === 1), "billed receipts");
+    const tpDebit = db.prepare("SELECT COALESCE(SUM(le.debit), 0) d FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE le.voucher_id = ? AND a.account_name = 'Trade Payables'").get(r.voucher_id).d;
+    assert.equal(rows.reduce((t, x) => t + x.value_minor, 0), Math.round(tpDebit * 100), `return ${r.id}: rows add up to the Trade Payables debit`);
+  }
+});
+
+test("a return using billed and unbilled receipts rounds each kind on its own", () => {
+  const db = fresh();
+  const s = setup(db, "RR Mixed");
+  s.receive(3, 33.3333, "RR-MX1");
+  const bill = m.createRecord(db, "procurements", { company_id: 1, order_id: s.order, purchase_date: "2026-07-01", supplier_id: 1, purchase_invoice_number: "RR-MX2", purchase_value: 100, purchase_gst: 0 });
+  m.postStockInward(db, m.createRecord(db, "stock_inwards", { company_id: 1, order_id: s.order, procurement_id: bill.id, supplier_id: 1, item_id: s.item, warehouse_id: s.wh, inward_date: "2026-07-01", purchase_invoice_number: "RR-MX2", quantity: 3, rate: 33.3333, landed_cost: 0 }).id);
+  m.postPurchaseVoucher(db, bill.id);
+  // The second return takes the last unbilled unit and one billed unit: a shared running total
+  // would round the billed unit to 33.34 while Trade Payables is debited 33.33.
+  s.ret(2, "2026-07-02");
+  const r = s.ret(2, "2026-07-03");
+  const debit = (name) => Math.round(db.prepare("SELECT COALESCE(SUM(le.debit), 0) d FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE le.voucher_id = ? AND a.account_name = ?").get(r.voucher_id, name).d * 100);
+  const sum = (billed) => db.prepare("SELECT COALESCE(SUM(value_minor), 0) v FROM stock_return_receipts WHERE stock_return_id = ? AND billed = ?").get(r.id, billed).v;
+  assert.deepEqual(recorded(db, r.id).map((x) => x.billed), [0, 1]);
+  assert.equal(sum(0), debit("Goods Received Not Invoiced"));
+  assert.equal(sum(1), debit("Trade Payables"));
+});
+
+test("an earlier return that used no receipt is not backfilled again and again", () => {
+  const db = fresh();
+  const s = setup(db, "RR Empty");
+  // Opening stock only: the supplier has no receipt, so the first return uses none.
+  db.prepare("UPDATE items SET opening_stock = 20, opening_rate = 50, opening_value = 1000 WHERE id = ?").run(s.item);
+  s.ret(2, "2026-07-02");
+  s.receive(10, 100, "RR-E1");
+  for (const date of ["2026-07-03", "2026-07-04", "2026-07-05"]) s.ret(1, date);
+  const entries = db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'stock_return_receipts_backfilled'").get().c;
+  assert.equal(entries, 0, "no empty backfill entries");
+});
+
+test("the update trigger and unique index come back at start-up if missing", () => {
+  const root = freshRoot();
+  const db = fresh(root);
+  db.exec("DROP TRIGGER trg_stock_return_receipts_no_update; DROP INDEX idx_stock_return_receipts_unique");
+  db.close();
+  const reopened = fresh(root);
+  assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'trg_stock_return_receipts_no_update'").get());
+  assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_stock_return_receipts_unique'").get());
 });

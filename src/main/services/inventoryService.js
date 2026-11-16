@@ -476,7 +476,8 @@ export function createInventoryService(deps) {
       } else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
     // Earlier returns that had no record yet: what the replay gave them is recorded now.
-    const backfill = events.filter((e) => e.entry && !e.give && !e.entry.recorded).map((e) => ({ returnId: e.entry.returnId, used: e.entry.used }));
+    // A return that used no receipt has nothing to record; it is replayed (as nothing) each time.
+    const backfill = events.filter((e) => e.entry && !e.give && !e.entry.recorded && e.entry.used.length).map((e) => ({ returnId: e.entry.returnId, used: e.entry.used }));
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
     const beyondReceipts = Math.max(0, quantity - mine.quantity);
@@ -489,8 +490,10 @@ export function createInventoryService(deps) {
   }
 
   // Writes the receipts a supplier return used. Called inside the posting transaction.
-  // Values are rounded on the running total of billed and of unbilled rows, so each kind adds
-  // up to the paisa to the GRNI or Trade Payables amount the voucher posts for it.
+  // Values are rounded on the running total of billed and of unbilled rows, so the unbilled
+  // rows add up to the GRNI debit to the paisa, and the billed rows to the Trade Payables debit
+  // when receipts cover the whole return (units past every receipt go to Trade Payables at
+  // average cost and have no row).
   function recordReturnReceipts(db, companyId, returnId, used, recordedBy) {
     const insert = db.prepare(`INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, stock_inward_id, quantity, rate, billed, value_minor, recorded_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);

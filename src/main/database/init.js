@@ -698,8 +698,9 @@ export function migrate(db) {
 
   // Owner decision 16 Nov 2026: each supplier return records which receipts it used, and later
   // returns take that record instead of working it out again. Older returns are recorded, by
-  // the replay, the first time a return for the same supplier and item is posted. Rows are
-  // never updated (the trigger refuses it); the operational reset deletes them. The index keeps
+  // the replay, the first time a return for the same supplier and item is posted (a return that
+  // used no receipt has no rows). Rows are never updated (the trigger refuses it); the
+  // operational reset deletes them. The index keeps
   // document lookups in the stock ledger fast as it grows.
   // Numbering: 037 and 038 are used by the accounting programme branch, which is not merged yet.
   runMigration(db, RETURN_RECEIPTS_MIGRATION, () => {
@@ -717,13 +718,17 @@ export function migrate(db) {
         recorded_by TEXT NOT NULL DEFAULT 'posting' CHECK (recorded_by IN ('posting', 'backfill')),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_stock_return_receipts_return ON stock_return_receipts(stock_return_id);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);
-      CREATE TRIGGER IF NOT EXISTS trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts
-      BEGIN SELECT RAISE(ABORT, 'A supplier return''s recorded receipts cannot be changed.'); END;
       CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id);
     `);
   });
+  // Made on every start, so a database opened by an earlier build of 039, or one where they
+  // were dropped, gets them back.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_stock_return_receipts_return ON stock_return_receipts(stock_return_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);
+    CREATE TRIGGER IF NOT EXISTS trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts
+    BEGIN SELECT RAISE(ABORT, 'A supplier return''s recorded receipts cannot be changed.'); END;
+  `);
 }
 
 const RETURN_RECEIPTS_MIGRATION = "039_stock_return_receipts";
