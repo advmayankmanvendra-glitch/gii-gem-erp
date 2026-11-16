@@ -7476,7 +7476,7 @@
       "schemaVersion": "039",
       "owningModule": "inventory",
       "relatedWorkflowStage": null,
-      "relatedScreen": null,
+      "relatedScreen": "screens/HealthCenter/MoneyIntegrityPanel.jsx",
       "primaryKey": "id",
       "columns": [
         {
@@ -7612,7 +7612,7 @@
       "createsGSTImpact": false,
       "genericCrudAllowed": false,
       "accountingProtected": false,
-      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (ensureReturnReceiptLocks checks the lock trigger and indexes on every start and puts them back, except that the unique index stays off while the file holds duplicate rows or a conflicting name, which it reports in the audit log and the Health Center money integrity check). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
+      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (ensureReturnReceiptLocks in returnReceiptLocks.js checks the lock trigger and indexes on every start and puts them back, except that the unique index stays off while the file holds duplicate rows or a conflicting name, which it reports in the audit log and the Health Center money integrity check). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
       "knownGaps": []
     },
     {

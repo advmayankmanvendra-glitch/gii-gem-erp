@@ -377,3 +377,23 @@ test("a table replaced by a view is reported at start-up", () => {
   const again = fresh(root);
   assert.equal(again.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'stock_return_receipts_table_missing'").get().c, 1, "logged once");
 });
+
+test("a table in name only does not stop the app, before or after migration 039", () => {
+  const guardsBack = (db) => db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type = 'trigger' AND tbl_name IN ('vouchers', 'voucher_lines', 'ledger_entries')").get().c > 0;
+  const cases = [
+    ["RR Virt", "DROP TABLE stock_return_receipts; CREATE VIRTUAL TABLE stock_return_receipts USING fts5(x);", "virtual table", false],
+    ["RR Cols", "DROP TABLE stock_return_receipts; CREATE TABLE stock_return_receipts (id INTEGER PRIMARY KEY, x);", "table without its columns", false],
+    ["RR ViewPre", "DROP TABLE stock_return_receipts; CREATE VIEW stock_return_receipts AS SELECT 1 id;", "view", true],
+    ["RR VirtPre", "DROP TABLE stock_return_receipts; CREATE VIRTUAL TABLE stock_return_receipts USING fts5(x);", "virtual table", true]
+  ];
+  for (const [name, sql, found, replay] of cases) {
+    const { db } = tampered(name, sql + (replay ? " DELETE FROM schema_migrations WHERE migration_name = '039_stock_return_receipts';" : ""));
+    assert.ok(guardsBack(db), `${name}: the ledger guards are back`);
+    const entry = db.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_table_missing' ORDER BY id DESC").get();
+    assert.deepEqual(JSON.parse(entry.new_value), { found }, name);
+    const report = m.moneyIntegrityReport(db);
+    assert.equal(report.ok, false, `${name}: Health Center shows it`);
+    assert.equal(report.return_receipt_locks.table, found);
+    db.close();
+  }
+});

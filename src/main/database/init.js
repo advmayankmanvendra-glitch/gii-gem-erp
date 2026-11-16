@@ -28,7 +28,7 @@ import {
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
 import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectIds } from "./ledgerGuards.js";
-import { createReturnReceiptLocks, ensureReturnReceiptLocks, RETURN_RECEIPTS_MIGRATION } from "./returnReceiptLocks.js";
+import { createReturnReceiptLocks, ensureReturnReceiptLocks, returnReceiptsTableState, RETURN_RECEIPTS_MIGRATION } from "./returnReceiptLocks.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -294,7 +294,13 @@ export function initializeDatabase(root = projectRoot()) {
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   const guards = ensureLedgerGuards(db);
-  ensureReturnReceiptLocks(db, auditLog);
+  // An error here (only from an edited file) is logged and does not stop the start.
+  try {
+    ensureReturnReceiptLocks(db, auditLog);
+  } catch (error) {
+    console.error(`Return-receipts check failed: ${error.message}`);
+    auditLog(db, { action: "stock_return_receipts_check_failed", table_name: "stock_return_receipts", new_value: JSON.stringify({ error: String(error.message || error) }) });
+  }
   const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
   if (removed.length) {
     console.error(`Ledger check: removed ${removed.length} trigger(s) touching the accounting tables that the app did not create.`);
@@ -706,8 +712,12 @@ export function migrate(db) {
   // document lookups in the stock ledger fast as it grows.
   // Numbering: 037 and 038 are used by the accounting programme branch, which is not merged yet.
   runMigration(db, RETURN_RECEIPTS_MIGRATION, () => {
+    db.exec("CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id)");
+    // A view or other object already under the name (only in an edited file) is left for the
+    // start-up check to report, so the migration does not stop the start.
+    if (returnReceiptsTableState(db) !== null) { createReturnReceiptLocks(db); return; }
     db.exec(`
-      CREATE TABLE IF NOT EXISTS stock_return_receipts (
+      CREATE TABLE stock_return_receipts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         company_id INTEGER NOT NULL REFERENCES companies(id),
         stock_return_id INTEGER NOT NULL REFERENCES stock_returns(id),
@@ -720,7 +730,6 @@ export function migrate(db) {
         recorded_by TEXT NOT NULL DEFAULT 'posting' CHECK (recorded_by IN ('posting', 'backfill')),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
-      CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id);
     `);
     // The locks; ensureReturnReceiptLocks checks them on every start.
     createReturnReceiptLocks(db);

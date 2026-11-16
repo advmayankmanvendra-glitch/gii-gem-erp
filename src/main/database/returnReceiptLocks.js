@@ -33,9 +33,24 @@ function holderOf(db, name) {
     ORDER BY CASE type WHEN 'index' THEN 0 ELSE 1 END LIMIT 1`).get(name);
 }
 
-// Migration 039: make the locks if they are not there. The unique index is left to the
-// start-up check when the file already holds duplicate rows, so the migration never fails.
+const REQUIRED_COLUMNS = Object.freeze(["id", "company_id", "stock_return_id", "stock_ledger_id", "stock_inward_id", "quantity", "rate", "billed", "value_minor", "recorded_by"]);
+
+// "table" when stock_return_receipts is an ordinary table with the columns the app uses;
+// otherwise what stands under the name ("view", "virtual table", "table without its columns")
+// or null when nothing does. Only an edited or restored file can hold anything but a table.
+export function returnReceiptsTableState(db) {
+  const row = db.prepare("SELECT type, sql FROM sqlite_master WHERE type IN ('table', 'view') AND name = ? COLLATE NOCASE").get(TABLE);
+  if (!row) return null;
+  if (row.type !== "table") return row.type;
+  if (/^\s*CREATE\s+VIRTUAL\b/i.test(String(row.sql || ""))) return "virtual table";
+  const columns = new Set(db.prepare(`PRAGMA table_info(${TABLE})`).all().map((c) => c.name.toLowerCase()));
+  return REQUIRED_COLUMNS.every((c) => columns.has(c)) ? "table" : "table without its columns";
+}
+
+// Migration 039: make the locks if they are not there, on a usable table only. The unique
+// index is left to the start-up check when the file already holds duplicate rows.
 export function createReturnReceiptLocks(db) {
+  if (returnReceiptsTableState(db) !== "table") return;
   TRIGGERS.forEach((t) => db.exec(`${ifNotExists(t.sql)};`));
   const clean = !duplicateRows(db).length;
   INDEXES.filter((index) => !index.unique || clean).forEach((index) => {
@@ -46,11 +61,11 @@ export function createReturnReceiptLocks(db) {
 // What is wrong with the locks now, without changing anything. Empty lists and
 // table "table" mean all is in place (or 039 has not run yet: table null, nothing expected).
 export function returnReceiptLockProblems(db) {
-  const holder = db.prepare(`SELECT type FROM sqlite_master WHERE type IN ('table', 'view') AND name = ? COLLATE NOCASE`).get(TABLE);
+  const state = returnReceiptsTableState(db);
   const applied = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()
     && db.prepare("SELECT 1 FROM schema_migrations WHERE migration_name = ?").get(RETURN_RECEIPTS_MIGRATION));
-  const problems = { table: holder ? holder.type : null, expected: applied, strayTriggers: [], locks: [], nameConflicts: [], duplicates: [] };
-  if (!holder || holder.type !== "table") return problems;
+  const problems = { table: state, expected: applied, strayTriggers: [], locks: [], nameConflicts: [], duplicates: [] };
+  if (state !== "table") return problems;
   const allowed = new Set(RETURN_RECEIPTS_TRIGGERS.map((name) => name.toLowerCase()));
   for (const t of db.prepare("SELECT name, tbl_name, sql FROM sqlite_master WHERE type = 'trigger'").all()) {
     if (allowed.has(t.name.toLowerCase())) continue;
@@ -93,7 +108,7 @@ export function ensureReturnReceiptLocks(db, auditLog) {
   if (before.expected || before.table) {
     const table = before.table === "table" ? "table" : before.table;
     logStateChange(db, auditLog, "stock_return_receipts_table_missing", { found: table }, { found: "table" });
-    if (table !== "table") console.error("Return-receipts check: the record's table is missing from this file; supplier returns cannot be posted.");
+    if (table !== "table") console.error("Return-receipts check: the record's table is missing or unusable in this file; supplier returns cannot be posted.");
   }
   if (before.table !== "table") return before;
   const repaired = db.transaction(() => {
