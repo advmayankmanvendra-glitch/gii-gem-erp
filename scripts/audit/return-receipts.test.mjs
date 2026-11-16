@@ -119,5 +119,71 @@ test("an existing database gets the table and the stock-ledger index, with a bac
   const reopened = fresh(root);
   assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'stock_return_receipts'").get());
   assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_stock_ledger_source'").get());
-  assert.ok(fs.readdirSync(path.join(root, "backups")).some((name) => name.startsWith("pre-upgrade-")), "copied aside before the upgrade");
+  const copies = fs.readdirSync(path.join(root, "backups")).filter((name) => name.startsWith("pre-upgrade-"));
+  assert.equal(copies.length, 1, "copied aside before the upgrade");
+  const copy = new (reopened.constructor)(path.join(root, "backups", copies[0]), { readonly: true });
+  try {
+    assert.equal(copy.prepare("SELECT 1 FROM sqlite_master WHERE name = 'stock_return_receipts'").get(), undefined, "the copy is from before the table existed");
+  } finally { copy.close(); }
+});
+
+test("every migration after the 036 baseline gets the pre-upgrade backup", () => {
+  const source = fs.readFileSync(path.join(REPO, "src/main/database/init.js"), "utf8");
+  const constants = Object.fromEntries([...source.matchAll(/const ([A-Z0-9_]+) = "([^"]+)";/g)].map((x) => [x[1], x[2]]));
+  const names = [...source.matchAll(/runMigration\(db, (?:"([^"]+)"|([A-Z0-9_]+))/g)].map((x) => x[1] || constants[x[2]]);
+  const later = names.filter((name) => name && name.localeCompare("036", undefined, { numeric: true }) >= 0);
+  assert.ok(later.length >= 2);
+  for (const name of later) assert.ok(m.MIGRATIONS_WITH_BACKUP.includes(name), `${name} is in MIGRATIONS_WITH_BACKUP`);
+});
+
+test("recorded rows cannot be changed, and one return records each receipt once", () => {
+  const db = fresh();
+  const s = setup(db, "RR Locked");
+  s.receive(10, 100, "RR-L1");
+  const r = s.ret(2, "2026-07-02");
+  assert.throws(() => db.prepare("UPDATE stock_return_receipts SET quantity = 9 WHERE stock_return_id = ?").run(r.id), /cannot be changed/);
+  const row = db.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
+  assert.throws(() => db.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id), /UNIQUE/);
+});
+
+test("a record pointing at a receipt that has left the pool is skipped, not a crash", () => {
+  const db = fresh();
+  const s = setup(db, "RR Gone");
+  const a = s.receive(10, 100, "RR-G1");
+  s.receive(10, 200, "RR-G2");
+  s.ret(5, "2026-07-02");
+  // The first receipt is marked reversed with no reversal row: it leaves no trace to replay.
+  db.prepare("UPDATE stock_inwards SET posting_status = 'Reversed' WHERE id = ?").run(a.id);
+  const r2 = s.ret(5, "2026-07-03");
+  assert.deepEqual(recorded(db, r2.id).map((x) => [x.quantity, x.rate]), [[5, 200]]);
+});
+
+test("after a receipt is reversed, later returns use only the receipts still standing", () => {
+  const db = fresh();
+  const s = setup(db, "RR RevIn");
+  const a = s.receive(10, 100, "RR-V1");
+  s.receive(10, 200, "RR-V2");
+  s.ret(5, "2026-07-02");
+  m.reverseStockInward(db, a.id);
+  const r2 = s.ret(5, "2026-07-03");
+  assert.deepEqual(recorded(db, r2.id).map((x) => [x.quantity, x.rate]), [[5, 200]]);
+});
+
+test("each return's recorded rows add up to the GRNI it clears, to the paisa", () => {
+  const db = fresh();
+  const s = setup(db, "RR Zero");
+  const before = balance(db, "Goods Received Not Invoiced");
+  // Each receipt is worth 100.00 for 3 units, so a unit is 33.333...: a return taking one unit
+  // from each receipt is 66.67, while two separately rounded rows would be 66.66.
+  s.receive(3, 33.3333, "RR-Z1");
+  s.receive(3, 33.3333, "RR-Z2");
+  const returns = [s.ret(2, "2026-07-02"), s.ret(2, "2026-07-03"), s.ret(2, "2026-07-04")];
+  // Each return is rounded to the paisa on its own, so three returns of a 1/3-paisa price can
+  // clear one paisa more than was received (known, unchanged by this table).
+  assert.ok(Math.abs(balance(db, "Goods Received Not Invoiced") - before) <= 0.01);
+  for (const r of returns) {
+    const rows = db.prepare("SELECT COALESCE(SUM(value_minor), 0) v FROM stock_return_receipts WHERE stock_return_id = ? AND billed = 0").get(r.id).v;
+    const grniDebit = db.prepare("SELECT COALESCE(SUM(le.debit), 0) d FROM ledger_entries le JOIN accounts a ON a.id = le.account_id WHERE le.voucher_id = ? AND a.account_name = 'Goods Received Not Invoiced'").get(r.voucher_id).d;
+    assert.equal(rows, Math.round(grniDebit * 100), `return ${r.id}: rows add up to the GRNI debit`);
+  }
 });

@@ -489,13 +489,20 @@ export function createInventoryService(deps) {
   }
 
   // Writes the receipts a supplier return used. Called inside the posting transaction.
+  // Values are rounded on the running total of billed and of unbilled rows, so each kind adds
+  // up to the paisa to the GRNI or Trade Payables amount the voucher posts for it.
   function recordReturnReceipts(db, companyId, returnId, used, recordedBy) {
     const insert = db.prepare(`INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, stock_inward_id, quantity, rate, billed, value_minor, recorded_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const running = { true: { value: 0, minor: 0 }, false: { value: 0, minor: 0 } };
     for (const { lot, units, billed, rate } of used) {
-      if (!(units > 1e-9)) continue;
-      insert.run(companyId, returnId, lot.slId, lot.inwardId || null, units, rate, billed ? 1 : 0, paise(units * rate), recordedBy);
+      const sum = running[Boolean(billed)];
+      sum.value += units * rate;
+      const minor = paise(sum.value) - sum.minor;
+      sum.minor += minor;
+      insert.run(companyId, returnId, lot.slId, lot.inwardId || null, units, rate, billed ? 1 : 0, minor, recordedBy);
     }
+    return used.map(({ lot, units, billed, rate }) => ({ stock_ledger_id: lot.slId, stock_inward_id: lot.inwardId || null, quantity: units, rate, billed: Boolean(billed) }));
   }
 
   function postStockReturn(db, id) {
@@ -527,9 +534,13 @@ export function createInventoryService(deps) {
       });
       const split = isDepartmentReturn ? { grniPortion: 0, payablesPortion: 0, variance: 0 } : supplierReturnSplit(db, row, Number(row.quantity || 0), roundMoney(retValue));
       const { grniPortion, payablesPortion, variance } = split;
+      let receiptsUsed = null;
       if (!isDepartmentReturn) {
-        (split.backfill || []).forEach(({ returnId, used }) => recordReturnReceipts(db, row.company_id, returnId, used, "backfill"));
-        recordReturnReceipts(db, row.company_id, row.id, split.used || [], "posting");
+        (split.backfill || []).forEach(({ returnId, used }) => {
+          const receipts = recordReturnReceipts(db, row.company_id, returnId, used, "backfill");
+          auditLog(db, { company_id: row.company_id, action: "stock_return_receipts_backfilled", table_name: "stock_returns", record_id: returnId, new_value: JSON.stringify({ receipts, while_posting_return: row.id }) });
+        });
+        receiptsUsed = recordReturnReceipts(db, row.company_id, row.id, split.used || [], "posting");
       }
       const varianceAccount = variance !== 0 ? ensurePurchasePriceVarianceAccount(db, row.company_id) : null;
       // A return worth under half a paisa at average cost still needs a voucher when it clears
@@ -556,7 +567,7 @@ export function createInventoryService(deps) {
         ]
       }) : null;
       db.prepare("UPDATE stock_returns SET posting_status = 'Posted', approval_status = 'Approved', posting_error = NULL, posted_at = CURRENT_TIMESTAMP, voucher_id = COALESCE(voucher_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(retVoucher?.id || null, id);
-      auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify({ row, voucher_id: retVoucher?.id }) });
+      auditLog(db, { company_id: row.company_id, action: "stock_return_posted", table_name: "stock_returns", record_id: id, new_value: JSON.stringify({ row, voucher_id: retVoucher?.id, ...(receiptsUsed ? { receipts_used: receiptsUsed } : {}) }) });
     });
     tx();
     return db.prepare("SELECT * FROM stock_returns WHERE id = ?").get(id);

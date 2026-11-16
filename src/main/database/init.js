@@ -696,10 +696,12 @@ export function migrate(db) {
     backfillAll(db);
   });
 
-  // Owner decision 16 Nov 2026: each supplier return records which receipts it used, so later
-  // returns, reversals and restores never re-work it out. Older returns are recorded the first
-  // time a return for the same supplier and item is posted. The index keeps document lookups
-  // in the stock ledger fast as it grows.
+  // Owner decision 16 Nov 2026: each supplier return records which receipts it used, and later
+  // returns take that record instead of working it out again. Older returns are recorded, by
+  // the replay, the first time a return for the same supplier and item is posted. Rows are
+  // never updated (the trigger refuses it); the operational reset deletes them. The index keeps
+  // document lookups in the stock ledger fast as it grows.
+  // Numbering: 037 and 038 are used by the accounting programme branch, which is not merged yet.
   runMigration(db, RETURN_RECEIPTS_MIGRATION, () => {
     db.exec(`
       CREATE TABLE IF NOT EXISTS stock_return_receipts (
@@ -716,6 +718,9 @@ export function migrate(db) {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_stock_return_receipts_return ON stock_return_receipts(stock_return_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);
+      CREATE TRIGGER IF NOT EXISTS trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts
+      BEGIN SELECT RAISE(ABORT, 'A supplier return''s recorded receipts cannot be changed.'); END;
       CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id);
     `);
   });
@@ -724,6 +729,9 @@ export function migrate(db) {
 const RETURN_RECEIPTS_MIGRATION = "039_stock_return_receipts";
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
+// Migrations newer than the 036 baseline: an existing database is copied aside before any of
+// them runs. Every new migration must be added here (a test checks it).
+export const MIGRATIONS_WITH_BACKUP = Object.freeze([UPGRADE_REPAIR_MIGRATION, RETURN_RECEIPTS_MIGRATION]);
 
 // Start-up work above runs with the ledger guards off. If it left more unbalanced or
 // mismatched posted vouchers than there were before, that is recorded in the audit log
@@ -762,7 +770,7 @@ function migrationApplied(db, name) {
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
   if (!hasMigrations) return null;
-  const pending = [UPGRADE_REPAIR_MIGRATION, RETURN_RECEIPTS_MIGRATION]
+  const pending = MIGRATIONS_WITH_BACKUP
     .some((name) => !db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(name));
   if (!pending) return null;
   const hasData = db.prepare("SELECT COUNT(*) total FROM schema_migrations").get().total > 0;
