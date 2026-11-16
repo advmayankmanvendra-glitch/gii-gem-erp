@@ -250,30 +250,48 @@ test("the update trigger and unique index come back at start-up if missing", () 
   assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_stock_return_receipts_unique'").get());
 });
 
-test("altered locks in a restored file are put back at start-up and logged", () => {
+const restored = (db) => db.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_locks_restored' ORDER BY id").all().map((x) => JSON.parse(x.new_value));
+const blocked = (db) => db.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_lock_blocked' ORDER BY id").all().map((x) => JSON.parse(x.new_value));
+function tampered(name, sql) {
   const root = freshRoot();
   const db = fresh(root);
-  const s = setup(db, "RR Tamper");
-  s.receive(10, 100, "RR-T1");
+  const s = setup(db, name);
+  s.receive(10, 100, `${name}-1`);
   const r = s.ret(2, "2026-07-02");
-  db.exec(`DROP TRIGGER trg_stock_return_receipts_no_update;
-    CREATE TRIGGER trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts WHEN 0 BEGIN SELECT 1; END;
-    CREATE TRIGGER planted_after_insert AFTER INSERT ON stock_return_receipts BEGIN SELECT 1; END;
-    DROP INDEX idx_stock_return_receipts_unique;
-    CREATE INDEX idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);`);
+  db.exec(sql);
   db.close();
-  const reopened = fresh(root);
-  assert.throws(() => reopened.prepare("UPDATE stock_return_receipts SET quantity = 9 WHERE stock_return_id = ?").run(r.id), /cannot be changed/);
-  const triggers = reopened.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'stock_return_receipts'").all().map((x) => x.name);
-  assert.deepEqual(triggers, ["trg_stock_return_receipts_no_update"]);
-  const row = reopened.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
-  assert.throws(() => reopened.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id), /UNIQUE/);
-  const entry = JSON.parse(reopened.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_locks_restored'").get().new_value);
-  assert.deepEqual(entry.triggersRemoved, ["planted_after_insert"]);
-  assert.deepEqual(entry.indexesRebuilt, ["idx_stock_return_receipts_unique"]);
+  return { db: fresh(root), r, root };
+}
+const lockHolds = (db, r) => {
+  assert.throws(() => db.prepare("UPDATE stock_return_receipts SET quantity = 9 WHERE stock_return_id = ?").run(r.id), /cannot be changed/);
+  const row = db.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
+  assert.throws(() => db.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id), /UNIQUE/);
+};
+
+test("a new database starts with the locks and logs no repair", () => {
+  const db = fresh();
+  assert.equal(restored(db).length, 0);
+  assert.equal(blocked(db).length, 0);
 });
 
-test("duplicate recorded rows in a file do not stop the app from starting", () => {
+test("altered locks in a restored file are put back at start-up and logged", () => {
+  const { db, r } = tampered("RR Tamper", `DROP TRIGGER trg_stock_return_receipts_no_update;
+    CREATE TRIGGER trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts WHEN 0 BEGIN SELECT 1; END;
+    CREATE TRIGGER planted_upper AFTER INSERT ON STOCK_RETURN_RECEIPTS BEGIN DELETE FROM stock_return_receipts WHERE id = NEW.id; END;
+    CREATE TRIGGER planted_elsewhere AFTER INSERT ON stock_ledger BEGIN DELETE FROM stock_return_receipts; END;
+    DROP INDEX idx_stock_return_receipts_unique;
+    CREATE UNIQUE INDEX idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id) WHERE 0;
+    DROP INDEX idx_stock_return_receipts_return;`);
+  lockHolds(db, r);
+  const triggers = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND sql LIKE '%stock_return_receipts%' COLLATE NOCASE").all().map((x) => x.name);
+  assert.deepEqual(triggers, ["trg_stock_return_receipts_no_update"]);
+  const [entry] = restored(db);
+  assert.deepEqual(entry.triggersRemoved.sort(), ["planted_elsewhere", "planted_upper"]);
+  assert.equal(entry.lockRestored, "altered");
+  assert.deepEqual(entry.indexesRestored, [{ name: "idx_stock_return_receipts_return", was: "missing" }, { name: "idx_stock_return_receipts_unique", was: "altered" }]);
+});
+
+test("duplicate recorded rows do not stop the app and are logged once", () => {
   const root = freshRoot();
   const db = fresh(root);
   const s = setup(db, "RR Dup");
@@ -283,9 +301,28 @@ test("duplicate recorded rows in a file do not stop the app from starting", () =
   db.exec("DROP INDEX idx_stock_return_receipts_unique");
   db.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id);
   db.close();
+  fresh(root).close();
   const reopened = fresh(root);
   const guards = reopened.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type = 'trigger' AND tbl_name IN ('vouchers', 'voucher_lines', 'ledger_entries')").get().c;
   assert.ok(guards > 0, "the ledger guards are back");
-  const entry = JSON.parse(reopened.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_locks_restored'").get().new_value);
-  assert.deepEqual(entry.duplicates.map((d) => [d.stock_return_id, d.copies]), [[r.id, 2]]);
+  const entries = blocked(reopened);
+  assert.equal(entries.length, 1, "logged once, not on every start");
+  assert.deepEqual(entries[0].duplicates.map((d) => [d.stock_return_id, d.copies]), [[r.id, 2]]);
+});
+
+test("an object of another kind holding an index name does not stop the app", () => {
+  const { db } = tampered("RR Name", `DROP INDEX idx_stock_return_receipts_unique;
+    CREATE INDEX idx_stock_return_receipts_unique ON audit_log(id);`);
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'idx_stock_return_receipts_unique' AND tbl_name = 'stock_return_receipts'").get(), "a stray index of that name is replaced");
+  db.close();
+  const { db: db2 } = tampered("RR Name2", `DROP INDEX idx_stock_return_receipts_return;
+    CREATE TABLE idx_stock_return_receipts_return (x);`);
+  assert.deepEqual(blocked(db2)[0].nameConflicts, [{ name: "idx_stock_return_receipts_return", type: "table" }]);
+});
+
+test("a table replaced by a view is reported at start-up", () => {
+  const { db } = tampered("RR View", `DROP TABLE stock_return_receipts;
+    CREATE VIEW stock_return_receipts AS SELECT 1 id;`);
+  const entry = db.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_table_missing'").get();
+  assert.deepEqual(JSON.parse(entry.new_value), { found: "view" });
 });

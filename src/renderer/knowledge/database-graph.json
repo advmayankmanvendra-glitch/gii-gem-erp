@@ -3,7 +3,7 @@
   "graphId": "DG-1",
   "graphName": "GII ERP Database Graph",
   "version": "1.2.0",
-  "generatedAt": "2026-07-29T15:29:58.865Z",
+  "generatedAt": "2026-11-16T08:00:00.000Z",
   "owner": "Architecture & Governance",
   "status": "active",
   "description": "Database intelligence graph mapping all GII GeM ERP tables, columns, relationships, service modules, posting functions, report sources, audit trails, and accounting protection boundaries.",
@@ -7612,7 +7612,7 @@
       "createsGSTImpact": false,
       "genericCrudAllowed": false,
       "accountingProtected": false,
-      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (the lock trigger and unique index are put back on every start by ensureReturnReceiptLocks). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
+      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (ensureReturnReceiptLocks checks the lock trigger and indexes on every start and puts them back, except that the unique index stays off while the file holds duplicate rows, which it reports in the audit log). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
       "knownGaps": []
     },
     {
