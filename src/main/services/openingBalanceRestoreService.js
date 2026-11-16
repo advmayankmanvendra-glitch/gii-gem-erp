@@ -45,7 +45,7 @@ function refuse(reason) {
 }
 
 const MAX_BACKUP_BYTES = 1024 * 1024 * 1024; // 1 GiB
-const MAX_TEXT = 500;
+const MAX_TEXT = 4000;
 const SQLITE_HEADER = "SQLite format 3\u0000";
 
 // Resolves the name to a regular .db file that really sits in the backups folder (no
@@ -68,8 +68,9 @@ function snapshotBackup(root, backupName) {
   try { real = fs.realpathSync(resolved); } catch { refuse(`backup "${name}" was not found.`); }
   if (path.dirname(real) !== folder || path.basename(real) !== path.basename(name) || !name.toLowerCase().endsWith(".db")) notABackup();
 
-  const fd = fs.openSync(real, "r");
   const copy = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "gii-opening-restore-")), "backup.db");
+  let fd;
+  try { fd = fs.openSync(real, "r"); } catch { fs.rmSync(path.dirname(copy), { recursive: true, force: true }); refuse(`backup "${name}" could not be opened.`); }
   try {
     const stat = fs.fstatSync(fd);
     if (!stat.isFile() || stat.nlink > 1) notABackup();
@@ -112,10 +113,11 @@ function openSource(copy, name) {
         && source.prepare(`PRAGMA index_xinfo("${row.name.replace(/"/g, '""')}")`).all().some((col) => Number(col.cid) === -2)));
     if (odd.length) refuse(`backup "${name}" contains objects a GII GeM ERP backup never has (${odd.slice(0, 5).map((row) => row.name).join(", ")}).`);
     const tables = new Set(objects.filter((row) => row.type === "table").map((row) => row.name));
+    // Every table, not only the ones read here: quick_check evaluates computed columns.
+    const generated = [...tables].filter((table) => source.prepare(`PRAGMA table_xinfo("${table.replace(/"/g, '""')}")`).all().some((col) => Number(col.hidden) !== 0));
+    if (generated.length) refuse(`backup "${name}" has computed columns in ${generated.slice(0, 5).join(", ")}, which a real ERP backup never has.`);
     const missing = SOURCE_TABLES.filter((table) => !tables.has(table));
     if (missing.length) refuse(`backup "${name}" is from an older or different version (missing tables: ${missing.join(", ")}).`);
-    const generated = SOURCE_TABLES.filter((table) => source.prepare(`PRAGMA table_xinfo("${table}")`).all().some((col) => Number(col.hidden) !== 0));
-    if (generated.length) refuse(`backup "${name}" has computed columns in ${generated.join(", ")}, which a real ERP backup never has.`);
     const check = source.pragma("quick_check", { simple: true });
     if (check !== "ok") refuse(`backup "${name}" is damaged (${String(check).slice(0, 200)}).`);
     return source;

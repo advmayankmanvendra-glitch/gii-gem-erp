@@ -204,10 +204,10 @@ test("an expression index or an oversized remark in a backup is refused without 
   const started = Date.now();
   assert.throws(() => restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup }), /never has \(evil\)/);
   assert.ok(Date.now() - started < 5000);
-  editBackup(root, copy, (b) => b.prepare("UPDATE opening_balances SET remarks = ? WHERE balance_type = 'Cash'").run("x".repeat(5000)));
+  editBackup(root, copy, (b) => b.prepare("UPDATE opening_balances SET remarks = ? WHERE balance_type = 'Cash'").run("x".repeat(4100)));
   const preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup: copy });
   assert.equal(preview.canRestore, false);
-  assert.match(preview.blockers.join(" "), /remark is longer than 500/);
+  assert.match(preview.blockers.join(" "), /remark is longer than 4000/);
 });
 
 test("a hard link into the backups folder and a WAL sidecar added after the check are not trusted", () => {
@@ -279,4 +279,14 @@ test("an opening booked against another contra account in the backup blocks inst
   const preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
   assert.equal(preview.canRestore, false);
   assert.match(preview.blockers.join(" "), /other side is Opening Balance Suspense, but it would now be posted against Capital/);
+});
+
+test("a computed column on any table in a backup is refused before quick_check runs", () => {
+  const { root, db } = fresh();
+  seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  editBackup(root, backup, (b) => { b.exec("CREATE TABLE side (a INTEGER, g TEXT GENERATED ALWAYS AS (a * 2) VIRTUAL NOT NULL)"); b.exec("INSERT INTO side (a) VALUES (1)"); });
+  const started = Date.now();
+  assert.throws(() => restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup }), /computed columns in side/);
+  assert.ok(Date.now() - started < 5000);
 });
