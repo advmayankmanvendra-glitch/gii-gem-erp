@@ -296,8 +296,8 @@
       "status": "Active",
       "lifecycleStatus": "ACTIVE",
       "purpose": "Audit events, mutations, users, approvals, compliance",
-      "entryCount": 98,
-      "lastUpdated": "2026-08-11",
+      "entryCount": 99,
+      "lastUpdated": "2026-11-16",
       "generationTool": "Manual curation from audit action catalog",
       "generationCommand": "N/A (hand-authored)",
       "sourceDirectories": [

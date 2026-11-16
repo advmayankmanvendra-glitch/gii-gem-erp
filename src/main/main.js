@@ -113,6 +113,7 @@ import { masterImportTouchesBankDetails } from "./services/bankDetailsPolicy.js"
 import { compareUpdateVersions, isPortableInstaller } from "./services/updateVersion.js";
 import { assertInstallerInsideUpdateFolder, clearInstallerStaging, guidedError, hashFile, removeStagedCopy, shortInstallerName, stageInstaller } from "./services/updateInstaller.js";
 import { applyPendingRestore, createLiveBackup, listBackups, preparePendingRestore, restoreBackup } from "./services/backup.js";
+import { previewOpeningBalanceRestore, restoreOpeningBalancesFromBackup } from "./services/openingBalanceRestoreService.js";
 import { getHealthDiagnostics, runHealthChecks } from "./services/healthService.js";
 import { clearErrorJournal, errorConsoleState, recordError } from "./services/errorConsoleService.js";
 import { dbPath } from "./database/connection.js";
@@ -981,6 +982,14 @@ function registerIpc() {
   handle("financial-years:create", guarded("settings", "financial_years", (payload) => createFinancialYear(db, payload)));
   handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status) => updateFinancialYearStatus(db, id, status, actorId())));
   handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
+  // After a reset, opening balances come back from a backup in the backups folder; with no backup they are entered by hand.
+  // Reading another backup is a backup-restore action, so both channels need restore_backup (admins).
+  handle("opening-balances:restore-preview", guarded("restore_backup", "opening_balances", (payload = {}) => (
+    previewOpeningBalanceRestore(db, runtimeDataRoot, { companyId: payload.company_id, backup: payload.backup })
+  )));
+  handle("opening-balances:restore", guarded("restore_backup", "opening_balances", (payload = {}) => (
+    restoreOpeningBalancesFromBackup(db, runtimeDataRoot, { companyId: payload.company_id, backup: payload.backup, expected: payload.expected || null, userId: actorId() })
+  )));
   handle("accounting:drilldown", (_event, payload) => {
     const data = drilldownData(db, payload);
     // A voucher's audit rows are part of the audit trail, shown on the same terms as accounting:data.

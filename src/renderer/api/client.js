@@ -52,6 +52,7 @@ const blockedPreviewActions = new Set([
   "createFinancialYear",
   "updateFinancialYearStatus",
   "createOpeningBalance",
+  "restoreOpeningBalancesFromBackup",
   "closeFinancialYear",
   "selectTallyXmlFile",
   "selectTallyMigrationFile",

@@ -21,6 +21,7 @@ Every code path that can introduce an opening financial balance.
 |---|------|------|------|-----------|---------|--------|
 | 2.1 | `createOpeningBalance` | `src/main/services/accountingService.js` | 866–908 | `createBalancedVoucher` + `opening_balances` insert | Journal | GOV |
 | 2.2 | `createPartyOpeningBalance` | `src/main/services/accountingService.js` | 794–820 | `createBalancedVoucher` + `opening_balances` insert | Journal | GOV |
+| 2.3 | `restoreOpeningBalancesFromBackup` (16 Nov 2026) — re-posts a reset company's openings from a backup through 2.1 / 2.2 only | `src/main/services/openingBalanceRestoreService.js` | — | via 2.1 / 2.2, one transaction, safety backup + audit row `opening_balances_restored` | Journal | GOV |
 
 ### 3. IPC / Preload Channels
 
@@ -29,6 +30,8 @@ Every code path that can introduce an opening financial balance.
 | 3.1 | `accounts:create-quick` | `createLedgerAccount` | line 789 | `create`, `accounts` | GOV (zero-forced) |
 | 3.2 | `opening-balances:create` | `createOpeningBalance` | line 650 | `opening_balance`, `opening_balances` | GOV |
 | 3.3 | `party-opening:create` | `createPartyOpeningBalance` | line 640 | `opening_balance`, `party_opening_balances` | GOV |
+| 3.4 | `opening-balances:restore-preview` | `previewOpeningBalanceRestore` | main.js | `restore_backup`, `opening_balances` (dry run, rolled back) | GOV |
+| 3.5 | `opening-balances:restore` | `restoreOpeningBalancesFromBackup` | main.js | `restore_backup`, `opening_balances` | GOV |
 
 ### 4. Renderer UI Paths
 
@@ -38,6 +41,7 @@ Every code path that can introduce an opening financial balance.
 | 4.2 | `viewDefinitions.js` | `src/renderer/config/viewDefinitions.js` line 119 | `["opening_balance", "Opening Balance", "number"]` | DISPLAY ONLY |
 | 4.3 | `accountingTableConfig.js` — general_ledger | `src/renderer/features/accounting/accountingTableConfig.js` line 29 | `{ key: "opening_balance", label: "Opening", type: "money" }` | DISPLAY ONLY |
 | 4.4 | `AllocationWorkflowScreen` — party_opening_balances | `src/renderer/features/accounting/AllocationWorkflowScreen.jsx` line 332 | Party opening balance form | GOV (via createPartyOpeningBalance) |
+| 4.5 | `OpeningBalanceRestorePanel` in AccountingScreen (opening_balances) and EnvironmentManagerScreen (after a reset) | `src/renderer/features/accounting/components/OpeningBalanceRestorePanel.jsx` | backup picker, check, confirm, restore | GOV (via 3.4 / 3.5) |
 
 ### 5. Import / Migration Paths
 
@@ -64,6 +68,7 @@ Every code path that can introduce an opening financial balance.
 |---|------|-----------|------|------|--------|
 | 7.1 | admin | `opening_balance` | `src/main/services/authService.js` | 7 | GOV |
 | 7.2 | accountant | `opening_balance` | `src/main/services/authService.js` | 8 | GOV |
+| 7.3 | admin only | `restore_backup` (restore of openings from a backup, 3.4 / 3.5) | `src/main/services/authService.js` | — | GOV |
 
 ---
 
