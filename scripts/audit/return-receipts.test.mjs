@@ -287,8 +287,11 @@ test("altered locks in a restored file are put back at start-up and logged", () 
   assert.deepEqual(triggers, ["trg_stock_return_receipts_no_update"]);
   const [entry] = restored(db);
   assert.deepEqual(entry.triggersRemoved.sort(), ["planted_elsewhere", "planted_upper"]);
-  assert.equal(entry.lockRestored, "altered");
-  assert.deepEqual(entry.indexesRestored, [{ name: "idx_stock_return_receipts_return", was: "missing" }, { name: "idx_stock_return_receipts_unique", was: "altered" }]);
+  assert.deepEqual(entry.locksRestored, [
+    { name: "trg_stock_return_receipts_no_update", was: "altered" },
+    { name: "idx_stock_return_receipts_return", was: "missing" },
+    { name: "idx_stock_return_receipts_unique", was: "altered" }
+  ]);
 });
 
 test("duplicate recorded rows do not stop the app and are logged once", () => {
@@ -308,6 +311,50 @@ test("duplicate recorded rows do not stop the app and are logged once", () => {
   const entries = blocked(reopened);
   assert.equal(entries.length, 1, "logged once, not on every start");
   assert.deepEqual(entries[0].duplicates.map((d) => [d.stock_return_id, d.copies]), [[r.id, 2]]);
+  const report = m.moneyIntegrityReport(reopened);
+  assert.equal(report.ok, false, "Health Center shows it");
+  assert.equal(report.return_receipt_locks.duplicates.length, 1);
+  // Cleared, then the same duplicate put back: each change is logged.
+  reopened.prepare("DELETE FROM stock_return_receipts WHERE id = (SELECT MAX(id) FROM stock_return_receipts)").run();
+  reopened.close();
+  const cleared = fresh(root);
+  assert.deepEqual(blocked(cleared).at(-1), { duplicates: [], nameConflicts: [] });
+  assert.equal(m.moneyIntegrityReport(cleared).return_receipt_locks, null);
+  cleared.exec("DROP INDEX idx_stock_return_receipts_unique");
+  cleared.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id);
+  cleared.close();
+  assert.equal(blocked(fresh(root)).length, 3, "the problem coming back is logged again");
+});
+
+test("a migration replayed on a file that already has the locks, or duplicates, does not stop the app", () => {
+  const root = freshRoot();
+  const db = fresh(root);
+  const s = setup(db, "RR Replay");
+  s.receive(10, 100, "RR-RP1");
+  const r = s.ret(2, "2026-07-02");
+  db.prepare("DELETE FROM schema_migrations WHERE migration_name = '039_stock_return_receipts'").run();
+  db.close();
+  const again = fresh(root);
+  assert.equal(restored(again).length, 0);
+  const row = again.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
+  again.exec("DROP INDEX idx_stock_return_receipts_unique");
+  again.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id);
+  again.prepare("DELETE FROM schema_migrations WHERE migration_name = '039_stock_return_receipts'").run();
+  again.close();
+  assert.equal(blocked(fresh(root)).at(-1).duplicates.length, 1);
+});
+
+test("a trigger or view under an index's name does not keep the unique lock off", () => {
+  // The trigger is made first, in the slot the dropped index frees, so a lookup by name alone finds it first.
+  const { db, r } = tampered("RR Shadow", `DROP INDEX idx_stock_return_receipts_unique;
+    CREATE TRIGGER idx_stock_return_receipts_unique AFTER INSERT ON audit_log BEGIN SELECT 1; END;
+    CREATE UNIQUE INDEX idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id) WHERE 0;`);
+  lockHolds(db, r);
+  db.close();
+  const { db: db2, r: r2 } = tampered("RR ShadowView", `DROP INDEX idx_stock_return_receipts_unique;
+    CREATE VIEW idx_stock_return_receipts_unique AS SELECT 1;`);
+  lockHolds(db2, r2);
+  assert.deepEqual(restored(db2)[0].locksRestored, [{ name: "idx_stock_return_receipts_unique", was: "altered", replacedView: "idx_stock_return_receipts_unique" }]);
 });
 
 test("an object of another kind holding an index name does not stop the app", () => {
@@ -321,8 +368,12 @@ test("an object of another kind holding an index name does not stop the app", ()
 });
 
 test("a table replaced by a view is reported at start-up", () => {
-  const { db } = tampered("RR View", `DROP TABLE stock_return_receipts;
+  const { db, root } = tampered("RR View", `DROP TABLE stock_return_receipts;
     CREATE VIEW stock_return_receipts AS SELECT 1 id;`);
   const entry = db.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_table_missing'").get();
   assert.deepEqual(JSON.parse(entry.new_value), { found: "view" });
+  assert.equal(m.moneyIntegrityReport(db).ok, false);
+  db.close();
+  const again = fresh(root);
+  assert.equal(again.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'stock_return_receipts_table_missing'").get().c, 1, "logged once");
 });

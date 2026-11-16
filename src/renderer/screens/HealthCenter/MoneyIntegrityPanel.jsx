@@ -54,6 +54,7 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
   const maintenance = report?.open_maintenance || [];
   const unexpectedTriggers = report?.unexpected_triggers || [];
   const draftEntries = report?.draft_entries || [];
+  const returnLocks = report?.return_receipt_locks || null;
   const startupFailure = report?.last_startup_check_failure || null;
   const subPaisa = report?.sub_paisa_legacy || [];
   // All Companies View is read-only: an adjustment is posted only with one company selected.
@@ -141,6 +142,13 @@ function MoneyIntegrityPanel({ apiClient, context, notify }) {
       {guards.length ? <p><strong>Database protection is missing ({guards.length} rule(s)). Restart the app to put it back.</strong></p> : null}
       {maintenance.length ? <p><strong>Database protection is switched off by {maintenance.length} open maintenance window(s). Restart the app to close them.</strong></p> : null}
       {unexpectedTriggers.length ? <p><strong>The database holds {unexpectedTriggers.length} trigger(s) on the accounting tables that the app did not create ({unexpectedTriggers.join(", ")}). Restart the app to remove them, then re-check.</strong></p> : null}
+      {returnLocks ? <p><strong>{returnLocks.table !== "table"
+        ? "The supplier return-receipts table is missing from this file, so supplier returns cannot be posted. Restore a backup or export a support bundle."
+        : returnLocks.duplicates.length
+        ? `The supplier return-receipts record holds ${returnLocks.duplicates.length} duplicated receipt(s), so its protection is off. Export a support bundle and share it.`
+        : returnLocks.nameConflicts.length
+        ? "Another table in this file uses a name the supplier return-receipts record needs, so its protection is off. Export a support bundle and share it."
+        : "The supplier return-receipts record's protection is missing or altered. Restart the app to put it back, then re-check."}</strong></p> : null}
       {draftEntries.length ? <p><strong>{draftEntries.length} unposted voucher(s) hold ledger entries ({draftEntries.slice(0, 5).map((row) => row.voucher_number).join(", ")}). Post or delete them; until then some reports may count their amounts.</strong></p> : null}
       {startupFailure ? <p>Last start-up check ({startupFailure.created_at}) found more unbalanced posted vouchers after the upgrade than before it. The list above shows the vouchers to correct.</p> : null}
     </section>
