@@ -983,11 +983,12 @@ function registerIpc() {
   handle("financial-years:status", guarded("financial_year_close", "financial_years", (id, status) => updateFinancialYearStatus(db, id, status, actorId())));
   handle("opening-balances:create", guarded("opening_balance", "opening_balances", (payload) => createOpeningBalance(db, payload)));
   // After a reset, opening balances come back from a backup in the backups folder; with no backup they are entered by hand.
-  handle("opening-balances:restore-preview", guarded("opening_balance", "opening_balances", (payload = {}) => (
+  // Reading another backup is a backup-restore action, so both channels need restore_backup (admins).
+  handle("opening-balances:restore-preview", guarded("restore_backup", "opening_balances", (payload = {}) => (
     previewOpeningBalanceRestore(db, runtimeDataRoot, { companyId: payload.company_id, backup: payload.backup })
   )));
-  handle("opening-balances:restore", guarded("opening_balance", "opening_balances", (payload = {}) => (
-    restoreOpeningBalancesFromBackup(db, runtimeDataRoot, { companyId: payload.company_id, backup: payload.backup, userId: actorId() })
+  handle("opening-balances:restore", guarded("restore_backup", "opening_balances", (payload = {}) => (
+    restoreOpeningBalancesFromBackup(db, runtimeDataRoot, { companyId: payload.company_id, backup: payload.backup, expected: payload.expected || null, userId: actorId() })
   )));
   handle("accounting:drilldown", (_event, payload) => {
     const data = drilldownData(db, payload);

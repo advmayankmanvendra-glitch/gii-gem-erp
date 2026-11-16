@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { formatCurrency } from "../../../utils/formatters.js";
+import { confirmAction } from "../../../utils/actionUtils.js";
 
 // Brings a company's opening balances back from a backup after a reset (owner's rule,
 // 16 Nov 2026 IST). With no backup, openings are entered by hand instead.
+function cleanError(err) {
+  return String(err?.message || err).replace(/^Error invoking remote method '[^']+':\s*(\w*Error:\s*)?/, "");
+}
+
 export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", defaultBackup = "", notify, onRestored }) {
   const [backups, setBackups] = useState([]);
   const [backup, setBackup] = useState(defaultBackup || "");
@@ -25,7 +30,8 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
     return () => { alive = false; };
   }, [api, available, defaultBackup]);
 
-  useEffect(() => { setPreview(null); setError(""); setDone(null); requestRef.current += 1; }, [backup, companyId]);
+  // A new choice cancels any check or restore still running for the old one.
+  useEffect(() => { setPreview(null); setError(""); setDone(null); setBusy(false); requestRef.current += 1; }, [backup, companyId]);
 
   if (!available) return null;
 
@@ -37,7 +43,7 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
       const result = await api.previewOpeningBalanceRestore({ company_id: companyId, backup });
       if (ticket === requestRef.current) setPreview(result);
     } catch (err) {
-      if (ticket === requestRef.current) { setPreview(null); setError(err?.message || String(err)); }
+      if (ticket === requestRef.current) { setPreview(null); setError(cleanError(err)); }
     } finally {
       if (ticket === requestRef.current) setBusy(false);
     }
@@ -45,17 +51,31 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
 
   async function runRestore() {
     if (!preview?.canRestore || preview.company?.id !== companyId || preview.backup !== backup) return;
+    const checked = preview;
+    const confirmed = await confirmAction({
+      mode: "warning",
+      title: "Restore Opening Balances",
+      message: `Post ${checked.ready} opening balance(s) for ${checked.company?.name} from ${checked.backup}? Debit ${formatCurrency(checked.totals.debit)}, credit ${formatCurrency(checked.totals.credit)}. Each one becomes a new posted opening voucher. A safety backup is taken first.`,
+      confirmLabel: "Yes, Restore",
+      cancelLabel: "No, Cancel",
+      moduleName: "opening_balances"
+    });
+    if (!confirmed?.confirmed || preview !== checked) return;
     const ticket = ++requestRef.current;
     setBusy(true); setError("");
     try {
-      const result = await api.restoreOpeningBalancesFromBackup({ company_id: companyId, backup });
+      const result = await api.restoreOpeningBalancesFromBackup({
+        company_id: companyId,
+        backup,
+        expected: { fingerprint: checked.fingerprint, ready: checked.ready, totals: checked.totals }
+      });
       if (ticket !== requestRef.current) return;
       setDone(result);
       setPreview(null);
       notify?.(`${result.restored} opening balance(s) restored from ${result.backup}`);
       onRestored?.(result);
     } catch (err) {
-      if (ticket === requestRef.current) setError(err?.message || String(err));
+      if (ticket === requestRef.current) setError(cleanError(err));
     } finally {
       if (ticket === requestRef.current) setBusy(false);
     }
@@ -68,13 +88,14 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
       <h4>Bring back opening balances</h4>
       <p className="muted">
         A reset clears opening balances. If you have a backup from before the reset, restore them from it here.
-        Each one is posted again as a new opening voucher. With no backup, enter them by hand: Add Opening on the Opening Balances screen, or Party Opening Balances for parties.
+        Each one is posted again as a new opening voucher; nothing else in the books changes. This differs from
+        Rollback from Backup, which puts the whole database (every company) back as it was and needs a restart. With no backup, enter them by hand: Add Opening on the Opening Balances screen, or Party Opening Balances for parties.
       </p>
       {!companyId ? <p className="muted">Select a company first.</p> : (
         <>
           <label className="field" style={{ display: "block", maxWidth: "100%" }}>
             <span>Backup</span>
-            <select value={backup} onChange={(event) => setBackup(event.target.value)} style={{ maxWidth: "100%" }}>
+            <select value={backup} onChange={(event) => setBackup(event.target.value)} disabled={busy} style={{ maxWidth: "100%" }}>
               {!backup && <option value="">Choose a backup</option>}
               {options.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
@@ -84,7 +105,7 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
               {busy && !preview ? "Checking..." : "Check backup"}
             </button>
             {preview && (
-              <button type="button" className="primary-btn" onClick={runRestore} disabled={busy || !preview.canRestore}>
+              <button type="button" className="primary-btn" onClick={runRestore} disabled={busy || !preview.canRestore} data-action-key="opening_balances.restore_from_backup">
                 {busy ? "Restoring..." : `Restore ${preview.ready} opening balance(s)`}
               </button>
             )}
@@ -98,6 +119,7 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
             {companyName || preview.company?.name}: {preview.ready} ready, {preview.skipped} skipped.
             Debit {formatCurrency(preview.totals.debit)}, credit {formatCurrency(preview.totals.credit)}.
           </p>
+          {!preview.canRestore && preview.blockers.length > 0 && <p className="muted">Nothing can be restored until these are fixed:</p>}
           {preview.blockers.length > 0 && (
             <ul className="reset-error" style={{ paddingLeft: 20 }}>
               {preview.blockers.map((text, index) => <li key={index}>{text}</li>)}
@@ -110,7 +132,7 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
                 <tbody>
                   {preview.rows.map((row) => (
                     <tr key={row.sourceId}>
-                      <td>{row.accountName || "-"}{row.kind === "party" ? ` (${row.partyType} #${row.partyId})` : ""}</td>
+                      <td>{row.accountName || "-"}{row.kind === "party" ? ` (${row.partyName || `${row.partyType} #${row.partyId}`})` : ""}</td>
                       <td>{row.financialYear || "-"}</td>
                       <td>{formatCurrency(row.debit)}</td>
                       <td>{formatCurrency(row.credit)}</td>

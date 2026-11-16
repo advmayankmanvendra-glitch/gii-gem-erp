@@ -129,3 +129,99 @@ test("with no backup, openings can still be entered by hand after a reset", () =
   assert.ok(row.voucher_id);
   assert.equal(db.prepare("SELECT status FROM vouchers WHERE id = ?").get(row.voucher_id).status, "Posted");
 });
+
+// --- Audit findings on 847103d (16 Nov 2026 IST) ---
+const Database = (await import("node:module")).createRequire(import.meta.url)("better-sqlite3");
+function editBackup(root, fileName, fn) {
+  const file = path.join(root, "backups", fileName);
+  const db = new Database(file);
+  db.exec("PRAGMA foreign_keys = OFF");
+  db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'").all().forEach((t) => db.exec(`DROP TRIGGER "${t.name}"`));
+  try { fn(db); } finally { db.close(); }
+}
+function resetWithBackup(db, root) {
+  return reset.executeReset(db, root, { userId: 1, companyId: 1, confirmText: "RESET" }).backup.fileName;
+}
+
+test("preview posts and rolls back, so an inactive account blocks before anything is written", () => {
+  const { root, db } = fresh();
+  const { cash } = seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  db.prepare("UPDATE accounts SET status = 'inactive' WHERE id = ?").run(cash.account_id);
+  const vouchers = db.prepare("SELECT COUNT(*) n FROM vouchers").get().n;
+  const preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
+  assert.equal(preview.canRestore, false);
+  assert.match(preview.blockers.join(" "), /cannot be posted/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM vouchers").get().n, vouchers, "the dry run leaves nothing behind");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM opening_balances").get().n, 0);
+  assert.equal(fs.readdirSync(path.join(root, "backups")).filter((f) => f.startsWith("pre_opening_restore")).length, 0, "no safety backup for a refused restore");
+});
+
+test("paise columns are authoritative and an amount that disagrees with its voucher blocks", () => {
+  const { root, db } = fresh();
+  seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  editBackup(root, backup, (b) => b.prepare("UPDATE opening_balances SET opening_credit = 0.004 WHERE balance_type = 'Cash'").run());
+  let preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
+  assert.equal(preview.canRestore, true, "a stale rupee column is ignored when paise are present");
+  editBackup(root, backup, (b) => b.prepare("UPDATE opening_balances SET opening_debit_minor = 400000 WHERE balance_type = 'Cash'").run());
+  preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
+  assert.equal(preview.canRestore, false);
+  assert.match(preview.blockers.join(" "), /does not match its voucher/);
+});
+
+test("parties are matched by type and name, and unknown party types block", () => {
+  const { root, db } = fresh();
+  const { supplier } = seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  db.prepare("UPDATE suppliers SET supplier_name = 'Someone Else' WHERE id = ?").run(supplier);
+  assert.match(restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup }).blockers.join(" "), /not the same in the live masters/);
+  editBackup(root, backup, (b) => b.prepare("UPDATE voucher_lines SET linked_party_type = 'contractor' WHERE linked_party_type = 'supplier'").run());
+  assert.match(restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup }).blockers.join(" "), /party type "contractor" cannot be restored/);
+});
+
+test("a crafted backup with views or computed columns is refused before it is read", () => {
+  const { root, db } = fresh();
+  seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  editBackup(root, backup, (b) => { b.exec("ALTER TABLE voucher_lines RENAME TO vl_real"); b.exec("CREATE VIEW voucher_lines AS SELECT * FROM vl_real"); });
+  assert.throws(() => restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup }), /missing tables: voucher_lines/);
+});
+
+test("a symbolic link out of the backups folder and a non-.db name are refused", () => {
+  const { root, db } = fresh();
+  seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  const outside = path.join(root, "outside.db");
+  fs.copyFileSync(path.join(root, "backups", backup), outside);
+  fs.symlinkSync(outside, path.join(root, "backups", "link.db"));
+  assert.throws(() => restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup: "link.db" }), /not a backup file in the backups folder/);
+  assert.throws(() => restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup: "." }), /not a backup file|Pick a backup/);
+});
+
+test("the restore refuses when the backup changed after the check", () => {
+  const { root, db } = fresh();
+  seedOpenings(db);
+  const backup = resetWithBackup(db, root);
+  const preview = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
+  const expected = { fingerprint: preview.fingerprint, ready: preview.ready, totals: preview.totals };
+  editBackup(root, backup, (b) => b.prepare("UPDATE opening_balances SET remarks = 'changed'").run());
+  assert.throws(() => restore.restoreOpeningBalancesFromBackup(db, root, { companyId: 1, backup, expected }), /changed since you checked/);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM opening_balances").get().n, 0);
+  const fresh2 = restore.previewOpeningBalanceRestore(db, root, { companyId: 1, backup });
+  const done = restore.restoreOpeningBalancesFromBackup(db, root, { companyId: 1, backup, expected: { fingerprint: fresh2.fingerprint, ready: fresh2.ready, totals: fresh2.totals } });
+  assert.equal(done.restored, 2);
+  const audit = JSON.parse(db.prepare("SELECT new_value FROM audit_log WHERE action = 'opening_balances_restored'").get().new_value);
+  assert.equal(audit.backupSha256, fresh2.fingerprint);
+});
+
+test("an empty party remark comes back empty", () => {
+  const { root, db } = fresh();
+  const year = openYear(db);
+  const supplier = supplierId(db) || Number(db.prepare("INSERT INTO suppliers (supplier_name) VALUES ('S')").run().lastInsertRowid);
+  m.createPartyOpeningBalance(db, { company_id: 1, party_type: "supplier", party_id: supplier, financial_year_id: year.id, opening_date: year.start_date, opening_debit: 10 });
+  const before = db.prepare("SELECT remarks FROM opening_balances").get().remarks;
+  const backup = resetWithBackup(db, root);
+  restore.restoreOpeningBalancesFromBackup(db, root, { companyId: 1, backup });
+  assert.equal(db.prepare("SELECT remarks FROM opening_balances").get().remarks, before);
+});

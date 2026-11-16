@@ -242,7 +242,7 @@ const utilitiesMetadata = [
     gstImpact: "Resets GST transaction data. Filed returns must be preserved.",
     inventoryImpact: "Resets stock transactions. Physical stock must be re-entered.",
     profitabilityImpact: "Resets P&L to zero for new period start.",
-    correctionPolicy: "Requires a backup before reset. Restore if accidental reset occurs.",
+    correctionPolicy: "Requires a backup before reset. Restore if accidental reset occurs. The reset clears opening balances; bring them back from the pre-reset backup (Bring back opening balances) or enter them by hand.",
     editDeletePolicy: "Irreversible operation. Requires confirmation and backup verification.",
     riskLevel: "Critical",
     permissions: ["Utilities: Operational Reset"],

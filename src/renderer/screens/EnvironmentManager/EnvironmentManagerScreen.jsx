@@ -878,13 +878,13 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
                   : <p className="reset-error">{resetRollbackResult.reason}</p>}
               </div>
             )}
-            <OpeningBalanceRestorePanel
+            {!resetRollbackResult?.success && <OpeningBalanceRestorePanel
               api={apiClient}
               companyId={resetResult.company?.id}
               companyName={resetResult.company?.name}
               defaultBackup={resetResult.backup?.fileName}
               notify={notify}
-            />
+            />}
           </div>
         )}
 
@@ -950,13 +950,13 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
             <StatCard label="Backup Path" value={resetResult.backup?.path || "N/A"} />
             <StatCard label="Rows Before" value={resetResult.before?.totalOperational ?? "N/A"} />
             <StatCard label="Rows After" value={resetResult.after?.totalOperational ?? "N/A"} />
-            <OpeningBalanceRestorePanel
+            {!resetRollbackResult?.success && <OpeningBalanceRestorePanel
               api={apiClient}
               companyId={resetResult.company?.id}
               companyName={resetResult.company?.name}
               defaultBackup={resetResult.backup?.fileName}
               notify={notify}
-            />
+            />}
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               <button type="button" className="secondary-btn" onClick={handleResetComplete}>Dismiss</button>
             </div>

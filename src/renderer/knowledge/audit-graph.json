@@ -127,6 +127,7 @@
     { "eventId": "accounting.financial_year_locked", "action": "financial year locked", "module": "accounting", "severity": "critical", "table": "financial_years", "description": "Financial year moved to locked status.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "admin" },
     { "eventId": "accounting.financial_year_open", "action": "financial year open", "module": "accounting", "severity": "critical", "table": "financial_years", "description": "Financial year moved to open status.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "admin" },
     { "eventId": "accounting.opening_balance_create", "action": "opening balance create", "module": "accounting", "severity": "critical", "table": "opening_balances", "description": "Opening balance voucher created.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "finance" },
+    { "eventId": "accounting.opening_balances_restored", "action": "opening_balances_restored", "module": "accounting", "severity": "critical", "table": "opening_balances", "description": "A reset company's opening balances re-posted from a backup (one row per restore, with the backup's SHA-256 and the safety backup).", "sourceFiles": ["src/main/services/openingBalanceRestoreService.js"], "actorRole": "admin" },
     { "eventId": "accounting.year_close_and_carry_forward", "action": "year close and carry forward", "module": "accounting", "severity": "critical", "table": "year_end_closings", "description": "Year end close executed with net profit carried forward.", "sourceFiles": ["src/main/services/accountingService.js"], "actorRole": "admin" },
     { "eventId": "accounting.voucher_dependency_sync", "action": "voucher dependency sync", "module": "accounting", "severity": "sensitive", "table": "vouchers", "description": "Post-voucher dependency resync (ledger, receivables, GST, reports).", "sourceFiles": ["src/main/database/init.js"], "actorRole": "finance" },
     { "eventId": "accounting.posting_status_update", "action": "posting status update", "module": "accounting", "severity": "critical", "table": "varies", "description": "markPosted sets record posting status to Posted with voucher reference.", "sourceFiles": ["src/main/database/init.js"], "actorRole": "finance" },
@@ -210,7 +211,7 @@
     { "tableName": "stock_returns", "actions": ["stock_return_posted", "stock_return_reversed"], "mutationSeverity": "critical", "writePolicy": "controlledService" },
     { "tableName": "financial_years", "actions": ["financial year create", "financial year closed", "financial year locked", "financial year open"], "mutationSeverity": "critical", "writePolicy": "accountingReadOnly" },
     { "tableName": "year_end_closings", "actions": ["year close and carry forward"], "mutationSeverity": "critical", "writePolicy": "accountingReadOnly" },
-    { "tableName": "opening_balances", "actions": ["opening balance create"], "mutationSeverity": "critical", "writePolicy": "accountingReadOnly" },
+    { "tableName": "opening_balances", "actions": ["opening balance create", "opening_balances_restored"], "mutationSeverity": "critical", "writePolicy": "accountingReadOnly" },
     { "tableName": "users", "actions": ["password_changed", "password_recovery_reset", "admin_password_reset", "recovery_secret_set", "recovery_secret_cleared"], "mutationSeverity": "critical", "writePolicy": "authServiceOnly" },
     { "tableName": "voucher_proposals", "actions": ["voucher_proposal_posted"], "mutationSeverity": "critical", "writePolicy": "controlledService" },
     { "tableName": "voucher_proposal_audit", "actions": ["Proposal Generated", "Proposal Edited", "Proposal Approved", "Proposal Rejected", "Draft Voucher Created", "Voucher Posted"], "mutationSeverity": "sensitive", "writePolicy": "controlledService" },
@@ -224,7 +225,7 @@
     { "tableName": "system", "actions": ["operational_reset", "master_data_update"], "mutationSeverity": "critical", "writePolicy": "controlledService" }
   ],
   "actors": [
-    { "actorId": "admin", "role": "Administrator", "permissionContext": "Full access; owns security, master data tools, go-live preparation and financial year administration.", "sensitiveActions": ["admin_password_reset", "password_recovery_reset", "financial year create", "financial year closed", "financial year locked", "financial year open", "year close and carry forward", "bulk import", "rollback import", "master_data_update", "operational_reset", "hard_delete"] },
+    { "actorId": "admin", "role": "Administrator", "permissionContext": "Full access; owns security, master data tools, go-live preparation and financial year administration.", "sensitiveActions": ["admin_password_reset", "password_recovery_reset", "financial year create", "financial year closed", "financial year locked", "financial year open", "year close and carry forward", "bulk import", "rollback import", "master_data_update", "operational_reset", "opening_balances_restored", "hard_delete"] },
     { "actorId": "maker", "role": "Maker / Entry Operator", "permissionContext": "Creates and submits records for approval.", "sensitiveActions": ["guided_voucher_draft_created", "guided_voucher_submitted", "approval submit"] },
     { "actorId": "reviewer", "role": "Reviewer", "permissionContext": "Reviews submitted guided vouchers.", "sensitiveActions": ["guided_voucher_reviewed"] },
     { "actorId": "approver", "role": "Approver / Checker", "permissionContext": "Approves or rejects submitted records, bank statements, proposals and stock adjustments.", "sensitiveActions": ["guided_voucher_approved", "approval approved", "bank_statement_approved", "bank_statement_rejected", "stock_adjustment_approved", "Proposal Approved", "Proposal Rejected"] },
@@ -323,6 +324,7 @@
     "delete",
     "hard_delete",
     "operational_reset",
+    "opening_balances_restored",
     "billing voucher create",
     "billing voucher update",
     "password_recovery_reset",
@@ -383,18 +385,18 @@
   },
   "metadata": {
     "modules": 14,
-    "events": 98,
+    "events": 99,
     "mutations": 25,
     "actors": 9,
     "approvals": 4,
     "complianceControls": 7,
-    "criticalActions": 41,
+    "criticalActions": 42,
     "auditStores": 3,
     "trustBoundaries": 4
   },
   "statistics": {
-    "totalEvents": 98,
-    "criticalEvents": 41,
+    "totalEvents": 99,
+    "criticalEvents": 42,
     "sensitiveEvents": 41,
     "informationalEvents": 16
   },

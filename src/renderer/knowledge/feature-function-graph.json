@@ -1662,11 +1662,12 @@
       "createsGSTImpact": false,
       "canUserCreateRecordsHere": true,
       "canUserPostHere": true,
-      "whatThisFeatureDoes": "Records opening balances for ledger accounts at the start of a financial year. Posts to ledger as opening entries.",
+      "whatThisFeatureDoes": "Records opening balances for ledger accounts at the start of a financial year. Posts to ledger as opening entries. After a company reset clears them, Bring back opening balances re-posts them from the pre-reset backup (admin only); with no backup they are entered by hand.",
       "whatThisFeatureDoesNotDo": "Does not handle transactions for the current period. Opening balance is a one-time entry per financial year.",
       "commonQuestions": [
         "How do I set opening balance?",
-        "What is opening balance entry?"
+        "What is opening balance entry?",
+        "How do I get opening balances back after a reset?"
       ],
       "expectedAnswerType": "accounting_ref",
       "preferredSourceGraph": "KG-4",
