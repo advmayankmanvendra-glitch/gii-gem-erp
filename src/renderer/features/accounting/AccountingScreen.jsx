@@ -789,13 +789,16 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
         </div>
       )}
       {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} onDrillVoucher={(row) => openDrilldown(row, "voucher")} />}
-      {view === "opening_balances" && canPostControls && (
+      {view === "opening_balances" && String(role || "").toLowerCase().includes("admin") && (
         <OpeningBalanceRestorePanel
           api={api}
           companyId={Number(companyContext?.company_id || filters.company_id || 0) || null}
           notify={notify}
           onRestored={() => load()}
         />
+      )}
+      {view === "opening_balances" && canPostControls && !String(role || "").toLowerCase().includes("admin") && (
+        <p className="muted">After a company reset, an administrator can bring opening balances back from the pre-reset backup. Without a backup, enter them here with Add Opening.</p>
       )}
       {financialYearDialogOpen && (
         <FinancialYearInputDialog onClose={() => setFinancialYearDialogOpen(false)} onSubmit={createFinancialYear} />

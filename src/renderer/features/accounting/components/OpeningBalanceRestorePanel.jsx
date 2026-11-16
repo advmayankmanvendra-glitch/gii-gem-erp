@@ -55,12 +55,12 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
     const confirmed = await confirmAction({
       mode: "warning",
       title: "Restore Opening Balances",
-      message: `Post ${checked.ready} opening balance(s) for ${checked.company?.name} from ${checked.backup}? Debit ${formatCurrency(checked.totals.debit)}, credit ${formatCurrency(checked.totals.credit)}. Each one becomes a new posted opening voucher. A safety backup is taken first.`,
+      message: `Post ${checked.ready} opening balance(s) for ${checked.company?.name} from ${checked.backup}? Debit ${formatCurrency(checked.totals.debit)}, credit ${formatCurrency(checked.totals.credit)}. Each one becomes a new posted opening voucher (the totals are the opening side; each voucher balances against Capital or Opening Balance Suspense). Opening vouchers cannot be reversed: to undo, restore the safety backup that is taken first, from Backup & Restore.`,
       confirmLabel: "Yes, Restore",
       cancelLabel: "No, Cancel",
       moduleName: "opening_balances"
     });
-    if (!confirmed?.confirmed || preview !== checked) return;
+    if (!confirmed?.confirmed) return;
     const ticket = ++requestRef.current;
     setBusy(true); setError("");
     try {
@@ -69,11 +69,12 @@ export function OpeningBalanceRestorePanel({ api, companyId, companyName = "", d
         backup,
         expected: { fingerprint: checked.fingerprint, ready: checked.ready, totals: checked.totals }
       });
+      // A finished restore is always reported, even if the screen moved on meanwhile.
+      notify?.(`${result.restored} opening balance(s) restored for ${checked.company?.name} from ${result.backup}`);
+      onRestored?.(result);
       if (ticket !== requestRef.current) return;
       setDone(result);
       setPreview(null);
-      notify?.(`${result.restored} opening balance(s) restored from ${result.backup}`);
-      onRestored?.(result);
     } catch (err) {
       if (ticket === requestRef.current) setError(cleanError(err));
     } finally {
