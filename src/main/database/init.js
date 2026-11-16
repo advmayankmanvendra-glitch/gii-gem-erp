@@ -695,7 +695,33 @@ export function migrate(db) {
     addMoneyShadowColumns(db);
     backfillAll(db);
   });
+
+  // Owner decision 16 Nov 2026: each supplier return records which receipts it used, so later
+  // returns, reversals and restores never re-work it out. Older returns are recorded the first
+  // time a return for the same supplier and item is posted. The index keeps document lookups
+  // in the stock ledger fast as it grows.
+  runMigration(db, RETURN_RECEIPTS_MIGRATION, () => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS stock_return_receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        stock_return_id INTEGER NOT NULL REFERENCES stock_returns(id),
+        stock_ledger_id INTEGER NOT NULL REFERENCES stock_ledger(id),
+        stock_inward_id INTEGER REFERENCES stock_inwards(id),
+        quantity REAL NOT NULL CHECK (quantity > 0),
+        rate REAL NOT NULL DEFAULT 0,
+        billed INTEGER NOT NULL DEFAULT 0 CHECK (billed IN (0, 1)),
+        value_minor INTEGER NOT NULL DEFAULT 0,
+        recorded_by TEXT NOT NULL DEFAULT 'posting' CHECK (recorded_by IN ('posting', 'backfill')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_return_receipts_return ON stock_return_receipts(stock_return_id);
+      CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id);
+    `);
+  });
 }
+
+const RETURN_RECEIPTS_MIGRATION = "039_stock_return_receipts";
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 
@@ -736,8 +762,9 @@ function migrationApplied(db, name) {
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
   if (!hasMigrations) return null;
-  const applied = db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(UPGRADE_REPAIR_MIGRATION);
-  if (applied) return null;
+  const pending = [UPGRADE_REPAIR_MIGRATION, RETURN_RECEIPTS_MIGRATION]
+    .some((name) => !db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(name));
+  if (!pending) return null;
   const hasData = db.prepare("SELECT COUNT(*) total FROM schema_migrations").get().total > 0;
   if (!hasData) return null;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

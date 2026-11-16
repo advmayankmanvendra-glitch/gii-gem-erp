@@ -363,11 +363,13 @@ export function createInventoryService(deps) {
   //   stock's average cost.
   // Stock leaves at the warehouse average cost. The gap between that and the two amounts
   // above is a purchase price variance, not money the supplier owes or is owed.
-  // Returns are not linked to a specific receipt (decision C2: keep the pool).
+  // Each posted return records the receipts it used in stock_return_receipts (owner decision,
+  // 16 Nov 2026), and later returns take those records as they are. A return posted before
+  // the records existed is worked out by replay once and then recorded too.
   function supplierReturnSplit(db, row, quantity, retValue) {
     if (!row.supplier_id) {
       const grni = isGrniClearedForCompany(db, row.company_id) ? 0 : retValue;
-      return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0 };
+      return { grniPortion: roundMoney(grni), payablesPortion: roundMoney(roundMoney(retValue) - roundMoney(grni)), variance: 0, used: [], backfill: [] };
     }
     // GRNI holds each unbilled receipt at its stock value; a billed receipt is owed to the
     // supplier at the supplier's own rate, without freight or other landed cost (or at its
@@ -376,7 +378,7 @@ export function createInventoryService(deps) {
       SELECT v.id, (SELECT MIN(r.id) FROM vouchers r WHERE r.source_module = 'voucher_reversal' AND r.source_id = v.id AND COALESCE(r.is_deleted, 0) = 0) reversal_id
       FROM vouchers v WHERE v.status IN ('Posted', 'Reversed') AND COALESCE(v.is_deleted, 0) = 0`;
     const lots = db.prepare(`
-      SELECT si.order_id, si.posting_status, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
+      SELECT si.id inward_id, si.order_id, si.posting_status, sl.id sl_id, sl.inward_quantity quantity, si.rate supplier_rate, sl.value_minor / 100.0 stock_value,
         CASE WHEN si.posting_status = 'Reversed' THEN (SELECT MAX(r.id) FROM stock_ledger r WHERE r.source_module = 'stock_inwards' AND r.source_id = si.id AND r.id > sl.id AND COALESCE(r.is_deleted, 0) = 0) END reversal_sl_id,
         COALESCE(pv.id, gv.id) bill_voucher_id, COALESCE(pv.reversal_id, gv.reversal_id) bill_reversal_id
       FROM stock_inwards si
@@ -396,7 +398,7 @@ export function createInventoryService(deps) {
         // A reversed receipt stays in the replay until its reversal row, so returns that used it
         // while it stood are replayed onto it; what is left of it goes when it is reversed.
         const reversedAt = lot.posting_status === "Reversed" ? Number(lot.reversal_sl_id || 0) : 0;
-        return { slId: Number(lot.sl_id), billId, reversalId, orderId: lot.order_id || null, left: quantity, stockRate, supplierRate, reversed: lot.posting_status === "Reversed", reversedAt };
+        return { slId: Number(lot.sl_id), inwardId: Number(lot.inward_id), billId, reversalId, orderId: lot.order_id || null, left: quantity, stockRate, supplierRate, reversed: lot.posting_status === "Reversed", reversedAt };
       })
       // A reversed receipt with no reversal row left no trace to replay.
       .filter((lot) => !lot.reversed || lot.reversedAt > lot.slId)
@@ -428,7 +430,7 @@ export function createInventoryService(deps) {
           lot.left -= units;
           left -= units;
           taken.quantity += units;
-          taken.used.push({ lot, units });
+          taken.used.push({ lot, units, billed, rate });
           if (billed) taken.billedValue += units * rate; else taken.grniValue += units * rate;
         }
       }
@@ -438,7 +440,7 @@ export function createInventoryService(deps) {
     // return takes its units when it posted and gives them back when it was reversed, so returns
     // posted while it stood are judged as they were then.
     const earlierReturns = db.prepare(`
-      SELECT sr.order_id, sr.quantity, sr.voucher_id, sr.posting_status,
+      SELECT sr.id, sr.order_id, sr.quantity, sr.voucher_id, sr.posting_status,
         (SELECT MIN(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id AND COALESCE(sl.is_deleted, 0) = 0) sl_id,
         (SELECT MAX(sl.id) FROM stock_ledger sl WHERE sl.source_module = 'stock_returns' AND sl.source_id = sr.id AND COALESCE(sl.is_deleted, 0) = 0) last_sl_id
       FROM stock_returns sr
@@ -446,12 +448,18 @@ export function createInventoryService(deps) {
         AND sr.posting_status IN ('Posted', 'Reversed') AND COALESCE(sr.is_deleted, 0) = 0
       ORDER BY sr.id
     `).all(row.company_id, row.supplier_id, row.item_id, row.id);
+    const lotsBySl = new Map(lots.map((lot) => [lot.slId, lot]));
+    const recordedFor = db.prepare("SELECT stock_ledger_id, quantity, rate, billed FROM stock_return_receipts WHERE stock_return_id = ? ORDER BY id");
     const events = [];
     for (const earlier of earlierReturns) {
       const reversed = earlier.posting_status === "Reversed";
       // A reversed return with no reversal row in the stock ledger left no trace to replay.
       if (reversed && !(Number(earlier.last_sl_id) > Number(earlier.sl_id))) continue;
-      const entry = { orderId: earlier.order_id || null, quantity: Number(earlier.quantity || 0), asOf: { slId: Number(earlier.sl_id || 0), voucherId: earlier.voucher_id ? Number(earlier.voucher_id) : null }, used: [] };
+      const recorded = recordedFor.all(earlier.id);
+      const entry = { returnId: Number(earlier.id), recorded: recorded.length > 0, orderId: earlier.order_id || null, quantity: Number(earlier.quantity || 0), asOf: { slId: Number(earlier.sl_id || 0), voucherId: earlier.voucher_id ? Number(earlier.voucher_id) : null }, used: [] };
+      // A recorded return uses exactly the receipts it recorded (a receipt reversed without a
+      // trace has left the pool, so it has nothing to give or take).
+      entry.recordedUse = recorded.map((r) => ({ lot: lotsBySl.get(Number(r.stock_ledger_id)), units: Number(r.quantity), billed: Boolean(r.billed), rate: Number(r.rate) })).filter((u) => u.lot);
       events.push({ at: entry.asOf.slId, entry, give: false });
       if (reversed) events.push({ at: Number(earlier.last_sl_id), entry, give: true });
     }
@@ -462,8 +470,13 @@ export function createInventoryService(deps) {
       // went out with the receipt's reversal, so they never return to the pool.
       if (drop) { drop.left = 0; drop.gone = true; }
       else if (give) entry.used.forEach(({ lot, units }) => { if (!lot.gone) lot.left += units; });
-      else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
+      else if (entry.recorded) {
+        entry.used = entry.recordedUse;
+        entry.used.forEach(({ lot, units }) => { lot.left -= units; });
+      } else entry.used = take(entry.orderId, entry.quantity, entry.asOf).used;
     }
+    // Earlier returns that had no record yet: what the replay gave them is recorded now.
+    const backfill = events.filter((e) => e.entry && !e.give && !e.entry.recorded).map((e) => ({ returnId: e.entry.returnId, used: e.entry.used }));
     const mine = take(row.order_id || null, quantity);
     const averageRate = quantity > 0 ? retValue / quantity : 0;
     const beyondReceipts = Math.max(0, quantity - mine.quantity);
@@ -472,7 +485,17 @@ export function createInventoryService(deps) {
     // The three debits must add up to the Inventory credit, roundMoney(retValue), to the paisa.
     const creditMinor = Math.round(roundMoney(retValue) * 100);
     const varianceMinor = creditMinor - Math.round(grniPortion * 100) - Math.round(payablesPortion * 100);
-    return { grniPortion, payablesPortion, variance: varianceMinor / 100 };
+    return { grniPortion, payablesPortion, variance: varianceMinor / 100, used: mine.used, backfill };
+  }
+
+  // Writes the receipts a supplier return used. Called inside the posting transaction.
+  function recordReturnReceipts(db, companyId, returnId, used, recordedBy) {
+    const insert = db.prepare(`INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, stock_inward_id, quantity, rate, billed, value_minor, recorded_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const { lot, units, billed, rate } of used) {
+      if (!(units > 1e-9)) continue;
+      insert.run(companyId, returnId, lot.slId, lot.inwardId || null, units, rate, billed ? 1 : 0, paise(units * rate), recordedBy);
+    }
   }
 
   function postStockReturn(db, id) {
@@ -504,6 +527,10 @@ export function createInventoryService(deps) {
       });
       const split = isDepartmentReturn ? { grniPortion: 0, payablesPortion: 0, variance: 0 } : supplierReturnSplit(db, row, Number(row.quantity || 0), roundMoney(retValue));
       const { grniPortion, payablesPortion, variance } = split;
+      if (!isDepartmentReturn) {
+        (split.backfill || []).forEach(({ returnId, used }) => recordReturnReceipts(db, row.company_id, returnId, used, "backfill"));
+        recordReturnReceipts(db, row.company_id, row.id, split.used || [], "posting");
+      }
       const varianceAccount = variance !== 0 ? ensurePurchasePriceVarianceAccount(db, row.company_id) : null;
       // A return worth under half a paisa at average cost still needs a voucher when it clears
       // GRNI or Trade Payables (a free lot here, a priced lot used up elsewhere).

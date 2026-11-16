@@ -42,6 +42,8 @@ const RESET_TABLES = [
   { table: "delivery_challans", module: "Inventory" },
   { table: "goods_receipt_items", module: "Inventory" },
   { table: "goods_receipts", module: "Inventory" },
+  // Before stock_returns and stock_ledger, which its rows point at.
+  { table: "stock_return_receipts", module: "Inventory" },
   { table: "stock_outwards", module: "Inventory" },
   { table: "stock_inwards", module: "Inventory" },
   { table: "stock_adjustments", module: "Inventory" },
