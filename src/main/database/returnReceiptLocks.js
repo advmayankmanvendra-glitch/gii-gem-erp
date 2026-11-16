@@ -36,10 +36,10 @@ function holderOf(db, name) {
 const REQUIRED_COLUMNS = Object.freeze(["id", "company_id", "stock_return_id", "stock_ledger_id", "stock_inward_id", "quantity", "rate", "billed", "value_minor", "recorded_by"]);
 
 // "table" when stock_return_receipts is an ordinary table with the columns the app uses;
-// otherwise what stands under the name ("view", "virtual table", "table without its columns")
+// otherwise what stands under the name ("view", "index", "virtual table", "table without its columns")
 // or null when nothing does. Only an edited or restored file can hold anything but a table.
 export function returnReceiptsTableState(db) {
-  const row = db.prepare("SELECT type, sql FROM sqlite_master WHERE type IN ('table', 'view') AND name = ? COLLATE NOCASE").get(TABLE);
+  const row = db.prepare("SELECT type, sql FROM sqlite_master WHERE type IN ('table', 'view', 'index') AND name = ? COLLATE NOCASE").get(TABLE);
   if (!row) return null;
   if (row.type !== "table") return row.type;
   if (/^\s*CREATE\s+VIRTUAL\b/i.test(String(row.sql || ""))) return "virtual table";

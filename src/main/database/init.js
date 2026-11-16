@@ -299,7 +299,11 @@ export function initializeDatabase(root = projectRoot()) {
     ensureReturnReceiptLocks(db, auditLog);
   } catch (error) {
     console.error(`Return-receipts check failed: ${error.message}`);
-    auditLog(db, { action: "stock_return_receipts_check_failed", table_name: "stock_return_receipts", new_value: JSON.stringify({ error: String(error.message || error) }) });
+    try {
+      auditLog(db, { action: "stock_return_receipts_check_failed", table_name: "stock_return_receipts", new_value: JSON.stringify({ error: String(error.message || error) }) });
+    } catch (logError) {
+      console.error(`Return-receipts check: the audit log refused the entry: ${logError.message}`);
+    }
   }
   const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
   if (removed.length) {
