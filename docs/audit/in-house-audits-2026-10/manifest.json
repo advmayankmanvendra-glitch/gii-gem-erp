@@ -1,7 +1,7 @@
 {
   "manifestVersion": "1.0.0",
   "purpose": "Checksums of the preserved in-house audit reports (October to November 2026). A report is never edited after it is preserved; a later audit is added as a new file.",
-  "count": 110,
+  "count": 137,
   "entries": [
     {
       "path": "docs/audit/in-house-audits-2026-10/2026-10-17-erp-automation/audit-1-current-build.md",
@@ -492,6 +492,141 @@
       "path": "docs/audit/in-house-audits-2026-10/2026-11-10-convergence/branch-graph-convergence-audit.md",
       "bytes": 8893,
       "sha256": "49838F3F89505CF596FD87D32EEDEF38759B05816508533B4CC3B55107F94F90"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-2dd78bc-architecture.md",
+      "bytes": 7609,
+      "sha256": "87E6E864821C70F3BB79B094865DDF2BCBEB7E2A91554EB62975E5B9F8FD8545"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-2dd78bc-correctness.md",
+      "bytes": 6483,
+      "sha256": "451F3F6FEA92FDC819E10CD0C561D0B8DB1BE6BC94F82A6020D19CF68251DC54"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-2dd78bc-security.md",
+      "bytes": 7699,
+      "sha256": "F1C0BF0F4544483AB20D1A135B9D9F843034390FB14BA4C4F085F5B8104E27F5"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-47f21e7-architecture.md",
+      "bytes": 7302,
+      "sha256": "242FCFFDD6089F9F434D8D4DEA1262263145C63AEB254557B9D410BB05635883"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-47f21e7-correctness.md",
+      "bytes": 7544,
+      "sha256": "C79DF6C04B3D5014E0709CAE1D3957DDB43DC6DE0488DE90AE08391DF022E446"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-47f21e7-security.md",
+      "bytes": 7763,
+      "sha256": "175E18B00C43EED0531053F46DAF22CF6F83B36B98B0B4B6D6505C84DD532689"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-78f71da-architecture.md",
+      "bytes": 7506,
+      "sha256": "FB66EAB0782B175FE29C343EFA9F1DCF2772C1E5FF0599EF1F67FD4171EC290C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-78f71da-correctness.md",
+      "bytes": 7897,
+      "sha256": "200C83358BD51537F6472C06A8EB55BD695C11E2B8A9FBB45760005CC009F43B"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-78f71da-security.md",
+      "bytes": 9771,
+      "sha256": "487F2EC5B69095A760B129C1EEFBFE44F574DE207602BC9C8683876A078EADCF"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-91e2fa1-architecture.md",
+      "bytes": 6897,
+      "sha256": "4DACAC81134151174794D04A70225C5DEAC242BAF8CDFCC80B2DFE898F4A112F"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-91e2fa1-correctness.md",
+      "bytes": 9478,
+      "sha256": "3972E041D0110FDA88957C288E42A46BCF05C6F984B41E219432F7E7E3453FB2"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-91e2fa1-security.md",
+      "bytes": 6962,
+      "sha256": "6F78A27676EBF6654463D81094766C8E0B55E792DC5411DA701DEC61F9C2B846"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-b5b0ad3-correctness.md",
+      "bytes": 5632,
+      "sha256": "CF2564DA40635F53BEFC4CB0154F4B525EFE735CB6E016874CB0185F046F38E6"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-b5b0ad3-security.md",
+      "bytes": 5934,
+      "sha256": "3C50B7F1A8B3AF39B7ECBC6C48CFAEBFE04EA64921FA3C4C5EB78F2F6E95DA0C"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-c524fb7-architecture.md",
+      "bytes": 8893,
+      "sha256": "E9EDED31336EC1A07C81B4AF88F91610A5F2B88761F7020C2ED785F9ED3A87B8"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-c524fb7-correctness.md",
+      "bytes": 7896,
+      "sha256": "B13A47B00E5D708EF48DCF9609897904DFDAC9E98CC2C06677B27F63EC6C8646"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-c524fb7-security.md",
+      "bytes": 9474,
+      "sha256": "5807B3E35B0065EF6BE07BEC26C2363DC31C93BFDB13A756F54EEE9DFDB53546"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-fc8a413-architecture.md",
+      "bytes": 10123,
+      "sha256": "0F5753E12592EDB22FEF1A49F6BD54FC0B9485DDF1930FD693B10AEF710E1AF2"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-fc8a413-correctness.md",
+      "bytes": 8464,
+      "sha256": "74F01B907A661984951E2D2C920CD836FC668FDE0C17ED011394249FB4DA6114"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/audit-fc8a413-security.md",
+      "bytes": 8174,
+      "sha256": "DDFEAC69A0A9200C5F172A59ED6800E2E1E6A8085C2488492B4220CED7D33419"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-2dd78bc.md",
+      "bytes": 2335,
+      "sha256": "ABEADCDB604B6793A60990D68F9723254AB43E61BEE02740FF43C08881C4D59E"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-47f21e7.md",
+      "bytes": 1929,
+      "sha256": "DB1181665249A516DA7B52C75C9CBEBE91CE1BDBE4B27ADCFC1CE89CA0DE56BE"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-78f71da.md",
+      "bytes": 2828,
+      "sha256": "430F0FD48150B64DDB037A7CC29FCC67C75E53B0209B1CF708C763168843AADD"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-91e2fa1.md",
+      "bytes": 1994,
+      "sha256": "23B8B843609138CE9F14F2770580305A7259090E78ED41ABD463238A110A2BC4"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-b5b0ad3.md",
+      "bytes": 1523,
+      "sha256": "F8A3D4378D6048A6A19883C14337C7D3FF066327B4FC6D4089655FF90DB87686"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-c524fb7.md",
+      "bytes": 2972,
+      "sha256": "B15926674D555822CE1CD66EC92D42D77D0D0F1E2D459EFEDB20D823F35C5F23"
+    },
+    {
+      "path": "docs/audit/in-house-audits-2026-10/2026-11-16-return-receipts/responses-fc8a413.md",
+      "bytes": 2299,
+      "sha256": "15A258F7DEF06195314DAE70A5BA2FC5CFF11F30B1400966C8AFAA1862D9E9FC"
     },
     {
       "path": "docs/audit/in-house-audits-2026-10/acf6d02-verification/README.md",
