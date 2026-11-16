@@ -2,8 +2,8 @@
   "schemaVersion": "1.0.0",
   "graphId": "DG-1",
   "graphName": "GII ERP Database Graph",
-  "version": "1.1.0",
-  "generatedAt": "2026-07-29T15:29:58.865Z",
+  "version": "1.2.0",
+  "generatedAt": "2026-11-16T08:00:00.000Z",
   "owner": "Architecture & Governance",
   "status": "active",
   "description": "Database intelligence graph mapping all GII GeM ERP tables, columns, relationships, service modules, posting functions, report sources, audit trails, and accounting protection boundaries.",
@@ -7100,7 +7100,7 @@
           "description": "Warehouse"
         }
       ],
-      "indexes": [],
+      "indexes": [{ "columns": ["source_module", "source_id"], "unique": false, "description": "idx_stock_ledger_source: finds a document's stock-ledger rows (migration 039)" }],
       "hasSoftDelete": true,
       "hasPostingStatus": false,
       "hasApprovalStatus": false,
@@ -7464,6 +7464,155 @@
       "genericCrudAllowed": false,
       "accountingProtected": false,
       "notes": "Stock adjustment records for physical count corrections, damage, etc.",
+      "knownGaps": []
+    },
+    {
+      "id": "stock_return_receipts",
+      "tableName": "stock_return_receipts",
+      "title": "Stock Return Receipts",
+      "category": "Inventory",
+      "status": "active",
+      "sourceFile": "src/main/database/init.js",
+      "schemaVersion": "039",
+      "owningModule": "inventory",
+      "relatedWorkflowStage": null,
+      "relatedScreen": "screens/HealthCenter/MoneyIntegrityPanel.jsx",
+      "primaryKey": "id",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false,
+          "description": "Primary key"
+        },
+        {
+          "name": "company_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Company"
+        },
+        {
+          "name": "stock_return_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "The supplier return"
+        },
+        {
+          "name": "stock_ledger_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "The receipt's inward stock-ledger row it used"
+        },
+        {
+          "name": "stock_inward_id",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": true,
+          "description": "The receipt (stock inward)"
+        },
+        {
+          "name": "quantity",
+          "type": "REAL",
+          "pk": false,
+          "nullable": false,
+          "description": "Units taken from that receipt"
+        },
+        {
+          "name": "rate",
+          "type": "REAL",
+          "pk": false,
+          "nullable": false,
+          "description": "Per-unit rate used: stock value if unbilled, supplier rate if billed"
+        },
+        {
+          "name": "billed",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "1 if the receipt counted as billed when the return posted"
+        },
+        {
+          "name": "value_minor",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false,
+          "description": "Value in paise"
+        },
+        {
+          "name": "recorded_by",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "posting or backfill"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false,
+          "description": "When recorded"
+        }
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id"
+          ],
+          "references": "companies",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Company"
+        },
+        {
+          "columns": [
+            "stock_return_id"
+          ],
+          "references": "stock_returns",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Supplier return"
+        },
+        {
+          "columns": [
+            "stock_ledger_id"
+          ],
+          "references": "stock_ledger",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Receipt's inward stock-ledger row"
+        },
+        {
+          "columns": [
+            "stock_inward_id"
+          ],
+          "references": "stock_inwards",
+          "refColumns": [
+            "id"
+          ],
+          "description": "Receipt"
+        }
+      ],
+      "indexes": [
+        { "columns": ["stock_return_id"], "unique": false, "description": "idx_stock_return_receipts_return" },
+        { "columns": ["stock_return_id", "stock_ledger_id"], "unique": true, "description": "idx_stock_return_receipts_unique: one row per return and receipt" }
+      ],
+      "hasSoftDelete": false,
+      "hasPostingStatus": false,
+      "hasApprovalStatus": false,
+      "hasAuditImpact": true,
+      "createsAccountingImpact": false,
+      "createsInventoryImpact": false,
+      "createsGSTImpact": false,
+      "genericCrudAllowed": false,
+      "accountingProtected": false,
+      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (ensureReturnReceiptLocks in returnReceiptLocks.js checks the lock trigger and indexes on every start and puts them back, except that the unique index stays off while the file holds duplicate rows or a conflicting name, which it reports in the audit log and the Health Center money integrity check). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
       "knownGaps": []
     },
     {
@@ -11448,6 +11597,33 @@
       "targetColumn": "id",
       "businessMeaning": "Item default warehouse",
       "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_returns",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_return_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row belongs to a supplier return",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_ledger",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_ledger_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row points at the receipt's inward stock-ledger row",
+      "relatedWorkflowStage": null
+    },
+    {
+      "fromTable": "stock_return_receipts",
+      "toTable": "stock_inwards",
+      "relationshipType": "FK",
+      "sourceColumn": "stock_inward_id",
+      "targetColumn": "id",
+      "businessMeaning": "Return-receipt row names the receipt",
+      "relatedWorkflowStage": null
     }
   ],
   "serviceMappings": [
@@ -11538,7 +11714,8 @@
         "goods_receipt_items",
         "delivery_challans",
         "delivery_challan_items",
-        "warehouse_transfers"
+        "warehouse_transfers",
+        "stock_return_receipts"
       ]
     },
     {
@@ -11911,11 +12088,13 @@
       "postingFunction": "postStockReturn",
       "sourceFile": "inventoryService.js",
       "reads": [
-        "stock_returns"
+        "stock_returns",
+        "stock_return_receipts"
       ],
       "writes": [
         "stock_ledger",
-        "inventory_movements"
+        "inventory_movements",
+        "stock_return_receipts"
       ],
       "createsVoucherType": null,
       "ledgerImpact": false,
@@ -12635,6 +12814,14 @@
         "financial_statement_mappings",
         "account_group_assignments"
       ]
+    },
+    {
+      "migrationVersion": "039",
+      "migrationName": "stock_return_receipts",
+      "tables": [
+        "stock_return_receipts",
+        "stock_ledger"
+      ]
     }
   ],
   "seedMappings": [
@@ -13042,8 +13229,8 @@
     "cascadeBehavior": "ON DELETE CASCADE is explicitly set only for supply_ordersâ†’order_items and a few others â€” most FK cascade behavior is application-managed"
   },
   "statistics": {
-    "totalTables": 74,
-    "totalRelationships": 57,
+    "totalTables": 75,
+    "totalRelationships": 60,
     "totalServiceModules": 15,
     "totalPostingFunctions": 22,
     "totalReportSources": 26,
@@ -13052,13 +13239,13 @@
     "totalKnownGaps": 7,
     "totalAuditMappings": 16,
     "totalWritePolicyMappings": 7,
-    "totalMigrationMappings": 16,
+    "totalMigrationMappings": 17,
     "totalSeedMappings": 7
   },
   "metadata": {
     "generationTool": "Manual curation",
     "generationCommand": "N/A (hand-authored)",
-    "lastValidated": "2026-11-10",
+    "lastValidated": "2026-11-16",
     "validationMethod": "npm run verify:database-graph"
   }
 }

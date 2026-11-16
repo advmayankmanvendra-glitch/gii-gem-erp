@@ -28,6 +28,7 @@ import {
 import { parseMoneyToMinor } from "../domain/money.js";
 import { backfillAll } from "./moneyMigration.js";
 import { dropLedgerGuards, dropUnexpectedLedgerTriggers, ensureLedgerGuards, ledgerDefectIds } from "./ledgerGuards.js";
+import { createReturnReceiptLocks, ensureReturnReceiptLocks, returnReceiptsTableState, RETURN_RECEIPTS_MIGRATION } from "./returnReceiptLocks.js";
 import { createAccountingService } from "../services/accountingService.js";
 import { createAlertService } from "../services/alerts/alertService.js";
 import { createBankReconciliationService } from "../services/bankReconciliationService.js";
@@ -293,6 +294,17 @@ export function initializeDatabase(root = projectRoot()) {
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   const guards = ensureLedgerGuards(db);
+  // An error here (only from an edited file) is logged and does not stop the start.
+  try {
+    ensureReturnReceiptLocks(db, auditLog);
+  } catch (error) {
+    console.error(`Return-receipts check failed: ${error.message}`);
+    try {
+      auditLog(db, { action: "stock_return_receipts_check_failed", table_name: "stock_return_receipts", new_value: JSON.stringify({ error: String(error.message || error) }) });
+    } catch (logError) {
+      console.error(`Return-receipts check: the audit log refused the entry: ${logError.message}`);
+    }
+  }
   const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
   if (removed.length) {
     console.error(`Ledger check: removed ${removed.length} trigger(s) touching the accounting tables that the app did not create.`);
@@ -695,9 +707,43 @@ export function migrate(db) {
     addMoneyShadowColumns(db);
     backfillAll(db);
   });
+
+  // Owner decision 16 Nov 2026: each supplier return records which receipts it used, and later
+  // returns take that record instead of working it out again. Older returns are recorded, by
+  // the replay, the first time a return for the same supplier and item is posted (a return that
+  // used no receipt has no rows). Rows are never updated (the trigger refuses it); the
+  // operational reset deletes them. The index keeps
+  // document lookups in the stock ledger fast as it grows.
+  // Numbering: 037 and 038 are used by the accounting programme branch, which is not merged yet.
+  runMigration(db, RETURN_RECEIPTS_MIGRATION, () => {
+    db.exec("CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id)");
+    // A view or other object already under the name (only in an edited file) is left for the
+    // start-up check to report, so the migration does not stop the start.
+    if (returnReceiptsTableState(db) !== null) { createReturnReceiptLocks(db); return; }
+    db.exec(`
+      CREATE TABLE stock_return_receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        stock_return_id INTEGER NOT NULL REFERENCES stock_returns(id),
+        stock_ledger_id INTEGER NOT NULL REFERENCES stock_ledger(id),
+        stock_inward_id INTEGER REFERENCES stock_inwards(id),
+        quantity REAL NOT NULL CHECK (quantity > 0),
+        rate REAL NOT NULL DEFAULT 0,
+        billed INTEGER NOT NULL DEFAULT 0 CHECK (billed IN (0, 1)),
+        value_minor INTEGER NOT NULL DEFAULT 0,
+        recorded_by TEXT NOT NULL DEFAULT 'posting' CHECK (recorded_by IN ('posting', 'backfill')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // The locks; ensureReturnReceiptLocks checks them on every start.
+    createReturnReceiptLocks(db);
+  });
 }
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
+// Migrations newer than the 036 baseline: an existing database is copied aside before any of
+// them runs. Every new migration must be added here (a test checks it).
+export const MIGRATIONS_WITH_BACKUP = Object.freeze([UPGRADE_REPAIR_MIGRATION, RETURN_RECEIPTS_MIGRATION]);
 
 // Start-up work above runs with the ledger guards off. If it left more unbalanced or
 // mismatched posted vouchers than there were before, that is recorded in the audit log
@@ -736,12 +782,15 @@ function migrationApplied(db, name) {
 function backupBeforePendingMigration(db, root) {
   const hasMigrations = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get();
   if (!hasMigrations) return null;
-  const applied = db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(UPGRADE_REPAIR_MIGRATION);
-  if (applied) return null;
+  const pending = MIGRATIONS_WITH_BACKUP
+    .some((name) => !db.prepare("SELECT id FROM schema_migrations WHERE migration_name = ?").get(name));
+  if (!pending) return null;
   const hasData = db.prepare("SELECT COUNT(*) total FROM schema_migrations").get().total > 0;
   if (!hasData) return null;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const target = path.join(root, "backups", `pre-upgrade-${stamp}.db`);
+  // Two upgrades in the same second (a retried start) must not fail on the first copy's name.
+  let target = path.join(root, "backups", `pre-upgrade-${stamp}.db`);
+  for (let n = 1; fs.existsSync(target); n += 1) target = path.join(root, "backups", `pre-upgrade-${stamp}-${n}.db`);
   db.prepare("VACUUM INTO ?").run(target);
   return target;
 }

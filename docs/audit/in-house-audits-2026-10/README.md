@@ -11,6 +11,7 @@ The reports are history. They describe the code at the commit named in each file
 | `acf6d02-verification/` | Verification of the critical defects at acf6d02. |
 | `2026-10-17-erp-automation/` | Audits and phase report for the automation branch (PR #4). |
 | `2026-10-22-pr4-inhouse/` | The three audits (correctness, security, architecture) run on each PR #4 push, named `audit-<commit>-<kind>.md`. |
+| `2026-11-16-return-receipts/` | The three audits run on each push of the supplier return-receipts table (migration 039), and the answers to them, named `audit-<commit>-<kind>.md` and `responses-<commit>.md`. |
 | `tally-style-checks-2026-10-29.md` | Tally-style risk checks: paise money, keyboard-first entry, double entry that cannot break. |
 
 `manifest.json` records each report's size and SHA-256. `npm run verify:audit` checks that every listed report is present and unchanged, and that no file in this folder is missing from the manifest. A report is never edited after it is added; a new audit is added as a new file and the manifest is regenerated with `node scripts/update-audit-manifest.js`.

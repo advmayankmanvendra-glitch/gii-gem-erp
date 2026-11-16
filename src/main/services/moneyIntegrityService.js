@@ -1,5 +1,6 @@
 import { reconcileAll } from "../database/moneyMigration.js";
 import { missingLedgerGuards, openLedgerMaintenance, unexpectedLedgerTriggers, voucherLedgerCheckSql, ROUNDING_ADJUSTMENT_LIMIT_MINOR, ROUNDING_ADJUSTMENT_SOURCE, ROUNDING_OFF_ACCOUNT_NAME, VOUCHER_REVERSAL_SOURCE } from "../database/ledgerGuards.js";
+import { returnReceiptLockProblems, returnReceiptLocksOk } from "../database/returnReceiptLocks.js";
 import { rupees } from "../domain/money.js";
 
 export const ROUNDING_OFF_ACCOUNT = ROUNDING_OFF_ACCOUNT_NAME;
@@ -171,6 +172,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
     }
     const missingGuards = missingLedgerGuards(db);
     const unexpectedTriggers = unexpectedLedgerTriggers(db);
+    const returnReceiptLocks = returnReceiptLockProblems(db);
     // A draft holds ledger entries only inside the transaction that posts it; one left
     // over would show in reports that read entries without checking the voucher status.
     const draftFilter = companyFilter(companyId);
@@ -188,7 +190,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       generated_at: new Date().toISOString(),
       company_id: companyId ? Number(companyId) : null,
       ok: trialBalance.difference_minor === 0 && !openVouchers.length && !mismatches.length && !mirrors.length && !missingGuards.length && !openMaintenance.length
-        && !unexpectedTriggers.length && !draftEntries.length,
+        && !unexpectedTriggers.length && !draftEntries.length && returnReceiptLocksOk(returnReceiptLocks),
       trial_balance: trialBalance,
       unbalanced_vouchers: unbalanced,
       line_ledger_mismatches: mismatches,
@@ -197,6 +199,7 @@ export function createMoneyIntegrityService({ auditLog, accountId, nextVoucherNu
       missing_guards: missingGuards,
       open_maintenance: openMaintenance,
       unexpected_triggers: unexpectedTriggers,
+      return_receipt_locks: returnReceiptLocksOk(returnReceiptLocks) ? null : returnReceiptLocks,
       draft_entries: draftEntries,
       last_startup_check_failure: startupCheck
     };

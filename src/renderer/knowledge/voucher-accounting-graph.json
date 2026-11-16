@@ -539,7 +539,7 @@
     {
       "functionName": "postExpenseAccrualsForOrder",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1662,
+      "lineNumber": 1707,
       "serviceModule": "init",
       "readsFromTables": ["expense_entries", "expense_heads", "supply_orders", "employees", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "expense_entries", "audit_log"],
@@ -557,7 +557,7 @@
     {
       "functionName": "postLedgerEntry",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1284,
+      "lineNumber": 1329,
       "serviceModule": "init",
       "readsFromTables": ["ledger_entries", "accounts"],
       "writesToTables": ["ledger_entries"],
@@ -575,7 +575,7 @@
     {
       "functionName": "updateCashBankLedger",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1299,
+      "lineNumber": 1344,
       "serviceModule": "init",
       "readsFromTables": ["cash_bank_ledger"],
       "writesToTables": ["cash_bank_ledger"],
@@ -593,7 +593,7 @@
     {
       "functionName": "upsertReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1670,
+      "lineNumber": 1715,
       "serviceModule": "init",
       "readsFromTables": ["supply_orders", "receivables"],
       "writesToTables": ["receivables"],
@@ -611,7 +611,7 @@
     {
       "functionName": "refreshReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1695,
+      "lineNumber": 1740,
       "serviceModule": "init",
       "readsFromTables": ["receivables", "payment_allocations", "advance_adjustments"],
       "writesToTables": ["receivables"],
@@ -629,7 +629,7 @@
     {
       "functionName": "markPosted",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1382,
+      "lineNumber": 1427,
       "serviceModule": "init",
       "readsFromTables": ["vouchers"],
       "writesToTables": ["invoices", "procurements", "payments", "supplier_payments", "expense_entries"],
@@ -701,20 +701,20 @@
     {
       "functionName": "postStockReturn",
       "sourceFile": "src/main/services/inventoryService.js",
-      "lineNumber": 478,
+      "lineNumber": 511,
       "serviceModule": "inventoryService",
-      "readsFromTables": ["stock_returns", "stock_ledger", "items", "stock_inwards", "procurements", "vouchers", "goods_receipts", "goods_receipt_items", "accounts"],
-      "writesToTables": ["stock_ledger", "stock_returns", "vouchers", "voucher_lines", "ledger_entries", "audit_log", "accounts"],
+      "readsFromTables": ["stock_returns", "stock_return_receipts", "stock_ledger", "items", "stock_inwards", "procurements", "vouchers", "goods_receipts", "goods_receipt_items", "accounts"],
+      "writesToTables": ["stock_ledger", "stock_returns", "stock_return_receipts", "vouchers", "voucher_lines", "ledger_entries", "audit_log", "accounts"],
       "voucherTypeCreated": "Journal",
       "debitAccounts": ["Goods Received Not Invoiced", "Trade Payables", "Purchase Price Variance", "Inventory"],
       "creditAccounts": ["Inventory", "Cost of Goods Sold", "Purchase Price Variance"],
-      "transactionBoundary": "db.transaction() - stock ledger + Journal voucher + status update",
+      "transactionBoundary": "db.transaction() - stock ledger + return-receipts record + Journal voucher + status update",
       "auditImpact": true,
       "reportImpact": ["Trial Balance", "Balance Sheet", "Profit and Loss", "Stock Summary"],
       "workflowStage": null,
-      "relatedDG1Tables": ["stock_returns", "stock_ledger", "items", "stock_inwards", "procurements", "goods_receipts", "goods_receipt_items", "vouchers", "voucher_lines", "ledger_entries", "accounts"],
+      "relatedDG1Tables": ["stock_returns", "stock_return_receipts", "stock_ledger", "items", "stock_inwards", "procurements", "goods_receipts", "goods_receipt_items", "vouchers", "voucher_lines", "ledger_entries", "accounts"],
       "relatedWG1Stage": null,
-      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units at the receipt's stock value and Dr Trade Payables for billed units (a posted bill, or the purchase voucher that made the receipt) at the supplier's rate, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Earlier returns are replayed by quantity in posting order, each as things stood when it posted (a bill counts until it is reversed; a reversed return gives its units back when reversed, except to a receipt already reversed; a reversed receipt keeps the returns made while it stood and what was left of it leaves the pool at its reversal), so no receipt unit is returned twice; known gaps: docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6; a return that clears GRNI or Trade Payables posts a voucher even when its stock is worth nothing at average cost; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
+      "safetyRule": "Department return: Dr Inventory, Cr Cost of Goods Sold at average cost. Supplier return (owner decision CV, 10 Nov 2026 IST): Dr GRNI for unbilled units at the receipt's stock value and Dr Trade Payables for billed units (a posted bill, or the purchase voucher that made the receipt) at the supplier's rate, Cr Inventory at average cost, the gap to Purchase Price Variance. The return already reduces the payable by the goods value; no separate Debit Note for that value. Input GST on returned billed goods is not reversed by the return and its treatment is not yet decided (ask the accountant). Each posted supplier return records the receipts it used in stock_return_receipts (owner decision 16 Nov 2026 IST), and later returns take those records as they are; an earlier return with no record yet (posted before migration 039) is replayed by quantity in posting order and then recorded (a return that used no receipt has nothing to record), each as things stood when it posted (a bill counts until it is reversed; a reversed return gives its units back when reversed, except to a receipt already reversed; a reversed receipt keeps the returns made while it stood and what was left of it leaves the pool at its reversal), so no receipt unit is returned twice; known gaps: docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6; a return that clears GRNI or Trade Payables posts a voucher even when its stock is worth nothing at average cost; a return with no order may use any order's receipts. Pool limits: see docs/architecture/fsr-2a4-perpetual-inventory-policy.md section 6."
     },
     {
       "functionName": "postWarehouseTransfer",
@@ -1709,6 +1709,13 @@
       "tableImpacted": "stock_returns",
       "records": "stock_return posting status update",
       "action": "update"
+    },
+    {
+      "auditEvent": "stock return receipts backfilled",
+      "triggeredBy": "postStockReturn",
+      "tableImpacted": "stock_return_receipts",
+      "records": "receipts an earlier supplier return used, recorded by replay",
+      "action": "insert"
     },
     {
       "auditEvent": "voucher dependency sync",
