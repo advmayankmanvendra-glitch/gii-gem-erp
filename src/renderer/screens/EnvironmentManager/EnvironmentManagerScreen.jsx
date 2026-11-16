@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { sortOptions, sortRecordsBy } from "../../utils/optionSorting.js";
+import { OpeningBalanceRestorePanel } from "../../features/accounting/components/OpeningBalanceRestorePanel.jsx";
 
 const ENVIRONMENT_TYPES = ["Development", "Testing", "Training", "Production", "Migration"];
 
@@ -812,7 +813,7 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
 
             <div className="reset-confirm-section" style={{ marginTop: 12 }}>
               <p className="reset-warning">
-                This removes every transaction of <strong>{resetPreview?.company?.name || companyContext?.company_name || "the selected company"}</strong> only, including posted opening balances (masters, users, chart of accounts and the leads-to-purchase-order pipeline are kept). A backup is taken first and the reset can be rolled back. Type <strong>RESET</strong> to confirm.
+                This removes every transaction of <strong>{resetPreview?.company?.name || companyContext?.company_name || "the selected company"}</strong> only, including posted opening balances (masters, users, chart of accounts and the leads-to-purchase-order pipeline are kept). A backup is taken first and the reset can be rolled back. Opening balances can be brought back from that backup afterwards, or entered by hand. Type <strong>RESET</strong> to confirm.
               </p>
               <input
                 type="text"
@@ -877,6 +878,13 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
                   : <p className="reset-error">{resetRollbackResult.reason}</p>}
               </div>
             )}
+            <OpeningBalanceRestorePanel
+              api={apiClient}
+              companyId={resetResult.company?.id}
+              companyName={resetResult.company?.name}
+              defaultBackup={resetResult.backup?.fileName}
+              notify={notify}
+            />
           </div>
         )}
 
@@ -942,6 +950,13 @@ function EnvironmentManagerScreen({ apiClient, notify, session, companyContext, 
             <StatCard label="Backup Path" value={resetResult.backup?.path || "N/A"} />
             <StatCard label="Rows Before" value={resetResult.before?.totalOperational ?? "N/A"} />
             <StatCard label="Rows After" value={resetResult.after?.totalOperational ?? "N/A"} />
+            <OpeningBalanceRestorePanel
+              api={apiClient}
+              companyId={resetResult.company?.id}
+              companyName={resetResult.company?.name}
+              defaultBackup={resetResult.backup?.fileName}
+              notify={notify}
+            />
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               <button type="button" className="secondary-btn" onClick={handleResetComplete}>Dismiss</button>
             </div>

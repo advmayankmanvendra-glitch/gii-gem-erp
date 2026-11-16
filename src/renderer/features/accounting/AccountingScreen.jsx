@@ -14,6 +14,7 @@ import { confirmAction, reversalConfirmOptions, postConfirmOptions, approveConfi
 import { AccountMappingReviewPanel } from "./accountMappings/AccountMappingReviewPanel.jsx";
 import { canManageAccountMappings } from "./accountMappings/accountMappingOptions.js";
 import { FinancialYearInputDialog, OpeningBalanceInputDialog } from "./components/AccountingInputDialogs.jsx";
+import { OpeningBalanceRestorePanel } from "./components/OpeningBalanceRestorePanel.jsx";
 
 export function AccountingScreen({ view, notify, role, companyContext, onNavigate, api }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -788,6 +789,14 @@ export function AccountingScreen({ view, notify, role, companyContext, onNavigat
         </div>
       )}
       {drilldown && <DrilldownPanel drilldown={drilldown} onClose={() => setDrilldown(null)} onNavigate={onNavigate} onInlineAction={handleDrilldownInlineAction} notify={notify} onDrillVoucher={(row) => openDrilldown(row, "voucher")} />}
+      {view === "opening_balances" && canPostControls && (
+        <OpeningBalanceRestorePanel
+          api={api}
+          companyId={Number(companyContext?.company_id || filters.company_id || 0) || null}
+          notify={notify}
+          onRestored={() => load()}
+        />
+      )}
       {financialYearDialogOpen && (
         <FinancialYearInputDialog onClose={() => setFinancialYearDialogOpen(false)} onSubmit={createFinancialYear} />
       )}

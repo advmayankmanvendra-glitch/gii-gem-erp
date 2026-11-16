@@ -277,7 +277,7 @@ function GoLiveWizard({ apiClient, companyContext }) {
         <section className="panel" style={{ padding: "var(--spacing-md)", marginBottom: "var(--spacing-sm)" }}>
           <h3 style={{ margin: "0 0 var(--spacing-sm)", fontSize: "0.9rem" }}>Step 2: Final Confirmation</h3>
           <p style={{ fontSize: "0.85rem", marginBottom: "var(--spacing-sm)" }}>
-            You are about to initialize GII GeM ERP for production. The following will be removed for the selected company: all vouchers, invoices, payments, stock movements, allocations, supply orders, installations, procurement plans and posted opening balances (re-enter opening balances after go-live). The following will be preserved: companies, ledgers, chart of accounts, suppliers, departments, items, banks, users, financial years, configuration, import history, and the leads-to-purchase-order pipeline (its links to deleted orders are cleared).
+            You are about to initialize GII GeM ERP for production. The following will be removed for the selected company: all vouchers, invoices, payments, stock movements, allocations, supply orders, installations, procurement plans and posted opening balances (bring them back from the pre-reset backup in Accounting > Opening Balances, or enter them by hand). The following will be preserved: companies, ledgers, chart of accounts, suppliers, departments, items, banks, users, financial years, configuration, import history, and the leads-to-purchase-order pipeline (its links to deleted orders are cleared).
           </p>
           <p style={{ fontSize: "0.85rem", fontWeight: 600 }}>Type <code>GO-LIVE</code> to confirm:</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

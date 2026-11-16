@@ -81,7 +81,7 @@ function removeIfExistsWithRetry(file) {
   }
 }
 
-function backupPathFromName(fileName, root) {
+export function backupPathFromName(fileName, root) {
   const backupFileName = typeof fileName === "string" ? fileName : fileName?.fileName || fileName?.name;
   const resolved = path.resolve(path.join(root, "backups", backupFileName || ""));
   const backupRoot = path.resolve(path.join(root, "backups"));
