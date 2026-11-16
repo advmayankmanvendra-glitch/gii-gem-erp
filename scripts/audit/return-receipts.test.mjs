@@ -128,17 +128,15 @@ test("an existing database gets the table and the stock-ledger index, with a bac
 });
 
 test("every migration after the 036 baseline gets the pre-upgrade backup", () => {
-  const source = fs.readFileSync(path.join(REPO, "src/main/database/init.js"), "utf8");
-  // Names may be constants here or in the database modules init.js imports from.
+  // Names a fresh database records, plus every migration-shaped string in the database modules
+  // (so a migration that runs only on older databases, or is written in any call shape, counts).
+  const db = fresh();
+  const run = db.prepare("SELECT migration_name FROM schema_migrations").all().map((x) => x.migration_name);
   const dir = path.join(REPO, "src/main/database");
-  const allSources = fs.readdirSync(dir).filter((f) => f.endsWith(".js")).map((f) => fs.readFileSync(path.join(dir, f), "utf8")).join("\n");
-  const constants = Object.fromEntries([...allSources.matchAll(/const ([A-Z0-9_]+) = "([^"]+)";/g)].map((x) => [x[1], x[2]]));
-  const calls = [...source.matchAll(/^\s+runMigration\(db, ([^,]+),/gm)].map((x) => x[1].trim());
-  const names = calls.map((arg) => (/^"[^"]+"$/.test(arg) ? arg.slice(1, -1) : constants[arg]));
-  // A name this test cannot read (a template string, an import) fails rather than slipping by.
-  calls.forEach((arg, i) => assert.ok(names[i], `runMigration name ${arg} is a plain string or a const in init.js`));
-  const later = names.filter((name) => name && name.localeCompare("036", undefined, { numeric: true }) >= 0);
-  assert.ok(later.length >= 2);
+  const written = fs.readdirSync(dir).filter((f) => f.endsWith(".js"))
+    .flatMap((f) => [...fs.readFileSync(path.join(dir, f), "utf8").matchAll(/["'`](\d{3}_[a-z0-9_]+)["'`]/g)].map((x) => x[1]));
+  const later = [...new Set([...run, ...written])].filter((name) => /^\d{3}_/.test(name) && Number(name.slice(0, 3)) >= 36);
+  assert.ok(later.includes("039_stock_return_receipts"));
   for (const name of later) assert.ok(m.MIGRATIONS_WITH_BACKUP.includes(name), `${name} is in MIGRATIONS_WITH_BACKUP`);
 });
 
@@ -250,4 +248,44 @@ test("the update trigger and unique index come back at start-up if missing", () 
   const reopened = fresh(root);
   assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'trg_stock_return_receipts_no_update'").get());
   assert.ok(reopened.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_stock_return_receipts_unique'").get());
+});
+
+test("altered locks in a restored file are put back at start-up and logged", () => {
+  const root = freshRoot();
+  const db = fresh(root);
+  const s = setup(db, "RR Tamper");
+  s.receive(10, 100, "RR-T1");
+  const r = s.ret(2, "2026-07-02");
+  db.exec(`DROP TRIGGER trg_stock_return_receipts_no_update;
+    CREATE TRIGGER trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts WHEN 0 BEGIN SELECT 1; END;
+    CREATE TRIGGER planted_after_insert AFTER INSERT ON stock_return_receipts BEGIN SELECT 1; END;
+    DROP INDEX idx_stock_return_receipts_unique;
+    CREATE INDEX idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);`);
+  db.close();
+  const reopened = fresh(root);
+  assert.throws(() => reopened.prepare("UPDATE stock_return_receipts SET quantity = 9 WHERE stock_return_id = ?").run(r.id), /cannot be changed/);
+  const triggers = reopened.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'stock_return_receipts'").all().map((x) => x.name);
+  assert.deepEqual(triggers, ["trg_stock_return_receipts_no_update"]);
+  const row = reopened.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
+  assert.throws(() => reopened.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id), /UNIQUE/);
+  const entry = JSON.parse(reopened.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_locks_restored'").get().new_value);
+  assert.deepEqual(entry.triggersRemoved, ["planted_after_insert"]);
+  assert.deepEqual(entry.indexesRebuilt, ["idx_stock_return_receipts_unique"]);
+});
+
+test("duplicate recorded rows in a file do not stop the app from starting", () => {
+  const root = freshRoot();
+  const db = fresh(root);
+  const s = setup(db, "RR Dup");
+  s.receive(10, 100, "RR-D1");
+  const r = s.ret(2, "2026-07-02");
+  const row = db.prepare("SELECT * FROM stock_return_receipts WHERE stock_return_id = ?").get(r.id);
+  db.exec("DROP INDEX idx_stock_return_receipts_unique");
+  db.prepare("INSERT INTO stock_return_receipts (company_id, stock_return_id, stock_ledger_id, quantity) VALUES (1, ?, ?, 1)").run(r.id, row.stock_ledger_id);
+  db.close();
+  const reopened = fresh(root);
+  const guards = reopened.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type = 'trigger' AND tbl_name IN ('vouchers', 'voucher_lines', 'ledger_entries')").get().c;
+  assert.ok(guards > 0, "the ledger guards are back");
+  const entry = JSON.parse(reopened.prepare("SELECT new_value FROM audit_log WHERE action = 'stock_return_receipts_locks_restored'").get().new_value);
+  assert.deepEqual(entry.duplicates.map((d) => [d.stock_return_id, d.copies]), [[r.id, 2]]);
 });

@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "graphId": "DG-1",
   "graphName": "GII ERP Database Graph",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "generatedAt": "2026-07-29T15:29:58.865Z",
   "owner": "Architecture & Governance",
   "status": "active",
@@ -7612,7 +7612,7 @@
       "createsGSTImpact": false,
       "genericCrudAllowed": false,
       "accountingProtected": false,
-      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated. Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill).",
+      "notes": "Which receipts each posted supplier return used (owner decision 16 Nov 2026 IST). Written by postStockReturn inside the posting transaction; rows cannot be updated (the lock trigger and unique index are put back on every start by ensureReturnReceiptLocks). Returns posted before migration 039 are recorded by replay when the next return for the same supplier and item posts (recorded_by = backfill); a return that used no receipt has nothing to record.",
       "knownGaps": []
     },
     {

@@ -107,7 +107,7 @@
     "BRAIN-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "RG-1": "^1.0" } },
     "RG-1": { "version": "2.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0" } },
-    "DG-1": { "version": "1.1.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
+    "DG-1": { "version": "1.2.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
     "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
     "AG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
@@ -192,7 +192,7 @@
     {
       "graphId": "DG-1",
       "title": "Database Intelligence Graph",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "schema": "repository/schema/database-graph.schema.json",
       "location": "src/renderer/knowledge/database-graph.json",
       "owner": "Architecture & Governance",

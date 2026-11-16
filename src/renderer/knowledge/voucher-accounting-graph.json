@@ -539,7 +539,7 @@
     {
       "functionName": "postExpenseAccrualsForOrder",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1702,
+      "lineNumber": 1740,
       "serviceModule": "init",
       "readsFromTables": ["expense_entries", "expense_heads", "supply_orders", "employees", "accounts"],
       "writesToTables": ["vouchers", "voucher_lines", "ledger_entries", "expense_entries", "audit_log"],
@@ -557,7 +557,7 @@
     {
       "functionName": "postLedgerEntry",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1324,
+      "lineNumber": 1362,
       "serviceModule": "init",
       "readsFromTables": ["ledger_entries", "accounts"],
       "writesToTables": ["ledger_entries"],
@@ -575,7 +575,7 @@
     {
       "functionName": "updateCashBankLedger",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1339,
+      "lineNumber": 1377,
       "serviceModule": "init",
       "readsFromTables": ["cash_bank_ledger"],
       "writesToTables": ["cash_bank_ledger"],
@@ -593,7 +593,7 @@
     {
       "functionName": "upsertReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1710,
+      "lineNumber": 1748,
       "serviceModule": "init",
       "readsFromTables": ["supply_orders", "receivables"],
       "writesToTables": ["receivables"],
@@ -611,7 +611,7 @@
     {
       "functionName": "refreshReceivable",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1735,
+      "lineNumber": 1773,
       "serviceModule": "init",
       "readsFromTables": ["receivables", "payment_allocations", "advance_adjustments"],
       "writesToTables": ["receivables"],
@@ -629,7 +629,7 @@
     {
       "functionName": "markPosted",
       "sourceFile": "src/main/database/init.js",
-      "lineNumber": 1422,
+      "lineNumber": 1460,
       "serviceModule": "init",
       "readsFromTables": ["vouchers"],
       "writesToTables": ["invoices", "procurements", "payments", "supplier_payments", "expense_entries"],

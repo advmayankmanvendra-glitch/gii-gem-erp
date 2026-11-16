@@ -293,6 +293,7 @@ export function initializeDatabase(root = projectRoot()) {
   ensureAccountMappingRegistry(db);
   addPhase5AccountingControls(db);
   const guards = ensureLedgerGuards(db);
+  ensureReturnReceiptLocks(db);
   const removed = [...plantedBefore, ...(guards.droppedUnexpected || [])];
   if (removed.length) {
     console.error(`Ledger check: removed ${removed.length} trigger(s) touching the accounting tables that the app did not create.`);
@@ -302,6 +303,50 @@ export function initializeDatabase(root = projectRoot()) {
   // that were already there; that start sets the baseline instead of comparing.
   recordStartupLedgerCheck(db, repairPending ? null : countedBefore);
   return db;
+}
+
+// The return-receipts record's locks, put back as the app defines them on every start (after
+// migrations and the ledger guards), so a database opened by an earlier build of 039, or a
+// restored file whose locks were dropped or altered, gets them back. Other triggers on the
+// table are removed. If the file holds a return that records the same receipt twice (only
+// possible by editing the file), the unique index is not made and the start is not stopped:
+// the rows are named in the audit log instead.
+export function ensureReturnReceiptLocks(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'stock_return_receipts'").get()) return null;
+  const indexShape = (name) => {
+    const entry = db.prepare("PRAGMA index_list(stock_return_receipts)").all().find((row) => row.name === name);
+    if (!entry) return null;
+    return { unique: Boolean(entry.unique), columns: db.prepare(`PRAGMA index_info("${name.replace(/"/g, '""')}")`).all().map((row) => row.name).join(",") };
+  };
+  const report = db.transaction(() => {
+    const found = { triggersRemoved: [], indexesRebuilt: [], duplicates: [] };
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'stock_return_receipts' AND name <> ?").all(RETURN_RECEIPTS_LOCK)
+      .forEach(({ name }) => { db.exec(`DROP TRIGGER "${name.replace(/"/g, '""')}"`); found.triggersRemoved.push(name); });
+    db.exec(`DROP TRIGGER IF EXISTS ${RETURN_RECEIPTS_LOCK};
+      CREATE TRIGGER ${RETURN_RECEIPTS_LOCK} BEFORE UPDATE ON stock_return_receipts
+      BEGIN SELECT RAISE(ABORT, 'A supplier return''s recorded receipts cannot be changed.'); END;`);
+    const indexes = [
+      { name: "idx_stock_return_receipts_return", unique: false, columns: "stock_return_id" },
+      { name: "idx_stock_return_receipts_unique", unique: true, columns: "stock_return_id,stock_ledger_id" }
+    ];
+    for (const want of indexes) {
+      const have = indexShape(want.name);
+      if (have && have.unique === want.unique && have.columns === want.columns) continue;
+      if (have) { db.exec(`DROP INDEX ${want.name}`); found.indexesRebuilt.push(want.name); }
+      if (want.unique) {
+        found.duplicates = db.prepare(`SELECT stock_return_id, stock_ledger_id, COUNT(*) copies FROM stock_return_receipts
+          GROUP BY stock_return_id, stock_ledger_id HAVING COUNT(*) > 1`).all();
+        if (found.duplicates.length) continue;
+      }
+      db.exec(`CREATE ${want.unique ? "UNIQUE " : ""}INDEX ${want.name} ON stock_return_receipts(${want.columns})`);
+    }
+    return found;
+  })();
+  if (report.triggersRemoved.length || report.indexesRebuilt.length || report.duplicates.length) {
+    console.error("Return-receipts check: the record's locks were altered in this file and have been put back.");
+    auditLog(db, { action: "stock_return_receipts_locks_restored", table_name: "stock_return_receipts", new_value: JSON.stringify(report) });
+  }
+  return report;
 }
 
 export function migrate(db) {
@@ -721,17 +766,10 @@ export function migrate(db) {
       CREATE INDEX IF NOT EXISTS idx_stock_ledger_source ON stock_ledger(source_module, source_id);
     `);
   });
-  // Made on every start, so a database opened by an earlier build of 039, or one where they
-  // were dropped, gets them back.
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_stock_return_receipts_return ON stock_return_receipts(stock_return_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_return_receipts_unique ON stock_return_receipts(stock_return_id, stock_ledger_id);
-    CREATE TRIGGER IF NOT EXISTS trg_stock_return_receipts_no_update BEFORE UPDATE ON stock_return_receipts
-    BEGIN SELECT RAISE(ABORT, 'A supplier return''s recorded receipts cannot be changed.'); END;
-  `);
 }
 
 const RETURN_RECEIPTS_MIGRATION = "039_stock_return_receipts";
+const RETURN_RECEIPTS_LOCK = "trg_stock_return_receipts_no_update";
 
 const UPGRADE_REPAIR_MIGRATION = "036_upgrade_soft_delete_and_money_backfill";
 // Migrations newer than the 036 baseline: an existing database is copied aside before any of
