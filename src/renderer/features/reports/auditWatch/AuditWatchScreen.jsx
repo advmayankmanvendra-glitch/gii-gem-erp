@@ -119,7 +119,9 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
       setReport(result);
       setOpenCheck(null);
       const total = result.summary.reduce((sum, row) => sum + row.high + row.medium + row.low, 0);
-      notify?.(total ? `Audit Watch found ${total} item${total === 1 ? "" : "s"} to look at.` : "Audit Watch found nothing to look at for this period.");
+      const unchecked = (result.results || []).reduce((sum, row) => sum + (row.notCheckedCount || 0), 0);
+      const notCheckedText = unchecked ? ` ${unchecked} item${unchecked === 1 ? " was" : "s were"} not checked; open the check to see why.` : "";
+      notify?.((total ? `Audit Watch found ${total} item${total === 1 ? "" : "s"} to look at.` : "Audit Watch found nothing to look at for this period.") + notCheckedText);
     } catch (error) {
       notify?.(`Audit Watch could not run: ${error.message}`, "error");
     } finally {
@@ -128,7 +130,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
   };
 
   const visible = useMemo(() => (report?.results || []).filter((result) => (area === "all" || result.area === area)
-    && (!onlyFindings || result.status === "findings" || result.status === "error")), [report, area, onlyFindings]);
+    && (!onlyFindings || result.status === "findings" || result.status === "error" || result.notCheckedCount > 0)), [report, area, onlyFindings]);
 
   if (problem) {
     return (

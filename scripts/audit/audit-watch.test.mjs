@@ -468,8 +468,9 @@ test("AW-I01 says when one item's quantities are too large to add up exactly, an
   // the start is still only named as not checked.
   const { db: db3, f: f3 } = fresh();
   const w3 = f3.warehouse();
-  const stocked = f3.item({ opening_stock: 9.1e9, default_warehouse_id: w3 });
-  f3.stockMove(stocked, w3, "2026-02-10", -9.2e9);
+  // Each alone is under the limit (about 9.007e9); together they pass it.
+  const stocked = f3.item({ opening_stock: 9.0e9, default_warehouse_id: w3 });
+  f3.stockMove(stocked, w3, "2026-02-10", -1e8);
   const april = m.runAuditWatch(db3, { companyId: 1, role: "admin", from: "2026-04-01", to: "2026-04-30", today: "2026-11-17", checkIds: ["AW-I01"] }).results.find((row) => row.id === "AW-I01");
   assert.equal(april.notCheckedCount, 1);
   assert.equal(april.findingCount, 0);

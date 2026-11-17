@@ -60,8 +60,8 @@ function validateFinancialReportKnownGaps(stdout) {
 // strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
 // one loop over PIPELINE that runs the commands (calls run(...)) must call
 // strictExitCode(step.name, exitCode) for each step, directly or through a top-level
-// helper; how its result is stored is up to you. run(cmd) returns the command it ran as
-// `cmd`, and the step recorded for the lock gate must carry that value (result.cmd). Keep NPM as
+// helper. run(cmd) returns the command it ran as `cmd`, and the step pushed for the lock
+// gate (directly, or through a variable) must carry that value as `cmd: result.cmd`. Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
@@ -314,7 +314,7 @@ function main() {
       ? `Missing mandatory lock checks: ${lockGate.missingBlockingSteps.join(", ")}`
       : `All mandatory lock checks executed.`,
     lockGate.commandMismatches.length
-      ? `Strict steps that did not run their expected command: ${lockGate.commandMismatches.map((s) => `${s.name} (${s.cmd})`).join(", ")}`
+      ? `Strict steps that did not run their expected command: ${lockGate.commandMismatches.map((s) => `${s.name} (${s.cmd ?? "command not recorded"})`).join(", ")}`
       : ``,
     ``,
     `## Details`,

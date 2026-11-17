@@ -375,7 +375,7 @@ export const CHECKS = [
     title: "Negative stock",
     severity: "high",
     readiness: "now",
-    version: 2,
+    version: 3,
     scope: "company",
     helpers: ["stockBalances"],
     reads: {

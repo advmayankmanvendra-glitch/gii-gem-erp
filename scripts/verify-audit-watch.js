@@ -582,15 +582,18 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     // The lock gate checks the command each strict step really ran: run(cmd) must return
     // it as `cmd` from every return, and the step recorded in the run loop must carry
     // that value (result.cmd), not re-read the step's own cmd.
-    const runFns = ast.program.body.filter((node) => node.type === "FunctionDeclaration" && node.id?.name === "run");
+    const runFns = ast.program.body.map((node) => (node.type === "ExportNamedDeclaration" ? node.declaration : node)).filter((node) => node?.type === "FunctionDeclaration" && node.id?.name === "run");
     const runFn = runFns.length === 1 ? runFns[0] : null;
     const param = runFn?.params[0]?.type === "Identifier" ? runFn.params[0].name : null;
     let returnsCmd = Boolean(param);
     let paramReassigned = false;
     let returnCount = 0;
+    // Returns of run() itself; returns inside nested functions (callbacks) belong to them.
+    const nested = [];
+    if (runFn) walk(runFn.body, (inner) => { if (/Function/.test(inner.type)) nested.push([inner.start, inner.end]); });
     if (runFn) walk(runFn.body, (inner) => {
       if (inner.type === "AssignmentExpression" && inner.left?.type === "Identifier" && inner.left.name === param) paramReassigned = true;
-      if (inner.type !== "ReturnStatement") return;
+      if (inner.type !== "ReturnStatement" || nested.some(([start, end]) => inner.start >= start && inner.end <= end)) return;
       returnCount += 1;
       const prop = inner.argument?.type === "ObjectExpression" ? inner.argument.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
       if (!(prop?.value?.type === "Identifier" && prop.value.name === param)) returnsCmd = false;
@@ -604,9 +607,13 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const resultNames = new Set();
     walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init && (callsRun(inner.init) || reaches(inner.init, callsRun))) resultNames.add(inner.id.name); });
     let recordsCmd = false;
+    // The record may be pushed directly or built in a variable first.
+    const records = new Map();
+    walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init?.type === "ObjectExpression") records.set(inner.id.name, inner.init); });
     walk(runLoops[0].body, (inner) => {
       if (inner.type !== "CallExpression" || !/MemberExpression$/.test(inner.callee?.type) || inner.callee.property?.name !== "push") return;
-      const record = inner.arguments[0];
+      const pushed = inner.arguments[0];
+      const record = pushed?.type === "Identifier" ? records.get(pushed.name) : pushed;
       const cmd = record?.type === "ObjectExpression" ? record.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
       if (cmd && /MemberExpression$/.test(cmd.value?.type) && !cmd.value.computed && resultNames.has(cmd.value.object?.name) && cmd.value.property?.name === "cmd") recordsCmd = true;
     });

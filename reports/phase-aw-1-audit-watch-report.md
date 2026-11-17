@@ -73,7 +73,7 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 |---|---|
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
-| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, and checks that verify:erp runs both Audit Watch steps and applies `strictExitCode` to them, and that their npm scripts are unchanged) |
+| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them and records the command `run()` actually ran for the lock gate, and that their npm scripts are unchanged) |
 | `node --test scripts/audit/audit-watch.test.mjs` | 82 of 82 pass (also on Electron's Node) |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
@@ -90,7 +90,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927 and a6dae56. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md` and `audit-a6dae56-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff and 6a71786. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md` and `audit-6a71786-response.md`).
 
 ## Production Readiness
 
