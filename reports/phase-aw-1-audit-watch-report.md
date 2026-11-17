@@ -83,12 +83,12 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 |---|---|
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
-| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them, runs exactly the command written in PIPELINE (the run loop calls `run(step.cmd)`, and `run()` passes it unchanged to `execSync`), and that their npm scripts are unchanged) |
+| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them, when a step runs, runs the command written in PIPELINE (the run loop calls `run(step.cmd)`, and `run()` passes it unchanged to `execSync`); the lock gate also needs each Audit Watch step's own passing summary in its output, and that their npm scripts are unchanged) |
 | `node --test scripts/audit/audit-watch.test.mjs` | 83 of 83 pass (also on Electron's Node) |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
 | `npm run test:integrity` | 304 of 304 pass, then IPC 57 of 57 |
-| `node scripts/verify-master-verification-policy.js` | 16 of 16 pass (includes the strict Audit Watch steps, whole-number exit codes and the expected strict commands) |
+| `node scripts/verify-master-verification-policy.js` | 18 of 18 pass (includes the strict Audit Watch steps, whole-number exit codes, the expected strict commands, and each strict step's own passing summary in its output) |
 | `verify:accounting`, `verify:financials`, `verify:controls`, `verify:voucher-inventory`, `verify:flow`, `verify:phase10` | All pass (exit 0), run with Electron and `--no-sandbox`, because the container runs as root |
 | `npm run verify:erp` | Lint, build and every step up to and including `verify:audit-watch` and `test:audit-watch` pass. In this container the Electron-launched steps cannot start as root without `--no-sandbox` (run separately above), and the pipeline stops at `verify:financial-reports`, which launches Electron itself and also fails on `main`. On Windows these steps launch normally. |
 
@@ -111,11 +111,11 @@ Against `docs/architecture/global-ux-governance-standard.md`:
 | App.jsx protection | One import and one view line; all logic is in `src/renderer/features/reports/auditWatch/` | Met |
 | Navigation | Reached through the central navigation (Reports > Internal Audit > Audit Watch); uses the app's back behaviour | Met |
 | Scroll/focus | Opening a check or a finding expands in place, without moving the page. Focus is not moved to the results after a run | Partly met |
-| Toolbar | One action (Run checks) after the period and area controls. There is no standard report toolbar (print, export, refresh) yet | Partly met |
-| Keyboard | No new shortcuts, and nothing can be posted from this screen. The app's Smart Enter moves between fields and, on the last field, asks "Save Record?" before running, which reads oddly on a screen that saves nothing | Met (shortcuts are safe), with a gap |
+| Toolbar | One action (Run checks), placed after the period and area controls rather than in the standard toolbar order. There is no standard report toolbar (print, export, refresh) yet | Partly met |
+| Keyboard | No new shortcuts, and nothing can be posted from this screen. The app's Smart Enter moves between the date fields, does nothing on the Area list, and on the last field asks "Save Record?" before running, which reads oddly on a screen that saves nothing | Met (shortcuts are safe), with a gap |
 | Search | No search on this screen. The sidebar search finds it by name | Not applicable |
 | Feedback | The button reads "Checking..." and is disabled while a run is in progress; errors show as a notice | Met |
-| Empty states | Before a run: how many checks the role can run and what to do. After a run: "No check found anything for this period and area" or "No checks in this area" | Met |
+| Empty states | Before a run: how many checks the role can run and what to do. After a run: "No check found anything for this period and area", with how to see every check, or "No checks in this area", with choosing another area | Met |
 | Tables | Each finding row has one details button (with aria-expanded) that opens its rows | Met |
 | Help | Help metadata KNG-RPT-026 and the KG-5 Audit Watch guide | Met |
 | AI safety | No AI. The checks are fixed SQL and only read | Met |
@@ -123,7 +123,7 @@ Against `docs/architecture/global-ux-governance-standard.md`:
 | Verification | lint, build, accounting and financial verifiers run (see Verification) | Met |
 | Report | Known limitations are listed below | Met |
 
-Known gaps: Smart Enter's "Save Record?" prompt on the last field; no report toolbar (print, export, refresh); focus stays on the form after a run. Each finding shows at most 20 supporting rows and 12 columns, and the screen now says so under the rows. The screen was checked at 390 px and desktop width by the smoke test.
+Known gaps: Smart Enter's "Save Record?" prompt on the last field; no report toolbar (print, export, refresh); focus stays on the form after a run. Each finding shows at most 20 supporting rows and 12 columns, and the screen says so under the rows (also when a finding has exactly 20). Long text in a row is cut at 300 characters without a mark. The screen was checked at 390 px and desktop width by the smoke test.
 
 ## Production Readiness
 
@@ -139,6 +139,7 @@ Known gaps: Smart Enter's "Save Record?" prompt on the last field; no report too
 - A packaged build that cannot start the worker falls back to running in the main process, still read-only. The run is then bounded by the linear checks, not by the time limit, and the screen says so. A worker that started and then failed is never re-run in the main process.
 - Bank ledgers are told apart from cash ledgers by name (AW-G09), because the banks table does not name its ledger.
 - AW-I01 adds quantities exactly in micro-units; an item and warehouse whose opening stock and movements up to the period end pass about 9 billion units is listed under the check as "not checked" (not counted as a finding) instead of being given a doubtful answer; every other pair is still checked.
+- The verifier and the lock gate guard `verify-erp.js` against accidental changes and plausible refactors, not against someone who edits it on purpose. For example, a line that sets an Audit Watch step's exit code to 0, or hand-writes its result with a made-up summary, would still let locking through. Code review is the backstop for that.
 - After the 120-second limit the worker is terminated, but a long SQLite statement cannot be interrupted, so the worker may read on for a while before it exits. The run lock is held until it exits.
 
 ## Lock Note

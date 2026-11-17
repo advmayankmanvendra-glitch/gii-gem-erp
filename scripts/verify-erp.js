@@ -60,10 +60,12 @@ function validateFinancialReportKnownGaps(stdout) {
 // strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
 // one loop over PIPELINE that runs the commands (calls run(...)) must call
 // strictExitCode(step.name, exitCode) for each step, directly or through a top-level
-// helper. run(cmd) passes its parameter unchanged to its one execSync call (options:
+// helper. execSync is the only import from child_process. run(cmd) passes its
+// parameter unchanged to its one execSync call (options:
 // cwd, encoding, timeout, maxBuffer, stdio, windowsHide), and the run loop calls run
 // exactly once, directly, as run(step.cmd) for its `const step` (a retry loop around that
-// call is fine). There is one evaluateMasterLockGate call. Keep NPM as
+// call is fine). There is one evaluateMasterLockGate call, and it also requires each
+// strict step's own passing summary in its output. Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
@@ -317,6 +319,9 @@ function main() {
       : `All mandatory lock checks executed.`,
     lockGate.commandMismatches.length
       ? `Strict steps that did not run their expected command: ${lockGate.commandMismatches.map((s) => `${s.name} (${s.cmd ?? "command not recorded"})`).join(", ")}`
+      : ``,
+    lockGate.missingProof.length
+      ? `Strict steps without their own passing summary in their output: ${lockGate.missingProof.map((s) => s.name).join(", ")}`
       : ``,
     ``,
     `## Details`,

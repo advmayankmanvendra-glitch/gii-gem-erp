@@ -1450,10 +1450,11 @@ test("verify-erp rules: the verifier refuses a verify-erp.js that could run anot
   const original = fs.readFileSync(path.join(REPO, "scripts/verify-erp.js"), "utf8");
   const pipeline = readVerifyErpPipeline(original);
   assert.ok(pipeline.some((step) => step.name === "test:audit-watch" && step.frozenStep), "the real verify-erp.js is accepted");
-  const patch = (from, to) => {
-    assert.ok(original.includes(from), `plant anchor not found: ${from}`);
-    return original.replace(from, to);
+  const edit = (text, from, to) => {
+    assert.ok(text.includes(from), `plant anchor not found: ${from}`);
+    return text.replace(from, to);
   };
+  const patch = (from, to) => edit(original, from, to);
   const RUN = "const result = run(step.cmd);";
   const EXEC = "const stdout = execSync(cmd, { cwd: ROOT, encoding: \"utf-8\", timeout: 600000 });";
   const CALLED = /run must be called exactly once, directly in the run loop/;
@@ -1464,7 +1465,7 @@ test("verify-erp rules: the verifier refuses a verify-erp.js that could run anot
     ["a second run() call", patch(RUN, `${RUN}\n    if (step.name === "test:audit-watch") run("node -e 0");`), CALLED],
     ["run aliased", patch(RUN, `const go = run;\n    ${RUN}`), CALLED],
     ["run called inside a nested function", patch(RUN, "const result = (() => run(step.cmd))();"), CALLED],
-    ["the loop variable shadowed before the call", patch("for (const step of PIPELINE) {", "for (const step of PIPELINE) {\n    { }").replace(RUN, "const result = ((step) => run(step.cmd))({ cmd: \"node -e 0\" });"), CALLED],
+    ["the loop variable shadowed before the call", patch(RUN, "const result = ((step) => run(step.cmd))({ cmd: \"node -e 0\" });"), CALLED],
     ["command swapped inside run()", patch(EXEC, EXEC.replace("execSync(cmd,", 'execSync(cmd.includes("audit-watch") ? "node -e 0" : cmd,')), RUN_FN],
     ["run() parameter reassigned", patch("  const start = Date.now();\n  try {", '  const start = Date.now();\n  if (cmd.includes("audit-watch")) cmd = "node -e 0";\n  try {'), RUN_FN],
     ["a shell option", patch(EXEC, EXEC.replace("timeout: 600000", 'timeout: 600000, shell: "/bin/true"')), RUN_FN],
@@ -1473,6 +1474,13 @@ test("verify-erp rules: the verifier refuses a verify-erp.js that could run anot
     ["run redefined", patch(RUN, `${RUN}\n    void function run() {};`), /run must be declared once|run must be called exactly once/],
     ["a decoy evaluateMasterLockGate call", patch("function main() {", "function unused() { return evaluateMasterLockGate([], \"\"); }\nfunction main() {"), /exactly one evaluateMasterLockGate call/],
     ["strictExitCode removed", patch("result.exitCode = strictExitCode(step.name, result.exitCode);", ""), /does not apply strictExitCode/],
+    ["the loop variable declared with let and reassigned", edit(patch("for (const step of PIPELINE) {", "for (let step of PIPELINE) {"), RUN, `step = { ...step, cmd: "node -e 0" };\n    ${RUN}`), CALLED],
+    ["a block-scoped step around the call", patch(RUN, `let result;\n    { const step = { cmd: "node -e 0" }; result = run(step.cmd); }`), CALLED],
+    ["a second execSync after the real one", patch("    return { cmd, exitCode: 0, stdout,", '    execSync("node -e 0");\n    return { cmd, exitCode: 0, stdout,'), RUN_FN],
+    ["an indexed loop whose index moves in the body", edit(patch("for (const step of PIPELINE) {", "for (let i = 0; i < PIPELINE.length; i += 1) {\n    const step = PIPELINE[i];"), RUN, "i += 0;\n    const result = run(PIPELINE[i].cmd);"), CALLED],
+    ["strictExitCode given a literal exit code", patch("result.exitCode = strictExitCode(step.name, result.exitCode);", "result.exitCode = strictExitCode(step.name, 0);"), /does not apply strictExitCode/],
+    ["Object.freeze replaced", patch("function main() {", "Object.freeze = (value) => value;\nfunction main() {"), /Object is redefined or changed/],
+    ["execSync shadowed inside run()", patch("  const start = Date.now();\n  try {", '  const start = Date.now();\n  const execSync = () => "";\n  try {'), /execSync must be the only import/],
     ["PIPELINE not frozen", patch("const PIPELINE = Object.freeze([", "const PIPELINE = (["), /PIPELINE must be Object.freeze/],
     ["PIPELINE declared with let", patch("const PIPELINE = Object.freeze([", "let PIPELINE = Object.freeze(["), /PIPELINE must be declared once, at top level, with const/],
     ["Object redefined", patch("const PIPELINE = Object.freeze([", "const Object = { freeze: (value) => value };\nconst PIPELINE = Object.freeze(["), /Object is redefined or changed/],
@@ -1487,9 +1495,13 @@ test("verify-erp rules: the verifier refuses a verify-erp.js that could run anot
   }
   // Ordinary refactors stay accepted.
   const accepted = {
-    "record built in a const first": patch("    steps.push({", "    const record = {").replace("      warningDetail,\n    });", "      warningDetail,\n    };\n    steps.push(record);"),
+    "record built in a const first": edit(patch("    steps.push({", "    const record = {"), "      warningDetail,\n    });", "      warningDetail,\n    };\n    steps.push(record);"),
     "unrelated inner const named record or result": patch(RUN, `${RUN}\n    if (process.env.VERBOSE) { const record = { cmd: step.cmd }; const result = record; console.log(result); }`),
     "export function run": patch("function run(", "export function run("),
+    "a callback parameter named step in the loop": patch(RUN, `${RUN}\n    void PIPELINE.map((step) => step.name);`),
+    "destructured cmd": edit(patch("for (const step of PIPELINE) {", "for (const { cmd, ...step } of PIPELINE) {"), RUN, "const result = run(cmd);"),
+    "an entries() loop": edit(patch("for (const step of PIPELINE) {", "for (const [index, step] of PIPELINE.entries()) {\n    void index;"), RUN, RUN),
+    "an indexed loop": edit(patch("for (const step of PIPELINE) {", "for (let i = 0; i < PIPELINE.length; i += 1) {\n    const step = PIPELINE[i];"), RUN, "const result = run(PIPELINE[i].cmd);"),
     "loops and copies over the steps array": patch("  const lockGate = evaluateMasterLockGate(steps, workingTreeStatus);", "  for (const s of steps) void s;\n  void JSON.stringify([...steps]);\n  const lockGate = evaluateMasterLockGate(steps, workingTreeStatus);"),
     "the run result destructured or logged": patch(RUN, `${RUN}\n    const { duration } = result;\n    console.log(duration, result);`),
     "a retry loop inside the run loop": patch(RUN, "let result;\n    for (let attempt = 0; attempt < 2; attempt += 1) { result = run(step.cmd); if (result.exitCode === 0) break; }")

@@ -15,7 +15,8 @@ function check(name, condition) {
 }
 
 function passingBlockingSteps() {
-  return [...LOCK_BLOCKING_STEPS].map((name) => ({ name, exitCode: 0, ...(STRICT_STEPS.has(name) ? { cmd: `npm run ${name}:electron` } : {}) }));
+  const proof = { "test:audit-watch": "1..83\n# tests 83\n# pass 83\n# fail 0\n", "verify:audit-watch": "Audit Watch: 43 passed, 0 warnings, 0 failed\n" };
+  return [...LOCK_BLOCKING_STEPS].map((name) => ({ name, exitCode: 0, ...(STRICT_STEPS.has(name) ? { cmd: `npm run ${name}:electron`, stdout: proof[name] } : {}) }));
 }
 
 check("FSR-2B.2B is a mandatory lock-blocking verification", LOCK_BLOCKING_STEPS.has("verify:fsr2b2b"));
@@ -65,5 +66,11 @@ check("A strict step that ran another command blocks locking", !swapped.safeToLo
 const windowsCommand = evaluateMasterLockGate(passingBlockingSteps().map((step) => STRICT_STEPS.has(step.name) ? { ...step, cmd: `npm.cmd run ${step.name}:electron` } : step), "");
 check("The Windows npm.cmd command is accepted", windowsCommand.safeToLock);
 
+check("Every passing fixture step is safe to lock", evaluateMasterLockGate(passingBlockingSteps(), "").safeToLock);
+const proofCases = [["test:audit-watch", ""], ["test:audit-watch", "# pass 0\n# fail 0\n"], ["test:audit-watch", "# pass 83\n# fail 1\n"], ["verify:audit-watch", "Audit Watch: 43 passed, 1 warnings, 0 failed"], ["verify:audit-watch", "dry run"]];
+check("A strict step without its own passing summary blocks locking", proofCases.every(([name, stdout]) => {
+  const gate = evaluateMasterLockGate(passingBlockingSteps().map((step) => step.name === name ? { ...step, stdout } : step), "");
+  return !gate.safeToLock && gate.missingProof.some((step) => step.name === name);
+}));
 console.log(JSON.stringify({ passed, failed, total: passed + failed }, null, 2));
 process.exit(failed > 0 ? 1 : 0);

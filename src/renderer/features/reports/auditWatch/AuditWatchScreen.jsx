@@ -199,7 +199,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
                 {openCheck === result.id ? <CheckDetail result={result} /> : null}
               </article>
             ))}
-            {!visible.length ? <p>{onlyFindings ? "No check found anything for this period and area." : "No checks in this area."}</p> : null}
+            {!visible.length ? <p>{onlyFindings ? "No check found anything for this period and area. Untick \"Only checks with something to look at\" to see every check." : "No checks in this area. Choose another area or All areas."}</p> : null}
           </div>
         </>
       ) : (

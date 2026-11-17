@@ -202,22 +202,40 @@ export function readVerifyErpPipeline(code) {
   });
   if (runBindings !== 1 || writesName(ast.program, "run")) throw new Error("run must be declared once, as the top-level function, and never redefined");
   let stepName = null;
+  let cmdName = null;
   let indexName = null;
   if (loop.type === "ForOfStatement" && loop.left?.type === "VariableDeclaration" && loop.left.kind === "const") {
     const id = loop.left.declarations[0]?.id;
-    if (id?.type === "Identifier" && isPipeline(loop.right)) stepName = id.name;
-    if (id?.type === "ArrayPattern" && id.elements[1]?.type === "Identifier" && !isPipeline(loop.right)) stepName = id.elements[1].name;
+    const element = id?.type === "ArrayPattern" && !isPipeline(loop.right) ? id.elements[1] : (isPipeline(loop.right) ? id : null);
+    if (element?.type === "Identifier") stepName = element.name;
+    // for (const { cmd } of PIPELINE): run(cmd), with no default value.
+    const cmdProp = element?.type === "ObjectPattern" ? element.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
+    if (cmdProp?.value?.type === "Identifier") cmdName = cmdProp.value.name;
   }
   if (loop.type === "ForStatement" && loop.init?.type === "VariableDeclaration" && loop.init.declarations[0]?.id?.type === "Identifier") indexName = loop.init.declarations[0].id.name;
   const call = runUses[0];
+  // A name declared again in the loop body, outside any nested function (the call cannot be
+  // inside one), could stand between the loop's variable and the call.
+  const rebound = (name) => {
+    let found = false;
+    withAncestors(loop.body, [], (node, ancestors) => {
+      if (ancestors.some((item) => /Function/.test(item.type))) return;
+      const bound = (target) => walk(target, (part) => { if (isIdentifierNamed(part, name)) found = true; });
+      if (node.type === "VariableDeclarator") bound(node.id);
+      if (node.type === "CatchClause" && node.param) bound(node.param);
+      if (/^(FunctionDeclaration|ClassDeclaration)$/.test(node.type) && isIdentifierNamed(node.id, name)) found = true;
+    });
+    return found;
+  };
   const arg = call?.type === "CallExpression" && call.arguments.length === 1 ? call.arguments[0] : null;
-  const argOk = /MemberExpression$/.test(arg?.type) && !arg.computed && arg.property?.name === "cmd"
-    && ((stepName && isIdentifierNamed(arg.object, stepName) && !bindsName(loop.body, stepName))
-      || (indexName && /MemberExpression$/.test(arg.object?.type) && arg.object.computed && isPipeline(arg.object.object) && isIdentifierNamed(arg.object.property, indexName) && !writesName(loop.body, indexName) && !bindsName(loop.body, indexName)));
+  const argOk = (cmdName && isIdentifierNamed(arg, cmdName) && !rebound(cmdName) && !writesName(loop.body, cmdName))
+    || (/MemberExpression$/.test(arg?.type) && !arg.computed && arg.property?.name === "cmd"
+      && ((stepName && isIdentifierNamed(arg.object, stepName) && !rebound(stepName) && !writesName(loop.body, stepName))
+        || (indexName && /MemberExpression$/.test(arg.object?.type) && arg.object.computed && isPipeline(arg.object.object) && isIdentifierNamed(arg.object.property, indexName) && !writesName(loop.body, indexName) && !rebound(indexName))));
   let callInFunction = false;
   if (call) withAncestors(loop.body, [], (node, ancestors) => { if (node === call && ancestors.some((item) => /Function/.test(item.type))) callInFunction = true; });
   if (runUses.length !== 1 || !argOk || call.start < loop.body.start || call.end > loop.body.end || callInFunction) {
-    throw new Error("run must be called exactly once, directly in the run loop, as run(step.cmd) for the loop's const step (or run(PIPELINE[i].cmd) in an indexed loop)");
+    throw new Error("run must be called exactly once, directly in the run loop, as run(step.cmd) for the loop's const step (or run(cmd) for `const { cmd }`, or run(PIPELINE[i].cmd) in an indexed loop)");
   }
   // 4. The lock gate reads the array from one evaluateMasterLockGate call.
   const gateCalls = [];
