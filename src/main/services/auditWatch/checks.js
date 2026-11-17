@@ -754,8 +754,8 @@ export const CHECK_FUNCTIONS = {
     const startOf = (pairKey) => openingOf(pairKey) + (before.get(pairKey) || 0);
     // Micro-unit sums are exact while every balance stays under 2^53 micro-units (about 9
     // billion units). A pair whose opening stock and movements up to the period end add up
-    // to more than that could add up two ways, so it gets one plain "too large to check"
-    // finding of its own and is left out of the walk; every other pair is checked as usual.
+    // to more than that could add up two ways, so it is named as not checked (shown under
+    // the check, not counted as a finding) and left out; every other pair is checked.
     const LIMIT = Math.floor(Number.MAX_SAFE_INTEGER / 1000000);
     const tooLarge = new Set([...pairKeys].filter((pairKey) => Math.abs(balances.opening(...pairOf(pairKey)) || 0) + (movedTotal.get(pairKey) || 0) >= LIMIT));
     for (const pairKey of tooLarge) pairKeys.delete(pairKey);
@@ -858,20 +858,13 @@ export const CHECK_FUNCTIONS = {
       };
       return { item: names.items.get(Number(itemId)), warehouse: names.warehouses.get(Number(warehouseId)) };
     };
-    const oversized = [...tooLarge].map((pairKey) => {
+    // Pairs too large to add up exactly are not findings: they are named as not checked.
+    for (const pairKey of tooLarge) {
       const [itemId, warehouseId] = pairOf(pairKey);
       const label = nameOf(itemId, warehouseId);
-      return {
-        key: `AW-I01:${itemId}-${warehouseId}`,
-        fingerprint: "too-large",
-        summary: `${label.item || "Item"} in ${label.warehouse || "warehouse"}: more than ${LIMIT.toLocaleString("en-IN")} units moved up to ${to}, too large for this check to add up exactly. Check this item's quantities.`,
-        date: from,
-        amountMinor: 0,
-        refs: [{ table: "items", id: itemId }],
-        evidence: [{ item_id: itemId, warehouse_id: warehouseId, too_large_to_check: true, units_moved_to_period_end: movedTotal.get(pairKey) || 0, period_end: to }]
-      };
-    });
-    return [...oversized, ...found.map(({ pairKey, latest, startStretch, stretches }) => {
+      deps.notChecked?.(`${label.item || `Item ${itemId}`} in ${label.warehouse || `warehouse ${warehouseId}`}: its opening stock and the quantities moved up to ${to} add up to more than ${LIMIT.toLocaleString("en-IN")} units, too many for this check to add up exactly.`);
+    }
+    return found.map(({ pairKey, latest, startStretch, stretches }) => {
       const [itemId, warehouseId] = pairOf(pairKey);
       const label = nameOf(itemId, warehouseId);
       const where = `${label.item || "Item"} in ${label.warehouse || "warehouse"}`;
@@ -898,7 +891,7 @@ export const CHECK_FUNCTIONS = {
         refs: [{ table: "items", id: itemId }, ...(latest.rowId ? [{ table: "stock_ledger", id: latest.rowId }] : []), ...rowIds.map((id) => ({ table: "stock_ledger", id }))],
         evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: shown(startOf(pairKey)), period_start: from, below_zero_since: latest.since, fell_to: shown(latest.fellTo), lowest: shown(latest.lowest), lowest_on: latest.lowestOn, recovered_on: latest.recoveredOn || null, stretches_in_period: stretches, ledger_rows: rowIds }]
       };
-    })];
+    });
   },
 
   "AW-I02"(q, { companyId, today, limits, deps }) {

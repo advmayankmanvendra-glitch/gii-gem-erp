@@ -453,13 +453,27 @@ test("AW-I01 says when one item's quantities are too large to add up exactly, an
   const later = f.item();
   for (let i = 0; i < 20; i += 1) f.stockMove(later, w, "2027-06-10", i % 2 ? -5e8 : 5e8);
   const march = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" });
-  const big = march.find((row) => row.key === `AW-I01:${huge}-${w}`);
-  assert.match(big.summary, /too large for this check to add up exactly/);
-  assert.equal(big.fingerprint, "too-large");
+  // The oversized item is not a finding: it is named as not checked, under the check.
+  assert.ok(!march.some((row) => row.key === `AW-I01:${huge}-${w}`));
+  const run = m.runAuditWatch(db, { companyId: 1, role: "admin", from: "2026-03-01", to: "2026-03-31", today: "2026-11-17", checkIds: ["AW-I01"] });
+  const result = run.results.find((row) => row.id === "AW-I01");
+  assert.equal(result.notCheckedCount, 1);
+  assert.match(result.notChecked[0], /too many for this check to add up exactly/);
+  assert.equal(result.findingCount, 1);
   assert.ok(march.some((row) => row.key === `AW-I01:${short}-${w}`), "the other item's shortfall is still reported");
   assert.ok(!march.some((row) => row.key === `AW-I01:${later}-${w}`));
   const earlier = findings(m, db, "AW-I01", { from: "2026-01-01", to: "2026-01-31" });
   assert.ok(!earlier.some((row) => row.key === `AW-I01:${huge}-${w}`), "below the limit up to January's end, and never below zero");
+  // Opening stock counts towards the limit, and an oversized item already below zero at
+  // the start is still only named as not checked.
+  const { db: db3, f: f3 } = fresh();
+  const w3 = f3.warehouse();
+  const stocked = f3.item({ opening_stock: 9.1e9, default_warehouse_id: w3 });
+  f3.stockMove(stocked, w3, "2026-02-10", -9.2e9);
+  const april = m.runAuditWatch(db3, { companyId: 1, role: "admin", from: "2026-04-01", to: "2026-04-30", today: "2026-11-17", checkIds: ["AW-I01"] }).results.find((row) => row.id === "AW-I01");
+  assert.equal(april.notCheckedCount, 1);
+  assert.equal(april.findingCount, 0);
+  assert.equal(april.status, "clear");
   // Below the limit, many large rows still keep one fingerprint in every period.
   const { db: db2, f: f2 } = fresh();
   const w2 = f2.warehouse();

@@ -60,7 +60,8 @@ function validateFinancialReportKnownGaps(stdout) {
 // strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
 // one loop over PIPELINE that runs the commands (calls run(...)) must call
 // strictExitCode(step.name, exitCode) for each step, directly or through a top-level
-// helper; how its result is stored is up to you. Keep NPM as
+// helper; how its result is stored is up to you. run(cmd) returns the command it ran as
+// `cmd`, and the step recorded for the lock gate must carry that value (result.cmd). Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
@@ -117,10 +118,11 @@ function run(cmd) {
   const start = Date.now();
   try {
     const stdout = execSync(cmd, { cwd: ROOT, encoding: "utf-8", timeout: 600000 });
-    return { exitCode: 0, stdout, stderr: "", duration: Date.now() - start };
+    return { cmd, exitCode: 0, stdout, stderr: "", duration: Date.now() - start };
   } catch (e) {
     const exitCode = e.status != null ? e.status : 3;
     return {
+      cmd,
       exitCode,
       stdout: e.stdout || "",
       stderr: e.stderr || e.message,
@@ -181,7 +183,7 @@ function main() {
 
     steps.push({
       name: step.name,
-      cmd: step.cmd,
+      cmd: result.cmd, // the command run() actually ran, which the lock gate checks
       exitCode: result.exitCode,
       label,
       durationMs: result.duration,

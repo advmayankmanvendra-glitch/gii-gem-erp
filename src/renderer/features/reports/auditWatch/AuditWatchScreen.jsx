@@ -44,6 +44,12 @@ function CheckDetail({ result }) {
       <p><strong>What to do.</strong> {result.nextStep}</p>
       {result.status === "error" ? <p className="audit-watch-error">This check could not run: {result.error}</p> : null}
       {result.status === "waiting" ? <p className="muted">{result.note}</p> : null}
+      {result.notChecked?.length ? (
+        <div className="muted">
+          <p>Not checked ({result.notCheckedCount}):</p>
+          <ul>{result.notChecked.map((text, index) => <li key={index}>{text}</li>)}</ul>
+        </div>
+      ) : null}
       {result.findings?.length ? (
         <div className="table-wrap">
           <table>
@@ -183,6 +189,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
                   <span className="audit-watch-check-title">{result.id} {result.title}{result.scope === "installation" ? <span className="audit-watch-scope"> (all companies on this computer)</span> : null}</span>
                   <span className="audit-watch-check-status">
                     {result.status === "findings" ? `${result.findingCount} to look at` : STATUS_LABEL[result.status]}
+                    {result.notCheckedCount ? `, ${result.notCheckedCount} not checked` : ""}
                   </span>
                 </button>
                 {openCheck === result.id ? <CheckDetail result={result} /> : null}

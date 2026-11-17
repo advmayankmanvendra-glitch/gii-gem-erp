@@ -157,7 +157,10 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
       try {
         // Every pair's balance in one pass, read once per run and shared by I01 and I02,
         // through the check's own query helper (read-only, and traced in tests).
-        const checkDeps = { ...deps, stockBalances: (company) => (balanceCache.get(company) ?? balanceCache.set(company, stockBalances(q, company)).get(company)) };
+        // A check may name things it could not check (notChecked): they are shown under the
+        // check, not counted as findings.
+        const notChecked = [];
+        const checkDeps = { ...deps, notChecked: (text) => notChecked.push(String(text).slice(0, 300)), stockBalances: (company) => (balanceCache.get(company) ?? balanceCache.set(company, stockBalances(q, company)).get(company)) };
         const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, now, limits, deps: checkDeps })
           .map(boundFinding);
         all.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(a.key).localeCompare(String(b.key)));
@@ -168,6 +171,7 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
           findingCount: all.length,
           truncated: all.length > MAX_FINDINGS_PER_CHECK,
           findings: all.slice(0, MAX_FINDINGS_PER_CHECK),
+          ...(notChecked.length ? { notChecked: notChecked.slice(0, 20), notCheckedCount: notChecked.length } : {}),
           ms: Date.now() - checkStarted
         };
       } catch (error) {

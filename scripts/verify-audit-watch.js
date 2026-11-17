@@ -518,7 +518,7 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     // strictExitCode(step.name, code): two arguments, the first the step's name (step.name,
     // or a variable such as a destructured name), never a literal.
     const nameArg = (arg) => (/MemberExpression$/.test(arg?.type) && !arg.computed && arg.property?.name === "name") || arg?.type === "Identifier";
-    const isStrictCall = (node) => node.type === "CallExpression" && node.arguments.length === 2 && nameArg(node.arguments[0]) && node.arguments[1]?.type !== "SpreadElement"
+    const isStrictCall = (node) => node.type === "CallExpression" && node.arguments.length === 2 && nameArg(node.arguments[0]) && node.arguments[1] && node.arguments[1].type !== "SpreadElement" && !/Literal$/.test(node.arguments[1].type)
       && ((directImport && node.callee?.type === "Identifier" && node.callee.name === "strictExitCode")
         || (/MemberExpression$/.test(node.callee?.type) && !node.callee.computed && namespaces.has(node.callee.object?.name) && node.callee.property?.name === "strictExitCode"));
     // Top-level functions, so a strictExitCode call inside a helper the loop calls counts.
@@ -559,12 +559,58 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const callsRun = (inner) => inner.type === "CallExpression" && inner.callee?.type === "Identifier" && inner.callee.name === "run";
     const runLoops = [];
     walk(ast.program, (node) => { if (["ForOfStatement", "ForStatement"].includes(node.type) && reaches(node.body, callsRun)) runLoops.push(node); });
-    // A loop inside the run loop (a retry, say) is part of it, not a second run loop.
-    const outerRunLoops = runLoops.filter((loop) => !runLoops.some((other) => other !== loop && other.start <= loop.start && loop.end <= other.end));
+    // A loop inside the run loop (a retry, say), or inside a top-level helper the run loop
+    // calls, is part of it, not a second run loop.
+    const calledFrom = (body) => {
+      const names = new Set();
+      const visit = (node) => walk(node, (inner) => {
+        if (inner.type === "CallExpression" && inner.callee?.type === "Identifier" && functions.has(inner.callee.name) && !names.has(inner.callee.name)) {
+          names.add(inner.callee.name);
+          visit(functions.get(inner.callee.name).body);
+        }
+      });
+      visit(body);
+      return [...names].map((name) => functions.get(name));
+    };
+    const outerRunLoops = runLoops.filter((loop) => !runLoops.some((other) => other !== loop
+      && ((other.start <= loop.start && loop.end <= other.end)
+        || calledFrom(other.body).some((fn) => fn.start <= loop.start && loop.end <= fn.end))));
     runLoops.length = 0;
     runLoops.push(...outerRunLoops);
     if (runLoops.length !== 1 || !overPipeline(runLoops[0])) throw new Error(`the commands must be run by exactly one loop over PIPELINE (found ${runLoops.length} loop(s) that call run(), ${runLoops.filter(overPipeline).length} over PIPELINE)`);
     if (!reaches(runLoops[0].body, isStrictCall)) throw new Error("the loop that runs PIPELINE does not apply strictExitCode(step.name, exitCode) to each step's exit code");
+    // The lock gate checks the command each strict step really ran: run(cmd) must return
+    // it as `cmd` from every return, and the step recorded in the run loop must carry
+    // that value (result.cmd), not re-read the step's own cmd.
+    const runFns = ast.program.body.filter((node) => node.type === "FunctionDeclaration" && node.id?.name === "run");
+    const runFn = runFns.length === 1 ? runFns[0] : null;
+    const param = runFn?.params[0]?.type === "Identifier" ? runFn.params[0].name : null;
+    let returnsCmd = Boolean(param);
+    let paramReassigned = false;
+    let returnCount = 0;
+    if (runFn) walk(runFn.body, (inner) => {
+      if (inner.type === "AssignmentExpression" && inner.left?.type === "Identifier" && inner.left.name === param) paramReassigned = true;
+      if (inner.type !== "ReturnStatement") return;
+      returnCount += 1;
+      const prop = inner.argument?.type === "ObjectExpression" ? inner.argument.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
+      if (!(prop?.value?.type === "Identifier" && prop.value.name === param)) returnsCmd = false;
+    });
+    let runRedefined = false;
+    walk(ast.program, (node) => {
+      if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && node.left.name === "run") runRedefined = true;
+      if (node.type === "VariableDeclarator" && node.id?.name === "run") runRedefined = true;
+    });
+    if (!runFn || !returnsCmd || returnCount === 0 || paramReassigned || runRedefined) throw new Error("run(cmd) must be one top-level function that returns { cmd, ... } (the command it ran) from every return");
+    const resultNames = new Set();
+    walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init && (callsRun(inner.init) || reaches(inner.init, callsRun))) resultNames.add(inner.id.name); });
+    let recordsCmd = false;
+    walk(runLoops[0].body, (inner) => {
+      if (inner.type !== "CallExpression" || !/MemberExpression$/.test(inner.callee?.type) || inner.callee.property?.name !== "push") return;
+      const record = inner.arguments[0];
+      const cmd = record?.type === "ObjectExpression" ? record.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
+      if (cmd && /MemberExpression$/.test(cmd.value?.type) && !cmd.value.computed && resultNames.has(cmd.value.object?.name) && cmd.value.property?.name === "cmd") recordsCmd = true;
+    });
+    if (!recordsCmd) throw new Error("the run loop must record each step with cmd: <run result>.cmd, the command run() actually ran");
     // The npm launcher: a top-level const, never reassigned, whose value is a conditional
     // giving "npm.cmd" or "npm" (the test itself, quotes, layout and its name do not
     // matter). Only such a name reads as "npm" inside a step's command.
