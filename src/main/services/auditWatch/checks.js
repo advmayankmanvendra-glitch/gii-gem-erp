@@ -761,7 +761,14 @@ export const CHECK_FUNCTIONS = {
       if (balance < -0.0001) {
         // The day it went below zero is found below, so the fingerprint does not move
         // with the period chosen.
-        belowAtStart.push({ itemId, warehouseId, pairKey, balance, label });
+        // The period's lowest point is shown too, so a further fall is not hidden.
+        let running = balance;
+        let lowest = { balance, date: null };
+        for (const [date, dayRows] of groupBy(rows, (row) => row.transaction_date)) {
+          running += dayRows.reduce((sum, row) => sum + Number(row.change), 0);
+          if (running < lowest.balance - 0.0001) lowest = { balance: running, date };
+        }
+        belowAtStart.push({ itemId, warehouseId, pairKey, balance, lowest, label });
         continue;
       }
       // Movements on one day are netted: stock received later the same day is not a gap.
@@ -798,21 +805,25 @@ export const CHECK_FUNCTIONS = {
         let running = pair.balance - days.reduce((sum, row) => sum + Number(row.change), 0);
         let since = running < -0.0001 ? null : undefined;
         let sinceRow = null;
+        // The balance right after it went below zero: past history, so the fingerprint is
+        // the same whatever period is chosen, and equals the "fell to" finding of the
+        // period that saw the fall.
+        let fellTo = running;
         for (const day of days) {
           const wasBelow = running < -0.0001;
           running += Number(day.change);
-          if (!wasBelow && running < -0.0001) { since = day.transaction_date; sinceRow = day.last_id; }
+          if (!wasBelow && running < -0.0001) { since = day.transaction_date; sinceRow = day.last_id; fellTo = running; }
         }
         const round = (value) => Math.round(value * 1000) / 1000;
         const sinceText = since ? `below zero since ${since}` : "below zero from its opening stock";
         findings.push({
           key: `AW-I01:${pair.itemId}-${pair.warehouseId}`,
-          fingerprint: `${since || "opening"}|${Math.round(pair.balance * 1000)}`,
-          summary: `${pair.label.item || "Item"} in ${pair.label.warehouse || "warehouse"} was at ${round(pair.balance)} when the period began on ${from} (${sinceText})`,
+          fingerprint: `${since || "opening"}|${Math.round(fellTo * 1000)}`,
+          summary: `${pair.label.item || "Item"} in ${pair.label.warehouse || "warehouse"} was at ${round(pair.balance)} when the period began on ${from} (${sinceText})${pair.lowest.date ? `; lowest ${round(pair.lowest.balance)} on ${pair.lowest.date}` : ""}`,
           date: from,
           amountMinor: 0,
           refs: [{ table: "items", id: pair.itemId }, ...(sinceRow ? [{ table: "stock_ledger", id: sinceRow }] : [])],
-          evidence: [{ item_id: pair.itemId, warehouse_id: pair.warehouseId, balance_at_start: pair.balance, period_start: from, below_zero_since: since || null }]
+          evidence: [{ item_id: pair.itemId, warehouse_id: pair.warehouseId, balance_at_start: pair.balance, period_start: from, below_zero_since: since || null, lowest_in_period: pair.lowest.balance, lowest_on: pair.lowest.date }]
         });
       }
     }

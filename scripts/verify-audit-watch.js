@@ -54,6 +54,9 @@ const { CHECKS, AREAS, SEVERITIES, READINESS, AREA_VISIBILITY } = catalogue;
 
 let passed = 0;
 let failed = 0;
+// Fail closed: only the summary at the end can set a passing exit code, so a verifier
+// that stops part-way never reads as a pass.
+process.exitCode = 1;
 let warnings = 0;
 function check(name, ok, detail = "") {
   if (ok) passed += 1; else failed += 1;
@@ -103,7 +106,7 @@ const ag1 = JSON.parse(read("src/renderer/knowledge/audit-graph.json"));
 check("AG-1 has a detectiveControls section", Boolean(ag1.detectiveControls));
 {
   const { default: Ajv } = await import("ajv");
-  const validate = new Ajv({ allErrors: true, strict: false }).compile(JSON.parse(read("repository/schema/audit-graph.schema.json")));
+  const validate = new Ajv({ allErrors: true, strict: false, validateFormats: false }).compile(JSON.parse(read("repository/schema/audit-graph.schema.json")));
   const valid = validate(ag1);
   check("AG-1 validates against its schema", valid, valid ? "repository/schema/audit-graph.schema.json" : (validate.errors || []).slice(0, 5).map((error) => `${error.instancePath || "/"} ${error.message}`).join("; "));
 }
@@ -206,20 +209,39 @@ const registryDrift = (graphRegistry.graphs || []).filter((entry) => ["AG-1", "K
   .map((entry) => `${entry.graphId}: registry ${entry.schemaVersion}, schema ${JSON.parse(read(entry.schema)).schemaVersion}`);
 check("Graph registry schema versions match the AG-1 and KG-5 schema files", registryDrift.length === 0, registryDrift.join("; "));
 
+// Source read through a real parser (@babel/parser), so comments and strings are told
+// apart from code: `codeOf` blanks out comments, `nameCount` counts identifiers, and
+// `stringCount` counts string literals (import paths) that contain a word.
+const { parse: babelParse } = await import("@babel/parser");
+const parsed = new Map();
+function parsedFile(rel) {
+  if (!parsed.has(rel)) {
+    const text = read(rel);
+    const ast = babelParse(text, { sourceType: "module", plugins: ["jsx", "topLevelAwait"], tokens: true, errorRecovery: true, allowReturnOutsideFunction: true });
+    let code = text;
+    for (const comment of ast.comments || []) code = code.slice(0, comment.start) + " ".repeat(comment.end - comment.start) + code.slice(comment.end);
+    parsed.set(rel, { ast, code });
+  }
+  return parsed.get(rel);
+}
+const codeOf = (rel) => parsedFile(rel).code;
+const nameCount = (rel, word) => parsedFile(rel).ast.tokens.filter((token) => token.type?.label === "name" && token.value === word).length;
+const stringCount = (rel, word) => parsedFile(rel).ast.tokens.filter((token) => ["string", "template"].includes(token.type?.label) && String(token.value).includes(word)).length;
+
 // One way in: main-process code runs Audit Watch through the runner (worker thread),
 // never by calling runAuditWatch directly, so a later caller cannot block the app.
 const allowedCallers = new Set(["src/main/main.js", "src/main/database/init.js", "src/main/services/auditWatch/auditWatchWorker.js", "src/main/services/auditWatch/auditWatchService.js"]);
-const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /\brunAuditWatch\b/.test(read(rel)))
+const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /\brunAuditWatch\b/.test(codeOf(rel)))
   // The check functions are run only by the service; the worker file only by the runner;
   // and the runner is never imported under another name.
-  || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(read(rel)))
-  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(read(rel)))
-  || /\bcreateAuditWatchRunner\s*(?:as\b|:)/.test(read(rel))
+  || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(codeOf(rel)))
+  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(codeOf(rel)))
+  || /\bcreateAuditWatchRunner\s*(?:as\b|:)/.test(codeOf(rel))
   // No renamed import or destructuring of runAuditWatch anywhere, main.js included.
-  || /\brunAuditWatch\s*(?:as\b|:)/.test(read(rel)));
-const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
+  || /\brunAuditWatch\s*(?:as\b|:)/.test(codeOf(rel)));
+const mainCalls = [...codeOf("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
 // One runner, so its lock (which restore and reset also wait on) sees every run.
-const runnerMakers = sourceFiles.flatMap((rel) => [...read(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
+const runnerMakers = sourceFiles.flatMap((rel) => [...codeOf(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
   .filter((rel) => rel !== "src/main/services/auditWatch/auditWatchRunner.js");
 check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && mainCalls === 1 && runnerMakers.length === 1 && runnerMakers[0] === "src/main/main.js",
   directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : runnerMakers.length !== 1 ? `one runner only, in main.js; found in: ${runnerMakers.join(", ") || "nowhere"}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
@@ -270,9 +292,9 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
 
 // ---- Exact wiring: who may name the service, the runner and runAuditWatch, and how often ----
 {
-  // Comments are left out, so a comment naming these does not count as a use.
-  const code = (rel) => read(rel).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
-  const tokens = (rel, word) => [...code(rel).matchAll(new RegExp(`\\b${word}\\b`, "g"))].length;
+  // Identifiers for the functions, string literals (import paths) for the modules;
+  // comments never count.
+  const tokens = (rel, word) => (/^create|^run/.test(word) ? nameCount(rel, word) : nameCount(rel, word) + stringCount(rel, word));
   const expected = {
     // file: { token: exact count } — anything else in src/main naming these fails.
     "src/main/main.js": { runAuditWatch: 2, createAuditWatchRunner: 2, auditWatchRunner: null, createAuditWatchService: 0, auditWatchService: 0 },
@@ -293,34 +315,58 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
 // ---- stockBalances.js restates stockBalance's rules: pin the original's source ----
 // The whole of inventoryService.js is pinned, not just stockBalance, because the rules
 // can move into helpers or constants that stockBalance calls. Only whitespace is ignored.
+// The message says whether stockBalance itself changed and how to see the change.
 {
-  const text = read("src/main/services/inventoryService.js");
+  const rel = "src/main/services/inventoryService.js";
+  const text = read(rel);
   const hash = crypto.createHash("sha256").update(text.replace(/\s+/g, " ").trim()).digest("hex");
-  const { STOCK_BALANCE_SOURCE_SHA256 } = await load("src/main/services/auditWatch/stockBalances.js");
-  check("stockBalances.js matches the current inventoryService.js", hash === STOCK_BALANCE_SOURCE_SHA256,
-    hash === STOCK_BALANCE_SOURCE_SHA256 ? "src/main/services/inventoryService.js" : `inventoryService.js changed (now ${hash}): if stockBalance's rules moved, restate them in src/main/services/auditWatch/stockBalances.js and extend the parity test; then set STOCK_BALANCE_SOURCE_SHA256`);
+  const functionSource = (name) => {
+    const node = [];
+    const visit = (value) => {
+      if (!value || typeof value !== "object") return;
+      if (value.type === "FunctionDeclaration" && value.id?.name === name) node.push(value);
+      for (const key of Object.keys(value)) if (!["loc", "start", "end", "leadingComments", "trailingComments", "innerComments"].includes(key)) visit(value[key]);
+    };
+    visit(parsedFile(rel).ast.program);
+    return node[0] ? codeOf(rel).slice(node[0].start, node[0].end).replace(/\s+/g, " ").trim() : "missing";
+  };
+  const functionsHash = crypto.createHash("sha256").update(["openingWarehouseId", "stockBalance"].map(functionSource).join("\n")).digest("hex");
+  const pin = await load("src/main/services/auditWatch/stockBalances.js");
+  const same = hash === pin.STOCK_BALANCE_SOURCE_SHA256;
+  const functionsSame = functionsHash === pin.STOCK_BALANCE_FUNCTIONS_SHA256;
+  check("stockBalances.js matches the current inventoryService.js", same, same ? `${rel} as checked at ${pin.STOCK_BALANCE_CHECKED_AT}` : [
+    `${rel} changed since ${pin.STOCK_BALANCE_CHECKED_AT}.`,
+    functionsSame ? "stockBalance and openingWarehouseId themselves are unchanged; check that no helper or constant they use changed."
+      : "stockBalance or openingWarehouseId itself changed: restate its rules in src/main/services/auditWatch/stockBalances.js and extend the parity test.",
+    `See: git diff ${pin.STOCK_BALANCE_CHECKED_AT} -- ${rel}.`,
+    `Then set STOCK_BALANCE_SOURCE_SHA256 = "${hash}", STOCK_BALANCE_FUNCTIONS_SHA256 = "${functionsHash}" and STOCK_BALANCE_CHECKED_AT to the commit you checked.`
+  ].join(" "));
 }
 
 // ---- The Audit Watch steps stay blocking in verify:erp and the lock gate ----
 {
   const { LOCK_BLOCKING_STEPS } = await load("scripts/lib/masterVerificationPolicy.js");
-  // Evaluate verify-erp.js's PIPELINE literal (without running the pipeline) and look at
-  // the step objects themselves, so layout, comments and extra fields do not matter.
-  const pipelineText = read("scripts/verify-erp.js");
+  // Read verify-erp.js's PIPELINE from its syntax tree (nothing is run) and look at the
+  // step objects themselves, so layout, comments and extra fields do not matter.
   let pipeline = [];
+  let pipelineProblem = "";
   try {
-    const open = pipelineText.indexOf("const PIPELINE = [");
-    const close = pipelineText.indexOf("\n];", open);
-    const literal = pipelineText.slice(open + "const PIPELINE = ".length, close + 2);
-    // Free names (helpers such as warningValidator functions) read as undefined; NPM is "npm".
-    const scope = new Proxy({}, {
-      has: (target, key) => typeof key === "string" && !(key in globalThis),
-      get: (target, key) => (key === "NPM" ? "npm" : undefined)
-    });
-    pipeline = new Function("scope", `with (scope) { return (${literal}); }`)(scope);
+    const { ast } = parsedFile("scripts/verify-erp.js");
+    const declarator = ast.program.body.flatMap((node) => (node.type === "VariableDeclaration" ? node.declarations : []))
+      .find((node) => node.id?.name === "PIPELINE");
+    if (declarator?.init?.type !== "ArrayExpression") throw new Error("no `const PIPELINE = [...]` array");
+    const valueOf = (node) => {
+      if (!node) return undefined;
+      if (["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes(node.type)) return node.value;
+      if (node.type === "ArrayExpression") return node.elements.map(valueOf);
+      if (node.type === "TemplateLiteral") return node.quasis.map((quasi, i) => quasi.value.cooked + (node.expressions[i] ? (node.expressions[i].name === "NPM" ? "npm" : "${?}") : "")).join("");
+      return { unreadable: node.type };
+    };
+    pipeline = declarator.init.elements.map((element) => (element?.type === "ObjectExpression"
+      ? Object.fromEntries(element.properties.filter((prop) => prop.type === "ObjectProperty").map((prop) => [prop.key.name ?? prop.key.value, valueOf(prop.value)]))
+      : { unreadable: element?.type }));
   } catch (error) {
-    console.log(`  (could not read PIPELINE from scripts/verify-erp.js: ${error.message})`);
-    pipeline = [];
+    pipelineProblem = `could not read PIPELINE in scripts/verify-erp.js: ${error.message}`;
   }
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
     const steps = pipeline.filter((step) => step?.name === name);
@@ -338,7 +384,8 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     "test:audit-watch:electron": "node scripts/lib/run-as-electron-node.mjs --test scripts/audit/audit-watch.test.mjs"
   };
   Object.entries(wantScripts).filter(([name, cmd]) => scripts[name] !== cmd).forEach(([name]) => missing.push(`${name} (package.json script changed)`));
-  check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", missing.length === 0, missing.length ? `restore in scripts/verify-erp.js and LOCK_BLOCKING_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch");
+  check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", !pipelineProblem && missing.length === 0,
+    pipelineProblem || (missing.length ? `each must be one plain step { name, cmd: \`\${NPM} run <name>:electron\`, continueOn: [0], strict: true } in scripts/verify-erp.js and in LOCK_BLOCKING_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch"));
 }
 
 // ---- 4. Visibility roles follow the app's roles ----

@@ -353,6 +353,14 @@ test("AW-I01 reports stock already below zero when the period begins, moved or n
   assert.equal(fall.fingerprint, "2026-03-25|-10000");
   assert.equal(stillIn({ from: "2026-04-01", to: "2026-04-30" }).fingerprint, fall.fingerprint);
   assert.equal(stillIn({ from: "2026-05-01", to: "2026-05-10" }).fingerprint, fall.fingerprint);
+  // A further fall while still below zero is named in the summary, and the fingerprint
+  // stays that of the original fall whichever period is chosen.
+  f.stockMove(rising, w, "2026-04-20", -8);
+  const risingIn = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${rising}-${w}`);
+  const early = risingIn({ from: "2026-04-01", to: "2026-04-30" });
+  assert.match(early.summary, /lowest -13 on 2026-04-20/);
+  assert.equal(risingIn({ from: "2026-04-15", to: "2026-04-30" }).fingerprint, early.fingerprint);
+  assert.equal(risingIn({ from: "2026-05-01", to: "2026-05-31" }).fingerprint, early.fingerprint);
   // Once the receipt brings it back to zero, a later period is clear.
   clean(findings(m, db, "AW-I01", { from: "2026-06-01", to: "2026-06-30" }), ["items", still]);
 });
@@ -618,6 +626,25 @@ test("AW-G10 notices one more tampered audit row even past the twenty the detail
   assert.equal(second.key, first.key);
   assert.notEqual(second.fingerprint, first.fingerprint);
   assert.match(second.summary, /and 3 more/);
+});
+
+test("the audit chain counts verified rows right when rows are deleted", () => {
+  const { db } = fresh();
+  for (let i = 0; i < 30; i += 1) m.auditLog(db, { company_id: 1, action: "update", table_name: "items", record_id: i + 1 });
+  const before = m.verifyAuditChain(db);
+  const ids = db.prepare("SELECT id FROM audit_log ORDER BY id DESC LIMIT 20").all().map((row) => row.id).reverse();
+  db.prepare("DELETE FROM audit_log WHERE id IN (?, ?, ?)").run(ids[3], ids[4], ids[5]);
+  db.prepare("UPDATE audit_log SET new_value = 'edited' WHERE id = ?").run(ids[10]);
+  const after = m.verifyAuditChain(db);
+  // Three rows are gone; two present rows fail their hash (the edited row, and the row
+  // after the gap, whose previous hash is now a different row's). Deleted rows were never
+  // there to verify, so verified drops by exactly five.
+  assert.equal(after.broken.length > 0, true);
+  assert.equal(after.verified, before.verified - 5);
+  assert.equal(after.brokenCount, 3);
+  // Deleting the newest rows is reported as such, not as a broken older row.
+  db.prepare("DELETE FROM audit_log WHERE id >= ?").run(ids[15]);
+  assert.equal(m.verifyAuditChain(db).missingNewestRows, 5);
 });
 
 test("AW-G10 notices one more unbalanced voucher even past the ten the detail names", () => {

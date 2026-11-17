@@ -1822,24 +1822,28 @@ export function verifyAuditChain(db) {
   const brokenSet = new Set();
   const digest = crypto.createHash("sha256");
   const markBroken = (id) => { if (!brokenSet.has(id)) { brokenSet.add(id); digest.update(`${id},`); } };
+  // Rows still present whose hash fails; deleted rows (gaps) are marked broken but were
+  // never there to verify, so they do not lower the verified count.
+  let editedRows = 0;
   let expectedId = startId;
   for (const row of rows) {
     // A gap in ids after the chain started means a row was deleted.
     if (row.id !== expectedId) markBroken(expectedId);
-    if (auditEventHash(row, previous) !== row.event_hash) markBroken(row.id);
+    if (auditEventHash(row, previous) !== row.event_hash) { markBroken(row.id); editedRows += 1; }
     previous = row.event_hash;
     expectedId = row.id + 1;
   }
   // AUTOINCREMENT keeps the highest id ever issued, so rows deleted from the end
   // of the log leave a gap between it and the last row still present.
   const lastIssued = Number(db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'").get()?.seq || 0);
-  const lastPresent = Number(rows[rows.length - 1]?.id || 0);
+  // With every chained row gone, the chain ends just before where it started.
+  const lastPresent = Number(rows[rows.length - 1]?.id || startId - 1);
   if (lastIssued > lastPresent) markBroken(lastPresent + 1);
   return {
     chained: true,
     startedAt: rows[0]?.created_at || null,
     missingNewestRows: Math.max(0, lastIssued - lastPresent),
-    verified: rows.length - Math.min(rows.length, brokenSet.size),
+    verified: rows.length - editedRows,
     broken: [...brokenSet].slice(0, 20),
     brokenCount: brokenSet.size,
     brokenDigest: brokenSet.size ? digest.digest("hex") : "",
