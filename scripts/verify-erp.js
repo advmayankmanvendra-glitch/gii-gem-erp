@@ -53,15 +53,18 @@ function validateFinancialReportKnownGaps(stdout) {
 }
 
 /* ─── Pipeline definition ─── */
-// scripts/verify-audit-watch.js reads this array from its syntax tree to check that the
+// scripts/verify-audit-watch.js (rules in scripts/lib/verifyErpRules.mjs) reads this array from its syntax tree to check that the
 // Audit Watch steps are present as written. Keep it one top-level `const PIPELINE =
 // Object.freeze([...])` of plain object literals, with the two Audit Watch steps each in
 // Object.freeze({...}) so their commands cannot be changed at run time. Which steps are
 // strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
 // one loop over PIPELINE that runs the commands (calls run(...)) must call
 // strictExitCode(step.name, exitCode) for each step, directly or through a top-level
-// helper. run(cmd) returns the command it ran as `cmd`, and the step pushed for the lock
-// gate (directly, or through a variable) must carry that value as `cmd: result.cmd`. Keep NPM as
+// helper. run(cmd) returns the command it ran as `cmd`; keep run()'s result in one const
+// and never write its cmd. The array given to the one evaluateMasterLockGate call is
+// `const steps = []`, only pushed to in the run loop and otherwise only read; each push
+// carries one plain record (literal, or a const declared once in the loop) with
+// `cmd: result.cmd`. Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },

@@ -1444,3 +1444,43 @@ test("the catalogue declares every table and column the checks read, and no tabl
   }
   assert.deepEqual(problems, []);
 });
+
+test("verify-erp rules: the verifier refuses a verify-erp.js that could hide an Audit Watch failure", async () => {
+  const { readVerifyErpPipeline } = await load("scripts/lib/verifyErpRules.mjs");
+  const original = fs.readFileSync(path.join(REPO, "scripts/verify-erp.js"), "utf8");
+  const pipeline = readVerifyErpPipeline(original);
+  assert.ok(pipeline.some((step) => step.name === "test:audit-watch" && step.frozenStep), "the real verify-erp.js is accepted");
+  const patch = (from, to) => {
+    assert.ok(original.includes(from), `plant anchor not found: ${from}`);
+    return original.replace(from, to);
+  };
+  const RUN = "const result = run(step.cmd);";
+  const PUSH = "    steps.push({\n      name: step.name,\n      cmd: result.cmd,";
+  const REC = "      cmd: result.cmd, // the command run() actually ran, which the lock gate checks";
+  const swap = (text) => text.replace(RUN, 'const result = run(step.name === "test:audit-watch" ? "node -e 0" : step.cmd);');
+  const refused = {
+    "records the step's own cmd": patch(REC, "      cmd: step.cmd,"),
+    "decoy push into another array": patch(REC, "      cmd: step.cmd,").replace("  const steps = [];", "  const steps = [];\n  const timings = [];").replace(RUN, `${RUN}\n    timings.push({ cmd: result.cmd });`),
+    "second argument to push": patch(REC, "      cmd: result.cmd,").replace("    steps.push({", "    steps.push({ name: step.name, cmd: result.cmd }, {").replace("      cmd: result.cmd,\n      exitCode", "      cmd: step.cmd,\n      exitCode"),
+    "index write into the array": patch("    steps.push({", "    steps[steps.length] = ({").replace("      cmd: result.cmd, // the command", "      cmd: step.cmd, // the command"),
+    "decoy evaluateMasterLockGate call": patch("function main() {", "function unused() { const fake = []; fake.push({ cmd: 1 }); return evaluateMasterLockGate(fake, []); }\nfunction main() {"),
+    "block-scoped record hides the real one": patch("    steps.push({", "    const record = { name: step.name, cmd: step.cmd };\n    if (process.env.VERBOSE) { const record = { cmd: result.cmd }; console.log(record); }\n    steps.push(record);\n    void ({"),
+    "result.cmd overwritten": patch(RUN, `${RUN}\n    result.cmd = step.cmd;`),
+    "result passed to a helper": patch(RUN, `${RUN}\n    Object.assign(result, { cmd: step.cmd });`),
+    "array aliased": patch("  const steps = [];", "  const steps = [];\n  const alias = steps;"),
+    "spread after cmd": patch(REC, `${REC}\n      ...{ cmd: step.cmd },`),
+    "strictExitCode removed": patch("result.exitCode = strictExitCode(step.name, result.exitCode);", ""),
+    "PIPELINE not frozen": patch("const PIPELINE = Object.freeze([", "const PIPELINE = ([")
+  };
+  for (const [name, text] of Object.entries(refused)) {
+    assert.throws(() => readVerifyErpPipeline(swap(text)), Error, `not refused: ${name}`);
+  }
+  const accepted = {
+    "record built in a const first": patch("    steps.push({", "    const record = {").replace("      warningDetail,\n    });", "      warningDetail,\n    };\n    steps.push(record);"),
+    "unrelated inner const named record": patch(RUN, `${RUN}\n    if (process.env.VERBOSE) { const record = { cmd: step.cmd }; console.log(record); }`),
+    "export function run": patch("function run(", "export function run(")
+  };
+  for (const [name, text] of Object.entries(accepted)) {
+    assert.doesNotThrow(() => readVerifyErpPipeline(text), `wrongly refused: ${name}`);
+  }
+});

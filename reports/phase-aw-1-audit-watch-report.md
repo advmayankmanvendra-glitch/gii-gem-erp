@@ -36,7 +36,11 @@
 - `src/main/database/postingSources.js`: classifies every `source_module` (manual, guided, document, system-dated)
 - `src/renderer/features/reports/auditWatch/AuditWatchScreen.jsx`, `src/renderer/styles/auditWatch.css`
 - `scripts/build-audit-watch-graph.js`, `scripts/verify-audit-watch.js`, `scripts/smoke-audit-watch.mjs`
+- `scripts/lib/verifyErpRules.mjs`: reads `verify-erp.js`'s PIPELINE and run loop and checks the rules that keep the Audit Watch steps strict and lock-blocking (used by the verifier; the test suite runs it on patched copies of `verify-erp.js` to show each rule refuses what it should)
+- `scripts/lib/run-as-electron-node.mjs`: runs a Node script or `node --test` on Electron's Node, for the `:electron` npm scripts
+- `scripts/audit/lib/workers/startedThenBusy.mjs`, `startedThenCrash.mjs`: test workers for the runner's lock and crash handling
 - `scripts/audit/audit-watch.test.mjs`, `scripts/audit/lib/auditWatchFixtures.mjs`
+- `src/main/services/auditWatch/` holds the files above; `src/renderer/styles/auditWatch.css` is imported once from `src/renderer/styles/app.css`
 - `docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md` (generated, KG-5)
 
 ### Modified
@@ -54,7 +58,13 @@
 - `src/renderer/knowledge/modules/reports.js`: help metadata KNG-RPT-026
 - AG-1 graph and schema (1.1.0, detectiveControls, KG-5 dependency), KG-5 graph and builder, graph registry, manual index
 - `package.json`: `@babel/parser` added to devDependencies (already installed through the build tools; the Audit Watch verifier reads code with it). The verifier's ajv call sets `validateFormats: false`, which only silences a warning: the schema's one format was already ignored
-- `scripts/verify-audit-graph.js` (accepts schema 1.1.0), `scripts/verify-erp.js` (adds verify:audit-watch and test:audit-watch as blocking steps), `package.json`
+- `scripts/verify-audit-graph.js` (accepts schema 1.1.0)
+- `scripts/verify-erp.js`: adds verify:audit-watch and test:audit-watch as frozen, strict, blocking steps; PIPELINE is `Object.freeze([...])`; the run loop applies `strictExitCode` to every step; `run()` returns the command it ran, the run loop records it for the lock gate, and the report names a strict step that ran another command
+- `scripts/verify-master-verification-policy.js`: 16 checks, including strict steps, whole-number exit codes and expected strict commands
+- `scripts/audit/ipc-security.test.mjs`: covers the two new channels
+- `scripts/build-manual-graph.js`, `src/renderer/modules/erpBrain/loaders/manualLoader.js`, `src/renderer/modules/erpBrain/data/manualIndex.js`: list the Audit Watch guide in KG-5
+- `src/renderer/styles/app.css`: one import line for `auditWatch.css`
+- `package.json`, `package-lock.json`: the Audit Watch npm scripts and `@babel/parser`
 
 ## IPC, Route and Database Impact
 
@@ -74,7 +84,7 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
 | `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them and records the command `run()` actually ran for the lock gate, and that their npm scripts are unchanged) |
-| `node --test scripts/audit/audit-watch.test.mjs` | 82 of 82 pass (also on Electron's Node) |
+| `node --test scripts/audit/audit-watch.test.mjs` | 83 of 83 pass (also on Electron's Node) |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
 | `npm run test:integrity` | 304 of 304 pass, then IPC 57 of 57 |
@@ -90,7 +100,30 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff, 6a71786 and 61406f7. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md`, `audit-6a71786-response.md` and `audit-61406f7-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture). Later rounds ran two (correctness and security together, and architecture), at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff, 6a71786, 61406f7 and 2a67195. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md`, `audit-6a71786-response.md`, `audit-61406f7-response.md` and `audit-2a67195-response.md`).
+
+## UX Compliance Checklist
+
+Against `docs/architecture/global-ux-governance-standard.md`:
+
+| Area | Check | Status |
+| --- | --- | --- |
+| App.jsx protection | One import and one view line; all logic is in `src/renderer/features/reports/auditWatch/` | Met |
+| Navigation | Reached through the central navigation (Reports > Internal Audit > Audit Watch); uses the app's back behaviour | Met |
+| Scroll/focus | Opens at the top; opening a check or a finding expands in place, without moving the page | Met |
+| Toolbar | One action (Run checks), after the period and area controls, as on other report screens | Met |
+| Keyboard | Standard form controls; Enter runs the checks. No new shortcuts, and nothing can be posted from this screen | Met |
+| Search | No search on this screen. The sidebar search finds it by name | Not applicable |
+| Feedback | The button reads "Checking..." and is disabled while a run is in progress; errors show as a notice | Met |
+| Empty states | Before a run: how many checks the role can run and what to do. After a run: "No check found anything for this period and area" or "No checks in this area" | Met |
+| Tables | Each finding row has one details button (with aria-expanded) that opens its rows | Met |
+| Help | Help metadata KNG-RPT-026 and the KG-5 Audit Watch guide | Met |
+| AI safety | No AI. The checks are fixed SQL and only read | Met |
+| Recovery | Nothing risky: no writes. Restore, reset and rollback wait while a run is in progress | Met |
+| Verification | lint, build, accounting and financial verifiers run (see Verification) | Met |
+| Report | Known limitations are listed below | Met |
+
+Known gap: the screen was checked at 390 px and desktop width by the smoke test; it has no print layout of its own.
 
 ## Production Readiness
 
