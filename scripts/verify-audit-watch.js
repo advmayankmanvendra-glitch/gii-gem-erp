@@ -515,7 +515,10 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
       if (node.type === "AssignmentExpression" && /MemberExpression$/.test(node.left?.type) && namespaces.has(node.left.object?.name)) redefined = true;
     });
     if ((!directImport && namespaces.size === 0) || redefined) throw new Error("strictExitCode must be imported from scripts/lib/masterVerificationPolicy.js (by name or through `import * as`) and not redefined");
-    const isStrictCall = (node) => node.type === "CallExpression" && node.arguments.length >= 1
+    // strictExitCode(step.name, code): two arguments, the first the step's name (step.name,
+    // or a variable such as a destructured name), never a literal.
+    const nameArg = (arg) => (/MemberExpression$/.test(arg?.type) && !arg.computed && arg.property?.name === "name") || arg?.type === "Identifier";
+    const isStrictCall = (node) => node.type === "CallExpression" && node.arguments.length === 2 && nameArg(node.arguments[0]) && node.arguments[1]?.type !== "SpreadElement"
       && ((directImport && node.callee?.type === "Identifier" && node.callee.name === "strictExitCode")
         || (/MemberExpression$/.test(node.callee?.type) && !node.callee.computed && namespaces.has(node.callee.object?.name) && node.callee.property?.name === "strictExitCode"));
     // Top-level functions, so a strictExitCode call inside a helper the loop calls counts.
@@ -556,6 +559,10 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const callsRun = (inner) => inner.type === "CallExpression" && inner.callee?.type === "Identifier" && inner.callee.name === "run";
     const runLoops = [];
     walk(ast.program, (node) => { if (["ForOfStatement", "ForStatement"].includes(node.type) && reaches(node.body, callsRun)) runLoops.push(node); });
+    // A loop inside the run loop (a retry, say) is part of it, not a second run loop.
+    const outerRunLoops = runLoops.filter((loop) => !runLoops.some((other) => other !== loop && other.start <= loop.start && loop.end <= other.end));
+    runLoops.length = 0;
+    runLoops.push(...outerRunLoops);
     if (runLoops.length !== 1 || !overPipeline(runLoops[0])) throw new Error(`the commands must be run by exactly one loop over PIPELINE (found ${runLoops.length} loop(s) that call run(), ${runLoops.filter(overPipeline).length} over PIPELINE)`);
     if (!reaches(runLoops[0].body, isStrictCall)) throw new Error("the loop that runs PIPELINE does not apply strictExitCode(step.name, exitCode) to each step's exit code");
     // The npm launcher: a top-level const, never reassigned, whose value is a conditional

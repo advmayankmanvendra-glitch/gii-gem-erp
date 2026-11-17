@@ -737,11 +737,11 @@ export const CHECK_FUNCTIONS = {
     const movedTotal = new Map();
     each(`
       SELECT sl.item_id, sl.warehouse_id, TOTAL(CASE WHEN sl.transaction_date >= ? THEN 0 ELSE ${MICRO} END) before_units,
-        TOTAL(ABS(COALESCE(sl.inward_quantity, 0)) + ABS(COALESCE(sl.outward_quantity, 0))) moved_total
+        TOTAL(CASE WHEN sl.transaction_date <= ? THEN ABS(COALESCE(sl.inward_quantity, 0)) + ABS(COALESCE(sl.outward_quantity, 0)) ELSE 0 END) moved_total
       FROM stock_ledger sl
       WHERE sl.company_id = ? AND ${live("sl")}
       GROUP BY sl.item_id, sl.warehouse_id
-    `, [from, companyId], (row) => {
+    `, [from, to, companyId], (row) => {
       before.set(`${row.item_id}|${row.warehouse_id}`, Number(row.before_units));
       movedTotal.set(`${row.item_id}|${row.warehouse_id}`, Number(row.moved_total));
     });
@@ -753,19 +753,12 @@ export const CHECK_FUNCTIONS = {
     const openingOf = (pairKey) => units(balances.opening(...pairOf(pairKey)));
     const startOf = (pairKey) => openingOf(pairKey) + (before.get(pairKey) || 0);
     // Micro-unit sums are exact while every balance stays under 2^53 micro-units (about 9
-    // billion units). Above that, one stretch could add up two ways, so the check says so
-    // instead of giving a doubtful answer.
+    // billion units). A pair whose opening stock and movements up to the period end add up
+    // to more than that could add up two ways, so it gets one plain "too large to check"
+    // finding of its own and is left out of the walk; every other pair is checked as usual.
     const LIMIT = Math.floor(Number.MAX_SAFE_INTEGER / 1000000);
-    const tooLarge = [...pairKeys].find((pairKey) => Math.abs(balances.opening(...pairOf(pairKey)) || 0) + (movedTotal.get(pairKey) || 0) >= LIMIT);
-    if (tooLarge) {
-      const [itemId, warehouseId] = pairOf(tooLarge);
-      const item = q("SELECT i.item_name FROM items i WHERE i.id = ?", [itemId])[0]?.item_name || `Item ${itemId}`;
-      const warehouse = q("SELECT w.warehouse_name FROM warehouses w WHERE w.id = ?", [warehouseId])[0]?.warehouse_name || `warehouse ${warehouseId}`;
-      throw new Error(`${item} in ${warehouse} has moved more than ${LIMIT.toLocaleString("en-IN")} units in all, which is too large for this check to add up exactly. Check that item's quantities; the other checks are not affected.`);
-    }
-    // Pairs already below zero: when did the stretch open at the period start begin?
-    // SQLite finds each pair's last fall below zero before the period (a running total by
-    // day), so only one row per pair comes back.
+    const tooLarge = new Set([...pairKeys].filter((pairKey) => Math.abs(balances.opening(...pairOf(pairKey)) || 0) + (movedTotal.get(pairKey) || 0) >= LIMIT));
+    for (const pairKey of tooLarge) pairKeys.delete(pairKey);
     const negativeAtStart = [...pairKeys].filter((pairKey) => startOf(pairKey) < 0);
     const openStretch = new Map();
     if (negativeAtStart.length) {
@@ -848,6 +841,7 @@ export const CHECK_FUNCTIONS = {
       ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date, sl.id
     `, [companyId, from, to], (row) => {
       const pairKey = `${row.item_id}|${row.warehouse_id}`;
+      if (tooLarge.has(pairKey)) return;
       if (pair?.pairKey !== pairKey) { closePair(); openPair(pairKey); walked.add(pairKey); }
       if (pair.day !== row.transaction_date) { endDay(); pair.day = row.transaction_date; }
       pair.balance += Number(row.moved);
@@ -864,7 +858,20 @@ export const CHECK_FUNCTIONS = {
       };
       return { item: names.items.get(Number(itemId)), warehouse: names.warehouses.get(Number(warehouseId)) };
     };
-    return found.map(({ pairKey, latest, startStretch, stretches }) => {
+    const oversized = [...tooLarge].map((pairKey) => {
+      const [itemId, warehouseId] = pairOf(pairKey);
+      const label = nameOf(itemId, warehouseId);
+      return {
+        key: `AW-I01:${itemId}-${warehouseId}`,
+        fingerprint: "too-large",
+        summary: `${label.item || "Item"} in ${label.warehouse || "warehouse"}: more than ${LIMIT.toLocaleString("en-IN")} units moved up to ${to}, too large for this check to add up exactly. Check this item's quantities.`,
+        date: from,
+        amountMinor: 0,
+        refs: [{ table: "items", id: itemId }],
+        evidence: [{ item_id: itemId, warehouse_id: warehouseId, too_large_to_check: true, units_moved_to_period_end: movedTotal.get(pairKey) || 0, period_end: to }]
+      };
+    });
+    return [...oversized, ...found.map(({ pairKey, latest, startStretch, stretches }) => {
       const [itemId, warehouseId] = pairOf(pairKey);
       const label = nameOf(itemId, warehouseId);
       const where = `${label.item || "Item"} in ${label.warehouse || "warehouse"}`;
@@ -891,7 +898,7 @@ export const CHECK_FUNCTIONS = {
         refs: [{ table: "items", id: itemId }, ...(latest.rowId ? [{ table: "stock_ledger", id: latest.rowId }] : []), ...rowIds.map((id) => ({ table: "stock_ledger", id }))],
         evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: shown(startOf(pairKey)), period_start: from, below_zero_since: latest.since, fell_to: shown(latest.fellTo), lowest: shown(latest.lowest), lowest_on: latest.lowestOn, recovered_on: latest.recoveredOn || null, stretches_in_period: stretches, ledger_rows: rowIds }]
       };
-    });
+    })];
   },
 
   "AW-I02"(q, { companyId, today, limits, deps }) {

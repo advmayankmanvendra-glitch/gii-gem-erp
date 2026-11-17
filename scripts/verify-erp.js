@@ -181,6 +181,7 @@ function main() {
 
     steps.push({
       name: step.name,
+      cmd: step.cmd,
       exitCode: result.exitCode,
       label,
       durationMs: result.duration,
@@ -310,6 +311,9 @@ function main() {
     lockGate.missingBlockingSteps.length
       ? `Missing mandatory lock checks: ${lockGate.missingBlockingSteps.join(", ")}`
       : `All mandatory lock checks executed.`,
+    lockGate.commandMismatches.length
+      ? `Strict steps that did not run their expected command: ${lockGate.commandMismatches.map((s) => `${s.name} (${s.cmd})`).join(", ")}`
+      : ``,
     ``,
     `## Details`,
     ``,

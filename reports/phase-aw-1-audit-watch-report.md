@@ -78,7 +78,7 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
 | `npm run test:integrity` | 304 of 304 pass, then IPC 57 of 57 |
-| `node scripts/verify-master-verification-policy.js` | 12 of 12 pass (includes the strict Audit Watch steps) |
+| `node scripts/verify-master-verification-policy.js` | 16 of 16 pass (includes the strict Audit Watch steps, whole-number exit codes and the expected strict commands) |
 | `verify:accounting`, `verify:financials`, `verify:controls`, `verify:voucher-inventory`, `verify:flow`, `verify:phase10` | All pass (exit 0), run with Electron and `--no-sandbox`, because the container runs as root |
 | `npm run verify:erp` | Lint, build and every step up to and including `verify:audit-watch` and `test:audit-watch` pass. In this container the Electron-launched steps cannot start as root without `--no-sandbox` (run separately above), and the pipeline stops at `verify:financial-reports`, which launches Electron itself and also fails on `main`. On Windows these steps launch normally. |
 
@@ -90,7 +90,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16 and 5918927. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md` and `audit-5918927-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927 and a6dae56. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md` and `audit-a6dae56-response.md`).
 
 ## Production Readiness
 
@@ -105,7 +105,7 @@ Three audits ran at 3a80616 (correctness, security, architecture), and again at 
 - RG-1 is not regenerated in this phase, because rebuilding it churns heavily on `main` as well. The navigation entry and KNG-RPT-026 answer "where is Audit Watch?".
 - A packaged build that cannot start the worker falls back to running in the main process, still read-only. The run is then bounded by the linear checks, not by the time limit, and the screen says so. A worker that started and then failed is never re-run in the main process.
 - Bank ledgers are told apart from cash ledgers by name (AW-G09), because the banks table does not name its ledger.
-- AW-I01 adds quantities exactly in micro-units; an item and warehouse that has moved more than about 9 billion units in all is reported as too large to check rather than given a doubtful answer.
+- AW-I01 adds quantities exactly in micro-units; an item and warehouse whose opening stock and movements up to the period end pass about 9 billion units gets one "too large to check" finding instead of a doubtful answer; every other pair is still checked.
 - After the 120-second limit the worker is terminated, but a long SQLite statement cannot be interrupted, so the worker may read on for a while before it exits. The run lock is held until it exits.
 
 ## Lock Note

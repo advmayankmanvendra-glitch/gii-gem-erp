@@ -441,13 +441,25 @@ test("AW-I01 keeps one fingerprint for quantities past six decimals and for very
   }
 });
 
-test("AW-I01 says when quantities are too large to add up exactly, instead of guessing", () => {
+test("AW-I01 says when one item's quantities are too large to add up exactly, and checks the rest", () => {
   const { db, f } = fresh();
   const w = f.warehouse();
   const huge = f.item();
   for (let i = 0; i < 6; i += 1) f.stockMove(huge, w, `2026-0${i + 1}-05`, 5e9);
   f.stockMove(huge, w, "2026-03-20", -3.000000007e10);
-  assert.throws(() => findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" }), /too large for this check to add up exactly/);
+  const short = f.item();
+  f.stockMove(short, w, "2026-03-10", -5);
+  // Huge movements after the period end do not stop an earlier period being checked.
+  const later = f.item();
+  for (let i = 0; i < 20; i += 1) f.stockMove(later, w, "2027-06-10", i % 2 ? -5e8 : 5e8);
+  const march = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" });
+  const big = march.find((row) => row.key === `AW-I01:${huge}-${w}`);
+  assert.match(big.summary, /too large for this check to add up exactly/);
+  assert.equal(big.fingerprint, "too-large");
+  assert.ok(march.some((row) => row.key === `AW-I01:${short}-${w}`), "the other item's shortfall is still reported");
+  assert.ok(!march.some((row) => row.key === `AW-I01:${later}-${w}`));
+  const earlier = findings(m, db, "AW-I01", { from: "2026-01-01", to: "2026-01-31" });
+  assert.ok(!earlier.some((row) => row.key === `AW-I01:${huge}-${w}`), "below the limit up to January's end, and never below zero");
   // Below the limit, many large rows still keep one fingerprint in every period.
   const { db: db2, f: f2 } = fresh();
   const w2 = f2.warehouse();
