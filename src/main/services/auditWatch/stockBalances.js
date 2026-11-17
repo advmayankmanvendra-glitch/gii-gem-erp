@@ -19,16 +19,26 @@
 
 import { paise, rupees } from "../../domain/money.js";
 
-export function stockBalances(db, companyId) {
-  const firstActive = db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
-  const warehouses = new Map(db.prepare("SELECT id, company_id FROM warehouses").all().map((row) => [Number(row.id), row]));
-  const items = new Map(db.prepare("SELECT id, opening_stock, opening_rate, opening_value, default_warehouse_id FROM items").all().map((row) => [Number(row.id), row]));
-  const movement = new Map(db.prepare(`
+// SHA-256 of inventoryService.js's openingWarehouseId and stockBalance source (spaces
+// collapsed), as last checked against this file. The Audit Watch verifier fails when
+// that source changes, so a change to how posting values stock (AGENTS.md rule 4) is
+// also made here before Audit Watch reports on it. To refresh after re-checking the
+// rules above: node scripts/verify-audit-watch.js prints the new value.
+export const STOCK_BALANCE_SOURCE_SHA256 = "6ea8485725682d07b4991788e30dcad19c60b39e407af6b37397d90085b98863";
+
+// `source` is the run's read-only query helper (q(sql, params) -> rows), so the reads
+// are traced like a check's own; a better-sqlite3 handle is also accepted.
+export function stockBalances(source, companyId) {
+  const q = typeof source === "function" ? source : (sql, params = []) => source.prepare(sql).all(...params);
+  const firstActive = q("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1")[0]?.id || null;
+  const warehouses = new Map(q("SELECT id, company_id FROM warehouses").map((row) => [Number(row.id), row]));
+  const items = new Map(q("SELECT id, opening_stock, opening_rate, opening_value, default_warehouse_id FROM items").map((row) => [Number(row.id), row]));
+  const movement = new Map(q(`
     SELECT item_id, warehouse_id, COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
       COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
     FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0
     GROUP BY item_id, warehouse_id
-  `).all(companyId).map((row) => [`${row.item_id}|${row.warehouse_id}`, row]));
+  `, [companyId]).map((row) => [`${row.item_id}|${row.warehouse_id}`, row]));
 
   const openingWarehouse = (item) => Number(item.default_warehouse_id || 0) || firstActive;
   const ofCompany = (warehouseId) => {

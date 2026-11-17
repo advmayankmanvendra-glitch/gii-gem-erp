@@ -225,7 +225,7 @@ Severity: medium.
 
 Severity: high.
 
-**What it means.** The stock register shows less than zero of an item in a warehouse. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.
+**What it means.** The stock register shows less than zero of an item in a warehouse, either on a day in the period or already when the period began. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.
 
 **What to do.** Find the inward entry that is missing or late and record it with its real date.
 

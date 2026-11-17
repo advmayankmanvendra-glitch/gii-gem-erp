@@ -1298,7 +1298,7 @@
         "title": "Negative stock",
         "severity": "high",
         "readiness": "now",
-        "version": 1,
+        "version": 2,
         "scope": "company",
         "helpers": [
           "stockBalances"
@@ -1341,7 +1341,7 @@
           }
         ],
         "limits": [],
-        "meaning": "The stock register shows less than zero of an item in a warehouse. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.",
+        "meaning": "The stock register shows less than zero of an item in a warehouse, either on a day in the period or already when the period began. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.",
         "nextStep": "Find the inward entry that is missing or late and record it with its real date."
       },
       {
@@ -2186,7 +2186,7 @@
         "title": "Book integrity",
         "severity": "high",
         "readiness": "now",
-        "version": 1,
+        "version": 2,
         "scope": "company",
         "helpers": [
           "bookIntegrityChecks"

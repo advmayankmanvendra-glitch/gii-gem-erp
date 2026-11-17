@@ -153,8 +153,14 @@ const CLEARING_ACCOUNT_SQL = inGroups("a", CLEARING_GROUPS, "(a.account_name LIK
 // ledgers are told apart by name, because the banks table does not name its ledger.
 const CASH_IN_HAND_SQL = `(${inGroups("a", CASH_GROUPS, "(a.account_type = 'Asset' AND LOWER(a.account_name) LIKE '%cash%')")} AND LOWER(a.account_name) NOT LIKE '%bank%')`;
 
-// AW-S02 reads exactly the guided kinds its catalogue entry says it covers.
-const S02_KINDS = sqlList(checkById("AW-S02").readsGuidedKinds);
+// AW-S02 reads exactly the guided kinds its catalogue entry says it covers. Read when the
+// check runs, not when this module loads, so a catalogue slip fails that one check (and
+// the verifier) instead of stopping the app from starting.
+const s02Kinds = () => {
+  const kinds = checkById("AW-S02")?.readsGuidedKinds;
+  if (!Array.isArray(kinds) || !kinds.length) throw new Error("AW-S02 has no readsGuidedKinds in the catalogue");
+  return sqlList(kinds);
+};
 
 // ---- Vouchers by posting source (postingSources.js).
 const POSTED = "v.status IN ('Posted', 'Reversed')";
@@ -551,7 +557,7 @@ export const CHECK_FUNCTIONS = {
       FROM guided_vouchers gv
       JOIN invoices inv ON inv.id = CAST(json_extract(gv.payload_json, '$.linked_invoice_id') AS INTEGER) AND ${live("inv")}
         AND inv.company_id = gv.company_id
-      WHERE gv.company_id = ? AND ${live("gv")} AND ${guidedKind("gv")} IN ${S02_KINDS} AND gv.status = 'Posted'
+      WHERE gv.company_id = ? AND ${live("gv")} AND ${guidedKind("gv")} IN ${s02Kinds()} AND gv.status = 'Posted'
         AND json_valid(gv.payload_json) AND gv.voucher_date BETWEEN ? AND ?
         AND substr(gv.voucher_date, 1, 7) > substr(inv.invoice_date, 1, 7)
     `, [companyId, from, to]);
@@ -714,18 +720,16 @@ export const CHECK_FUNCTIONS = {
 
   // ------------------------------------------------------------ Stock
   "AW-I01"(q, { companyId, from, to, deps }) {
-    // One grouped pass gives each item and warehouse its balance at the start of the
-    // period; only the period's own movements are then walked day by day.
-    const pairs = q(`
+    // One grouped pass gives each item and warehouse its movement before and from the
+    // period start; with stockBalances (which adds opening stock held on the item) that
+    // gives the balance on the first day. Only the period's own movements are then walked.
+    const movement = new Map(q(`
       SELECT sl.item_id, sl.warehouse_id,
-        COALESCE(SUM(COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0)), 0) all_movement,
-        COALESCE(SUM(CASE WHEN sl.transaction_date < ? THEN COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0) END), 0) before_from
+        COALESCE(SUM(CASE WHEN sl.transaction_date >= ? THEN COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0) END), 0) from_start
       FROM stock_ledger sl
       WHERE sl.company_id = ? AND ${live("sl")}
       GROUP BY sl.item_id, sl.warehouse_id
-      HAVING SUM(CASE WHEN sl.transaction_date BETWEEN ? AND ? THEN 1 ELSE 0 END) > 0
-    `, [from, companyId, from, to]);
-    if (!pairs.length) return [];
+    `, [from, companyId]).map((row) => [`${row.item_id}|${row.warehouse_id}`, row]));
     const moves = groupBy(q(`
       SELECT sl.id, sl.item_id, sl.warehouse_id, sl.transaction_date, sl.document_number,
         COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0) change, i.item_name, w.warehouse_name
@@ -733,26 +737,49 @@ export const CHECK_FUNCTIONS = {
       WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date BETWEEN ? AND ?
       ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date, sl.id
     `, [companyId, from, to]), (row) => `${row.item_id}|${row.warehouse_id}`);
-    const findings = [];
-    // Balances for every pair come from one grouped read (stockBalances, the same rules
-    // as stockBalance), not one stock-ledger scan per pair.
+    // Every pair with a balance (opening stock or any ledger row), so stock that was
+    // already below zero when the period began is reported even if it did not move.
     const balances = deps.stockBalances(companyId);
-    for (const pair of pairs) {
-      const rows = moves.get(`${pair.item_id}|${pair.warehouse_id}`) || [];
-      // Opening stock held on the item (not in the stock ledger) comes from stockBalances.
-      const itemOpening = Number(balances.get(pair.item_id, pair.warehouse_id).quantity || 0) - Number(pair.all_movement || 0);
-      let balance = itemOpening + Number(pair.before_from || 0);
+    const pairKeys = new Set([...movement.keys(), ...balances.entries().map((entry) => `${entry.itemId}|${entry.warehouseId}`)]);
+    let names = null;
+    const nameOf = (itemId, warehouseId) => {
+      names ??= {
+        items: new Map(q("SELECT i.id, i.item_name FROM items i").map((row) => [Number(row.id), row.item_name])),
+        warehouses: new Map(q("SELECT w.id, w.warehouse_name FROM warehouses w").map((row) => [Number(row.id), row.warehouse_name]))
+      };
+      return { item: names.items.get(Number(itemId)), warehouse: names.warehouses.get(Number(warehouseId)) };
+    };
+    const findings = [];
+    for (const pairKey of pairKeys) {
+      const [itemId, warehouseId] = pairKey.split("|").map(Number);
+      const rows = moves.get(pairKey) || [];
+      const fromStart = Number(movement.get(pairKey)?.from_start || 0);
+      let balance = Number(balances.get(itemId, warehouseId).quantity || 0) - fromStart;
+      const label = rows[0] ? { item: rows[0].item_name, warehouse: rows[0].warehouse_name } : nameOf(itemId, warehouseId);
+      const round = (value) => Math.round(value * 1000) / 1000;
+      if (balance < -0.0001) {
+        findings.push({
+          key: `AW-I01:${itemId}-${warehouseId}`,
+          fingerprint: `${from}|${Math.round(balance * 1000)}`,
+          summary: `${label.item || "Item"} in ${label.warehouse || "warehouse"} was already at ${round(balance)} when the period began on ${from}`,
+          date: from,
+          amountMinor: 0,
+          refs: [{ table: "items", id: itemId }],
+          evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: balance, period_start: from }]
+        });
+        continue;
+      }
       // Movements on one day are netted: stock received later the same day is not a gap.
       for (const [date, dayRows] of groupBy(rows, (row) => row.transaction_date)) {
         balance += dayRows.reduce((sum, row) => sum + Number(row.change), 0);
         if (balance < -0.0001) {
           findings.push({
-            key: `AW-I01:${pair.item_id}-${pair.warehouse_id}`,
+            key: `AW-I01:${itemId}-${warehouseId}`,
             fingerprint: `${date}|${Math.round(balance * 1000)}`,
-            summary: `${rows[0].item_name || "Item"} in ${rows[0].warehouse_name || "warehouse"} fell to ${Math.round(balance * 1000) / 1000} on ${date}`,
+            summary: `${label.item || "Item"} in ${label.warehouse || "warehouse"} fell to ${round(balance)} on ${date}`,
             date,
             amountMinor: 0,
-            refs: [{ table: "items", id: pair.item_id }, ...dayRows.map((row) => ({ table: "stock_ledger", id: row.id }))],
+            refs: [{ table: "items", id: itemId }, ...dayRows.map((row) => ({ table: "stock_ledger", id: row.id }))],
             evidence: dayRows.map((row) => ({ ...row, balance_after_day: balance }))
           });
           break;
@@ -1266,14 +1293,19 @@ export const CHECK_FUNCTIONS = {
     const results = deps.bookIntegrityChecks(companyId) || [];
     return results.filter((row) => row.status === "fail" && !INTEGRITY_COVERED_ELSEWHERE.has(row.id)).map((row) => ({
       key: `AW-G10:${row.id || row.key || row.label}`,
-      // What failed, without the count of audit rows verified (that count grows with every
-      // audited action, so it would make a reviewed finding look changed every day).
-      fingerprint: String(row.detail || "fail").replace(/^\d+ chained row\(s\) verified;?\s*/, ""),
+      // A check that lists only its first few failures also gives every failing id, so the
+      // fingerprint changes when one more fails even if the shown list does not.
+      fingerprint: Array.isArray(row.failingIds)
+        ? `${row.failingIds.length}:${row.failingIds.join(",")}`
+        // Otherwise the numbers in the detail (amounts, ids, counts), not its wording, so
+        // rewording the message in an update does not make a reviewed finding look changed.
+        : `${row.id || "check"}:${(String(row.detail || "").match(/-?\d+(?:\.\d+)?/g) || []).join(",")}`,
       summary: `${row.label || row.name || "Book check"} failed: ${row.detail || ""}`.trim(),
       date: null,
       amountMinor: 0,
       refs: [],
-      evidence: [row]
+      // The full id list can be long; the count and the detail's first ten are enough to read.
+      evidence: [{ ...row, failingIds: undefined, failingCount: Array.isArray(row.failingIds) ? row.failingIds.length : undefined }]
     }));
   },
 

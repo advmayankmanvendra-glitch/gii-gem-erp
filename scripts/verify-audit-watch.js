@@ -18,7 +18,9 @@
 //  10. main-process code calls runAuditWatch directly (or under another name) instead of
 //      through the runner;
 //  11. AG-1 does not validate against its schema file;
-//  12. verify:erp or the lock gate stops treating the Audit Watch steps as blocking.
+//  12. verify:erp or the lock gate stops treating the Audit Watch steps as blocking;
+//  13. inventoryService.js's stockBalance (or openingWarehouseId) changed since
+//      auditWatch/stockBalances.js last restated its rules.
 // The tables and columns each check actually reads are traced by the test suite
 // (scripts/audit/audit-watch.test.mjs, last test) and compared with `reads` there.
 // A table missing from DG-1 is reported as a warning (DG-1 is curated separately).
@@ -26,6 +28,7 @@
 // Usage: node scripts/verify-audit-watch.js   (with the Node build of better-sqlite3), or
 //        npm run verify:audit-watch:electron     (with the Electron build, as verify:erp does)
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -103,6 +106,13 @@ check("AG-1 has a detectiveControls section", Boolean(ag1.detectiveControls));
   const validate = new Ajv({ allErrors: true, strict: false }).compile(JSON.parse(read("repository/schema/audit-graph.schema.json")));
   const valid = validate(ag1);
   check("AG-1 validates against its schema", valid, valid ? "repository/schema/audit-graph.schema.json" : (validate.errors || []).slice(0, 5).map((error) => `${error.instancePath || "/"} ${error.message}`).join("; "));
+}
+{
+  // Every field a catalogue entry carries reaches AG-1 (the builder copies named fields,
+  // so a new one would otherwise be left out silently).
+  const emitted = new Map((ag1.detectiveControls?.checks || []).map((entry) => [entry.checkId, entry]));
+  const dropped = catalogue.CHECKS.flatMap((item) => Object.keys(item).filter((field) => field !== "id" && !(field in (emitted.get(item.id) || {}))).map((field) => `${item.id}.${field}`));
+  check("Every catalogue field reaches AG-1", dropped.length === 0, dropped.length ? `add to scripts/build-audit-watch-graph.js and the AG-1 schema: ${dropped.join(", ")}` : `${emitted.size} checks`);
 }
 check("AG-1 detectiveControls matches the catalogue", isDeepStrictEqual(ag1.detectiveControls, detectiveControlsFromCatalogue(catalogue)), "rebuild: node scripts/build-audit-watch-graph.js");
 const manualPath = "docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md";
@@ -204,7 +214,7 @@ const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /
   // and the runner is never imported under another name.
   || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(read(rel)))
   || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(read(rel)))
-  || /\bcreateAuditWatchRunner\s+as\b/.test(read(rel))
+  || /\bcreateAuditWatchRunner\s*(?:as\b|:)/.test(read(rel))
   // No renamed import or destructuring of runAuditWatch anywhere, main.js included.
   || /\brunAuditWatch\s*(?:as\b|:)/.test(read(rel)));
 const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
@@ -258,14 +268,65 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it (or list it as not relevant), then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
 }
 
+// ---- Exact wiring: who may name the service, the runner and runAuditWatch, and how often ----
+{
+  const tokens = (rel, word) => [...read(rel).matchAll(new RegExp(`\\b${word}\\b`, "g"))].length;
+  const expected = {
+    // file: { token: exact count } — anything else in src/main naming these fails.
+    "src/main/main.js": { runAuditWatch: 2, createAuditWatchRunner: 2, auditWatchRunner: null, createAuditWatchService: 0, auditWatchService: 0 },
+    "src/main/database/init.js": { runAuditWatch: 2, createAuditWatchService: 2, auditWatchService: 1, createAuditWatchRunner: 0, auditWatchRunner: 0 },
+    "src/main/services/auditWatch/auditWatchWorker.js": { runAuditWatch: 2, createAuditWatchService: 0, createAuditWatchRunner: 0 }
+  };
+  const owned = new Set(["src/main/services/auditWatch/auditWatchService.js", "src/main/services/auditWatch/auditWatchRunner.js", "src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/catalogue.js", "src/main/services/auditWatch/stockBalances.js"]);
+  const words = ["runAuditWatch", "createAuditWatchService", "createAuditWatchRunner", "auditWatchService", "auditWatchRunner"];
+  const wrong = sourceFiles.filter((rel) => !owned.has(rel)).flatMap((rel) => words.flatMap((word) => {
+    const want = expected[rel] ? (word in expected[rel] ? expected[rel][word] : null) : 0;
+    if (want === null) return [];
+    const have = tokens(rel, word);
+    return have === want ? [] : [`${rel}: ${word} ${have} (expected ${want})`];
+  }));
+  check("Audit Watch is wired in exactly one way (service in init.js, runner in main.js)", wrong.length === 0, wrong.length ? wrong.join("; ") : "init.js, main.js, worker");
+}
+
+// ---- stockBalances.js restates stockBalance's rules: pin the original's source ----
+{
+  const text = read("src/main/services/inventoryService.js");
+  const functionSource = (name) => {
+    const start = text.indexOf(`function ${name}(`);
+    if (start < 0) return null;
+    let depth = 0;
+    for (let i = text.indexOf("{", start); i < text.length; i += 1) {
+      if (text[i] === "{") depth += 1;
+      else if (text[i] === "}" && (depth -= 1) === 0) return text.slice(start, i + 1);
+    }
+    return null;
+  };
+  const parts = ["openingWarehouseId", "stockBalance"].map(functionSource);
+  const hash = parts.every(Boolean) ? crypto.createHash("sha256").update(parts.join("\n").replace(/\s+/g, " ")).digest("hex") : "missing";
+  const { STOCK_BALANCE_SOURCE_SHA256 } = await load("src/main/services/auditWatch/stockBalances.js");
+  check("stockBalances.js matches the current stockBalance source", hash === STOCK_BALANCE_SOURCE_SHA256,
+    hash === STOCK_BALANCE_SOURCE_SHA256 ? "inventoryService.js openingWarehouseId + stockBalance" : `stockBalance changed (now ${hash}): restate its rules in src/main/services/auditWatch/stockBalances.js, extend the parity test, then set STOCK_BALANCE_SOURCE_SHA256`);
+}
+
 // ---- The Audit Watch steps stay blocking in verify:erp and the lock gate ----
 {
   const { LOCK_BLOCKING_STEPS } = await load("scripts/lib/masterVerificationPolicy.js");
   const pipelineText = read("scripts/verify-erp.js");
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
-    const step = pipelineText.match(new RegExp(`^\\s*\\{\\s*name:\\s*"${name}".*$`, "m"));
+    // The step's object literal, however it is laid out (template ${...} parts allowed).
+    const step = pipelineText.match(new RegExp(`\\{\\s*name:\\s*"${name}"(?:[^{}]|\\$\\{[^}]*\\})*\\}`));
     return !LOCK_BLOCKING_STEPS.has(name) || !step || !/strict:\s*true/.test(step[0]) || !/continueOn:\s*\[0\]/.test(step[0]) || !new RegExp(`run ${name}:electron`).test(step[0]);
   });
+  // And the npm scripts those steps run do exactly what they say: the whole suite and the
+  // whole verifier on Electron's Node, with nothing that filters tests or hides a failure.
+  const scripts = JSON.parse(read("package.json")).scripts || {};
+  const wantScripts = {
+    "verify:audit-watch": "node scripts/verify-audit-watch.js",
+    "verify:audit-watch:electron": "node scripts/lib/run-as-electron-node.mjs scripts/verify-audit-watch.js",
+    "test:audit-watch": "node --test scripts/audit/audit-watch.test.mjs",
+    "test:audit-watch:electron": "node scripts/lib/run-as-electron-node.mjs --test scripts/audit/audit-watch.test.mjs"
+  };
+  Object.entries(wantScripts).filter(([name, cmd]) => scripts[name] !== cmd).forEach(([name]) => missing.push(`${name} (package.json script changed)`));
   check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", missing.length === 0, missing.length ? `restore in scripts/verify-erp.js and LOCK_BLOCKING_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch");
 }
 

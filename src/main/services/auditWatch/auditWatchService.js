@@ -135,8 +135,6 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
     const balanceCache = new Map();
     const deps = {
       stockBalance: (company, itemId, warehouseId) => stockBalance(connection, company, itemId, warehouseId),
-      // Every pair's balance in one pass, read once per run and shared by I01 and I02.
-      stockBalances: (company) => (balanceCache.get(company) ?? balanceCache.set(company, stockBalances(connection, company)).get(company)),
       bookIntegrityChecks: (company) => bookIntegrityChecks(connection, company, { verifyAuditChain })
     };
     const started = Date.now();
@@ -152,7 +150,10 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
       const q = typeof options.wrapQuery === "function" ? options.wrapQuery(baseQuery, { checkId: check.id, db: connection }) : baseQuery;
       const checkStarted = Date.now();
       try {
-        const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, now, limits, deps })
+        // Every pair's balance in one pass, read once per run and shared by I01 and I02,
+        // through the check's own query helper (read-only, and traced in tests).
+        const checkDeps = { ...deps, stockBalances: (company) => (balanceCache.get(company) ?? balanceCache.set(company, stockBalances(q, company)).get(company)) };
+        const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, now, limits, deps: checkDeps })
           .map(boundFinding);
         all.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(a.key).localeCompare(String(b.key)));
         return {

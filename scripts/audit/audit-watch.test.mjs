@@ -319,6 +319,29 @@ test("AW-S07 flags a deduction above 5% of the bill, not one at 4%", () => {
 
 // ------------------------------------------------------------ stock
 
+test("AW-I01 reports stock already below zero when the period begins, moved or not", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  const still = f.item();
+  const rising = f.item();
+  const fine = f.item();
+  f.stockMove(still, w, "2026-03-25", -10);
+  f.stockMove(still, w, "2026-05-20", 10);
+  f.stockMove(rising, w, "2026-03-25", -10);
+  f.stockMove(rising, w, "2026-04-10", 5);
+  f.stockMove(fine, w, "2026-03-25", 10);
+  f.stockMove(fine, w, "2026-04-10", -4);
+  const april = findings(m, db, "AW-I01", { from: "2026-04-01", to: "2026-04-30" });
+  flagged(april, ["items", still]);
+  flagged(april, ["items", rising]);
+  clean(april, ["items", fine]);
+  const rose = april.find((row) => row.refs.some((ref) => ref.table === "items" && ref.id === rising));
+  assert.equal(rose.date, "2026-04-01");
+  assert.match(rose.summary, /already at -10 when the period began on 2026-04-01/);
+  // Once the receipt brings it back to zero, a later period is clear.
+  clean(findings(m, db, "AW-I01", { from: "2026-06-01", to: "2026-06-30" }), ["items", still]);
+});
+
 test("AW-I01 flags stock going below zero, not a same-day receipt and issue", () => {
   const { db, f } = fresh();
   const w = f.warehouse();
@@ -562,6 +585,22 @@ test("AW-G10 reports a failed book check and is clear on sound books", () => {
   const after = findings(m, db, "AW-G10", { from: "2026-07-01", to: "2027-03-31" });
   assert.deepEqual(after.map((row) => [row.key, row.fingerprint]), before.map((row) => [row.key, row.fingerprint]));
   assert.deepEqual(list.map((row) => row.key), before.map((row) => row.key));
+});
+
+test("AW-G10 notices one more unbalanced voucher even past the ten the detail names", () => {
+  const { db, f } = fresh();
+  db.exec("DROP TRIGGER IF EXISTS trg_ledger_guard_voucher_post; DROP TRIGGER IF EXISTS trg_ledger_guard_voucher_posted_update");
+  const lopsided = () => f.voucher({ date: "2026-06-01", lines: [["Transport Expense", 100, 0], ["Cash", 0, 90]] });
+  for (let i = 0; i < 11; i += 1) lopsided();
+  const balanceRow = () => findings(m, db, "AW-G10").find((row) => row.key === "AW-G10:voucher_balance");
+  const eleven = balanceRow();
+  assert.ok(eleven, "unbalanced vouchers should be reported");
+  assert.match(eleven.summary, /and 1 more/);
+  lopsided();
+  const twelve = balanceRow();
+  assert.equal(twelve.key, eleven.key);
+  assert.notEqual(twelve.fingerprint, eleven.fingerprint);
+  assert.match(twelve.summary, /and 2 more/);
 });
 
 // ------------------------------------------------------------ users and access
@@ -1019,7 +1058,9 @@ test("stockBalances gives the same balance as stockBalance for every item, wareh
       const inward = rand(3) > 0;
       f.insert("stock_ledger", {
         company_id: rand(4) ? 1 : second, item_id: items[rand(items.length)], warehouse_id: warehouses[rand(warehouses.length)],
-        transaction_date: shift("2026-04-01", rand(200)), transaction_type: inward ? "Inward" : "Outward", source_module: "audit_watch_fixture", source_id: i,
+        // Dates run past today, and types include reservations and adjustments, so a rule
+        // about either in stockBalance shows up here as a difference.
+        transaction_date: shift("2026-04-01", rand(500)), transaction_type: ["Reservation", "Adjustment", "Transfer"][rand(6)] || (inward ? "Inward" : "Outward"), source_module: "audit_watch_fixture", source_id: i,
         inward_quantity: inward ? quantity : 0, outward_quantity: inward ? 0 : quantity, rate: 10, value_minor: rand(90000), is_deleted: rand(10) ? 0 : 1
       });
     }
