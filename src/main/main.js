@@ -16,6 +16,8 @@ import {
   roleCan,
   enforceBankDetailPermission,
   verifyAuditChain,
+  runAuditWatch,
+  auditWatchCatalogue,
   alertServiceWith,
   autoReserveOrderStock,
   bankStatementData,
@@ -1211,6 +1213,17 @@ function registerIpc() {
   handle("health:error-console", (_event, context = {}) => {
     return errorConsoleState(db, runtimeDataRoot, { companyId: Number(context.company_id || 0) || null, verifyAuditChain });
   });
+  // Audit Watch: read-only exception checks. The role that decides which areas run is
+  // the signed-in user's role from the database, never a value the screen sends.
+  handle("audit-watch:catalogue", sessionGuarded("audit_watch", "audit_watch", (_payload, actor) => auditWatchCatalogue(actor.user_role), { readOnly: true }));
+  handle("audit-watch:run", sessionGuarded("audit_watch", "audit_watch", (payload = {}, actor) => runAuditWatch(db, {
+    companyId: Number(payload?.company_id || 0),
+    role: actor.user_role,
+    from: payload?.from,
+    to: payload?.to,
+    today: payload?.today,
+    areas: Array.isArray(payload?.areas) ? payload.areas.map(String) : undefined
+  }), { readOnly: true }));
   handle("health:error-console-record", (_event, entry = {}) => {
     // Renderer-side failures (screen crashes, failed loads) join the same journal.
     return recordError(runtimeDataRoot, { source: "screen", channel: String(entry.screen || "renderer").slice(0, 80), message: entry.message, company_id: entry.company_id, user_id: actorId() });

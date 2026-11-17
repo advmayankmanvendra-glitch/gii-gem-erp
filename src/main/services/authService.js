@@ -4,9 +4,9 @@ const ROLE_HIERARCHY = ["super_admin", "admin", "accountant", "manager", "data_e
 
 const ROLE_PERMISSIONS = {
   super_admin: new Set(["*"]),
-  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "account_mapping", "system_reset"]),
-  accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup", "account_mapping"]),
-  manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup"]),
+  admin: new Set(["create", "edit", "delete", "reverse", "approve", "post", "restore_backup", "backup", "financial_year_close", "financial_year_reopen", "opening_balance", "import", "export", "settings", "account_mapping", "system_reset", "audit_watch"]),
+  accountant: new Set(["create", "edit", "post", "reverse", "opening_balance", "import", "export", "view_reports", "backup", "account_mapping", "audit_watch"]),
+  manager: new Set(["create", "edit", "approve", "export", "view_reports", "backup", "audit_watch"]),
   data_entry_operator: new Set(["create", "edit", "import", "export", "backup"]),
   viewer: new Set(["export", "view_reports"])
 };
