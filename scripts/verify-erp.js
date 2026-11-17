@@ -53,6 +53,10 @@ function validateFinancialReportKnownGaps(stdout) {
 }
 
 /* ─── Pipeline definition ─── */
+// scripts/verify-audit-watch.js reads this array from its syntax tree to check that the
+// Audit Watch steps stay strict and lock-blocking. Keep it one top-level `const` of plain
+// object literals, and do not change it (or its steps) after the literal; reading it is
+// fine. Keep NPM as `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = [
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
