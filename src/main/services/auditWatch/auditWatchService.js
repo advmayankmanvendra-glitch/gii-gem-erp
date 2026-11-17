@@ -63,11 +63,16 @@ function validDate(value) {
 }
 
 export function readOnlyQuery(db) {
-  return (sql, params = []) => {
+  const prepare = (sql) => {
     const statement = db.prepare(sql);
     if (!statement.readonly || !statement.reader) throw new Error("Audit Watch may only read");
-    return statement.all(...params);
+    return statement;
   };
+  const query = (sql, params = []) => prepare(sql).all(...params);
+  // Streams the rows to visit one at a time, for reads too large to hold at once. The
+  // connection is busy until the last row, so visit must not query.
+  query.each = (sql, params, visit) => { for (const row of prepare(sql).iterate(...(params || []))) visit(row); };
+  return query;
 }
 
 // Limits come from the catalogue; a caller may override a known key with a number (or

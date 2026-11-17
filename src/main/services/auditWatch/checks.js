@@ -720,35 +720,126 @@ export const CHECK_FUNCTIONS = {
 
   // ------------------------------------------------------------ Stock
   "AW-I01"(q, { companyId, from, to, deps }) {
-    // Quantities are compared in whole micro-units (millionths), so the same stretch adds
-    // up to the same balance whichever way it is reached.
-    const UNIT = 1000000;
-    const units = (value) => Math.round(Number(value || 0) * UNIT);
+    // Quantities are counted in whole micro-units (millionths). Every ledger row is rounded
+    // to micro-units in SQL and only whole numbers are added up, on every path, so the
+    // same stretch adds up to the same balance whichever way it is reached.
+    const MICRO = "CAST(ROUND((COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0)) * 1000000) AS INTEGER)";
+    const units = (value) => Math.round(Number(value || 0) * 1000000);
     const shown = (value) => Math.round(value / 1000) / 1000;
     const MAX_ROWS = 10; // ledger rows kept per finding (the engine caps refs and evidence too)
-    // One grouped pass gives each item and warehouse its movement from the period start;
-    // with stockBalances (which adds opening stock held on the item) that gives the
+    // Large reads are streamed row by row where the helper allows it, so a big book does
+    // not have to fit in memory at once.
+    const each = typeof q.each === "function" ? q.each : (sql, params, visit) => q(sql, params).forEach(visit);
+    // One grouped pass gives each item and warehouse its movement before the period;
+    // with its opening stock (stockBalances, by inventoryService's own rule) that is the
     // balance on the first day.
-    const movement = new Map(q(`
-      SELECT sl.item_id, sl.warehouse_id,
-        COALESCE(SUM(CASE WHEN sl.transaction_date >= ? THEN COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0) END), 0) from_start
+    const before = new Map();
+    each(`
+      SELECT sl.item_id, sl.warehouse_id, COALESCE(SUM(CASE WHEN sl.transaction_date >= ? THEN 0 ELSE ${MICRO} END), 0) before_units
       FROM stock_ledger sl
       WHERE sl.company_id = ? AND ${live("sl")}
       GROUP BY sl.item_id, sl.warehouse_id
-    `, [from, companyId]).map((row) => [`${row.item_id}|${row.warehouse_id}`, row]));
-    // The period's movements, day by day (movements on one day are netted: stock
-    // received later the same day is not a gap). Only ids, dates and changes are held.
-    const moves = groupBy(q(`
-      SELECT sl.id, sl.item_id, sl.warehouse_id, sl.transaction_date,
-        COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0) change
-      FROM stock_ledger sl
-      WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date BETWEEN ? AND ?
-      ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date, sl.id
-    `, [companyId, from, to]), (row) => `${row.item_id}|${row.warehouse_id}`);
+    `, [from, companyId], (row) => before.set(`${row.item_id}|${row.warehouse_id}`, Number(row.before_units)));
     // Every pair with a balance (opening stock or any ledger row), so stock that was
     // already below zero when the period began is reported even if it did not move.
     const balances = deps.stockBalances(companyId);
-    const pairKeys = new Set([...movement.keys(), ...balances.entries().map((entry) => `${entry.itemId}|${entry.warehouseId}`)]);
+    const pairKeys = new Set([...before.keys(), ...balances.entries().map((entry) => `${entry.itemId}|${entry.warehouseId}`)]);
+    const pairOf = (pairKey) => pairKey.split("|").map(Number);
+    const openingOf = (pairKey) => units(balances.opening(...pairOf(pairKey)));
+    const startOf = (pairKey) => openingOf(pairKey) + (before.get(pairKey) || 0);
+    // Pairs already below zero: when did the stretch open at the period start begin?
+    // SQLite finds each pair's last fall below zero before the period (a running total by
+    // day), so only one row per pair comes back.
+    const negativeAtStart = [...pairKeys].filter((pairKey) => startOf(pairKey) < 0);
+    const openStretch = new Map();
+    if (negativeAtStart.length) {
+      const pairs = JSON.stringify(negativeAtStart.map((pairKey) => ({ k: pairKey, o: openingOf(pairKey) })));
+      each(`
+        WITH pairs AS MATERIALIZED (
+          SELECT json_extract(value, '$.k') pair_key, json_extract(value, '$.o') opening FROM json_each(?)
+        ), days AS (
+          SELECT sl.item_id, sl.warehouse_id, sl.transaction_date day, SUM(${MICRO}) moved, MAX(sl.id) last_id
+          FROM stock_ledger sl
+          WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date < ?
+            AND (sl.item_id || '|' || sl.warehouse_id) IN (SELECT pair_key FROM pairs)
+          GROUP BY sl.item_id, sl.warehouse_id, sl.transaction_date
+        ), opened AS (
+          SELECT d.*, p.opening FROM days d JOIN pairs p ON p.pair_key = (d.item_id || '|' || d.warehouse_id)
+        ), running AS (
+          SELECT item_id, warehouse_id, day, last_id,
+            opening + SUM(moved) OVER (PARTITION BY item_id, warehouse_id ORDER BY day ROWS UNBOUNDED PRECEDING) after_day,
+            opening + SUM(moved) OVER (PARTITION BY item_id, warehouse_id ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) before_day,
+            opening
+          FROM opened
+        ), falls AS (
+          SELECT item_id, warehouse_id, day, last_id, after_day,
+            ROW_NUMBER() OVER (PARTITION BY item_id, warehouse_id ORDER BY day DESC) latest
+          FROM running WHERE after_day < 0 AND COALESCE(before_day, opening) >= 0
+        )
+        SELECT item_id, warehouse_id, day, last_id, after_day FROM falls WHERE latest = 1
+      `, [pairs, companyId, from], (row) => openStretch.set(`${row.item_id}|${row.warehouse_id}`, { since: row.day, fellTo: Number(row.after_day), rowId: row.last_id }));
+      for (const pairKey of negativeAtStart) {
+        if (openStretch.has(pairKey)) continue;
+        // No fall before the period: below zero before any ledger row, from opening stock.
+        const opening = openingOf(pairKey);
+        openStretch.set(pairKey, opening < 0 ? { since: null, fellTo: opening, rowId: null, opening: true } : { since: null, fellTo: startOf(pairKey), rowId: null });
+      }
+    }
+    // Walk each pair's days in the period, streaming the rows in order. Each stretch below
+    // zero is identified by the day it began and the balance right after that fall, which
+    // are past history, so a stretch keeps one fingerprint whatever period is chosen. The
+    // finding is the latest stretch the period touches; the summary also gives the balance
+    // at the period start, the lowest point in the period, any recovery and how many
+    // stretches the period saw. Names are looked up after the walk.
+    const found = [];
+    let pair = null;
+    const openPair = (pairKey) => {
+      const balance = startOf(pairKey);
+      const current = balance < 0 ? { ...openStretch.get(pairKey), lowest: balance, lowestOn: null, fallIds: [], lowestIds: null } : null;
+      pair = { pairKey, balance, current, startStretch: current, latest: current, stretches: current ? 1 : 0, day: null, dayIds: [] };
+    };
+    const endDay = () => {
+      if (!pair || pair.day === null) return;
+      const { balance, day, dayIds } = pair;
+      if (!pair.current && balance < 0) {
+        pair.current = { since: day, fellTo: balance, rowId: null, lowest: balance, lowestOn: day, fallIds: dayIds, lowestIds: null };
+        pair.latest = pair.current;
+        pair.stretches += 1;
+      } else if (pair.current && balance < 0) {
+        if (balance < pair.current.lowest) {
+          pair.current.lowest = balance;
+          pair.current.lowestOn = day;
+          pair.current.lowestIds = dayIds;
+        }
+      } else if (pair.current && balance >= 0) {
+        pair.current.recoveredOn = day;
+        pair.current = null;
+      }
+      pair.day = null;
+      pair.dayIds = [];
+    };
+    const closePair = () => {
+      if (!pair) return;
+      endDay();
+      if (pair.latest) found.push({ pairKey: pair.pairKey, latest: pair.latest, startStretch: pair.startStretch, stretches: pair.stretches });
+      pair = null;
+    };
+    const walked = new Set();
+    each(`
+      SELECT sl.id, sl.item_id, sl.warehouse_id, sl.transaction_date, ${MICRO} moved
+      FROM stock_ledger sl
+      WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date BETWEEN ? AND ?
+      ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date, sl.id
+    `, [companyId, from, to], (row) => {
+      const pairKey = `${row.item_id}|${row.warehouse_id}`;
+      if (pair?.pairKey !== pairKey) { closePair(); openPair(pairKey); walked.add(pairKey); }
+      if (pair.day !== row.transaction_date) { endDay(); pair.day = row.transaction_date; }
+      pair.balance += Number(row.moved);
+      if (pair.dayIds.length < MAX_ROWS) pair.dayIds.push(row.id);
+    });
+    closePair();
+    // Pairs below zero all period without moving.
+    for (const pairKey of negativeAtStart) if (!walked.has(pairKey)) { openPair(pairKey); closePair(); }
     let names = null;
     const nameOf = (itemId, warehouseId) => {
       names ??= {
@@ -757,77 +848,8 @@ export const CHECK_FUNCTIONS = {
       };
       return { item: names.items.get(Number(itemId)), warehouse: names.warehouses.get(Number(warehouseId)) };
     };
-    const startOf = (pairKey) => {
-      const [itemId, warehouseId] = pairKey.split("|").map(Number);
-      return units(balances.get(itemId, warehouseId).quantity) - units(movement.get(pairKey)?.from_start);
-    };
-    // Pairs already below zero need their earlier history, to know when the current
-    // stretch below zero began: one grouped read of earlier days, for those pairs only.
-    const negativeAtStart = [...pairKeys].filter((pairKey) => startOf(pairKey) < 0);
-    const openStretch = new Map();
-    if (negativeAtStart.length) {
-      const earlier = groupBy(q(`
-        SELECT sl.item_id, sl.warehouse_id, sl.transaction_date,
-          SUM(COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0)) change, MAX(sl.id) last_id
-        FROM stock_ledger sl
-        WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date < ?
-          AND (sl.item_id || '|' || sl.warehouse_id) IN (SELECT value FROM json_each(?))
-        GROUP BY sl.item_id, sl.warehouse_id, sl.transaction_date
-        ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date
-      `, [companyId, from, JSON.stringify(negativeAtStart)]), (row) => `${row.item_id}|${row.warehouse_id}`);
-      for (const pairKey of negativeAtStart) {
-        const days = earlier.get(pairKey) || [];
-        const start = startOf(pairKey);
-        let running = start - days.reduce((sum, row) => sum + units(row.change), 0);
-        // Below zero before any ledger row: that is the item's opening stock.
-        let stretch = running < 0 ? { since: null, fellTo: running, rowId: null, opening: true } : null;
-        for (const day of days) {
-          const wasBelow = running < 0;
-          running += units(day.change);
-          if (!wasBelow && running < 0) stretch = { since: day.transaction_date, fellTo: running, rowId: day.last_id };
-        }
-        openStretch.set(pairKey, stretch || { since: null, fellTo: start, rowId: null });
-      }
-    }
-    // Walk each pair's days in the period. Each stretch below zero is identified by the
-    // day it began and the balance right after that fall, which are past history, so a
-    // stretch keeps one fingerprint whatever period is chosen. The finding is the latest
-    // stretch the period touches; the summary also gives the balance at the period start,
-    // the lowest point in the period, any recovery and how many stretches the period saw.
-    const findings = [];
-    for (const pairKey of pairKeys) {
-      let balance = startOf(pairKey);
-      const rows = moves.get(pairKey);
-      if (balance >= 0 && !rows) continue;
-      const startedBelow = balance < 0;
-      let current = startedBelow ? { ...openStretch.get(pairKey), lowest: balance, lowestOn: null, rowIds: [] } : null;
-      const startStretch = current;
-      let latest = current;
-      let stretches = current ? 1 : 0;
-      let i = 0;
-      while (rows && i < rows.length) {
-        const date = rows[i].transaction_date;
-        const dayStart = i;
-        while (i < rows.length && rows[i].transaction_date === date) { balance += units(rows[i].change); i += 1; }
-        const dayIds = () => rows.slice(dayStart, Math.min(i, dayStart + MAX_ROWS)).map((row) => row.id);
-        if (!current && balance < 0) {
-          current = { since: date, fellTo: balance, rowId: null, lowest: balance, lowestOn: date, rowIds: dayIds() };
-          latest = current;
-          stretches += 1;
-        } else if (current && balance < 0) {
-          if (balance < current.lowest) {
-            current.lowest = balance;
-            current.lowestOn = date;
-            // Keep the first fall's rows and the lowest day's rows, within the cap.
-            current.rowIds = [...current.rowIds.slice(0, MAX_ROWS / 2), ...dayIds()].slice(0, MAX_ROWS);
-          }
-        } else if (current && balance >= 0) {
-          current.recoveredOn = date;
-          current = null;
-        }
-      }
-      if (!latest) continue;
-      const [itemId, warehouseId] = pairKey.split("|").map(Number);
+    return found.map(({ pairKey, latest, startStretch, stretches }) => {
+      const [itemId, warehouseId] = pairOf(pairKey);
       const label = nameOf(itemId, warehouseId);
       const where = `${label.item || "Item"} in ${label.warehouse || "warehouse"}`;
       const began = latest.since ? `went below zero on ${latest.since} (to ${shown(latest.fellTo)})`
@@ -840,17 +862,20 @@ export const CHECK_FUNCTIONS = {
         latest.recoveredOn ? `back to zero or above on ${latest.recoveredOn}` : "",
         stretches > 1 ? `${stretches} separate stretches below zero in this period` : ""
       ].filter(Boolean);
-      findings.push({
+      // The ledger rows kept: the fall day's rows, then the lowest day's rows (at least
+      // five of them when there are that many), up to MAX_ROWS in all.
+      const lowestIds = latest.lowestIds || [];
+      const rowIds = [...latest.fallIds.slice(0, Math.max(MAX_ROWS / 2, MAX_ROWS - lowestIds.length)), ...lowestIds].slice(0, MAX_ROWS);
+      return {
         key: `AW-I01:${itemId}-${warehouseId}`,
         fingerprint: `${latest.since || (latest.opening ? "opening" : "earlier")}|${latest.fellTo}`,
         summary: parts.join("; "),
         date: latest.since && latest.since >= from ? latest.since : from,
         amountMinor: 0,
-        refs: [{ table: "items", id: itemId }, ...(latest.rowId ? [{ table: "stock_ledger", id: latest.rowId }] : []), ...latest.rowIds.map((id) => ({ table: "stock_ledger", id }))],
-        evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: shown(startOf(pairKey)), period_start: from, below_zero_since: latest.since, fell_to: shown(latest.fellTo), lowest: shown(latest.lowest), lowest_on: latest.lowestOn, recovered_on: latest.recoveredOn || null, stretches_in_period: stretches, ledger_rows: latest.rowIds }]
-      });
-    }
-    return findings;
+        refs: [{ table: "items", id: itemId }, ...(latest.rowId ? [{ table: "stock_ledger", id: latest.rowId }] : []), ...rowIds.map((id) => ({ table: "stock_ledger", id }))],
+        evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: shown(startOf(pairKey)), period_start: from, below_zero_since: latest.since, fell_to: shown(latest.fellTo), lowest: shown(latest.lowest), lowest_on: latest.lowestOn, recovered_on: latest.recoveredOn || null, stretches_in_period: stretches, ledger_rows: rowIds }]
+      };
+    });
   },
 
   "AW-I02"(q, { companyId, today, limits, deps }) {

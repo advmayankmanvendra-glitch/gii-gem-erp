@@ -19,7 +19,7 @@ import { execSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate } from "./lib/masterVerificationPolicy.js";
+import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate, strictExitCode } from "./lib/masterVerificationPolicy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -54,9 +54,12 @@ function validateFinancialReportKnownGaps(stdout) {
 
 /* ─── Pipeline definition ─── */
 // scripts/verify-audit-watch.js reads this array from its syntax tree to check that the
-// Audit Watch steps stay strict and lock-blocking. Keep it one top-level `const` of plain
-// object literals, and do not change it (or its steps) after the literal; reading it is
-// fine. Keep NPM as `const NPM = <windows test> ? "npm.cmd" : "npm"`.
+// Audit Watch steps are present as written. Keep it one top-level `const` array of plain
+// object literals and do not reassign it or call a mutating array method on it; any other
+// use is fine. Which steps are strict is set by name in STRICT_STEPS
+// (scripts/lib/masterVerificationPolicy.js), and main() must apply strictExitCode inside
+// its `for (const step of PIPELINE)` loop. Keep NPM as
+// `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = [
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
@@ -68,8 +71,8 @@ const PIPELINE = [
   // Audit Watch's verifier and contract tests block: any failure is a FAIL, not a warning,
   // so the catalogue, AG-1, the manual and the checks cannot drift apart unseen. They run
   // on Electron's Node, like verify:accounting, so one better-sqlite3 build serves all.
-  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0], strict: true },
-  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0], strict: true },
+  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0] },
+  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0] },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },
@@ -157,8 +160,8 @@ function main() {
         result.stderr = [result.stderr, validation.detail].filter(Boolean).join("\n");
       }
     }
-    // A strict step has no warning state: any non-zero exit stops the pipeline.
-    if (step.strict && result.exitCode !== EXIT.PASS && result.exitCode < EXIT.FAIL) result.exitCode = EXIT.FAIL;
+    // A strict step (STRICT_STEPS) has no warning state: any non-zero exit stops the pipeline.
+    result.exitCode = strictExitCode(step.name, result.exitCode);
     const label = EXIT_LABEL[result.exitCode] || `UNKNOWN(${result.exitCode})`;
     const durationSec = (result.duration / 1000).toFixed(1);
 

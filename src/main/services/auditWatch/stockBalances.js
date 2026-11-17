@@ -73,6 +73,9 @@ export function stockBalances(source, companyId) {
   }
   return {
     get,
+    // The opening stock a pair holds (inventoryService's opening-warehouse rule), so a
+    // caller can rebuild a balance from opening stock and its own sums of ledger rows.
+    opening: (itemId, warehouseId) => opening(items.get(Number(itemId)) || {}, warehouseId).quantity,
     entries: () => [...pairs].map((key) => {
       const [itemId, warehouseId] = key.split("|").map(Number);
       return { itemId, warehouseId, moved: movement.has(key), balance: get(itemId, warehouseId) };

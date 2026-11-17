@@ -381,6 +381,66 @@ test("AW-I01 adds fractional quantities exactly, so one stretch keeps one finger
   assert.equal(at({ from: "2026-03-01", to: "2026-03-02" }).fingerprint, "2026-03-01|-100000");
 });
 
+test("AW-I01 keeps one fingerprint for quantities past six decimals and for very large ones", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  const fine = f.item();
+  // Four issues on the fall day, each with seven decimals: each row is rounded to
+  // micro-units before it is added, on every path.
+  f.stockMove(fine, w, "2026-03-05", 0.4);
+  for (const quantity of [-0.1234567, -0.2345678, -0.3456789, -0.0567891]) f.stockMove(fine, w, "2026-03-10", quantity);
+  f.stockMove(fine, w, "2026-03-20", -0.0000004);
+  const big = f.item();
+  f.stockMove(big, w, "2026-03-05", 12345678901.1234567);
+  f.stockMove(big, w, "2026-03-10", -12345678901.2345678);
+  f.stockMove(big, w, "2026-03-10", -0.0000013);
+  for (const item of [fine, big]) {
+    const at = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${item}-${w}`);
+    const fall = at({ from: "2026-03-01", to: "2026-03-31" });
+    assert.match(fall.fingerprint, /^2026-03-10\|-\d+$/);
+    assert.equal(at({ from: "2026-03-15", to: "2026-03-31" }).fingerprint, fall.fingerprint);
+    assert.equal(at({ from: "2026-04-01", to: "2026-04-30" }).fingerprint, fall.fingerprint);
+  }
+});
+
+test("AW-I01 keeps the fall day's rows and the lowest day's rows, not rows of other days", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  const item = f.item();
+  const fallRows = [];
+  for (let i = 0; i < 7; i += 1) fallRows.push(f.stockMove(item, w, "2026-03-02", -1));
+  const between = [];
+  for (let i = 0; i < 4; i += 1) between.push(f.stockMove(item, w, "2026-03-05", -1));
+  const lowest = [];
+  for (let i = 0; i < 6; i += 1) lowest.push(f.stockMove(item, w, "2026-03-09", -1));
+  const finding = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" }).find((row) => row.key === `AW-I01:${item}-${w}`);
+  const kept = finding.evidence[0].ledger_rows.map(Number);
+  assert.deepEqual(kept, [...fallRows.slice(0, 5), ...lowest.slice(0, 5)].map(Number));
+  assert.ok(between.every((id) => !kept.includes(Number(id))));
+  // With a short lowest day, more of the fall day's rows are kept.
+  const other = f.item();
+  const otherFall = [];
+  for (let i = 0; i < 7; i += 1) otherFall.push(f.stockMove(other, w, "2026-03-02", -1));
+  const otherLow = f.stockMove(other, w, "2026-03-09", -1);
+  const second = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" }).find((row) => row.key === `AW-I01:${other}-${w}`);
+  assert.deepEqual(second.evidence[0].ledger_rows.map(Number), [...otherFall, otherLow].map(Number));
+});
+
+test("AW-I01 gives the same findings whether its large reads are streamed or read whole", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  for (let i = 0; i < 6; i += 1) {
+    const item = f.item();
+    f.stockMove(item, w, "2026-02-10", i % 2 ? -3 : 2);
+    f.stockMove(item, w, "2026-03-05", -2);
+    f.stockMove(item, w, "2026-03-15", i);
+  }
+  const streamed = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" });
+  const whole = findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31", wrapQuery: (q) => (sql, params) => q(sql, params) });
+  assert.ok(streamed.length > 0);
+  assert.deepEqual(whole, streamed);
+});
+
 test("AW-I01 names the latest stretch below zero, any recovery and later falls, with one fingerprint per stretch", () => {
   const { db, f } = fresh();
   const w = f.warehouse();
@@ -1171,6 +1231,9 @@ test("stockBalances gives the same balance as stockBalance for every item, wareh
       f.insert("warehouses", { warehouse_name: "Zero", status: "active", company_id: 0 }),
       f.insert("warehouses", { warehouse_name: "Theirs", status: "active", company_id: second }),
       f.insert("warehouses", { warehouse_name: "Closed", status: "inactive", company_id: 1 })];
+    // In odd seeds the first warehouse is closed, so the first active one is not the
+    // lowest id: a change to that rule in stockBalance shows up here.
+    if (seed % 2) db.prepare("UPDATE warehouses SET status = 'inactive' WHERE id = 1").run();
     const items = [];
     for (let i = 0; i < 12; i += 1) {
       const opening = rand(3) ? rand(20) : 0;

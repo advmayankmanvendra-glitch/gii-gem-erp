@@ -235,12 +235,20 @@ function parsedFile(rel) {
     // Import paths: static imports, re-exports and import().
     const importPaths = [];
     const memberNames = [];
+    // Names bound to createRequire(...) (const load = createRequire(import.meta.url)).
+    const requireNames = new Set(["require"]);
+    walk(ast.program, (node) => {
+      const init = node.type === "VariableDeclarator" ? node.init : node.type === "AssignmentExpression" ? node.right : null;
+      const target = node.type === "VariableDeclarator" ? node.id : node.type === "AssignmentExpression" ? node.left : null;
+      const callee = init?.type === "CallExpression" ? init.callee : null;
+      if (target?.type === "Identifier" && (callee?.name === "createRequire" || (callee?.type === "MemberExpression" && callee.property?.name === "createRequire"))) requireNames.add(target.name);
+    });
     walk(ast.program, (node) => {
       if (["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(node.type) && node.source) importPaths.push(node.source);
       if (node.type === "ImportExpression" && node.source) importPaths.push(node.source);
       if (node.type === "CallExpression" && node.callee?.type === "Import" && node.arguments?.[0]) importPaths.push(node.arguments[0]);
-      // require("...") and a createRequire'd require (any call named require).
-      if (node.type === "CallExpression" && node.callee?.type === "Identifier" && /require$/i.test(node.callee.name) && node.arguments?.[0]?.type === "StringLiteral") importPaths.push(node.arguments[0]);
+      // require("...") and calls through a name bound to createRequire(...).
+      if (node.type === "CallExpression" && node.callee?.type === "Identifier" && requireNames.has(node.callee.name) && node.arguments?.[0]?.type === "StringLiteral") importPaths.push(node.arguments[0]);
       // obj["name"] is a use of name, like obj.name.
       if ((node.type === "MemberExpression" || node.type === "OptionalMemberExpression") && node.computed && node.property?.type === "StringLiteral") memberNames.push(node.property.value);
     });
@@ -274,11 +282,12 @@ const stringCount = (rel, word) => parsedFile(rel).importText.filter((value) => 
 // One way in: main-process code runs Audit Watch through the runner (worker thread),
 // never by calling runAuditWatch directly, so a later caller cannot block the app.
 const allowedCallers = new Set(["src/main/main.js", "src/main/database/init.js", "src/main/services/auditWatch/auditWatchWorker.js", "src/main/services/auditWatch/auditWatchService.js"]);
+// Worker URLs are strings, so this one reads strings too.
+const workerNamers = sourceFiles.filter((rel) => rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(commentFreeOf(rel)));
 const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /\brunAuditWatch\b/.test(codeOf(rel)))
   // The check functions are run only by the service; the worker file only by the runner;
   // and the runner is never imported under another name.
   || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(codeOf(rel)))
-  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(commentFreeOf(rel)))
   || /\bcreateAuditWatchRunner\s*(?:as\b|:)/.test(codeOf(rel))
   // No renamed import or destructuring of runAuditWatch anywhere, main.js included.
   || /\brunAuditWatch\s*(?:as\b|:)/.test(codeOf(rel)));
@@ -286,8 +295,8 @@ const mainCalls = [...codeOf("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/
 // One runner, so its lock (which restore and reset also wait on) sees every run.
 const runnerMakers = sourceFiles.flatMap((rel) => [...codeOf(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
   .filter((rel) => rel !== "src/main/services/auditWatch/auditWatchRunner.js");
-check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && mainCalls === 1 && runnerMakers.length === 1 && runnerMakers[0] === "src/main/main.js",
-  directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : runnerMakers.length !== 1 ? `one runner only, in main.js; found in: ${runnerMakers.join(", ") || "nowhere"}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
+check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && workerNamers.length === 0 && mainCalls === 1 && runnerMakers.length === 1 && runnerMakers[0] === "src/main/main.js",
+  directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : workerNamers.length ? `names auditWatchWorker (only the runner may, even in a string): ${workerNamers.join(", ")}` : runnerMakers.length !== 1 ? `one runner only, in main.js; found in: ${runnerMakers.join(", ") || "nowhere"}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
 const registryText = read("src/main/database/accountMappingRegistry.js");
 const knownGroups = new Set([...registryText.matchAll(/^\s*\["([A-Z_]+)", "[^"]+", (?:"[A-Z_]+"|null)/gm)].map((match) => match[1]));
 const checksModule = await load("src/main/services/auditWatch/checks.js");
@@ -378,7 +387,9 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   const functionTexts = ["openingWarehouseId", "stockBalance"].map(functionSource);
   // Self-check: the hashed text must hold the SQL, or rule changes inside it would read
   // as "unchanged".
-  check("The stockBalance pin hashes the functions with their SQL", functionTexts.every((textOf) => /SELECT .*FROM/i.test(textOf)), "openingWarehouseId and stockBalance include their queries");
+  check("The stockBalance pin hashes the functions with their SQL", functionTexts.every((textOf) => /SELECT .*FROM/i.test(textOf)),
+    functionTexts.every((textOf) => /SELECT .*FROM/i.test(textOf)) ? "openingWarehouseId and stockBalance include their queries"
+      : `${["openingWarehouseId", "stockBalance"].filter((name, i) => functionTexts[i] === "missing").map((name) => `${name} is not a function declaration in ${rel}`).join("; ") || "a function's text has no query"}: the pin cannot see its rules`);
   const functionsHash = crypto.createHash("sha256").update(functionTexts.join("\n")).digest("hex");
   const pin = await load("src/main/services/auditWatch/stockBalances.js");
   const functionsSame = functionsHash === pin.STOCK_BALANCE_FUNCTIONS_SHA256;
@@ -388,19 +399,30 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   let pinWarning = "";
   let commitProblem = /^[0-9a-f]{40}$/.test(String(pin.STOCK_BALANCE_CHECKED_AT)) ? "" : "STOCK_BALANCE_CHECKED_AT must be a full 40-character commit id";
   if (!commitProblem) {
-    try {
-      const { execFileSync } = await import("node:child_process");
-      const atCommit = execFileSync("git", ["show", `${pin.STOCK_BALANCE_CHECKED_AT}:${rel}`], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
-      const atHash = crypto.createHash("sha256").update(atCommit.replace(/\s+/g, " ").trim()).digest("hex");
-      if (atHash !== pin.STOCK_BALANCE_SOURCE_SHA256) commitProblem = `STOCK_BALANCE_SOURCE_SHA256 is not the hash of ${rel} at ${pin.STOCK_BALANCE_CHECKED_AT}`;
-    } catch (error) {
-      // Tell apart: no git, a shallow clone (the commit may simply not be fetched), and a
-      // full clone that does not have the commit (a wrong id, or one lost to a squash).
-      const { execFileSync } = await import("node:child_process");
-      let shallow = null;
-      try { shallow = execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() === "true"; } catch { shallow = null; }
-      if (shallow === false) commitProblem = `commit ${pin.STOCK_BALANCE_CHECKED_AT} is not in this repository (record a commit that is on main)`;
-      else pinWarning = shallow ? "shallow clone: the pinned commit could not be checked; the hashes were" : "git is not available: the pinned commit could not be checked; the hashes were";
+    const { execFileSync } = await import("node:child_process");
+    const { realpathSync } = await import("node:fs");
+    const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
+    // Only ROOT's own repository counts: a copy without .git inside another repository
+    // (vendored or unpacked) must not be checked against that other repository.
+    let ownRepo = false;
+    try { ownRepo = realpathSync(git(["rev-parse", "--show-toplevel"]).trim()) === realpathSync(ROOT); } catch { ownRepo = false; }
+    if (!ownRepo) pinWarning = "no git repository of its own (git missing, or a copy without .git): the pinned commit could not be checked; the hashes were";
+    else {
+      let hasCommit = false;
+      try { git(["cat-file", "-e", `${pin.STOCK_BALANCE_CHECKED_AT}^{commit}`]); hasCommit = true; } catch { hasCommit = false; }
+      if (hasCommit) {
+        let atCommit = null;
+        try { atCommit = git(["show", `${pin.STOCK_BALANCE_CHECKED_AT}:${rel}`]); } catch { atCommit = null; }
+        if (atCommit === null) commitProblem = `commit ${pin.STOCK_BALANCE_CHECKED_AT} has no ${rel}`;
+        else if (crypto.createHash("sha256").update(atCommit.replace(/\s+/g, " ").trim()).digest("hex") !== pin.STOCK_BALANCE_SOURCE_SHA256) commitProblem = `STOCK_BALANCE_SOURCE_SHA256 is not the hash of ${rel} at ${pin.STOCK_BALANCE_CHECKED_AT}`;
+      } else {
+        // A shallow clone may simply not have fetched it; a full clone without it has a
+        // wrong id, or one lost to a squash.
+        let shallow = null;
+        try { shallow = git(["rev-parse", "--is-shallow-repository"]).trim() === "true"; } catch { shallow = null; }
+        if (shallow === false) commitProblem = `commit ${pin.STOCK_BALANCE_CHECKED_AT} is not in this repository (record a commit that is on main)`;
+        else pinWarning = "shallow clone: the pinned commit could not be checked; the hashes were";
+      }
     }
   }
   if (pinWarning) warn("stockBalances.js pin commit not checked", pinWarning);
@@ -416,25 +438,30 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
 
 // ---- The Audit Watch steps stay blocking in verify:erp and the lock gate ----
 {
-  const { LOCK_BLOCKING_STEPS } = await load("scripts/lib/masterVerificationPolicy.js");
+  const { LOCK_BLOCKING_STEPS, STRICT_STEPS, strictExitCode } = await load("scripts/lib/masterVerificationPolicy.js");
   // Read verify-erp.js's PIPELINE from its syntax tree (nothing is run) and look at the
   // step objects themselves, so layout, comments and extra fields do not matter.
+  // Strictness is keyed on the step name (STRICT_STEPS), so what the runner does with its
+  // step objects cannot loosen it; the checks below only make sure the steps are there as
+  // written and that the run loop applies strictExitCode to every step of PIPELINE.
   let pipeline = [];
   let pipelineProblem = "";
   try {
+    const before = unparsable.length;
     const { ast } = parsedFile("scripts/verify-erp.js");
+    if (unparsable.length > before) throw new Error(`cannot parse it (${unparsable[unparsable.length - 1]})`);
     const code = read("scripts/verify-erp.js");
-    // Exactly one top-level `const PIPELINE = [...]`, used only by `for (const step of
-    // PIPELINE)`: nothing can add, remove or change steps after the literal.
-    const topLevel = ast.program.body.filter((node) => node.type === "VariableDeclaration");
+    // Top-level declarations, `export const` included.
+    const topLevel = ast.program.body.map((node) => (node.type === "ExportNamedDeclaration" ? node.declaration : node)).filter((node) => node?.type === "VariableDeclaration");
     const declarations = topLevel.filter((node) => node.declarations.some((item) => item.id?.name === "PIPELINE"));
-    if (declarations.length !== 1 || declarations[0].kind !== "const") throw new Error("PIPELINE must be declared once, at top level, with const (not exported)");
+    if (declarations.length !== 1 || declarations[0].kind !== "const") throw new Error("PIPELINE must be declared once, at top level, with const");
     const declarator = declarations[0].declarations.find((item) => item.id?.name === "PIPELINE");
-    if (declarator?.init?.type !== "ArrayExpression") throw new Error("PIPELINE is not a plain array literal");
-    // Nothing may change PIPELINE after its literal: no assignment to it or into it, no
-    // mutating array method, no ++/--, no delete, and it is not handed to other code
-    // (which could change it). Reading it (for-of, .length, .map, logging a step) is fine.
-    // Functions that declare their own PIPELINE are skipped: that is another variable.
+    // A plain array literal, or one wrapped in Object.freeze(...).
+    const frozen = declarator?.init?.type === "CallExpression" && declarator.init.callee?.type === "MemberExpression" && declarator.init.callee.object?.name === "Object" && declarator.init.callee.property?.name === "freeze" && declarator.init.arguments.length === 1;
+    const literal = frozen ? declarator.init.arguments[0] : declarator?.init;
+    if (literal?.type !== "ArrayExpression") throw new Error("PIPELINE is not a plain array literal");
+    // The top-level PIPELINE (not a local variable of the same name) is not reassigned,
+    // written into, changed by a mutating array method or deleted from.
     const shadowed = [];
     walk(ast.program, (node) => {
       if (/Function/.test(node.type) && node.body) {
@@ -444,99 +471,71 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
       }
     });
     const isPipeline = (node) => node?.type === "Identifier" && node.name === "PIPELINE" && node !== declarator.id && !shadowed.some(([start, end]) => node.start >= start && node.end <= end);
-    const rootOf = (node) => { let current = node; while (current && /MemberExpression$/.test(current.type)) current = current.object; return current; };
     const MUTATING = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
     const changes = [];
-    // Names a loop over PIPELINE gives its steps (for (const step of PIPELINE) and
-    // for (const [i, step] of PIPELINE.entries())): writing to them changes a step too.
-    const stepNames = new Set();
-    const stepScopes = []; // [name, start, end]: where that name means a step
+    walk(ast.program, (node) => {
+      if (node.type === "AssignmentExpression" && (isPipeline(node.left) || (/MemberExpression$/.test(node.left?.type) && isPipeline(node.left.object)))) changes.push("an assignment");
+      if (node.type === "UpdateExpression" && /MemberExpression$/.test(node.argument?.type) && isPipeline(node.argument.object)) changes.push("++/--");
+      if (node.type === "UnaryExpression" && node.operator === "delete" && /MemberExpression$/.test(node.argument?.type) && isPipeline(node.argument.object)) changes.push("delete");
+      if (node.type === "CallExpression" && /MemberExpression$/.test(node.callee?.type) && isPipeline(node.callee.object) && MUTATING.has(node.callee.property?.name ?? node.callee.property?.value)) changes.push(`.${node.callee.property?.name ?? node.callee.property?.value}()`);
+    });
+    if (changes.length) throw new Error(`PIPELINE is changed after its literal (${[...new Set(changes)].join(", ")})`);
+    // The run loop: one `for (const step of PIPELINE)` (or `of PIPELINE.entries()`) whose
+    // body applies strictExitCode(step.name, ...) and assigns the result to the exit code.
+    const loops = [];
     walk(ast.program, (node) => {
       if (node.type !== "ForOfStatement") return;
       const right = node.right;
-      const overPipeline = isPipeline(right) || (right?.type === "CallExpression" && /MemberExpression$/.test(right.callee?.type) && isPipeline(right.callee.object));
-      if (!overPipeline) return;
-      walk(node.left, (inner) => { if (inner.type === "Identifier") { stepNames.add(inner.name); stepScopes.push([inner.name, node.start, node.end]); } });
+      const direct = isPipeline(right);
+      const entries = right?.type === "CallExpression" && right.arguments.length === 0 && right.callee?.type === "MemberExpression" && !right.callee.computed && isPipeline(right.callee.object) && right.callee.property?.name === "entries";
+      if (!direct && !entries) return;
+      const pattern = node.left?.type === "VariableDeclaration" ? node.left.declarations[0]?.id : null;
+      // The step is bound as a name (step) or destructured ({ name, cmd }).
+      const bound = direct ? pattern : (pattern?.type === "ArrayPattern" ? pattern.elements[1] : null);
+      const stepName = bound?.type === "Identifier" ? bound.name : null;
+      const nameProp = bound?.type === "ObjectPattern" ? bound.properties.find((prop) => prop.type === "ObjectProperty" && !prop.computed && (prop.key.name ?? prop.key.value) === "name") : null;
+      const nameVar = nameProp?.value?.type === "Identifier" ? nameProp.value.name : null;
+      let applies = false;
+      walk(node.body, (inner) => {
+        if (inner.type !== "AssignmentExpression" || inner.operator !== "=" || inner.right?.type !== "CallExpression") return;
+        const call = inner.right;
+        const arg = call.arguments[0];
+        if (call.callee?.type === "Identifier" && call.callee.name === "strictExitCode" && call.arguments.length === 2
+          && ((stepName && arg?.type === "MemberExpression" && !arg.computed && arg.object?.type === "Identifier" && arg.object.name === stepName && arg.property?.name === "name")
+            || (nameVar && arg?.type === "Identifier" && arg.name === nameVar))
+          && /MemberExpression$/.test(inner.left?.type) && inner.left.property?.name === "exitCode") applies = true;
+      });
+      loops.push({ applies });
     });
-    // Callbacks given to PIPELINE's methods (PIPELINE.map((s) => ...)) receive steps too.
-    const callbackParams = new Set();
+    if (!loops.some((loop) => loop.applies)) throw new Error("no `for (const step of PIPELINE)` loop applies `result.exitCode = strictExitCode(step.name, result.exitCode)`");
+    const imported = ast.program.body.some((node) => node.type === "ImportDeclaration" && /masterVerificationPolicy\.js$/.test(node.source.value)
+      && node.specifiers.some((spec) => spec.type === "ImportSpecifier" && spec.imported?.name === "strictExitCode" && spec.local?.name === "strictExitCode"));
+    let redefined = false;
     walk(ast.program, (node) => {
-      if (node.type !== "CallExpression" || !/MemberExpression$/.test(node.callee?.type) || !isPipeline(node.callee.object)) return;
-      for (const arg of node.arguments) if (/Function/.test(arg.type)) walk(arg.params, (inner) => { if (inner.type === "Identifier") { stepNames.add(inner.name); callbackParams.add(inner); stepScopes.push([inner.name, arg.start, arg.end]); } });
+      if ((node.type === "FunctionDeclaration" && node.id?.name === "strictExitCode") || (node.type === "VariableDeclarator" && node.id?.name === "strictExitCode")) redefined = true;
+      if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && node.left.name === "strictExitCode") redefined = true;
     });
-    const isStep = (node) => node?.type === "Identifier" && stepScopes.some(([name, start, end]) => name === node.name && node.start >= start && node.end <= end);
-    walk(ast.program, (node) => {
-      if (["AssignmentExpression", "AssignmentPattern"].includes(node.type) && /MemberExpression$/.test(node.left?.type) && isStep(rootOf(node.left))) changes.push("an assignment to a step in its loop");
-      if (node.type === "UnaryExpression" && node.operator === "delete" && isStep(rootOf(node.argument))) changes.push("delete on a step");
-      if (node.type === "UpdateExpression" && isStep(rootOf(node.argument))) changes.push("++/-- on a step");
-    });
-    // A step may only be read through its properties (step.cmd, step.warningValidator(...)).
-    // Used bare anywhere else ([step], Reflect.set(step, ...), f(step)), it could be changed.
-    const withParents = (node, parent, visit) => {
-      if (!node || typeof node !== "object") return;
-      if (Array.isArray(node)) { node.forEach((child) => withParents(child, parent, visit)); return; }
-      if (typeof node.type === "string") visit(node, parent);
-      for (const key of Object.keys(node)) if (!["loc", "start", "end", "leadingComments", "trailingComments", "innerComments", "tokens", "comments", "extra"].includes(key)) withParents(node[key], typeof node.type === "string" ? node : parent, visit);
-    };
-    const declaredSteps = new Set();
-    walk(ast.program, (node) => { if (node.type === "ForOfStatement") walk(node.left, (inner) => { if (inner.type === "Identifier" && stepNames.has(inner.name)) declaredSteps.add(inner); }); });
-    callbackParams.forEach((param) => declaredSteps.add(param));
-    withParents(ast.program, null, (node, parent) => {
-      if (!isStep(node) || declaredSteps.has(node)) return;
-      const readThrough = /MemberExpression$/.test(parent?.type) && parent.object === node;
-      const isKey = parent && ((/MemberExpression$/.test(parent.type) && parent.property === node && !parent.computed) || (parent.type === "ObjectProperty" && parent.key === node && !parent.computed && parent.value !== node));
-      if (!readThrough && !isKey) changes.push("a step used other than by reading its properties");
-    });
-    // PIPELINE itself: looped over, or read through a property (PIPELINE.length,
-    // PIPELINE.map(...)). A step taken out of it (const s = PIPELINE[1]) escapes.
-    withParents(ast.program, null, (node, parent) => {
-      if (!isPipeline(node)) return;
-      if (parent?.type === "ForOfStatement" && parent.right === node) return;
-      if (/MemberExpression$/.test(parent?.type) && parent.object === node) {
-        const element = parent.computed || /^\d+$/.test(String(parent.property?.name ?? ""));
-        if (!element) return;
-      }
-      if (parent?.type === "CallExpression" && parent.callee?.type === "MemberExpression" && parent.callee.object?.name === "console") return;
-      if (parent?.type === "TemplateLiteral") return;
-      changes.push("PIPELINE or one of its steps used other than by looping over it or reading its properties");
-    });
-    walk(ast.program, (node) => {
-      if (node.type === "AssignmentExpression" && (isPipeline(node.left) || isPipeline(rootOf(node.left)))) changes.push("an assignment");
-      if (node.type === "UpdateExpression" && isPipeline(rootOf(node.argument))) changes.push("++/--");
-      if (node.type === "UnaryExpression" && node.operator === "delete" && isPipeline(rootOf(node.argument))) changes.push("delete");
-      if (node.type === "CallExpression") {
-        const callee = node.callee;
-        if (/MemberExpression$/.test(callee?.type) && isPipeline(rootOf(callee.object)) && MUTATING.has(callee.property?.name ?? callee.property?.value)) changes.push(`.${callee.property?.name ?? callee.property?.value}()`);
-        if (/MemberExpression$/.test(callee?.type) && isPipeline(rootOf(callee.object)) && callee.object !== undefined && !isPipeline(callee.object)) {
-          // A method called on a step (PIPELINE[0].x()) could change that step.
-          changes.push("a method call on a step");
-        }
-        // Handing PIPELINE (or a step) to other code, other than console output.
-        const isConsole = /MemberExpression$/.test(callee?.type) && callee.object?.name === "console";
-        if (!isConsole && node.arguments.some((arg) => isPipeline(arg) || isPipeline(rootOf(arg)) || (arg.type === "SpreadElement" && isPipeline(arg.argument)))) changes.push("passing it to a function");
-      }
-      if (node.type === "ExportSpecifier" && node.local?.name === "PIPELINE") changes.push("export (other modules could change it)");
-    });
-    if (changes.length) throw new Error(`PIPELINE is changed or handed on after its literal (${[...new Set(changes)].join(", ")}); verify:erp's Audit Watch steps must stay as written`);
-    // NPM must be the plain npm launcher: a conditional whose two results are "npm.cmd"
-    // and "npm" (the test itself, quotes and layout do not matter).
-    const npm = topLevel.flatMap((node) => node.declarations).filter((item) => item.id?.name === "NPM");
-    const npmInit = npm.length === 1 ? npm[0].init : null;
-    const npmPlain = npmInit?.type === "ConditionalExpression" && npmInit.consequent?.type === "StringLiteral" && npmInit.alternate?.type === "StringLiteral"
-      && npmInit.consequent.value === "npm.cmd" && npmInit.alternate.value === "npm";
-    let npmReassigned = false;
-    walk(ast.program, (node) => { if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && node.left.name === "NPM") npmReassigned = true; });
-    if (!npmPlain || npmReassigned || topLevel.find((node) => node.declarations.includes(npm[0]))?.kind !== "const") throw new Error("NPM must be `const NPM = <windows test> ? \"npm.cmd\" : \"npm\"`");
+    if (!imported || redefined) throw new Error("strictExitCode must be imported, under its own name, from scripts/lib/masterVerificationPolicy.js");
+    // The npm launcher: a top-level const, never reassigned, whose value is a conditional
+    // giving "npm.cmd" or "npm" (the test itself, quotes, layout and its name do not
+    // matter). Only such a name reads as "npm" inside a step's command.
+    const reassigned = new Set();
+    walk(ast.program, (node) => { if (node.type === "AssignmentExpression" && node.left?.type === "Identifier") reassigned.add(node.left.name); });
+    const npmNames = new Set(topLevel.filter((node) => node.kind === "const").flatMap((node) => node.declarations).filter((item) => {
+      const init = item.init;
+      return item.id?.type === "Identifier" && !reassigned.has(item.id.name) && init?.type === "ConditionalExpression" && init.consequent?.type === "StringLiteral" && init.alternate?.type === "StringLiteral"
+        && init.consequent.value === "npm.cmd" && init.alternate.value === "npm";
+    }).map((item) => item.id.name));
     const valueOf = (node) => {
       if (!node) return undefined;
       if (["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes(node.type)) return node.value;
       if (node.type === "ArrayExpression") return node.elements.map(valueOf);
-      if (node.type === "TemplateLiteral") return node.quasis.map((quasi, i) => quasi.value.cooked + (node.expressions[i] ? (node.expressions[i].name === "NPM" ? "npm" : "${?}") : "")).join("");
+      if (node.type === "TemplateLiteral") return node.quasis.map((quasi, i) => quasi.value.cooked + (node.expressions[i] ? (node.expressions[i].type === "Identifier" && npmNames.has(node.expressions[i].name) ? "npm" : "${?}") : "")).join("");
       return { unreadable: node.type };
     };
     // A spread, getter, method or computed key could hide what a step really is, so a step
     // that has one is unreadable; an Audit Watch step must be read in full.
-    pipeline = declarator.init.elements.map((element) => {
+    pipeline = literal.elements.map((element) => {
       if (element?.type !== "ObjectExpression") return { unreadable: element?.type || "hole", name: undefined };
       const plain = element.properties.every((prop) => prop.type === "ObjectProperty" && !prop.computed && ["Identifier", "StringLiteral"].includes(prop.key.type));
       const entries = element.properties.filter((prop) => prop.type === "ObjectProperty" && !prop.computed).map((prop) => [prop.key.name ?? prop.key.value, valueOf(prop.value)]);
@@ -544,15 +543,15 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
       return { ...Object.fromEntries(entries), ...(plain && new Set(keys).size === keys.length ? {} : { unreadable: "spread, getter, method, computed or repeated key" }) };
     });
     // Any step that names an Audit Watch step in some form must be readable.
-    const hidden = declarator.init.elements.filter((element, i) => pipeline[i].unreadable && /audit-watch/.test(code.slice(element?.start ?? 0, element?.end ?? 0)));
-    if (hidden.length) throw new Error(`an Audit Watch step is not a plain object (${pipeline[declarator.init.elements.indexOf(hidden[0])].unreadable})`);
+    const hidden = literal.elements.filter((element, i) => pipeline[i].unreadable && /audit-watch/.test(code.slice(element?.start ?? 0, element?.end ?? 0)));
+    if (hidden.length) throw new Error(`an Audit Watch step is not a plain object (${pipeline[literal.elements.indexOf(hidden[0])].unreadable})`);
   } catch (error) {
     pipelineProblem = `could not read PIPELINE in scripts/verify-erp.js: ${error.message}`;
   }
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
     const steps = pipeline.filter((step) => step?.name === name);
     const step = steps[0];
-    return !LOCK_BLOCKING_STEPS.has(name) || steps.length !== 1 || step.unreadable || step.strict !== true
+    return !LOCK_BLOCKING_STEPS.has(name) || !STRICT_STEPS.has(name) || steps.length !== 1 || step.unreadable
       || JSON.stringify(step.continueOn) !== "[0]" || step.cmd !== `npm run ${name}:electron` || step.warningValidator !== undefined;
   });
   // And the npm scripts those steps run do exactly what they say: the whole suite and the
@@ -566,7 +565,12 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   };
   Object.entries(wantScripts).filter(([name, cmd]) => scripts[name] !== cmd).forEach(([name]) => missing.push(`${name} (package.json script changed)`));
   check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", !pipelineProblem && missing.length === 0,
-    pipelineProblem || (missing.length ? `each must be one plain step { name, cmd: \`\${NPM} run <name>:electron\`, continueOn: [0], strict: true } in scripts/verify-erp.js and in LOCK_BLOCKING_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch"));
+    pipelineProblem || (missing.length ? `each must be one plain step { name, cmd: \`\${NPM} run <name>:electron\`, continueOn: [0] } in scripts/verify-erp.js, and in LOCK_BLOCKING_STEPS and STRICT_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch"));
+  // strictExitCode turns every non-zero exit of a strict step into at least a FAIL.
+  const strictCases = [[0, 0], [1, 2], [2, 2], [3, 3], [-1, 3], [null, 3]];
+  const strictWrong = ["verify:audit-watch", "test:audit-watch"].flatMap((name) => strictCases.filter(([given, want]) => strictExitCode(name, given) !== want).map(([given]) => `${name}:${given}`));
+  if (strictExitCode("verify:knowledge", 1) !== 1) strictWrong.push("a non-strict step's warning was changed");
+  check("strictExitCode turns any non-zero exit of an Audit Watch step into a FAIL", strictWrong.length === 0, strictWrong.join(", ") || "1 becomes 2; 2 and 3 stay");
 }
 
 // ---- 4. Visibility roles follow the app's roles ----

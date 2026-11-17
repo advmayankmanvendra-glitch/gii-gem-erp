@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate } from "./lib/masterVerificationPolicy.js";
+import { LOCK_BLOCKING_STEPS, STRICT_STEPS, evaluateMasterLockGate, strictExitCode } from "./lib/masterVerificationPolicy.js";
 
 let passed = 0;
 let failed = 0;
@@ -51,6 +51,10 @@ const governedFinancialReportWarning = evaluateMasterLockGate(
   ""
 );
 check("The governed FSR-1 warning does not independently block locking", governedFinancialReportWarning.safeToLock);
+
+check("The Audit Watch steps are strict and lock-blocking", ["verify:audit-watch", "test:audit-watch"].every((name) => STRICT_STEPS.has(name) && LOCK_BLOCKING_STEPS.has(name)));
+check("A strict step's warning becomes a FAIL; its pass and failures stay", strictExitCode("verify:audit-watch", 1) === 2 && strictExitCode("test:audit-watch", 0) === 0 && strictExitCode("test:audit-watch", 3) === 3);
+check("A non-strict step's warning stays a warning", strictExitCode("verify:knowledge", 1) === 1);
 
 console.log(JSON.stringify({ passed, failed, total: passed + failed }, null, 2));
 process.exit(failed > 0 ? 1 : 0);

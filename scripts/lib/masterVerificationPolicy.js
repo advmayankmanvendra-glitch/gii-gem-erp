@@ -24,6 +24,20 @@ export const LOCK_BLOCKING_STEPS = new Set([
   "verify:fsr2b2b"
 ]);
 
+// Strict steps have no warning state: any non-zero exit is at least a FAIL, so the
+// pipeline stops. Strictness is keyed on the step's name, so nothing a runner does to its
+// step objects can loosen it.
+export const STRICT_STEPS = new Set([
+  "verify:audit-watch",
+  "test:audit-watch"
+]);
+
+export function strictExitCode(name, exitCode) {
+  if (!STRICT_STEPS.has(name)) return exitCode;
+  if (!Number.isInteger(exitCode) || exitCode < 0) return 3;
+  return exitCode === 0 ? 0 : Math.max(exitCode, 2);
+}
+
 export function evaluateMasterLockGate(steps, workingTreeStatus) {
   const executedSteps = new Set(steps.map((step) => step.name));
   const missingBlockingSteps = [...LOCK_BLOCKING_STEPS].filter((name) => !executedSteps.has(name));

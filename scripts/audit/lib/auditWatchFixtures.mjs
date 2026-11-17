@@ -128,7 +128,7 @@ function schemaOf(db) {
 }
 export function tracingQuery(q, { checkId, db }) {
   const { byRoot, columnsOf } = schemaOf(db);
-  return (sql, params = []) => {
+  const trace = (sql, params = []) => {
     const reads = traced.get(checkId) || new Map();
     traced.set(checkId, reads);
     const cursors = new Map();
@@ -144,8 +144,10 @@ export function tracingQuery(q, { checkId, db }) {
         note(cursors.get(op.p1).tbl_name, "id");
       }
     }
-    return q(sql, params);
   };
+  const wrapped = (sql, params = []) => { trace(sql, params); return q(sql, params); };
+  wrapped.each = (sql, params, visit) => { trace(sql, params); return q.each(sql, params, visit); };
+  return wrapped;
 }
 // { checkId: { table: [columns] } } for every check run through findings() so far.
 export function tracedReads() {
