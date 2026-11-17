@@ -608,16 +608,25 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init && (callsRun(inner.init) || reaches(inner.init, callsRun))) resultNames.add(inner.id.name); });
     let recordsCmd = false;
     // The record may be pushed directly or built in a variable first.
-    const records = new Map();
-    walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init?.type === "ObjectExpression") records.set(inner.id.name, inner.init); });
+    // The array the lock gate reads: evaluateMasterLockGate(<steps>, ...).
+    let stepsName = null;
+    walk(ast.program, (inner) => { if (inner.type === "CallExpression" && inner.callee?.type === "Identifier" && inner.callee.name === "evaluateMasterLockGate" && inner.arguments[0]?.type === "Identifier") stepsName = inner.arguments[0].name; });
+    // Every push into it in the run loop must carry cmd: <run result>.cmd. A record built in
+    // a variable first is the latest declaration of that name before the push.
+    const declared = [];
+    walk(runLoops[0].body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier") declared.push(inner); });
+    let stepPushes = 0;
+    let badPush = false;
     walk(runLoops[0].body, (inner) => {
-      if (inner.type !== "CallExpression" || !/MemberExpression$/.test(inner.callee?.type) || inner.callee.property?.name !== "push") return;
+      if (inner.type !== "CallExpression" || !/MemberExpression$/.test(inner.callee?.type) || inner.callee.property?.name !== "push" || inner.callee.object?.name !== stepsName) return;
+      stepPushes += 1;
       const pushed = inner.arguments[0];
-      const record = pushed?.type === "Identifier" ? records.get(pushed.name) : pushed;
+      const record = pushed?.type === "Identifier" ? declared.filter((item) => item.id.name === pushed.name && item.end <= inner.start).pop()?.init : pushed;
       const cmd = record?.type === "ObjectExpression" ? record.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
-      if (cmd && /MemberExpression$/.test(cmd.value?.type) && !cmd.value.computed && resultNames.has(cmd.value.object?.name) && cmd.value.property?.name === "cmd") recordsCmd = true;
+      if (!(cmd && /MemberExpression$/.test(cmd.value?.type) && !cmd.value.computed && resultNames.has(cmd.value.object?.name) && cmd.value.property?.name === "cmd")) badPush = true;
     });
-    if (!recordsCmd) throw new Error("the run loop must record each step with cmd: <run result>.cmd, the command run() actually ran");
+    recordsCmd = Boolean(stepsName) && stepPushes > 0 && !badPush;
+    if (!recordsCmd) throw new Error(`the run loop must push each step into the array given to evaluateMasterLockGate (${stepsName || "not found"}) with cmd: <run result>.cmd, the command run() actually ran`);
     // The npm launcher: a top-level const, never reassigned, whose value is a conditional
     // giving "npm.cmd" or "npm" (the test itself, quotes, layout and its name do not
     // matter). Only such a name reads as "npm" inside a step's command.

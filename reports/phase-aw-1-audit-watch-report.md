@@ -90,7 +90,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff and 6a71786. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md` and `audit-6a71786-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff, 6a71786 and 61406f7. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md`, `audit-6a71786-response.md` and `audit-61406f7-response.md`).
 
 ## Production Readiness
 

@@ -471,8 +471,11 @@ test("AW-I01 says when one item's quantities are too large to add up exactly, an
   // Each alone is under the limit (about 9.007e9); together they pass it.
   const stocked = f3.item({ opening_stock: 9.0e9, default_warehouse_id: w3 });
   f3.stockMove(stocked, w3, "2026-02-10", -1e8);
+  // An oversized item already below zero when the period begins is not a finding either.
+  const sunk = f3.item({ opening_stock: 9.1e9, default_warehouse_id: w3 });
+  f3.stockMove(sunk, w3, "2026-02-10", -9.2e9);
   const april = m.runAuditWatch(db3, { companyId: 1, role: "admin", from: "2026-04-01", to: "2026-04-30", today: "2026-11-17", checkIds: ["AW-I01"] }).results.find((row) => row.id === "AW-I01");
-  assert.equal(april.notCheckedCount, 1);
+  assert.equal(april.notCheckedCount, 2);
   assert.equal(april.findingCount, 0);
   assert.equal(april.status, "clear");
   // Below the limit, many large rows still keep one fingerprint in every period.
