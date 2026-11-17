@@ -734,12 +734,17 @@ export const CHECK_FUNCTIONS = {
     // with its opening stock (stockBalances, by inventoryService's own rule) that is the
     // balance on the first day.
     const before = new Map();
+    const movedTotal = new Map();
     each(`
-      SELECT sl.item_id, sl.warehouse_id, COALESCE(SUM(CASE WHEN sl.transaction_date >= ? THEN 0 ELSE ${MICRO} END), 0) before_units
+      SELECT sl.item_id, sl.warehouse_id, TOTAL(CASE WHEN sl.transaction_date >= ? THEN 0 ELSE ${MICRO} END) before_units,
+        TOTAL(ABS(COALESCE(sl.inward_quantity, 0)) + ABS(COALESCE(sl.outward_quantity, 0))) moved_total
       FROM stock_ledger sl
       WHERE sl.company_id = ? AND ${live("sl")}
       GROUP BY sl.item_id, sl.warehouse_id
-    `, [from, companyId], (row) => before.set(`${row.item_id}|${row.warehouse_id}`, Number(row.before_units)));
+    `, [from, companyId], (row) => {
+      before.set(`${row.item_id}|${row.warehouse_id}`, Number(row.before_units));
+      movedTotal.set(`${row.item_id}|${row.warehouse_id}`, Number(row.moved_total));
+    });
     // Every pair with a balance (opening stock or any ledger row), so stock that was
     // already below zero when the period began is reported even if it did not move.
     const balances = deps.stockBalances(companyId);
@@ -747,6 +752,17 @@ export const CHECK_FUNCTIONS = {
     const pairOf = (pairKey) => pairKey.split("|").map(Number);
     const openingOf = (pairKey) => units(balances.opening(...pairOf(pairKey)));
     const startOf = (pairKey) => openingOf(pairKey) + (before.get(pairKey) || 0);
+    // Micro-unit sums are exact while every balance stays under 2^53 micro-units (about 9
+    // billion units). Above that, one stretch could add up two ways, so the check says so
+    // instead of giving a doubtful answer.
+    const LIMIT = Math.floor(Number.MAX_SAFE_INTEGER / 1000000);
+    const tooLarge = [...pairKeys].find((pairKey) => Math.abs(balances.opening(...pairOf(pairKey)) || 0) + (movedTotal.get(pairKey) || 0) >= LIMIT);
+    if (tooLarge) {
+      const [itemId, warehouseId] = pairOf(tooLarge);
+      const item = q("SELECT i.item_name FROM items i WHERE i.id = ?", [itemId])[0]?.item_name || `Item ${itemId}`;
+      const warehouse = q("SELECT w.warehouse_name FROM warehouses w WHERE w.id = ?", [warehouseId])[0]?.warehouse_name || `warehouse ${warehouseId}`;
+      throw new Error(`${item} in ${warehouse} has moved more than ${LIMIT.toLocaleString("en-IN")} units in all, which is too large for this check to add up exactly. Check that item's quantities; the other checks are not affected.`);
+    }
     // Pairs already below zero: when did the stretch open at the period start begin?
     // SQLite finds each pair's last fall below zero before the period (a running total by
     // day), so only one row per pair comes back.

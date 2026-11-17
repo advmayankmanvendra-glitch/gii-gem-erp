@@ -54,13 +54,15 @@ function validateFinancialReportKnownGaps(stdout) {
 
 /* ─── Pipeline definition ─── */
 // scripts/verify-audit-watch.js reads this array from its syntax tree to check that the
-// Audit Watch steps are present as written. Keep it one top-level `const` array of plain
-// object literals and do not reassign it or call a mutating array method on it; any other
-// use is fine. Which steps are strict is set by name in STRICT_STEPS
-// (scripts/lib/masterVerificationPolicy.js), and main() must apply strictExitCode inside
-// its `for (const step of PIPELINE)` loop. Keep NPM as
+// Audit Watch steps are present as written. Keep it one top-level `const PIPELINE =
+// Object.freeze([...])` of plain object literals, with the two Audit Watch steps each in
+// Object.freeze({...}) so their commands cannot be changed at run time. Which steps are
+// strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
+// one loop over PIPELINE that runs the commands (calls run(...)) must call
+// strictExitCode(step.name, exitCode) for each step, directly or through a top-level
+// helper; how its result is stored is up to you. Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
-const PIPELINE = [
+const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
   { name: "verify:master-policy", cmd: `${NPM} run verify:master-policy`, continueOn: [0, 1] },
@@ -71,8 +73,8 @@ const PIPELINE = [
   // Audit Watch's verifier and contract tests block: any failure is a FAIL, not a warning,
   // so the catalogue, AG-1, the manual and the checks cannot drift apart unseen. They run
   // on Electron's Node, like verify:accounting, so one better-sqlite3 build serves all.
-  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0] },
-  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0] },
+  Object.freeze({ name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0] }),
+  Object.freeze({ name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0] }),
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },
@@ -104,7 +106,7 @@ const PIPELINE = [
     continueOn: [0, 1],
     warningValidator: validateFinancialReportKnownGaps
   },
-];
+]);
 
 /* ─── Helpers ─── */
 function timestamp() {

@@ -237,11 +237,14 @@ function parsedFile(rel) {
     const memberNames = [];
     // Names bound to createRequire(...) (const load = createRequire(import.meta.url)).
     const requireNames = new Set(["require"]);
+    // createRequire itself may be imported under another name.
+    const createRequireNames = new Set(["createRequire"]);
+    walk(ast.program, (node) => { if (node.type === "ImportSpecifier" && node.imported?.name === "createRequire") createRequireNames.add(node.local.name); });
     walk(ast.program, (node) => {
       const init = node.type === "VariableDeclarator" ? node.init : node.type === "AssignmentExpression" ? node.right : null;
       const target = node.type === "VariableDeclarator" ? node.id : node.type === "AssignmentExpression" ? node.left : null;
       const callee = init?.type === "CallExpression" ? init.callee : null;
-      if (target?.type === "Identifier" && (callee?.name === "createRequire" || (callee?.type === "MemberExpression" && callee.property?.name === "createRequire"))) requireNames.add(target.name);
+      if (target?.type === "Identifier" && (createRequireNames.has(callee?.name) || (callee?.type === "MemberExpression" && callee.property?.name === "createRequire"))) requireNames.add(target.name);
     });
     walk(ast.program, (node) => {
       if (["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(node.type) && node.source) importPaths.push(node.source);
@@ -456,19 +459,39 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const declarations = topLevel.filter((node) => node.declarations.some((item) => item.id?.name === "PIPELINE"));
     if (declarations.length !== 1 || declarations[0].kind !== "const") throw new Error("PIPELINE must be declared once, at top level, with const");
     const declarator = declarations[0].declarations.find((item) => item.id?.name === "PIPELINE");
-    // A plain array literal, or one wrapped in Object.freeze(...).
-    const frozen = declarator?.init?.type === "CallExpression" && declarator.init.callee?.type === "MemberExpression" && declarator.init.callee.object?.name === "Object" && declarator.init.callee.property?.name === "freeze" && declarator.init.arguments.length === 1;
-    const literal = frozen ? declarator.init.arguments[0] : declarator?.init;
-    if (literal?.type !== "ArrayExpression") throw new Error("PIPELINE is not a plain array literal");
+    // Object.freeze([...]) around a plain array literal, so no step can be added, removed
+    // or replaced at run time; the Audit Watch steps are frozen too (checked below).
+    const isFreeze = (node) => node?.type === "CallExpression" && node.callee?.type === "MemberExpression" && !node.callee.computed && node.callee.object?.type === "Identifier" && node.callee.object.name === "Object" && node.callee.property?.name === "freeze" && node.arguments.length === 1;
+    let objectShadowed = false;
+    walk(ast.program, (node) => {
+      if (["VariableDeclarator", "FunctionDeclaration", "ClassDeclaration", "ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier"].includes(node.type) && (node.id?.name === "Object" || node.local?.name === "Object")) objectShadowed = true;
+      if (node.type === "AssignmentExpression" && /MemberExpression$/.test(node.left?.type) && node.left.object?.name === "Object") objectShadowed = true;
+    });
+    if (objectShadowed) throw new Error("Object is redefined or changed in scripts/verify-erp.js, so Object.freeze cannot be trusted");
+    if (!isFreeze(declarator?.init) || declarator.init.arguments[0]?.type !== "ArrayExpression") throw new Error("PIPELINE must be Object.freeze([...]) around a plain array literal");
+    const literal = declarator.init.arguments[0];
     // The top-level PIPELINE (not a local variable of the same name) is not reassigned,
     // written into, changed by a mutating array method or deleted from.
+    // A local variable or parameter named PIPELINE hides the top-level one only inside its
+    // own scope (the block or function that declares it).
+    const SKIP = ["loc", "start", "end", "leadingComments", "trailingComments", "innerComments", "tokens", "comments", "extra"];
+    const withAncestors = (node, ancestors, visit) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach((child) => withAncestors(child, ancestors, visit)); return; }
+      const isNode = typeof node.type === "string";
+      if (isNode) visit(node, ancestors);
+      const next = isNode ? [...ancestors, node] : ancestors;
+      for (const key of Object.keys(node)) if (!SKIP.includes(key)) withAncestors(node[key], next, visit);
+    };
+    const SCOPE = /^(BlockStatement|Program|ForStatement|ForOfStatement|ForInStatement|SwitchStatement|CatchClause)$|Function/;
     const shadowed = [];
-    walk(ast.program, (node) => {
-      if (/Function/.test(node.type) && node.body) {
-        let declares = false;
-        walk(node.body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.name === "PIPELINE") declares = true; });
-        if (declares || (node.params || []).some((param) => param.type === "Identifier" && param.name === "PIPELINE")) shadowed.push([node.start, node.end]);
+    withAncestors(ast.program, [], (node, ancestors) => {
+      if (node === declarator) return;
+      if (node.type === "VariableDeclarator" && node.id?.type === "Identifier" && node.id.name === "PIPELINE") {
+        const scope = [...ancestors].reverse().find((item) => SCOPE.test(item.type));
+        if (scope) shadowed.push([scope.start, scope.end]);
       }
+      if (/Function/.test(node.type) && (node.params || []).some((param) => param.type === "Identifier" && param.name === "PIPELINE")) shadowed.push([node.start, node.end]);
     });
     const isPipeline = (node) => node?.type === "Identifier" && node.name === "PIPELINE" && node !== declarator.id && !shadowed.some(([start, end]) => node.start >= start && node.end <= end);
     const MUTATING = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill", "copyWithin"]);
@@ -480,42 +503,61 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
       if (node.type === "CallExpression" && /MemberExpression$/.test(node.callee?.type) && isPipeline(node.callee.object) && MUTATING.has(node.callee.property?.name ?? node.callee.property?.value)) changes.push(`.${node.callee.property?.name ?? node.callee.property?.value}()`);
     });
     if (changes.length) throw new Error(`PIPELINE is changed after its literal (${[...new Set(changes)].join(", ")})`);
-    // The run loop: one `for (const step of PIPELINE)` (or `of PIPELINE.entries()`) whose
-    // body applies strictExitCode(step.name, ...) and assigns the result to the exit code.
-    const loops = [];
-    walk(ast.program, (node) => {
-      if (node.type !== "ForOfStatement") return;
-      const right = node.right;
-      const direct = isPipeline(right);
-      const entries = right?.type === "CallExpression" && right.arguments.length === 0 && right.callee?.type === "MemberExpression" && !right.callee.computed && isPipeline(right.callee.object) && right.callee.property?.name === "entries";
-      if (!direct && !entries) return;
-      const pattern = node.left?.type === "VariableDeclaration" ? node.left.declarations[0]?.id : null;
-      // The step is bound as a name (step) or destructured ({ name, cmd }).
-      const bound = direct ? pattern : (pattern?.type === "ArrayPattern" ? pattern.elements[1] : null);
-      const stepName = bound?.type === "Identifier" ? bound.name : null;
-      const nameProp = bound?.type === "ObjectPattern" ? bound.properties.find((prop) => prop.type === "ObjectProperty" && !prop.computed && (prop.key.name ?? prop.key.value) === "name") : null;
-      const nameVar = nameProp?.value?.type === "Identifier" ? nameProp.value.name : null;
-      let applies = false;
-      walk(node.body, (inner) => {
-        if (inner.type !== "AssignmentExpression" || inner.operator !== "=" || inner.right?.type !== "CallExpression") return;
-        const call = inner.right;
-        const arg = call.arguments[0];
-        if (call.callee?.type === "Identifier" && call.callee.name === "strictExitCode" && call.arguments.length === 2
-          && ((stepName && arg?.type === "MemberExpression" && !arg.computed && arg.object?.type === "Identifier" && arg.object.name === stepName && arg.property?.name === "name")
-            || (nameVar && arg?.type === "Identifier" && arg.name === nameVar))
-          && /MemberExpression$/.test(inner.left?.type) && inner.left.property?.name === "exitCode") applies = true;
-      });
-      loops.push({ applies });
-    });
-    if (!loops.some((loop) => loop.applies)) throw new Error("no `for (const step of PIPELINE)` loop applies `result.exitCode = strictExitCode(step.name, result.exitCode)`");
-    const imported = ast.program.body.some((node) => node.type === "ImportDeclaration" && /masterVerificationPolicy\.js$/.test(node.source.value)
-      && node.specifiers.some((spec) => spec.type === "ImportSpecifier" && spec.imported?.name === "strictExitCode" && spec.local?.name === "strictExitCode"));
+    // How strictExitCode is reached: imported under its own name, or as a member of a
+    // namespace import of the policy module; and never redefined.
+    const policyImports = ast.program.body.filter((node) => node.type === "ImportDeclaration" && /(^|\/)masterVerificationPolicy\.js$/.test(node.source.value));
+    const directImport = policyImports.some((node) => node.specifiers.some((spec) => spec.type === "ImportSpecifier" && spec.imported?.name === "strictExitCode" && spec.local?.name === "strictExitCode"));
+    const namespaces = new Set(policyImports.flatMap((node) => node.specifiers.filter((spec) => spec.type === "ImportNamespaceSpecifier").map((spec) => spec.local.name)));
     let redefined = false;
     walk(ast.program, (node) => {
-      if ((node.type === "FunctionDeclaration" && node.id?.name === "strictExitCode") || (node.type === "VariableDeclarator" && node.id?.name === "strictExitCode")) redefined = true;
-      if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && node.left.name === "strictExitCode") redefined = true;
+      if (["FunctionDeclaration", "VariableDeclarator", "ClassDeclaration"].includes(node.type) && node.id?.type === "Identifier" && (node.id.name === "strictExitCode" || namespaces.has(node.id.name))) redefined = true;
+      if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && (node.left.name === "strictExitCode" || namespaces.has(node.left.name))) redefined = true;
+      if (node.type === "AssignmentExpression" && /MemberExpression$/.test(node.left?.type) && namespaces.has(node.left.object?.name)) redefined = true;
     });
-    if (!imported || redefined) throw new Error("strictExitCode must be imported, under its own name, from scripts/lib/masterVerificationPolicy.js");
+    if ((!directImport && namespaces.size === 0) || redefined) throw new Error("strictExitCode must be imported from scripts/lib/masterVerificationPolicy.js (by name or through `import * as`) and not redefined");
+    const isStrictCall = (node) => node.type === "CallExpression" && node.arguments.length >= 1
+      && ((directImport && node.callee?.type === "Identifier" && node.callee.name === "strictExitCode")
+        || (/MemberExpression$/.test(node.callee?.type) && !node.callee.computed && namespaces.has(node.callee.object?.name) && node.callee.property?.name === "strictExitCode"));
+    // Top-level functions, so a strictExitCode call inside a helper the loop calls counts.
+    const functions = new Map();
+    for (const node of ast.program.body) {
+      const declaration = node.type === "ExportNamedDeclaration" ? node.declaration : node;
+      if (declaration?.type === "FunctionDeclaration" && declaration.id) functions.set(declaration.id.name, declaration);
+      if (declaration?.type === "VariableDeclaration") declaration.declarations.forEach((item) => { if (item.id?.type === "Identifier" && /Function/.test(item.init?.type || "")) functions.set(item.id.name, item.init); });
+    }
+    const reaches = (body, test, seen = new Set()) => {
+      let found = false;
+      walk(body, (inner) => {
+        if (found) return;
+        if (test(inner)) { found = true; return; }
+        if (inner.type === "CallExpression" && inner.callee?.type === "Identifier" && functions.has(inner.callee.name) && !seen.has(inner.callee.name)) {
+          seen.add(inner.callee.name);
+          if (reaches(functions.get(inner.callee.name).body, test, seen)) found = true;
+        }
+      });
+      return found;
+    };
+    // The run loop is the loop over PIPELINE that runs the commands (it calls run(...)).
+    // There must be exactly one, and it must apply strictExitCode to every step.
+    const overPipeline = (node) => {
+      if (node.type === "ForOfStatement") {
+        const right = node.right;
+        return isPipeline(right) || (right?.type === "CallExpression" && right.arguments.length === 0 && /MemberExpression$/.test(right.callee?.type) && !right.callee.computed && isPipeline(right.callee.object) && right.callee.property?.name === "entries");
+      }
+      if (node.type === "ForStatement") {
+        let indexes = false;
+        walk(node.body, (inner) => { if (/MemberExpression$/.test(inner.type) && inner.computed && isPipeline(inner.object)) indexes = true; });
+        let bounded = false;
+        walk(node.test, (inner) => { if (/MemberExpression$/.test(inner.type) && isPipeline(inner.object) && inner.property?.name === "length") bounded = true; });
+        return indexes && bounded;
+      }
+      return false;
+    };
+    const callsRun = (inner) => inner.type === "CallExpression" && inner.callee?.type === "Identifier" && inner.callee.name === "run";
+    const runLoops = [];
+    walk(ast.program, (node) => { if (["ForOfStatement", "ForStatement"].includes(node.type) && reaches(node.body, callsRun)) runLoops.push(node); });
+    if (runLoops.length !== 1 || !overPipeline(runLoops[0])) throw new Error(`the commands must be run by exactly one loop over PIPELINE (found ${runLoops.length} loop(s) that call run(), ${runLoops.filter(overPipeline).length} over PIPELINE)`);
+    if (!reaches(runLoops[0].body, isStrictCall)) throw new Error("the loop that runs PIPELINE does not apply strictExitCode(step.name, exitCode) to each step's exit code");
     // The npm launcher: a top-level const, never reassigned, whose value is a conditional
     // giving "npm.cmd" or "npm" (the test itself, quotes, layout and its name do not
     // matter). Only such a name reads as "npm" inside a step's command.
@@ -535,12 +577,13 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     };
     // A spread, getter, method or computed key could hide what a step really is, so a step
     // that has one is unreadable; an Audit Watch step must be read in full.
-    pipeline = literal.elements.map((element) => {
+    pipeline = literal.elements.map((wrapped) => {
+      const element = isFreeze(wrapped) ? wrapped.arguments[0] : wrapped;
       if (element?.type !== "ObjectExpression") return { unreadable: element?.type || "hole", name: undefined };
       const plain = element.properties.every((prop) => prop.type === "ObjectProperty" && !prop.computed && ["Identifier", "StringLiteral"].includes(prop.key.type));
       const entries = element.properties.filter((prop) => prop.type === "ObjectProperty" && !prop.computed).map((prop) => [prop.key.name ?? prop.key.value, valueOf(prop.value)]);
       const keys = entries.map(([key]) => key);
-      return { ...Object.fromEntries(entries), ...(plain && new Set(keys).size === keys.length ? {} : { unreadable: "spread, getter, method, computed or repeated key" }) };
+      return { ...Object.fromEntries(entries), frozenStep: isFreeze(wrapped), ...(plain && new Set(keys).size === keys.length ? {} : { unreadable: "spread, getter, method, computed or repeated key" }) };
     });
     // Any step that names an Audit Watch step in some form must be readable.
     const hidden = literal.elements.filter((element, i) => pipeline[i].unreadable && /audit-watch/.test(code.slice(element?.start ?? 0, element?.end ?? 0)));
@@ -551,7 +594,7 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
     const steps = pipeline.filter((step) => step?.name === name);
     const step = steps[0];
-    return !LOCK_BLOCKING_STEPS.has(name) || !STRICT_STEPS.has(name) || steps.length !== 1 || step.unreadable
+    return !LOCK_BLOCKING_STEPS.has(name) || !STRICT_STEPS.has(name) || steps.length !== 1 || step.unreadable || step.frozenStep !== true
       || JSON.stringify(step.continueOn) !== "[0]" || step.cmd !== `npm run ${name}:electron` || step.warningValidator !== undefined;
   });
   // And the npm scripts those steps run do exactly what they say: the whole suite and the
@@ -565,7 +608,7 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   };
   Object.entries(wantScripts).filter(([name, cmd]) => scripts[name] !== cmd).forEach(([name]) => missing.push(`${name} (package.json script changed)`));
   check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", !pipelineProblem && missing.length === 0,
-    pipelineProblem || (missing.length ? `each must be one plain step { name, cmd: \`\${NPM} run <name>:electron\`, continueOn: [0] } in scripts/verify-erp.js, and in LOCK_BLOCKING_STEPS and STRICT_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch"));
+    pipelineProblem || (missing.length ? `each must be one step Object.freeze({ name, cmd: \`\${NPM} run <name>:electron\`, continueOn: [0] }) in scripts/verify-erp.js, and in LOCK_BLOCKING_STEPS and STRICT_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch"));
   // strictExitCode turns every non-zero exit of a strict step into at least a FAIL.
   const strictCases = [[0, 0], [1, 2], [2, 2], [3, 3], [-1, 3], [null, 3]];
   const strictWrong = ["verify:audit-watch", "test:audit-watch"].flatMap((name) => strictCases.filter(([given, want]) => strictExitCode(name, given) !== want).map(([given]) => `${name}:${given}`));

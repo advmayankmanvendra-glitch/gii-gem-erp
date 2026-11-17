@@ -15,7 +15,7 @@ const m = await load("src/main/database/init.js");
 const { CHECKS } = await load("src/main/services/auditWatch/catalogue.js");
 const { CHECK_FUNCTIONS } = await load("src/main/services/auditWatch/checks.js");
 const { readOnlyQuery, resolveLimits } = await load("src/main/services/auditWatch/auditWatchService.js");
-const { fixtures, findings, names, istToday, shift, tracedReads } = await load("scripts/audit/lib/auditWatchFixtures.mjs");
+const { fixtures, findings, names, istToday, shift, tracedReads, tracingQuery } = await load("scripts/audit/lib/auditWatchFixtures.mjs");
 
 const cleanup = [];
 afterEach(() => { while (cleanup.length) cleanup.pop()(); });
@@ -52,6 +52,44 @@ test("the query helper refuses anything that writes", () => {
     assert.throws(() => q(sql), undefined, sql);
   }
   assert.throws(() => q("SELECT 1; DELETE FROM vouchers"));
+  // The streaming form refuses the same, including a write that returns rows.
+  for (const sql of ["DELETE FROM vouchers", "INSERT INTO audit_log (action, table_name) VALUES ('x', 'y') RETURNING id", "UPDATE items SET item_name = item_name RETURNING id"]) {
+    assert.throws(() => q.each(sql, [], () => {}), undefined, sql);
+  }
+  assert.equal(db.prepare("SELECT COUNT(*) c FROM audit_log WHERE action = 'x'").get().c, 0);
+});
+
+test("q.each streams its rows, and AW-I01 streams its large reads", () => {
+  const { db, f } = fresh();
+  for (let i = 0; i < 5; i += 1) f.item();
+  // A connection whose statements note whether rows were read whole or streamed.
+  const calls = [];
+  const spy = { prepare: (sql) => {
+    const statement = db.prepare(sql);
+    return { readonly: statement.readonly, reader: statement.reader,
+      all: (...params) => { calls.push("all"); return statement.all(...params); },
+      iterate: (...params) => { calls.push("iterate"); return statement.iterate(...params); } };
+  } };
+  const q = readOnlyQuery(spy);
+  const seen = [];
+  q.each("SELECT id FROM items ORDER BY id", [], (row) => seen.push(row.id));
+  assert.deepEqual(calls, ["iterate"]);
+  assert.deepEqual(seen, db.prepare("SELECT id FROM items ORDER BY id").all().map((row) => row.id));
+  // AW-I01 reads the grouped sums, the earlier falls and the period's rows through q.each.
+  const w = f.warehouse();
+  const short = f.item();
+  f.stockMove(short, w, "2025-03-01", -2);
+  f.stockMove(short, w, "2025-06-01", -1);
+  let streamed = 0;
+  findings(m, db, "AW-I01", { wrapQuery: (inner, context) => { const traced = tracingQuery(inner, context); const wrapped = (sql, params) => traced(sql, params); wrapped.each = (sql, params, visit) => { streamed += 1; return traced.each(sql, params, visit); }; return wrapped; } });
+  assert.equal(streamed, 3, `AW-I01 streamed ${streamed} read(s)`);
+});
+
+test("the test tracer records what a streamed read reads", () => {
+  const { db } = fresh();
+  const q = tracingQuery(readOnlyQuery(db), { checkId: "AW-probe-each", db });
+  q.each("SELECT w.warehouse_code FROM warehouses w", [], () => {});
+  assert.deepEqual(tracedReads()["AW-probe-each"], { warehouses: ["warehouse_code"] });
 });
 
 test("a full run changes nothing in the database", () => {
@@ -391,8 +429,8 @@ test("AW-I01 keeps one fingerprint for quantities past six decimals and for very
   for (const quantity of [-0.1234567, -0.2345678, -0.3456789, -0.0567891]) f.stockMove(fine, w, "2026-03-10", quantity);
   f.stockMove(fine, w, "2026-03-20", -0.0000004);
   const big = f.item();
-  f.stockMove(big, w, "2026-03-05", 12345678901.1234567);
-  f.stockMove(big, w, "2026-03-10", -12345678901.2345678);
+  f.stockMove(big, w, "2026-03-05", 1234567890.1234567);
+  f.stockMove(big, w, "2026-03-10", -1234567890.2345678);
   f.stockMove(big, w, "2026-03-10", -0.0000013);
   for (const item of [fine, big]) {
     const at = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${item}-${w}`);
@@ -401,6 +439,25 @@ test("AW-I01 keeps one fingerprint for quantities past six decimals and for very
     assert.equal(at({ from: "2026-03-15", to: "2026-03-31" }).fingerprint, fall.fingerprint);
     assert.equal(at({ from: "2026-04-01", to: "2026-04-30" }).fingerprint, fall.fingerprint);
   }
+});
+
+test("AW-I01 says when quantities are too large to add up exactly, instead of guessing", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  const huge = f.item();
+  for (let i = 0; i < 6; i += 1) f.stockMove(huge, w, `2026-0${i + 1}-05`, 5e9);
+  f.stockMove(huge, w, "2026-03-20", -3.000000007e10);
+  assert.throws(() => findings(m, db, "AW-I01", { from: "2026-03-01", to: "2026-03-31" }), /too large for this check to add up exactly/);
+  // Below the limit, many large rows still keep one fingerprint in every period.
+  const { db: db2, f: f2 } = fresh();
+  const w2 = f2.warehouse();
+  const large = f2.item();
+  for (let i = 0; i < 6; i += 1) f2.stockMove(large, w2, `2026-0${i + 1}-05`, 7e8 + 0.123457);
+  f2.stockMove(large, w2, "2026-02-20", -1.5e9 - 0.987654);
+  const at = (options) => findings(m, db2, "AW-I01", options).find((row) => row.key === `AW-I01:${large}-${w2}`);
+  const fall = at({ from: "2026-02-01", to: "2026-02-28" });
+  assert.equal(fall.fingerprint, at({ from: "2026-01-01", to: "2026-03-31" }).fingerprint);
+  assert.equal(fall.fingerprint, at({ from: "2026-02-25", to: "2026-02-28" }).fingerprint);
 });
 
 test("AW-I01 keeps the fall day's rows and the lowest day's rows, not rows of other days", () => {
@@ -1260,6 +1317,9 @@ test("stockBalances gives the same balance as stockBalance for every item, wareh
       for (const item of [...items, 999999]) {
         for (const warehouse of [...warehouses, 999999]) {
           assert.deepEqual(balances.get(item, warehouse), m.stockBalance(db, company, item, warehouse), `seed ${seed}, company ${company}, item ${item}, warehouse ${warehouse}`);
+          // opening() is the stockBalance quantity less the pair's live ledger rows.
+          const moved = db.prepare("SELECT COALESCE(SUM(inward_quantity - outward_quantity), 0) q FROM stock_ledger WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0").get(company, item, warehouse).q;
+          assert.ok(Math.abs(balances.opening(item, warehouse) - (m.stockBalance(db, company, item, warehouse).quantity - moved)) < 1e-9, `opening: seed ${seed}, company ${company}, item ${item}, warehouse ${warehouse}`);
         }
       }
       for (const entry of balances.entries()) {
