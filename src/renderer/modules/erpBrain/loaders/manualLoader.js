@@ -12,7 +12,8 @@ const MANUAL_SOURCES = [
   { id: "command-execution-guide", title: "Command Execution Guide", file: "GII-GeM-ERP-Command-Execution-Guide.md" },
   { id: "feature-status-matrix", title: "Feature Status Matrix", file: "GII-GeM-ERP-Feature-Status-Matrix.md" },
   { id: "knowledge-gap-report", title: "Knowledge Gap Report", file: "GII-GeM-ERP-Knowledge-Gap-Report.md" },
-  { id: "manual-generation-report", title: "Manual Generation Report", file: "GII-GeM-ERP-Manual-Generation-Report.md" }
+  { id: "manual-generation-report", title: "Manual Generation Report", file: "GII-GeM-ERP-Manual-Generation-Report.md" },
+  { id: "audit-watch-guide", title: "Audit Watch Guide", file: "GII-GeM-ERP-Audit-Watch-Guide.md" }
 ];
 
 function loadAllManuals() {

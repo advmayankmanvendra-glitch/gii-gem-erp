@@ -338,6 +338,38 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Notes on future extensions."
+    },
+    "detectiveControls": {
+      "type": "object",
+      "description": "Audit Watch: read-only exception checks over the books. Generated from src/main/services/auditWatch/catalogue.js by scripts/build-audit-watch-graph.js; verified by scripts/verify-audit-watch.js.",
+      "required": ["catalogueVersion", "source", "manual", "mode", "counts", "areas", "visibility", "checks"],
+      "properties": {
+        "catalogueVersion": { "type": "string" },
+        "source": { "type": "string" },
+        "manual": { "type": "string" },
+        "mode": { "type": "string", "enum": ["read-only"] },
+        "counts": { "type": "object" },
+        "areas": { "type": "array", "items": { "type": "object", "required": ["id", "label"] } },
+        "visibility": { "type": "object" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["checkId", "area", "title", "severity", "readiness", "reads", "limits", "meaning", "nextStep"],
+            "properties": {
+              "checkId": { "type": "string", "pattern": "^AW-[PSIGT][0-9]{2}$" },
+              "area": { "type": "string", "enum": ["procurement", "sales", "inventory", "ledger", "it"] },
+              "title": { "type": "string" },
+              "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+              "readiness": { "type": "string", "enum": ["now", "after_acc"] },
+              "reads": { "type": "array", "items": { "type": "object", "required": ["table", "columns"] } },
+              "limits": { "type": "array", "items": { "type": "object", "required": ["key", "default", "unit", "label"] } },
+              "meaning": { "type": "string" },
+              "nextStep": { "type": "string" }
+            }
+          }
+        }
+      }
     }
   }
 }

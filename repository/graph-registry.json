@@ -297,7 +297,7 @@
       "lifecycleStatus": "ACTIVE",
       "purpose": "Audit events, mutations, users, approvals, compliance",
       "entryCount": 98,
-      "lastUpdated": "2026-08-11",
+      "lastUpdated": "2026-11-17",
       "generationTool": "Manual curation from audit action catalog",
       "generationCommand": "N/A (hand-authored)",
       "sourceDirectories": [
@@ -320,8 +320,8 @@
       "status": "Active",
       "lifecycleStatus": "ACTIVE",
       "purpose": "Document and manual inventory with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors",
-      "entryCount": 10,
-      "lastUpdated": "2026-08-14",
+      "entryCount": 11,
+      "lastUpdated": "2026-11-17",
       "generationTool": "scripts/build-manual-graph.js",
       "generationCommand": "node scripts/build-manual-graph.js",
       "sourceDirectories": [

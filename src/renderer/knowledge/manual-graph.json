@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "KG-5",
-  "generatedAt": "2026-08-14T13:50:37.828Z",
+  "generatedAt": "2026-11-17T13:36:51.648Z",
   "owner": "Architecture & Governance",
   "description": "Document and Manual Graph — governed inventory of ERP manuals with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors.",
   "version": "1.0.0",
@@ -1022,6 +1022,78 @@
       "screenRefs": [],
       "reportRefs": [],
       "errorRefs": []
+    },
+    {
+      "manualId": "audit-watch-guide",
+      "title": "Audit Watch Guide",
+      "fileName": "GII-GeM-ERP-Audit-Watch-Guide.md",
+      "sourcePath": "docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md",
+      "lineCount": 483,
+      "sectionCount": 9,
+      "category": "user-operations",
+      "status": "current",
+      "sections": [
+        {
+          "sectionId": "audit-watch-guide-section-0",
+          "heading": "What Audit Watch Does",
+          "excerpt": "Read-only exception checks over the books that an internal auditor or CA should look at, run on this computer."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-1",
+          "heading": "How to Read a Finding",
+          "excerpt": "A finding is an exception to look at, not proof of a problem. Severity levels high, medium and low."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-2",
+          "heading": "Who Sees Audit Watch",
+          "excerpt": "Admins see every area, accountants see purchases, sales, stock and ledger, managers see purchases, sales and stock."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-3",
+          "heading": "Purchases and payables",
+          "excerpt": "Duplicate supplier bills and payments, payments after a bank account change, overpayments, split purchases, unusual rates, shared bank accounts."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-4",
+          "heading": "Sales and receivables",
+          "excerpt": "Billing below cost, late credit notes, backdated bills, overdue receivables, GeM contracts billed twice, over-receipts, large deductions."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-5",
+          "heading": "Stock",
+          "excerpt": "Negative stock, slow-moving stock, large adjustments, damaged returns, repeated serial numbers, expired batches, over-buying and over-billing."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-6",
+          "heading": "Ledger and closing",
+          "excerpt": "Hand-made journals to sensitive ledgers, Sunday and after-hours entries, round sums, open suspense, backdating, reversals, unmatched bank lines, first-digit test, negative cash, book integrity."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-7",
+          "heading": "Users and access",
+          "excerpt": "Unused admin accounts, failed logins, same maker and approver, sensitive master changes, audit trail gaps."
+        },
+        {
+          "sectionId": "audit-watch-guide-section-8",
+          "heading": "Payroll Checks",
+          "excerpt": "Salary and employee claim checks will come with the payroll module."
+        }
+      ],
+      "topics": [
+        "audit watch",
+        "internal audit",
+        "exceptions",
+        "duplicate bills",
+        "duplicate payments",
+        "segregation of duties",
+        "negative stock",
+        "backdated vouchers"
+      ],
+      "featureRefs": [],
+      "workflowStageRefs": [],
+      "screenRefs": [],
+      "reportRefs": [],
+      "errorRefs": []
     }
   ],
   "knownGaps": [
@@ -1054,7 +1126,8 @@
     "docs/manuals/GII-GeM-ERP-Command-Execution-Guide.md",
     "docs/manuals/GII-GeM-ERP-Feature-Status-Matrix.md",
     "docs/manuals/GII-GeM-ERP-Knowledge-Gap-Report.md",
-    "docs/manuals/GII-GeM-ERP-Manual-Generation-Report.md"
+    "docs/manuals/GII-GeM-ERP-Manual-Generation-Report.md",
+    "docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md"
   ],
   "validationRules": [
     "Every manual sourcePath must resolve under docs/manuals/",
@@ -1079,9 +1152,9 @@
     "regenerationTrigger": "When manuals change, when the manual section index changes, or when referenced graphs change"
   },
   "statistics": {
-    "manualCount": 10,
-    "sectionCount": 75,
-    "topicCount": 71,
+    "manualCount": 11,
+    "sectionCount": 84,
+    "topicCount": 79,
     "referenceCount": 223
   },
   "compatibility": {

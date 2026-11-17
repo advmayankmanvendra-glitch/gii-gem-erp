@@ -44,6 +44,8 @@ import { createImportValidationService } from "../services/importValidationServi
 import { createOperationalPlanningService } from "../services/operationalPlanningService.js";
 import { createAccountMappingService } from "../services/accountMappingService.js";
 import { createMoneyIntegrityService } from "../services/moneyIntegrityService.js";
+import { createAuditWatchService } from "../services/auditWatch/auditWatchService.js";
+import { bookIntegrityChecks } from "../services/errorConsoleService.js";
 import { localBusinessDate } from "../domain/businessDate.js";
 import { roundMoney, paise, rupees } from "../domain/money.js";
 import { BANK_DETAILS_PERMISSION, bankDetailChanges } from "../services/bankDetailsPolicy.js";
@@ -2251,6 +2253,10 @@ export {
   rollbackImportBatch, listItemImportBatches,
   deleteItemImportBatch, deleteUnusedImportedItems
 };
+
+// Audit Watch: read-only exception checks (src/main/services/auditWatch/).
+const { runAuditWatch, catalogueForRole: auditWatchCatalogue } = createAuditWatchService({ stockBalance, bookIntegrityChecks, verifyAuditChain });
+export { runAuditWatch, auditWatchCatalogue };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const db = initializeDatabase();

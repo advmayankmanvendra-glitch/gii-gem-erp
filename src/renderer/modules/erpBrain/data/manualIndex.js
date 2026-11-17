@@ -120,6 +120,17 @@ const manualIndex = {
   "manual-generation-report": [
     { heading: "Manual Generation Summary", excerpt: "Overview of manual generation process, sources, and quality metrics." },
     { heading: "Section Coverage", excerpt: "Coverage analysis of manual sections against ERP feature set." }
+  ],
+  "audit-watch-guide": [
+    { heading: "What Audit Watch Does", excerpt: "Read-only exception checks over the books that an internal auditor or CA should look at, run on this computer." },
+    { heading: "How to Read a Finding", excerpt: "A finding is an exception to look at, not proof of a problem. Severity levels high, medium and low." },
+    { heading: "Who Sees Audit Watch", excerpt: "Admins see every area, accountants see purchases, sales, stock and ledger, managers see purchases, sales and stock." },
+    { heading: "Purchases and payables", excerpt: "Duplicate supplier bills and payments, payments after a bank account change, overpayments, split purchases, unusual rates, shared bank accounts." },
+    { heading: "Sales and receivables", excerpt: "Billing below cost, late credit notes, backdated bills, overdue receivables, GeM contracts billed twice, over-receipts, large deductions." },
+    { heading: "Stock", excerpt: "Negative stock, slow-moving stock, large adjustments, damaged returns, repeated serial numbers, expired batches, over-buying and over-billing." },
+    { heading: "Ledger and closing", excerpt: "Hand-made journals to sensitive ledgers, Sunday and after-hours entries, round sums, open suspense, backdating, reversals, unmatched bank lines, first-digit test, negative cash, book integrity." },
+    { heading: "Users and access", excerpt: "Unused admin accounts, failed logins, same maker and approver, sensitive master changes, audit trail gaps." },
+    { heading: "Payroll Checks", excerpt: "Salary and employee claim checks will come with the payroll module." }
   ]
 };
 
