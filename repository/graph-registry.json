@@ -110,7 +110,7 @@
     "DG-1": { "version": "1.1.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0" } },
     "WG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0" } },
     "KG-4": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0" } },
-    "AG-1": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0" } },
+    "AG-1": { "version": "1.1.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "DG-1": "^1.0", "WG-1": "^1.0", "KG-4": "^1.0", "KG-5": "^1.0" } },
     "FF-1": { "version": "1.0.0", "compatibleWith": { "KG-1": "^1.0", "WG-1": "^1.0", "DG-1": "^1.0", "KG-4": "^1.0", "RG-1": "^1.0" } },
     "KG-5": { "version": "1.0.0", "compatibleWith": { "BRAIN-1": "^1.0", "KG-1": "^1.0", "RG-1": "^1.0", "WG-1": "^1.0", "FF-1": "^1.0" } }
   },
@@ -122,8 +122,8 @@
     "WG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1"], "dependedBy": ["KG-4", "FF-1", "AG-1", "KG-5"] },
     "KG-4": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1"], "dependedBy": ["AG-1", "FF-1"] },
     "FF-1": { "dependsOn": ["KG-1", "WG-1", "DG-1", "KG-4", "RG-1", "BRAIN-1"], "dependedBy": ["KG-5"] },
-    "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"], "dependedBy": [] },
-    "KG-5": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"], "dependedBy": [] }
+    "AG-1": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4", "KG-5"], "dependedBy": [] },
+    "KG-5": { "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"], "dependedBy": ["AG-1"] }
   },
   "graphs": [
     {
@@ -144,7 +144,7 @@
       "validationMethod": "verify:audit --phase=brain-1",
       "regenerationTrigger": "Architecture audit phase",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
-      "schemaVersion": "1.0.0",
+      "schemaVersion": "1.1.0",
       "futureGraph": "N/A"
     },
     {
@@ -289,7 +289,7 @@
     {
       "graphId": "AG-1",
       "title": "Audit Intelligence Graph",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "schema": "repository/schema/audit-graph.schema.json",
       "location": "src/renderer/knowledge/audit-graph.json",
       "owner": "Architecture & Governance",
@@ -298,14 +298,14 @@
       "purpose": "Audit events, mutations, users, approvals, compliance",
       "entryCount": 98,
       "lastUpdated": "2026-11-17",
-      "generationTool": "Manual curation from audit action catalog",
-      "generationCommand": "N/A (hand-authored)",
+      "generationTool": "Manual curation from audit action catalog; detectiveControls section generated from the Audit Watch catalogue",
+      "generationCommand": "Hand-authored, except detectiveControls: node scripts/build-audit-watch-graph.js",
       "sourceDirectories": [
         "src/main/services/",
         "src/main/database/"
       ],
-      "validationMethod": "npm run verify:audit-graph",
-      "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main",
+      "validationMethod": "npm run verify:audit-graph && npm run verify:audit-watch",
+      "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main; rerun the Audit Watch builder when src/main/services/auditWatch/catalogue.js changes",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
       "schemaVersion": "1.0.0",
       "futureGraph": "N/A"

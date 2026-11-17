@@ -70,7 +70,7 @@ export function fixtures(db, companyId = 1) {
       });
     },
     challan(orderId, extra = {}) {
-      return insert("delivery_challans", { company_id: companyId, challan_number: next("DC"), order_id: orderId, dispatch_date: "2026-06-10", ...extra });
+      return insert("delivery_challans", { company_id: companyId, challan_number: next("DC"), order_id: orderId, dispatch_date: "2026-06-10", status: "Confirmed", ...extra });
     },
     challanLine(challanId, itemId, warehouseId, quantity) {
       return insert("delivery_challan_items", { company_id: companyId, delivery_challan_id: challanId, item_id: itemId, warehouse_id: warehouseId, quantity });
@@ -104,9 +104,57 @@ export function fixtures(db, companyId = 1) {
   return api;
 }
 
+// ---- Read tracing: every query a check sends through findings() is EXPLAINed, and
+// the tables and columns SQLite opens are recorded per check. The suite's last test
+// compares them with the catalogue's `reads`, so the AG-1 dependency map cannot drift
+// from the SQL.
+const traced = new Map();
+const schemaCache = new WeakMap();
+function schemaOf(db) {
+  if (!schemaCache.has(db)) {
+    const byRoot = new Map(db.prepare("SELECT name, tbl_name, rootpage, type FROM sqlite_master WHERE rootpage > 0").all().map((row) => [row.rootpage, row]));
+    const columns = new Map();
+    const columnsOf = (row) => {
+      if (!columns.has(row.name)) {
+        columns.set(row.name, row.type === "table"
+          ? db.prepare(`PRAGMA table_info("${row.name}")`).all().map((col) => col.name)
+          : db.prepare(`PRAGMA index_xinfo("${row.name}")`).all().map((col) => (col.cid === -1 ? "id" : col.name)));
+      }
+      return columns.get(row.name);
+    };
+    schemaCache.set(db, { byRoot, columnsOf });
+  }
+  return schemaCache.get(db);
+}
+export function tracingQuery(q, { checkId, db }) {
+  const { byRoot, columnsOf } = schemaOf(db);
+  return (sql, params = []) => {
+    const reads = traced.get(checkId) || new Map();
+    traced.set(checkId, reads);
+    const cursors = new Map();
+    const note = (table, column) => { if (!reads.has(table)) reads.set(table, new Set()); if (column) reads.get(table).add(column); };
+    for (const op of db.prepare(`EXPLAIN ${sql}`).all(...params)) {
+      if (op.opcode === "OpenRead") {
+        const object = byRoot.get(op.p2);
+        if (object) { cursors.set(op.p1, object); note(object.tbl_name); }
+      } else if (op.opcode === "Column" && cursors.has(op.p1)) {
+        const object = cursors.get(op.p1);
+        note(object.tbl_name, columnsOf(object)[op.p2]);
+      } else if ((op.opcode === "Rowid" || op.opcode === "IdxRowid") && cursors.has(op.p1)) {
+        note(cursors.get(op.p1).tbl_name, "id");
+      }
+    }
+    return q(sql, params);
+  };
+}
+// { checkId: { table: [columns] } } for every check run through findings() so far.
+export function tracedReads() {
+  return Object.fromEntries([...traced].map(([checkId, reads]) => [checkId, Object.fromEntries([...reads].map(([table, columns]) => [table, [...columns].sort()]))]));
+}
+
 // Runs one check on the database and returns its findings.
 export function findings(m, db, checkId, options = {}) {
-  const result = m.runAuditWatch(db, { companyId: 1, role: "admin", from: "2025-04-01", to: "2026-12-31", today: "2026-11-17", checkIds: [checkId], ...options });
+  const result = m.runAuditWatch(db, { companyId: 1, role: "admin", from: "2025-04-01", to: "2026-12-31", today: "2026-11-17", checkIds: [checkId], wrapQuery: tracingQuery, ...options });
   const check = result.results.find((row) => row.id === checkId);
   if (check.status === "error") throw new Error(`${checkId} failed: ${check.error}`);
   return check.findings;

@@ -62,6 +62,13 @@ try {
   couldNotRun === 0 ? pass("Every check ran") : fail("Checks that could not run", String(couldNotRun));
   const withFindings = page.locator(".audit-watch-check.status-findings");
   (await withFindings.count()) > 0 ? pass("Seed data shows findings", `${await withFindings.count()} checks`) : fail("No findings on seed data");
+  // The run went to a worker thread, so the window stayed responsive while it ran.
+  const engine = await page.evaluate(async () => {
+    const select = document.querySelector("select");
+    const report = await window.giiGemErp.runAuditWatch({ company_id: 1, from: "2025-04-01" });
+    return { engine: report.engine, today: report.today, select: Boolean(select) };
+  });
+  engine.engine === "worker" ? pass("Checks ran in a worker thread", `as of ${engine.today}`) : fail("Checks did not run in a worker thread", JSON.stringify(engine));
   await withFindings.first().locator(".audit-watch-check-head").click();
   await page.locator(".audit-watch-detail button:has-text('Show rows')").first().click();
   await page.locator(".audit-watch-evidence").first().waitFor({ timeout: 5000 });

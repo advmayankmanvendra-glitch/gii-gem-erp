@@ -1,14 +1,21 @@
 // Audit Watch runner (AW-1).
 //
 // Runs the catalogue's checks for one company and returns findings. It is read-only
-// by construction: checks get a query helper that refuses any statement SQLite does
-// not mark as read-only, so a check cannot write even by mistake, and the whole run
-// reads one consistent snapshot inside a read transaction.
+// by construction, twice over:
+//   - the run opens its own read-only connection to the database file, and every
+//     helper it calls (stockBalance, bookIntegrityChecks, verifyAuditChain) gets that
+//     connection, so nothing it reaches can write;
+//   - checks get a query helper that also refuses any statement SQLite does not mark
+//     as read-only.
+// The whole run reads one consistent snapshot inside a read transaction. The desktop
+// app runs it off the main thread (auditWatchRunner.js); this function is the same
+// in both places.
 //
 // Who may run which area is decided here from the caller's role (AREA_VISIBILITY),
 // never from what the screen asks for.
 
-import { AREAS, CHECKS, areasForRole } from "./catalogue.js";
+import Database from "better-sqlite3";
+import { AREAS, AUDIT_WATCH_VERSION, CHECKS, areasForRole } from "./catalogue.js";
 import { CHECK_FUNCTIONS, addDays } from "./checks.js";
 import { localBusinessDate } from "../../domain/businessDate.js";
 
@@ -46,6 +53,16 @@ export function resolveLimits(check, overrides = {}) {
   return limits;
 }
 
+// A read-only connection to the same file. A connection that is already read-only
+// (the worker opens one) is used as it is; so is an in-memory database, which has no
+// file to reopen.
+function readOnlyConnection(db) {
+  if (db.readonly) return { connection: db, close: () => {} };
+  if (!db.name || db.memory || db.name === ":memory:") return { connection: db, close: () => {} };
+  const connection = new Database(db.name, { readonly: true, fileMustExist: true });
+  return { connection, close: () => connection.close() };
+}
+
 export function createAuditWatchService({ stockBalance, bookIntegrityChecks, verifyAuditChain }) {
   function catalogueForRole(role) {
     const allowed = new Set(areasForRole(role));
@@ -53,7 +70,7 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
       areas: AREAS.filter((area) => allowed.has(area.id)),
       checks: CHECKS.filter((check) => allowed.has(check.area)).map((check) => ({
         id: check.id, area: check.area, title: check.title, severity: check.severity, readiness: check.readiness,
-        meaning: check.meaning, nextStep: check.nextStep,
+        scope: check.scope, version: check.version, meaning: check.meaning, nextStep: check.nextStep,
         limits: Object.entries(check.limits).map(([key, limit]) => ({ key, ...limit }))
       }))
     };
@@ -79,19 +96,27 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
       && (!areaFilter || areaFilter.has(check.area))
       && (!idFilter || idFilter.has(check.id)));
 
-    const q = readOnlyQuery(db);
+    const { connection, close } = readOnlyConnection(db);
+    const baseQuery = readOnlyQuery(connection);
     const deps = {
-      stockBalance: (company, itemId, warehouseId) => stockBalance(db, company, itemId, warehouseId),
-      bookIntegrityChecks: (company) => bookIntegrityChecks(db, company, { verifyAuditChain })
+      stockBalance: (company, itemId, warehouseId) => stockBalance(connection, company, itemId, warehouseId),
+      bookIntegrityChecks: (company) => bookIntegrityChecks(connection, company, { verifyAuditChain })
     };
     const started = Date.now();
+    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
     const run = () => selected.map((check) => {
-      const base = { id: check.id, area: check.area, title: check.title, severity: check.severity, readiness: check.readiness, meaning: check.meaning, nextStep: check.nextStep };
-      if (check.readiness !== "now") return { ...base, status: "waiting", findings: [], note: "Waits for the accounting programme to reach this build." };
+      const base = {
+        id: check.id, area: check.area, title: check.title, severity: check.severity, readiness: check.readiness,
+        scope: check.scope, version: check.version, meaning: check.meaning, nextStep: check.nextStep
+      };
+      if (check.readiness !== "now") return { ...base, status: "waiting", findings: [], findingCount: 0, note: "Waits for the accounting programme to reach this build." };
       const limits = resolveLimits(check, options.limits?.[check.id]);
+      // Tests may wrap the query helper to trace what a check reads; the app never does.
+      const q = typeof options.wrapQuery === "function" ? options.wrapQuery(baseQuery, { checkId: check.id, db: connection }) : baseQuery;
       const checkStarted = Date.now();
       try {
-        const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, limits, deps });
+        const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, now, limits, deps })
+          .map((finding) => ({ ...finding, fingerprint: finding.fingerprint ?? `${finding.amountMinor || 0}|${finding.date || ""}` }));
         all.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(a.key).localeCompare(String(b.key)));
         return {
           ...base,
@@ -106,15 +131,20 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
         return { ...base, limits, status: "error", findings: [], findingCount: 0, error: String(error?.message || error), ms: Date.now() - checkStarted };
       }
     });
-    // One read transaction: every check sees the same snapshot of the books.
-    const results = db.inTransaction ? run() : db.transaction(run).deferred();
+    let results;
+    try {
+      // One read transaction: every check sees the same snapshot of the books.
+      results = connection.inTransaction ? run() : connection.transaction(run).deferred();
+    } finally {
+      close();
+    }
 
     const summary = AREAS.filter((area) => allowed.has(area.id)).map((area) => {
       const inArea = results.filter((result) => result.area === area.id);
       const count = (severity) => inArea.filter((result) => result.severity === severity).reduce((sum, result) => sum + (result.findingCount || 0), 0);
       return { area: area.id, label: area.label, high: count("high"), medium: count("medium"), low: count("low"), errors: inArea.filter((result) => result.status === "error").length };
     });
-    return { generatedAt: new Date().toISOString(), companyId, from, to, today, ms: Date.now() - started, summary, results };
+    return { generatedAt: new Date().toISOString(), version: AUDIT_WATCH_VERSION, companyId, from, to, today, ms: Date.now() - started, summary, results };
   }
 
   return { runAuditWatch, catalogueForRole };

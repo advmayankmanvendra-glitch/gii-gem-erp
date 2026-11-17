@@ -181,7 +181,7 @@ const graph = {
   status: "active",
   dependencies: {
     dependsOn: ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"],
-    dependedBy: []
+    dependedBy: ["AG-1"]
   },
   relationships: {
     manualToFeature: [...new Set(manuals.flatMap((m) => m.featureRefs))].sort(),

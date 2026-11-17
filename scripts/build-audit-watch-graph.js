@@ -37,6 +37,10 @@ export function detectiveControlsFromCatalogue({ CHECKS, AUDIT_WATCH_VERSION, AR
       title: check.title,
       severity: check.severity,
       readiness: check.readiness,
+      version: check.version,
+      scope: check.scope,
+      ...(check.helpers ? { helpers: [...check.helpers] } : {}),
+      ...(check.coverage ? { coverage: [...check.coverage] } : {}),
       reads: Object.entries(check.reads).map(([table, columns]) => ({ table, columns: [...columns] })),
       limits: Object.entries(check.limits).map(([key, limit]) => ({ key, ...limit })),
       meaning: check.meaning,
@@ -66,6 +70,8 @@ export function manualFromCatalogue({ CHECKS, AREAS, AREA_VISIBILITY, AUDIT_WATC
     "",
     "It only reads. It never posts, edits or reverses anything, and nothing leaves this computer. Every check is a plain rule or a simple count, so each finding shows the rows behind it and can be explained.",
     "",
+    "Reversed bills, payments and sales bills are not counted: reversing a wrong entry and keying it again is a normal correction, not a duplicate. Checks on users and the audit trail look at the whole installation, because users are shared by every company on the computer.",
+    "",
     "## How to Read a Finding",
     "",
     "A finding is an exception to look at, not proof that anything is wrong. Each one shows what was seen, the records behind it and a suggested next step. Many findings have an innocent reason; record that reason so the next reviewer does not repeat the work.",
@@ -83,12 +89,14 @@ export function manualFromCatalogue({ CHECKS, AREAS, AREA_VISIBILITY, AUDIT_WATC
     lines.push(`## ${area.label}`, "");
     for (const check of CHECKS.filter((item) => item.area === area.id)) {
       lines.push(`### ${check.id} ${check.title}`, "");
-      lines.push(`Severity: ${check.severity}.${check.readiness === "now" ? "" : " Not run yet: waits for the accounting programme (ACC) to reach the main build."}`, "");
+      const scope = check.scope === "installation" ? " Looks at the whole installation, not only one company." : "";
+      lines.push(`Severity: ${check.severity}.${scope}${check.readiness === "now" ? "" : " Not run yet: waits for the accounting programme (ACC) to reach the main build."}`, "");
       lines.push(`**What it means.** ${check.meaning}`, "");
       lines.push(`**What to do.** ${check.nextStep}`, "");
+      if (check.coverage?.length) lines.push(`**Looks at:** ${check.coverage.join("; ")}.`, "");
       const limits = Object.values(check.limits);
       if (limits.length) {
-        lines.push("**Limits** (each company can change these):", "");
+        lines.push("**Limits** (defaults; changing them for one company comes in a later phase):", "");
         for (const limit of limits) lines.push(`- ${limit.label}: ${limitText(limit)}`);
         lines.push("");
       }

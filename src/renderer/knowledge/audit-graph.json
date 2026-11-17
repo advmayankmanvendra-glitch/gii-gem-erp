@@ -1,14 +1,14 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "graphId": "AG-1",
   "graphName": "Audit Intelligence Graph",
-  "generatedAt": "2026-08-11T00:00:00.000Z",
+  "generatedAt": "2026-11-17T00:00:00.000Z",
   "owner": "Architecture & Governance",
   "description": "AG-1 Audit Intelligence Graph for GII GeM ERP. Catalogs the audit action catalog (events), source modules, data mutation boundaries, actor roles, approval flows, compliance controls, critical actions, audit stores and trust boundaries. Built read-only from the audit trail implementation; contains no live business data.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "active",
   "dependencies": {
-    "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4"],
+    "dependsOn": ["BRAIN-1", "KG-1", "RG-1", "DG-1", "WG-1", "KG-4", "KG-5"],
     "dependedBy": []
   },
   "relationships": {
@@ -18,7 +18,8 @@
       { "graphId": "KG-4", "role": "Voucher posting and reversal actions are the highest-severity accounting audit events" },
       { "graphId": "RG-1", "role": "Renderer IPC channels that originate audit entries (audit:context, document view/download)" },
       { "graphId": "BRAIN-1", "role": "User-facing modules and business rules referenced by audit modules" },
-      { "graphId": "KG-1", "role": "Metadata and permissions context for actor roles and trust boundaries" }
+      { "graphId": "KG-1", "role": "Metadata and permissions context for actor roles and trust boundaries" },
+      { "graphId": "KG-5", "role": "The Audit Watch guide (audit-watch-guide) is generated from the same catalogue as detectiveControls" }
     ]
   },
   "auditStores": [
@@ -399,14 +400,15 @@
     "informationalEvents": 16
   },
   "compatibility": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "compatibleWith": {
       "BRAIN-1": "^1.0",
       "KG-1": "^1.0",
       "RG-1": "^1.0",
       "DG-1": "^1.0",
       "WG-1": "^1.0",
-      "KG-4": "^1.0"
+      "KG-4": "^1.0",
+      "KG-5": "^1.0"
     }
   },
   "futureExtensions": [
@@ -485,18 +487,27 @@
         "title": "Same supplier bill entered twice",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "procurements",
             "columns": [
-              "id",
               "company_id",
-              "supplier_id",
-              "purchase_invoice_number",
+              "id",
+              "is_deleted",
+              "posting_status",
               "purchase_date",
-              "purchase_value",
               "purchase_gst",
-              "is_deleted"
+              "purchase_invoice_number",
+              "purchase_value",
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -508,7 +519,7 @@
             "label": "Same amount counts as a repeat within this many days"
           }
         ],
-        "meaning": "Two purchase bills from one supplier carry the same bill number (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. The supplier could be paid twice for one supply.",
+        "meaning": "Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.",
         "nextStep": "Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice."
       },
       {
@@ -517,17 +528,27 @@
         "title": "Same supplier paid twice",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "supplier_payments",
             "columns": [
-              "id",
-              "company_id",
-              "supplier_id",
-              "payment_date",
-              "utr_number",
               "amount_paid",
-              "is_deleted"
+              "company_id",
+              "id",
+              "is_deleted",
+              "payment_date",
+              "payment_mode",
+              "posting_status",
+              "supplier_id",
+              "utr_number"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -539,7 +560,7 @@
             "label": "Same amount counts as a repeat within this many days"
           }
         ],
-        "meaning": "Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days.",
+        "meaning": "Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days. Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.",
         "nextStep": "Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill."
       },
       {
@@ -548,29 +569,38 @@
         "title": "Supplier paid soon after its bank account changed",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "audit_log",
             "columns": [
-              "id",
               "action",
-              "table_name",
-              "record_id",
-              "old_value",
+              "created_at",
+              "id",
               "new_value",
-              "user_id",
-              "created_at"
+              "old_value",
+              "record_id",
+              "table_name",
+              "user_id"
             ]
           },
           {
             "table": "supplier_payments",
             "columns": [
-              "id",
-              "company_id",
-              "supplier_id",
-              "payment_date",
               "amount_paid",
-              "is_deleted"
+              "company_id",
+              "id",
+              "is_deleted",
+              "payment_date",
+              "posting_status",
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -591,44 +621,53 @@
         "title": "Supplier paid more than billed",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "procurements",
             "columns": [
-              "id",
               "company_id",
-              "supplier_id",
-              "purchase_invoice_number",
+              "id",
+              "is_deleted",
+              "posting_status",
               "purchase_date",
-              "purchase_value",
               "purchase_gst",
-              "is_deleted"
+              "purchase_invoice_number",
+              "purchase_value",
+              "supplier_id"
             ]
           },
           {
-            "table": "procurement_items",
+            "table": "suppliers",
             "columns": [
-              "procurement_id",
-              "gross_value",
-              "is_deleted"
+              "supplier_name"
             ]
           },
           {
             "table": "supplier_payment_allocations",
             "columns": [
-              "procurement_id",
               "allocated_amount",
-              "is_deleted"
+              "is_deleted",
+              "procurement_id"
             ]
           },
           {
             "table": "advance_adjustments",
             "columns": [
-              "procurement_id",
-              "adjustment_type",
               "adjusted_amount",
-              "status",
-              "is_deleted"
+              "adjustment_type",
+              "is_deleted",
+              "procurement_id",
+              "status"
+            ]
+          },
+          {
+            "table": "procurement_items",
+            "columns": [
+              "gross_value",
+              "is_deleted",
+              "procurement_id"
             ]
           }
         ],
@@ -649,16 +688,26 @@
         "title": "Purchases split to stay under a limit",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "procurements",
             "columns": [
-              "id",
               "company_id",
-              "supplier_id",
+              "id",
+              "is_deleted",
+              "posting_status",
               "purchase_date",
+              "purchase_invoice_number",
               "purchase_value",
-              "is_deleted"
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -697,25 +746,39 @@
         "title": "Unusual purchase rate",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "procurement_items",
             "columns": [
-              "id",
               "company_id",
-              "procurement_id",
+              "id",
+              "is_deleted",
               "item_id",
-              "purchase_rate",
-              "is_deleted"
+              "procurement_id",
+              "purchase_rate"
             ]
           },
           {
             "table": "procurements",
             "columns": [
-              "id",
+              "is_deleted",
+              "posting_status",
               "purchase_date",
-              "supplier_id",
-              "is_deleted"
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "item_name"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -748,40 +811,42 @@
         "title": "One bank account shared by two parties",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "suppliers",
             "columns": [
               "id",
-              "supplier_name",
+              "is_deleted",
               "supplier_account_number",
               "supplier_bank_ifsc_code",
-              "is_deleted"
-            ]
-          },
-          {
-            "table": "employees",
-            "columns": [
-              "id",
-              "employee_name",
-              "account_number",
-              "ifsc",
-              "is_deleted"
+              "supplier_name"
             ]
           },
           {
             "table": "procurements",
             "columns": [
               "company_id",
-              "supplier_id",
-              "is_deleted"
+              "is_deleted",
+              "supplier_id"
             ]
           },
           {
             "table": "supplier_payments",
             "columns": [
               "company_id",
-              "supplier_id",
+              "is_deleted",
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "employees",
+            "columns": [
+              "account_number",
+              "employee_name",
+              "id",
+              "ifsc",
               "is_deleted"
             ]
           }
@@ -796,26 +861,29 @@
         "title": "Payment to a supplier with no GSTIN or marked inactive",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
-          {
-            "table": "suppliers",
-            "columns": [
-              "id",
-              "supplier_name",
-              "gstin",
-              "status",
-              "is_deleted"
-            ]
-          },
           {
             "table": "supplier_payments",
             "columns": [
-              "id",
-              "company_id",
-              "supplier_id",
-              "payment_date",
               "amount_paid",
-              "is_deleted"
+              "company_id",
+              "id",
+              "is_deleted",
+              "payment_date",
+              "posting_status",
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "gstin",
+              "id",
+              "is_deleted",
+              "status",
+              "supplier_name"
             ]
           }
         ],
@@ -836,6 +904,8 @@
         "title": "Purchase order, goods receipt and bill do not agree",
         "severity": "high",
         "readiness": "after_acc",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "purchase_orders",
@@ -844,6 +914,15 @@
               "company_id",
               "supplier_id",
               "total_value"
+            ]
+          },
+          {
+            "table": "purchase_order_items",
+            "columns": [
+              "purchase_order_id",
+              "item_id",
+              "quantity",
+              "rate"
             ]
           },
           {
@@ -873,44 +952,53 @@
         "title": "Sold below cost or well below the quoted rate",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "invoice_items",
             "columns": [
-              "id",
-              "company_id",
               "billing_id",
-              "order_item_id",
-              "quantity",
               "billing_rate",
-              "is_deleted"
-            ]
-          },
-          {
-            "table": "order_items",
-            "columns": [
+              "company_id",
               "id",
-              "quoted_rate",
-              "is_deleted"
-            ]
-          },
-          {
-            "table": "procurement_items",
-            "columns": [
+              "is_deleted",
               "order_item_id",
-              "quantity",
-              "landed_cost",
-              "purchase_rate",
-              "is_deleted"
+              "quantity"
             ]
           },
           {
             "table": "invoices",
             "columns": [
-              "id",
-              "invoice_number",
               "invoice_date",
-              "is_deleted"
+              "invoice_number",
+              "is_deleted",
+              "posting_status"
+            ]
+          },
+          {
+            "table": "order_items",
+            "columns": [
+              "is_deleted",
+              "item_description",
+              "quoted_rate"
+            ]
+          },
+          {
+            "table": "procurement_items",
+            "columns": [
+              "is_deleted",
+              "landed_cost",
+              "order_item_id",
+              "procurement_id",
+              "purchase_rate",
+              "quantity"
+            ]
+          },
+          {
+            "table": "procurements",
+            "columns": [
+              "posting_status"
             ]
           }
         ],
@@ -931,25 +1019,30 @@
         "title": "Credit note dated after the bill's period",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "coverage": [
+          "guided credit notes"
+        ],
         "reads": [
           {
             "table": "guided_vouchers",
             "columns": [
-              "id",
               "company_id",
-              "voucher_kind",
-              "voucher_date",
+              "id",
+              "is_deleted",
               "payload_json",
               "status",
-              "is_deleted"
+              "voucher_date",
+              "voucher_kind"
             ]
           },
           {
             "table": "invoices",
             "columns": [
-              "id",
-              "invoice_number",
+              "company_id",
               "invoice_date",
+              "invoice_number",
               "is_deleted"
             ]
           }
@@ -964,26 +1057,29 @@
         "title": "Bill keyed late or dated before delivery",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "invoices",
             "columns": [
-              "id",
               "company_id",
-              "order_id",
-              "invoice_number",
-              "invoice_date",
               "created_at",
-              "is_deleted"
+              "id",
+              "invoice_date",
+              "invoice_number",
+              "is_deleted",
+              "order_id",
+              "posting_status"
             ]
           },
           {
             "table": "delivery_challans",
             "columns": [
-              "id",
-              "order_id",
               "dispatch_date",
-              "is_deleted"
+              "is_deleted",
+              "order_id",
+              "status"
             ]
           }
         ],
@@ -1004,38 +1100,37 @@
         "title": "Receivable overdue past its credit terms",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "receivables",
             "columns": [
-              "id",
-              "company_id",
-              "billing_id",
-              "department_id",
-              "invoice_number",
-              "invoice_date",
-              "due_date",
               "balance_outstanding",
-              "is_deleted"
-            ]
-          },
-          {
-            "table": "credit_terms",
-            "columns": [
+              "billing_id",
               "company_id",
-              "party_type",
-              "party_id",
-              "default_credit_days",
-              "grace_period",
-              "status",
-              "is_deleted"
+              "department_id",
+              "due_date",
+              "id",
+              "invoice_date",
+              "invoice_number",
+              "is_deleted",
+              "status"
             ]
           },
           {
             "table": "government_departments",
             "columns": [
-              "id",
               "department_name"
+            ]
+          },
+          {
+            "table": "credit_terms",
+            "columns": [
+              "default_credit_days",
+              "grace_period",
+              "is_deleted",
+              "status"
             ]
           }
         ],
@@ -1044,16 +1139,16 @@
             "key": "defaultCreditDays",
             "default": 30,
             "unit": "days",
-            "label": "Credit days when no terms are set for the buyer"
+            "label": "Credit days when a bill has no due date and no terms are set for the buyer"
           },
           {
             "key": "graceDays",
             "default": 15,
             "unit": "days",
-            "label": "Extra days before flagging"
+            "label": "Flag bills more than this many days past their due date"
           }
         ],
-        "meaning": "A sales bill is still unpaid after the buyer's credit days and grace period.",
+        "meaning": "A sales bill is still unpaid well after its due date. The due date already includes the buyer's credit days and grace period.",
         "nextStep": "Follow up with the department; check for a pending CRAC or deduction that is holding the payment."
       },
       {
@@ -1062,34 +1157,46 @@
         "title": "GeM contract billed twice or billed above the order",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "invoices",
             "columns": [
-              "id",
               "company_id",
-              "order_id",
-              "invoice_number",
               "gem_contract_number",
-              "is_deleted"
+              "id",
+              "invoice_date",
+              "invoice_number",
+              "is_deleted",
+              "order_id",
+              "posting_status"
             ]
           },
           {
             "table": "invoice_items",
             "columns": [
               "billing_id",
+              "is_deleted",
               "order_item_id",
-              "quantity",
-              "is_deleted"
+              "quantity"
             ]
           },
           {
             "table": "order_items",
             "columns": [
+              "company_id",
               "id",
+              "is_deleted",
+              "item_description",
               "order_id",
-              "quantity",
-              "is_deleted"
+              "quantity"
+            ]
+          },
+          {
+            "table": "supply_orders",
+            "columns": [
+              "order_number"
             ]
           }
         ],
@@ -1103,19 +1210,23 @@
         "title": "More received than billed",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "receivables",
             "columns": [
-              "id",
-              "company_id",
-              "invoice_number",
-              "invoice_amount",
               "amount_received",
-              "tds_deducted",
+              "billing_id",
               "gst_tds_deducted",
+              "id",
+              "invoice_amount",
+              "invoice_date",
+              "invoice_number",
+              "is_deleted",
               "other_deductions",
-              "is_deleted"
+              "status",
+              "tds_deducted"
             ]
           }
         ],
@@ -1136,16 +1247,20 @@
         "title": "Large deduction by the buyer",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "receivables",
             "columns": [
+              "billing_id",
               "id",
-              "company_id",
-              "invoice_number",
               "invoice_amount",
+              "invoice_date",
+              "invoice_number",
+              "is_deleted",
               "other_deductions",
-              "is_deleted"
+              "status"
             ]
           }
         ],
@@ -1166,28 +1281,39 @@
         "title": "Negative stock",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "helpers": [
+          "stockBalance"
+        ],
         "reads": [
           {
             "table": "stock_ledger",
             "columns": [
-              "id",
               "company_id",
-              "item_id",
-              "warehouse_id",
-              "transaction_date",
               "document_number",
+              "id",
               "inward_quantity",
+              "is_deleted",
+              "item_id",
               "outward_quantity",
-              "is_deleted"
+              "transaction_date",
+              "warehouse_id"
             ]
           },
           {
             "table": "items",
             "columns": [
+              "default_warehouse_id",
               "id",
               "item_name",
-              "opening_stock",
-              "default_warehouse_id"
+              "opening_stock"
+            ]
+          },
+          {
+            "table": "warehouses",
+            "columns": [
+              "warehouse_name"
             ]
           }
         ],
@@ -1201,17 +1327,41 @@
         "title": "Slow-moving stock",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "helpers": [
+          "stockBalance"
+        ],
         "reads": [
           {
             "table": "stock_ledger",
             "columns": [
               "company_id",
-              "item_id",
-              "warehouse_id",
-              "transaction_date",
               "inward_quantity",
+              "is_deleted",
+              "item_id",
               "outward_quantity",
-              "is_deleted"
+              "transaction_date",
+              "warehouse_id"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "created_at",
+              "default_warehouse_id",
+              "id",
+              "is_deleted",
+              "item_name",
+              "opening_stock"
+            ]
+          },
+          {
+            "table": "warehouses",
+            "columns": [
+              "id",
+              "status",
+              "warehouse_name"
             ]
           }
         ],
@@ -1223,7 +1373,7 @@
             "label": "Flag items with stock and no movement for this many days"
           }
         ],
-        "meaning": "An item has stock on hand but has not moved for months. Money is tied up and the stock may be obsolete.",
+        "meaning": "An item has stock on hand but has not moved for months, including opening stock that has never moved. Money is tied up and the stock may be obsolete.",
         "nextStep": "Plan to use, return or sell the stock; consider writing down its value at year end."
       },
       {
@@ -1232,19 +1382,38 @@
         "title": "Large or frequent stock adjustments",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "stock_adjustments",
             "columns": [
-              "id",
-              "company_id",
-              "item_id",
               "adjustment_date",
               "adjustment_type",
+              "company_id",
+              "id",
+              "is_deleted",
+              "item_id",
+              "posting_status",
               "quantity",
               "rate",
-              "reason",
-              "is_deleted"
+              "reason"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "item_name"
+            ]
+          },
+          {
+            "table": "stock_ledger",
+            "columns": [
+              "is_deleted",
+              "source_id",
+              "source_module",
+              "value",
+              "value_minor"
             ]
           }
         ],
@@ -1268,7 +1437,7 @@
             "label": "Repeats counted within this many days"
           }
         ],
-        "meaning": "Stock was adjusted by a large value, or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.",
+        "meaning": "Stock was adjusted by a large value (the value actually posted, which for a write-off keyed without a rate is the average cost), or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.",
         "nextStep": "Check the reason and the physical count sheet for each adjustment."
       },
       {
@@ -1277,19 +1446,26 @@
         "title": "Many damaged returns from one supplier",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "stock_returns",
             "columns": [
-              "id",
               "company_id",
-              "return_type",
-              "supplier_id",
-              "item_id",
-              "return_date",
-              "quantity",
               "condition_status",
-              "is_deleted"
+              "id",
+              "is_deleted",
+              "posting_status",
+              "quantity",
+              "return_date",
+              "supplier_id"
+            ]
+          },
+          {
+            "table": "suppliers",
+            "columns": [
+              "supplier_name"
             ]
           }
         ],
@@ -1316,17 +1492,23 @@
         "title": "Serial number used twice",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "serial_numbers",
             "columns": [
               "id",
-              "company_id",
+              "is_deleted",
               "item_id",
               "serial_number",
-              "order_id",
-              "status",
-              "is_deleted"
+              "status"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "item_name"
             ]
           }
         ],
@@ -1340,17 +1522,24 @@
         "title": "Expired batch still in stock",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "batches",
             "columns": [
-              "id",
-              "company_id",
-              "item_id",
-              "batch_number",
               "balance_quantity",
+              "batch_number",
               "expiry_date",
-              "is_deleted"
+              "id",
+              "is_deleted",
+              "item_id"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "item_name"
             ]
           }
         ],
@@ -1364,39 +1553,61 @@
         "title": "Bought more than the order needs, or billed more than delivered",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
-          {
-            "table": "order_items",
-            "columns": [
-              "id",
-              "company_id",
-              "order_id",
-              "quantity",
-              "is_deleted"
-            ]
-          },
           {
             "table": "procurement_items",
             "columns": [
+              "is_deleted",
               "order_item_id",
-              "quantity",
-              "is_deleted"
+              "procurement_id",
+              "quantity"
+            ]
+          },
+          {
+            "table": "order_items",
+            "columns": [
+              "company_id",
+              "id",
+              "is_deleted",
+              "item_description",
+              "order_id",
+              "quantity"
+            ]
+          },
+          {
+            "table": "supply_orders",
+            "columns": [
+              "id",
+              "order_number"
+            ]
+          },
+          {
+            "table": "procurements",
+            "columns": [
+              "is_deleted",
+              "posting_status",
+              "purchase_date"
             ]
           },
           {
             "table": "invoice_items",
             "columns": [
-              "order_item_id",
-              "quantity",
-              "is_deleted"
+              "billing_id",
+              "company_id",
+              "is_deleted",
+              "item_id",
+              "quantity"
             ]
           },
           {
-            "table": "delivery_challans",
+            "table": "invoices",
             "columns": [
-              "id",
+              "invoice_date",
+              "is_deleted",
               "order_id",
-              "is_deleted"
+              "posting_status"
             ]
           },
           {
@@ -1405,6 +1616,22 @@
               "delivery_challan_id",
               "item_id",
               "quantity"
+            ]
+          },
+          {
+            "table": "delivery_challans",
+            "columns": [
+              "company_id",
+              "id",
+              "is_deleted",
+              "order_id",
+              "status"
+            ]
+          },
+          {
+            "table": "items",
+            "columns": [
+              "item_name"
             ]
           }
         ],
@@ -1416,7 +1643,7 @@
             "label": "Allowed excess over the order"
           }
         ],
-        "meaning": "More was purchased against an order line than the order asks for, or more was billed on an order than was delivered.",
+        "meaning": "More was purchased against an order line than the order asks for, or more was billed on an order than was delivered on confirmed delivery challans. Orders that use no delivery challan are not compared.",
         "nextStep": "Find where the extra stock went, or hold the bill until delivery is complete."
       },
       {
@@ -1425,36 +1652,59 @@
         "title": "Hand-made journal to a sensitive ledger",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "coverage": [
+          "manual vouchers",
+          "guided journals and contras"
+        ],
         "reads": [
           {
             "table": "vouchers",
             "columns": [
               "id",
-              "company_id",
-              "voucher_number",
-              "voucher_date",
-              "voucher_type",
+              "is_deleted",
+              "narration",
+              "source_id",
               "source_module",
               "status",
-              "is_deleted"
+              "voucher_date",
+              "voucher_number",
+              "voucher_type"
             ]
           },
           {
             "table": "voucher_lines",
             "columns": [
-              "voucher_id",
               "account_id",
               "debit_minor",
-              "credit_minor",
               "is_deleted"
             ]
           },
           {
             "table": "accounts",
             "columns": [
-              "id",
               "account_name",
-              "account_code"
+              "id"
+            ]
+          },
+          {
+            "table": "guided_vouchers",
+            "columns": [
+              "voucher_kind"
+            ]
+          },
+          {
+            "table": "account_group_assignments",
+            "columns": [
+              "account_group_id",
+              "status"
+            ]
+          },
+          {
+            "table": "account_groups",
+            "columns": [
+              "group_code"
             ]
           }
         ],
@@ -1466,7 +1716,7 @@
             "label": "Flag journals from this amount"
           }
         ],
-        "meaning": "A journal typed by hand moves money in Cash, Bank, Capital, GST or a suspense ledger. These ledgers normally move only through receipts, payments and bills.",
+        "meaning": "A journal typed by hand (a manual voucher, or a journal or contra keyed through Guided Vouchers) moves money in cash or bank, capital, GST or a suspense ledger, judged by each ledger's account group. These ledgers normally move only through receipts, payments and bills.",
         "nextStep": "Read the narration and supporting paper; make sure a second person approved it."
       },
       {
@@ -1475,18 +1725,26 @@
         "title": "Entry on a Sunday or outside office hours",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "vouchers",
             "columns": [
-              "id",
-              "company_id",
-              "voucher_number",
-              "voucher_type",
-              "voucher_date",
-              "source_module",
               "created_at",
+              "id",
+              "is_deleted",
+              "source_module",
               "status",
+              "voucher_date",
+              "voucher_number",
+              "voucher_type"
+            ]
+          },
+          {
+            "table": "voucher_lines",
+            "columns": [
+              "debit_minor",
               "is_deleted"
             ]
           }
@@ -1514,27 +1772,38 @@
         "title": "Round-sum journal",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "coverage": [
+          "manual vouchers",
+          "guided journals and contras"
+        ],
         "reads": [
           {
             "table": "vouchers",
             "columns": [
               "id",
-              "company_id",
-              "voucher_number",
-              "voucher_date",
-              "voucher_type",
+              "is_deleted",
+              "narration",
+              "source_id",
               "source_module",
               "status",
-              "is_deleted"
+              "voucher_date",
+              "voucher_number",
+              "voucher_type"
             ]
           },
           {
             "table": "voucher_lines",
             "columns": [
-              "voucher_id",
               "debit_minor",
-              "credit_minor",
               "is_deleted"
+            ]
+          },
+          {
+            "table": "guided_vouchers",
+            "columns": [
+              "voucher_kind"
             ]
           }
         ],
@@ -1561,25 +1830,46 @@
         "title": "Suspense or clearing balance left open",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "ledger_entries",
             "columns": [
-              "company_id",
               "account_id",
-              "entry_date",
-              "debit_minor",
               "credit_minor",
-              "is_deleted"
+              "debit_minor",
+              "entry_date",
+              "is_deleted",
+              "voucher_id"
             ]
           },
           {
             "table": "accounts",
             "columns": [
-              "id",
-              "company_id",
               "account_name",
-              "account_code"
+              "company_id",
+              "id"
+            ]
+          },
+          {
+            "table": "vouchers",
+            "columns": [
+              "is_deleted",
+              "status"
+            ]
+          },
+          {
+            "table": "account_group_assignments",
+            "columns": [
+              "account_group_id",
+              "status"
+            ]
+          },
+          {
+            "table": "account_groups",
+            "columns": [
+              "group_code"
             ]
           }
         ],
@@ -1600,28 +1890,41 @@
         "title": "Backdated voucher",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "coverage": [
+          "manual vouchers",
+          "guided vouchers",
+          "any voucher posted into a closed year"
+        ],
         "reads": [
           {
             "table": "vouchers",
             "columns": [
-              "id",
-              "company_id",
-              "voucher_number",
-              "voucher_date",
-              "source_module",
-              "financial_year_id",
               "created_at",
+              "financial_year_id",
+              "id",
+              "is_deleted",
+              "source_id",
+              "source_module",
               "status",
-              "is_deleted"
+              "voucher_date",
+              "voucher_number",
+              "voucher_type"
+            ]
+          },
+          {
+            "table": "guided_vouchers",
+            "columns": [
+              "created_at"
             ]
           },
           {
             "table": "financial_years",
             "columns": [
-              "id",
+              "closed_at",
               "financial_year_name",
-              "status",
-              "closed_at"
+              "status"
             ]
           }
         ],
@@ -1633,7 +1936,7 @@
             "label": "Flag vouchers dated this many days before they were keyed"
           }
         ],
-        "meaning": "A voucher carries a date well before the day it was entered. Backdating can push income or expense into a period that was already reported.",
+        "meaning": "A voucher whose date a person chose carries a date well before the day it was keyed, or any voucher was entered into a year after it was closed. Backdating can push income or expense into a period that was already reported. Bills and payments that take their document's date are not counted; late sales bills are AW-S03's.",
         "nextStep": "Confirm the real transaction date and that reports already filed are not affected."
       },
       {
@@ -1642,18 +1945,26 @@
         "title": "Many reversals, or reversal of an old voucher",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "vouchers",
             "columns": [
               "id",
-              "company_id",
-              "voucher_number",
-              "voucher_date",
+              "is_deleted",
               "reversal_date",
               "reversed_by",
               "status",
-              "is_deleted"
+              "voucher_date",
+              "voucher_number",
+              "voucher_type"
+            ]
+          },
+          {
+            "table": "users",
+            "columns": [
+              "username"
             ]
           }
         ],
@@ -1686,20 +1997,38 @@
         "title": "Bank line left unmatched",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "bank_statement_entries",
             "columns": [
-              "id",
-              "company_id",
-              "bank_id",
-              "transaction_date",
-              "narration",
               "amount",
-              "debit",
+              "bank_id",
+              "company_id",
               "credit",
+              "debit",
+              "id",
+              "is_deleted",
               "match_status",
-              "is_deleted"
+              "narration",
+              "posted_bank_book_id",
+              "review_status",
+              "transaction_date",
+              "voucher_id"
+            ]
+          },
+          {
+            "table": "banks",
+            "columns": [
+              "bank_name"
+            ]
+          },
+          {
+            "table": "vouchers",
+            "columns": [
+              "is_deleted",
+              "status"
             ]
           }
         ],
@@ -1711,7 +2040,7 @@
             "label": "Flag lines unmatched for this many days"
           }
         ],
-        "meaning": "A line from an imported bank statement has not been matched to any entry in the books.",
+        "meaning": "A line from an imported bank statement is not in the books: it was neither matched, booked through a voucher proposal, nor reconciled. A suggested match nobody confirmed still counts as open.",
         "nextStep": "Match it in Bank Reconciliation, or record the missing receipt, payment or bank charge."
       },
       {
@@ -1720,32 +2049,33 @@
         "title": "First digits do not follow the usual pattern",
         "severity": "low",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
-          {
-            "table": "voucher_lines",
-            "columns": [
-              "voucher_id",
-              "account_id",
-              "debit_minor",
-              "credit_minor",
-              "is_deleted"
-            ]
-          },
           {
             "table": "vouchers",
             "columns": [
               "id",
-              "company_id",
-              "voucher_date",
+              "is_deleted",
+              "source_module",
               "status",
+              "voucher_date"
+            ]
+          },
+          {
+            "table": "voucher_lines",
+            "columns": [
+              "account_id",
+              "credit_minor",
+              "debit_minor",
               "is_deleted"
             ]
           },
           {
             "table": "accounts",
             "columns": [
-              "id",
-              "account_name"
+              "account_name",
+              "id"
             ]
           }
         ],
@@ -1772,31 +2102,53 @@
         "title": "Cash in hand below zero",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "ledger_entries",
             "columns": [
-              "company_id",
               "account_id",
-              "entry_date",
-              "debit_minor",
               "credit_minor",
-              "is_deleted"
+              "debit_minor",
+              "entry_date",
+              "is_deleted",
+              "voucher_id"
             ]
           },
           {
             "table": "accounts",
             "columns": [
-              "id",
-              "company_id",
               "account_name",
+              "company_id",
+              "id",
               "opening_balance",
               "opening_balance_minor"
+            ]
+          },
+          {
+            "table": "vouchers",
+            "columns": [
+              "is_deleted",
+              "status"
+            ]
+          },
+          {
+            "table": "account_group_assignments",
+            "columns": [
+              "account_group_id",
+              "status"
+            ]
+          },
+          {
+            "table": "account_groups",
+            "columns": [
+              "group_code"
             ]
           }
         ],
         "limits": [],
-        "meaning": "On some day the Cash ledger shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
+        "meaning": "On some day a cash-in-hand ledger (any ledger in the cash group other than a bank) shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
         "nextStep": "Find the cash receipt that should come before the payment and record it with its real date."
       },
       {
@@ -1805,35 +2157,40 @@
         "title": "Book integrity",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
+        "helpers": [
+          "bookIntegrityChecks"
+        ],
         "reads": [
           {
             "table": "ledger_entries",
             "columns": [
-              "voucher_id",
-              "debit_minor",
               "credit_minor",
-              "is_deleted"
+              "debit_minor",
+              "is_deleted",
+              "voucher_id"
             ]
           },
           {
             "table": "vouchers",
             "columns": [
-              "id",
               "company_id",
-              "status",
-              "is_deleted"
+              "id",
+              "is_deleted",
+              "status"
             ]
           },
           {
             "table": "audit_log",
             "columns": [
-              "id",
-              "event_hash"
+              "event_hash",
+              "id"
             ]
           }
         ],
         "limits": [],
-        "meaning": "The existing book checks: the trial balance ties, every voucher balances, and the audit trail's hash chain is unbroken.",
+        "meaning": "The existing book checks: the trial balance ties, every voucher balances, no posting is stuck, and the audit trail's hash chain is unbroken. Negative stock and over-collected bills are shown by AW-I01 and AW-S06 instead, so they are not counted twice.",
         "nextStep": "Open Error Console for the details."
       },
       {
@@ -1842,16 +2199,19 @@
         "title": "Admin account unused for a long time",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "installation",
         "reads": [
           {
             "table": "users",
             "columns": [
+              "created_at",
+              "display_name",
               "id",
-              "username",
+              "last_login_at",
               "role",
               "status",
-              "last_login_at",
-              "created_at"
+              "username"
             ]
           }
         ],
@@ -1872,15 +2232,17 @@
         "title": "Repeated failed logins or locked account",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "installation",
         "reads": [
           {
             "table": "users",
             "columns": [
-              "id",
-              "username",
-              "role",
               "failed_login_count",
-              "locked_until"
+              "id",
+              "locked_until",
+              "role",
+              "username"
             ]
           }
         ],
@@ -1901,38 +2263,56 @@
         "title": "Maker and approver are the same person",
         "severity": "high",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "guided_vouchers",
             "columns": [
-              "id",
-              "company_id",
-              "voucher_kind",
-              "voucher_date",
-              "created_by",
               "approved_by",
+              "company_id",
+              "created_by",
+              "id",
+              "is_deleted",
               "status",
-              "is_deleted"
+              "submitted_by",
+              "voucher_date",
+              "voucher_kind"
+            ]
+          },
+          {
+            "table": "users",
+            "columns": [
+              "username"
+            ]
+          },
+          {
+            "table": "audit_log",
+            "columns": [
+              "action",
+              "record_id",
+              "table_name",
+              "user_id"
             ]
           },
           {
             "table": "approval_queue",
             "columns": [
-              "id",
-              "company_id",
-              "module_name",
-              "record_id",
-              "maker_id",
-              "checker_id",
               "approval_status",
               "approved_at",
+              "checker_id",
+              "company_id",
               "created_at",
-              "is_deleted"
+              "id",
+              "is_deleted",
+              "maker_id",
+              "module_name",
+              "record_id"
             ]
           }
         ],
         "limits": [],
-        "meaning": "One user both prepared and approved the same voucher or record, so the second check never happened.",
+        "meaning": "One user both prepared (keyed or submitted) and approved the same voucher or record, so the second check never happened.",
         "nextStep": "Have another user review it. If the company runs with one user, record that decision."
       },
       {
@@ -1941,19 +2321,27 @@
         "title": "Sensitive master change",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "audit_log",
             "columns": [
-              "id",
-              "company_id",
-              "user_id",
               "action",
-              "table_name",
-              "record_id",
-              "old_value",
+              "company_id",
+              "created_at",
+              "id",
               "new_value",
-              "created_at"
+              "old_value",
+              "record_id",
+              "table_name",
+              "user_id"
+            ]
+          },
+          {
+            "table": "users",
+            "columns": [
+              "username"
             ]
           }
         ],
@@ -1965,7 +2353,7 @@
             "label": "Show changes from this many days"
           }
         ],
-        "meaning": "A user's role was raised, or bank details or an employee's incentive percentage were changed.",
+        "meaning": "Bank details or an employee's incentive percentage were changed, one record at a time or in bulk through Master Data Tools. A user's role raised to admin is also shown once the app records role changes; it does not record them yet.",
         "nextStep": "Confirm each change was requested and approved."
       },
       {
@@ -1974,16 +2362,18 @@
         "title": "Audit trail gap",
         "severity": "medium",
         "readiness": "now",
+        "version": 1,
+        "scope": "installation",
         "reads": [
           {
             "table": "audit_log",
             "columns": [
-              "id",
-              "company_id",
-              "user_id",
               "action",
+              "company_id",
+              "created_at",
+              "id",
               "table_name",
-              "created_at"
+              "user_id"
             ]
           }
         ],
@@ -2004,6 +2394,8 @@
         "title": "Accounting policy setting changed",
         "severity": "medium",
         "readiness": "after_acc",
+        "version": 1,
+        "scope": "company",
         "reads": [
           {
             "table": "audit_log",

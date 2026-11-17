@@ -71,6 +71,7 @@ function CheckDetail({ result }) {
           </table>
         </div>
       ) : null}
+      {result.scope === "installation" ? <p className="muted">This check looks at the whole installation (users and the audit trail), not only this company.</p> : null}
       {result.truncated ? <p className="muted">Showing the first {result.findings.length} of {result.findingCount}. Narrow the period to see the rest.</p> : null}
     </div>
   );
@@ -108,7 +109,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
     if (!companyId) { notify?.("Choose a company first.", "error"); return; }
     setLoading(true);
     try {
-      const result = await apiClient.runAuditWatch({ company_id: companyId, from, to, today: today() });
+      const result = await apiClient.runAuditWatch({ company_id: companyId, from, to });
       setReport(result);
       setOpenCheck(null);
       const total = result.summary.reduce((sum, row) => sum + row.high + row.medium + row.low, 0);
@@ -171,7 +172,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
               </button>
             ))}
           </div>
-          <p className="muted">Period {report.from} to {report.to}. Ran {report.results.length} checks in {report.ms} ms.</p>
+          <p className="muted">Period {report.from} to {report.to}, as of {report.today}. Ran {report.results.length} checks in {report.ms} ms.</p>
 
           <div className="audit-watch-checks">
             {visible.map((result) => (
@@ -179,7 +180,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
                 <button type="button" className="audit-watch-check-head" aria-expanded={openCheck === result.id}
                   onClick={() => setOpenCheck(openCheck === result.id ? null : result.id)}>
                   <span className={`status-pill ${SEVERITY_CLASS[result.severity]}`}>{SEVERITY_LABEL[result.severity]}</span>
-                  <span className="audit-watch-check-title">{result.id} {result.title}</span>
+                  <span className="audit-watch-check-title">{result.id} {result.title}{result.scope === "installation" ? <span className="audit-watch-scope"> (all companies on this computer)</span> : null}</span>
                   <span className="audit-watch-check-status">
                     {result.status === "findings" ? `${result.findingCount} to look at` : STATUS_LABEL[result.status]}
                   </span>

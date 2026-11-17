@@ -8,6 +8,8 @@ Audit Watch looks through one company's books and lists exceptions that an inter
 
 It only reads. It never posts, edits or reverses anything, and nothing leaves this computer. Every check is a plain rule or a simple count, so each finding shows the rows behind it and can be explained.
 
+Reversed bills, payments and sales bills are not counted: reversing a wrong entry and keying it again is a normal correction, not a duplicate. Checks on users and the audit trail look at the whole installation, because users are shared by every company on the computer.
+
 ## How to Read a Finding
 
 A finding is an exception to look at, not proof that anything is wrong. Each one shows what was seen, the records behind it and a suggested next step. Many findings have an innocent reason; record that reason so the next reviewer does not repeat the work.
@@ -31,11 +33,11 @@ Data entry operators and viewers do not see Audit Watch, because a finding may b
 
 Severity: high.
 
-**What it means.** Two purchase bills from one supplier carry the same bill number (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. The supplier could be paid twice for one supply.
+**What it means.** Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.
 
 **What to do.** Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Same amount counts as a repeat within this many days: 7 days
 
@@ -43,11 +45,11 @@ Severity: high.
 
 Severity: high.
 
-**What it means.** Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days.
+**What it means.** Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days. Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.
 
 **What to do.** Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Same amount counts as a repeat within this many days: 7 days
 
@@ -59,7 +61,7 @@ Severity: high.
 
 **What to do.** Confirm the new account with the supplier by phone on a number already on file, not one from the change request.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag payments made within this many days of the change: 15 days
 
@@ -71,7 +73,7 @@ Severity: high.
 
 **What to do.** Move the extra to the right bill or record it as an advance; ask for a refund of any overpayment.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Ignore differences up to this amount: Rs. 1
 
@@ -83,7 +85,7 @@ Severity: medium.
 
 **What to do.** Ask who approved the purchases and whether one order was split. Set the limit to the company's real approval limit.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - The company's purchase approval limit: Rs. 1,00,000
 - A bill counts as near the limit from this share of it: 80%
@@ -98,7 +100,7 @@ Severity: medium.
 
 **What to do.** Check for a genuine reason (urgent order, different model, price rise) and keep the note with the bill.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag rates this far above the item's median: 25%
 - Median taken over this many days: 365 days
@@ -120,7 +122,7 @@ Severity: medium.
 
 **What to do.** Collect the GSTIN or confirm the supplier is unregistered; reactivate the supplier only if the payment is genuine.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag payments from this amount: Rs. 50,000
 
@@ -132,7 +134,7 @@ Severity: high. Not run yet: waits for the accounting programme (ACC) to reach t
 
 **What to do.** Waits for the purchase-order work (ACC P-01) to reach the main build.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Allowed difference between the three documents: 2%
 
@@ -146,7 +148,7 @@ Severity: medium.
 
 **What to do.** Check the order terms and any approved discount; correct the bill if the rate was keyed wrongly.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag billing this far below the quoted rate: 10%
 
@@ -158,6 +160,8 @@ Severity: medium.
 
 **What to do.** Confirm the reason and that the credit note is reported in the right GST return.
 
+**Looks at:** guided credit notes.
+
 ### AW-S03 Bill keyed late or dated before delivery
 
 Severity: medium.
@@ -166,7 +170,7 @@ Severity: medium.
 
 **What to do.** Check the dates against the GeM portal and the challan. Income must fall in the period the goods were supplied.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag bills keyed this many days after their date: 7 days
 
@@ -174,14 +178,14 @@ Severity: medium.
 
 Severity: low.
 
-**What it means.** A sales bill is still unpaid after the buyer's credit days and grace period.
+**What it means.** A sales bill is still unpaid well after its due date. The due date already includes the buyer's credit days and grace period.
 
 **What to do.** Follow up with the department; check for a pending CRAC or deduction that is holding the payment.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
-- Credit days when no terms are set for the buyer: 30 days
-- Extra days before flagging: 15 days
+- Credit days when a bill has no due date and no terms are set for the buyer: 30 days
+- Flag bills more than this many days past their due date: 15 days
 
 ### AW-S05 GeM contract billed twice or billed above the order
 
@@ -199,7 +203,7 @@ Severity: medium.
 
 **What to do.** Reallocate the receipt to the right bill, or record the refund due to the buyer.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Ignore differences up to this amount: Rs. 1
 
@@ -211,7 +215,7 @@ Severity: medium.
 
 **What to do.** Get the department's deduction letter. Claim it back if it is wrong, or book it to the right expense.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag other deductions above this share of the bill: 5%
 
@@ -229,11 +233,11 @@ Severity: high.
 
 Severity: low.
 
-**What it means.** An item has stock on hand but has not moved for months. Money is tied up and the stock may be obsolete.
+**What it means.** An item has stock on hand but has not moved for months, including opening stock that has never moved. Money is tied up and the stock may be obsolete.
 
 **What to do.** Plan to use, return or sell the stock; consider writing down its value at year end.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag items with stock and no movement for this many days: 180 days
 
@@ -241,11 +245,11 @@ Severity: low.
 
 Severity: medium.
 
-**What it means.** Stock was adjusted by a large value, or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.
+**What it means.** Stock was adjusted by a large value (the value actually posted, which for a write-off keyed without a rate is the average cost), or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.
 
 **What to do.** Check the reason and the physical count sheet for each adjustment.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag one adjustment from this value: Rs. 25,000
 - Flag an item adjusted this many times: 3
@@ -259,7 +263,7 @@ Severity: low.
 
 **What to do.** Review the supplier's quality and claim credit notes for every damaged return.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag a supplier with this many damaged returns: 3
 - Counted over this many days: 180 days
@@ -284,11 +288,11 @@ Severity: low.
 
 Severity: medium.
 
-**What it means.** More was purchased against an order line than the order asks for, or more was billed on an order than was delivered.
+**What it means.** More was purchased against an order line than the order asks for, or more was billed on an order than was delivered on confirmed delivery challans. Orders that use no delivery challan are not compared.
 
 **What to do.** Find where the extra stock went, or hold the bill until delivery is complete.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Allowed excess over the order: 0%
 
@@ -298,11 +302,13 @@ Severity: medium.
 
 Severity: medium.
 
-**What it means.** A journal typed by hand moves money in Cash, Bank, Capital, GST or a suspense ledger. These ledgers normally move only through receipts, payments and bills.
+**What it means.** A journal typed by hand (a manual voucher, or a journal or contra keyed through Guided Vouchers) moves money in cash or bank, capital, GST or a suspense ledger, judged by each ledger's account group. These ledgers normally move only through receipts, payments and bills.
 
 **What to do.** Read the narration and supporting paper; make sure a second person approved it.
 
-**Limits** (each company can change these):
+**Looks at:** manual vouchers; guided journals and contras.
+
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag journals from this amount: Rs. 10,000
 
@@ -314,7 +320,7 @@ Severity: low.
 
 **What to do.** Confirm who made the entry and why it could not wait.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Office opens (IST): 09:00 IST
 - Office closes (IST): 20:00 IST
@@ -327,7 +333,9 @@ Severity: low.
 
 **What to do.** Ask for the calculation behind the figure.
 
-**Limits** (each company can change these):
+**Looks at:** manual vouchers; guided journals and contras.
+
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag from this amount: Rs. 1,00,000
 - Amount is an exact multiple of this: Rs. 10,000
@@ -340,7 +348,7 @@ Severity: medium.
 
 **What to do.** Clear each old item to its proper ledger.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag balances older than this: 30 days
 
@@ -348,11 +356,13 @@ Severity: medium.
 
 Severity: medium.
 
-**What it means.** A voucher carries a date well before the day it was entered. Backdating can push income or expense into a period that was already reported.
+**What it means.** A voucher whose date a person chose carries a date well before the day it was keyed, or any voucher was entered into a year after it was closed. Backdating can push income or expense into a period that was already reported. Bills and payments that take their document's date are not counted; late sales bills are AW-S03's.
 
 **What to do.** Confirm the real transaction date and that reports already filed are not affected.
 
-**Limits** (each company can change these):
+**Looks at:** manual vouchers; guided vouchers; any voucher posted into a closed year.
+
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag vouchers dated this many days before they were keyed: 7 days
 
@@ -364,7 +374,7 @@ Severity: medium.
 
 **What to do.** Check each reason; repeated reversals point to a training gap or a process being worked around.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - A reversal this long after the voucher date is late: 60 days
 - Flag a user with this many reversals: 5
@@ -374,11 +384,11 @@ Severity: medium.
 
 Severity: medium.
 
-**What it means.** A line from an imported bank statement has not been matched to any entry in the books.
+**What it means.** A line from an imported bank statement is not in the books: it was neither matched, booked through a voucher proposal, nor reconciled. A suggested match nobody confirmed still counts as open.
 
 **What to do.** Match it in Bank Reconciliation, or record the missing receipt, payment or bank charge.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag lines unmatched for this many days: 15 days
 
@@ -390,7 +400,7 @@ Severity: low.
 
 **What to do.** Look at the digits that are over-represented and sample those entries.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Run only on ledgers with this many entries: 300
 - Flag when the first-digit spread differs by more than this (MAD x 1000): 15%
@@ -399,7 +409,7 @@ Severity: low.
 
 Severity: high.
 
-**What it means.** On some day the Cash ledger shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.
+**What it means.** On some day a cash-in-hand ledger (any ledger in the cash group other than a bank) shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.
 
 **What to do.** Find the cash receipt that should come before the payment and record it with its real date.
 
@@ -407,7 +417,7 @@ Severity: high.
 
 Severity: high.
 
-**What it means.** The existing book checks: the trial balance ties, every voucher balances, and the audit trail's hash chain is unbroken.
+**What it means.** The existing book checks: the trial balance ties, every voucher balances, no posting is stuck, and the audit trail's hash chain is unbroken. Negative stock and over-collected bills are shown by AW-I01 and AW-S06 instead, so they are not counted twice.
 
 **What to do.** Open Error Console for the details.
 
@@ -415,25 +425,25 @@ Severity: high.
 
 ### AW-T01 Admin account unused for a long time
 
-Severity: medium.
+Severity: medium. Looks at the whole installation, not only one company.
 
 **What it means.** An active admin or super admin account has not logged in for months. Unused powerful accounts are easy to misuse.
 
 **What to do.** Disable the account, or confirm who still needs it.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag admin accounts unused for this many days: 90 days
 
 ### AW-T02 Repeated failed logins or locked account
 
-Severity: medium.
+Severity: medium. Looks at the whole installation, not only one company.
 
 **What it means.** Someone keeps entering the wrong password for an account, or the account is locked.
 
 **What to do.** Ask the user whether it was them. Reset the password if not.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Flag accounts with this many failed attempts: 3
 
@@ -441,7 +451,7 @@ Severity: medium.
 
 Severity: high.
 
-**What it means.** One user both prepared and approved the same voucher or record, so the second check never happened.
+**What it means.** One user both prepared (keyed or submitted) and approved the same voucher or record, so the second check never happened.
 
 **What to do.** Have another user review it. If the company runs with one user, record that decision.
 
@@ -449,23 +459,23 @@ Severity: high.
 
 Severity: medium.
 
-**What it means.** A user's role was raised, or bank details or an employee's incentive percentage were changed.
+**What it means.** Bank details or an employee's incentive percentage were changed, one record at a time or in bulk through Master Data Tools. A user's role raised to admin is also shown once the app records role changes; it does not record them yet.
 
 **What to do.** Confirm each change was requested and approved.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Show changes from this many days: 30 days
 
 ### AW-T05 Audit trail gap
 
-Severity: medium.
+Severity: medium. Looks at the whole installation, not only one company.
 
 **What it means.** Changes to records were logged without the user who made them, so they cannot be traced to a person.
 
 **What to do.** Tell the developers; the screen or import that wrote these rows must record the user.
 
-**Limits** (each company can change these):
+**Limits** (defaults; changing them for one company comes in a later phase):
 
 - Look at actions from this many days: 30 days
 

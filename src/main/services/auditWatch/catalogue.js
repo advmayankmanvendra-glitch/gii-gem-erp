@@ -6,6 +6,17 @@
 //
 // This file is the single source of truth for WHAT each check is: its area, the
 // tables and columns it reads, its default limits and its plain-English wording.
+// Each check also carries:
+//   version  : raised whenever the check's logic changes, so a stored review of an
+//              older finding can be set aside (AW-2);
+//   scope    : "company" (reads one company's books) or "installation" (users and the
+//              audit trail, shared by every company on the computer);
+//   helpers  : shared read functions the check calls besides its own queries;
+//   coverage : for checks that depend on how entries are keyed, what they look at;
+//   waitsFor : for a check waiting on ACC, what will show it can run (a table, or a
+//              name in the code); the verifier fails once it appears.
+// The test suite traces the SQL each check actually runs and fails when `reads`
+// leaves out a table or column, or names a table the check never opens.
 // The queries that run the checks live beside it (AW-1). The AG-1 audit graph's
 // detectiveControls section is generated from this file
 // (node scripts/build-audit-watch-graph.js) and scripts/verify-audit-watch.js fails
@@ -57,9 +68,14 @@ export const CHECKS = [
     title: "Same supplier bill entered twice",
     severity: "high",
     readiness: "now",
-    reads: { procurements: ["id", "company_id", "supplier_id", "purchase_invoice_number", "purchase_date", "purchase_value", "purchase_gst", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      procurements: ["company_id", "id", "is_deleted", "posting_status", "purchase_date", "purchase_gst", "purchase_invoice_number", "purchase_value", "supplier_id"],
+      suppliers: ["supplier_name"]
+    },
     limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
-    meaning: "Two purchase bills from one supplier carry the same bill number (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. The supplier could be paid twice for one supply.",
+    meaning: "Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.",
     nextStep: "Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice."
   },
   {
@@ -68,9 +84,14 @@ export const CHECKS = [
     title: "Same supplier paid twice",
     severity: "high",
     readiness: "now",
-    reads: { supplier_payments: ["id", "company_id", "supplier_id", "payment_date", "utr_number", "amount_paid", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      supplier_payments: ["amount_paid", "company_id", "id", "is_deleted", "payment_date", "payment_mode", "posting_status", "supplier_id", "utr_number"],
+      suppliers: ["supplier_name"]
+    },
     limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
-    meaning: "Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days.",
+    meaning: "Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days. Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.",
     nextStep: "Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill."
   },
   {
@@ -79,9 +100,12 @@ export const CHECKS = [
     title: "Supplier paid soon after its bank account changed",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      audit_log: ["id", "action", "table_name", "record_id", "old_value", "new_value", "user_id", "created_at"],
-      supplier_payments: ["id", "company_id", "supplier_id", "payment_date", "amount_paid", "is_deleted"]
+      audit_log: ["action", "created_at", "id", "new_value", "old_value", "record_id", "table_name", "user_id"],
+      supplier_payments: ["amount_paid", "company_id", "id", "is_deleted", "payment_date", "posting_status", "supplier_id"],
+      suppliers: ["supplier_name"]
     },
     limits: { windowDays: days(15, "Flag payments made within this many days of the change") },
     meaning: "A supplier's bank account number, IFSC, bank name or UPI id was changed and the supplier was paid soon after. A changed account is the usual route for misdirected payments.",
@@ -93,11 +117,14 @@ export const CHECKS = [
     title: "Supplier paid more than billed",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      procurements: ["id", "company_id", "supplier_id", "purchase_invoice_number", "purchase_date", "purchase_value", "purchase_gst", "is_deleted"],
-      procurement_items: ["procurement_id", "gross_value", "is_deleted"],
-      supplier_payment_allocations: ["procurement_id", "allocated_amount", "is_deleted"],
-      advance_adjustments: ["procurement_id", "adjustment_type", "adjusted_amount", "status", "is_deleted"]
+      procurements: ["company_id", "id", "is_deleted", "posting_status", "purchase_date", "purchase_gst", "purchase_invoice_number", "purchase_value", "supplier_id"],
+      suppliers: ["supplier_name"],
+      supplier_payment_allocations: ["allocated_amount", "is_deleted", "procurement_id"],
+      advance_adjustments: ["adjusted_amount", "adjustment_type", "is_deleted", "procurement_id", "status"],
+      procurement_items: ["gross_value", "is_deleted", "procurement_id"]
     },
     limits: { toleranceRupees: rupees(1, "Ignore differences up to this amount") },
     meaning: "Payments and advances set against a purchase bill add up to more than the bill. The extra is either an advance that belongs to another bill, or an overpayment.",
@@ -109,7 +136,12 @@ export const CHECKS = [
     title: "Purchases split to stay under a limit",
     severity: "medium",
     readiness: "now",
-    reads: { procurements: ["id", "company_id", "supplier_id", "purchase_date", "purchase_value", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      procurements: ["company_id", "id", "is_deleted", "posting_status", "purchase_date", "purchase_invoice_number", "purchase_value", "supplier_id"],
+      suppliers: ["supplier_name"]
+    },
     limits: {
       approvalLimitRupees: rupees(100000, "The company's purchase approval limit"),
       nearLimitPercent: percent(80, "A bill counts as near the limit from this share of it"),
@@ -125,9 +157,13 @@ export const CHECKS = [
     title: "Unusual purchase rate",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      procurement_items: ["id", "company_id", "procurement_id", "item_id", "purchase_rate", "is_deleted"],
-      procurements: ["id", "purchase_date", "supplier_id", "is_deleted"]
+      procurement_items: ["company_id", "id", "is_deleted", "item_id", "procurement_id", "purchase_rate"],
+      procurements: ["is_deleted", "posting_status", "purchase_date", "supplier_id"],
+      items: ["item_name"],
+      suppliers: ["supplier_name"]
     },
     limits: {
       abovePercent: percent(25, "Flag rates this far above the item's median"),
@@ -143,11 +179,13 @@ export const CHECKS = [
     title: "One bank account shared by two parties",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      suppliers: ["id", "supplier_name", "supplier_account_number", "supplier_bank_ifsc_code", "is_deleted"],
-      employees: ["id", "employee_name", "account_number", "ifsc", "is_deleted"],
-      procurements: ["company_id", "supplier_id", "is_deleted"],
-      supplier_payments: ["company_id", "supplier_id", "is_deleted"]
+      suppliers: ["id", "is_deleted", "supplier_account_number", "supplier_bank_ifsc_code", "supplier_name"],
+      procurements: ["company_id", "is_deleted", "supplier_id"],
+      supplier_payments: ["company_id", "is_deleted", "supplier_id"],
+      employees: ["account_number", "employee_name", "id", "ifsc", "is_deleted"]
     },
     limits: {},
     meaning: "Two suppliers, or a supplier and an employee, have the same bank account number and IFSC. Money paid to one may reach the other.",
@@ -159,9 +197,11 @@ export const CHECKS = [
     title: "Payment to a supplier with no GSTIN or marked inactive",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      suppliers: ["id", "supplier_name", "gstin", "status", "is_deleted"],
-      supplier_payments: ["id", "company_id", "supplier_id", "payment_date", "amount_paid", "is_deleted"]
+      supplier_payments: ["amount_paid", "company_id", "id", "is_deleted", "payment_date", "posting_status", "supplier_id"],
+      suppliers: ["gstin", "id", "is_deleted", "status", "supplier_name"]
     },
     limits: { minimumRupees: rupees(50000, "Flag payments from this amount") },
     meaning: "A sizeable payment went to a supplier that has no GSTIN on file or is marked inactive. Input GST cannot be claimed without the GSTIN, and an inactive supplier should not be receiving money.",
@@ -173,7 +213,15 @@ export const CHECKS = [
     title: "Purchase order, goods receipt and bill do not agree",
     severity: "high",
     readiness: "after_acc",
-    reads: { purchase_orders: ["id", "company_id", "supplier_id", "total_value"], goods_receipts: ["id", "company_id", "supplier_id", "procurement_id"] },
+    version: 1,
+    scope: "company",
+    // Purchase-order lines are what a three-way match compares; ACC P-01 adds them.
+    waitsFor: { tables: ["purchase_order_items"] },
+    reads: {
+      purchase_orders: ["id", "company_id", "supplier_id", "total_value"],
+      purchase_order_items: ["purchase_order_id", "item_id", "quantity", "rate"],
+      goods_receipts: ["id", "company_id", "supplier_id", "procurement_id"]
+    },
     limits: { tolerancePercent: percent(2, "Allowed difference between the three documents") },
     meaning: "The quantity or value on the supplier bill differs from the purchase order or the goods actually received (three-way match).",
     nextStep: "Waits for the purchase-order work (ACC P-01) to reach the main build."
@@ -186,11 +234,14 @@ export const CHECKS = [
     title: "Sold below cost or well below the quoted rate",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      invoice_items: ["id", "company_id", "billing_id", "order_item_id", "quantity", "billing_rate", "is_deleted"],
-      order_items: ["id", "quoted_rate", "is_deleted"],
-      procurement_items: ["order_item_id", "quantity", "landed_cost", "purchase_rate", "is_deleted"],
-      invoices: ["id", "invoice_number", "invoice_date", "is_deleted"]
+      invoice_items: ["billing_id", "billing_rate", "company_id", "id", "is_deleted", "order_item_id", "quantity"],
+      invoices: ["invoice_date", "invoice_number", "is_deleted", "posting_status"],
+      order_items: ["is_deleted", "item_description", "quoted_rate"],
+      procurement_items: ["is_deleted", "landed_cost", "order_item_id", "procurement_id", "purchase_rate", "quantity"],
+      procurements: ["posting_status"]
     },
     limits: { belowQuotePercent: percent(10, "Flag billing this far below the quoted rate") },
     meaning: "An item was billed below what it cost to buy and deliver, or well below the rate quoted on the order.",
@@ -202,9 +253,12 @@ export const CHECKS = [
     title: "Credit note dated after the bill's period",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
+    coverage: ["guided credit notes"],
     reads: {
-      guided_vouchers: ["id", "company_id", "voucher_kind", "voucher_date", "payload_json", "status", "is_deleted"],
-      invoices: ["id", "invoice_number", "invoice_date", "is_deleted"]
+      guided_vouchers: ["company_id", "id", "is_deleted", "payload_json", "status", "voucher_date", "voucher_kind"],
+      invoices: ["company_id", "invoice_date", "invoice_number", "is_deleted"]
     },
     limits: {},
     meaning: "A credit note reduces a sales bill from an earlier month or financial year. Late credit notes move income between periods and need GST return care.",
@@ -216,9 +270,11 @@ export const CHECKS = [
     title: "Bill keyed late or dated before delivery",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      invoices: ["id", "company_id", "order_id", "invoice_number", "invoice_date", "created_at", "is_deleted"],
-      delivery_challans: ["id", "order_id", "dispatch_date", "is_deleted"]
+      invoices: ["company_id", "created_at", "id", "invoice_date", "invoice_number", "is_deleted", "order_id", "posting_status"],
+      delivery_challans: ["dispatch_date", "is_deleted", "order_id", "status"]
     },
     limits: { lateDays: days(7, "Flag bills keyed this many days after their date") },
     meaning: "A sales bill was entered well after its bill date (backdating), or carries a date before the goods were dispatched (cut-off).",
@@ -230,13 +286,15 @@ export const CHECKS = [
     title: "Receivable overdue past its credit terms",
     severity: "low",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      receivables: ["id", "company_id", "billing_id", "department_id", "invoice_number", "invoice_date", "due_date", "balance_outstanding", "is_deleted"],
-      credit_terms: ["company_id", "party_type", "party_id", "default_credit_days", "grace_period", "status", "is_deleted"],
-      government_departments: ["id", "department_name"]
+      receivables: ["balance_outstanding", "billing_id", "company_id", "department_id", "due_date", "id", "invoice_date", "invoice_number", "is_deleted", "status"],
+      government_departments: ["department_name"],
+      credit_terms: ["default_credit_days", "grace_period", "is_deleted", "status"]
     },
-    limits: { defaultCreditDays: days(30, "Credit days when no terms are set for the buyer"), graceDays: days(15, "Extra days before flagging") },
-    meaning: "A sales bill is still unpaid after the buyer's credit days and grace period.",
+    limits: { defaultCreditDays: days(30, "Credit days when a bill has no due date and no terms are set for the buyer"), graceDays: days(15, "Flag bills more than this many days past their due date") },
+    meaning: "A sales bill is still unpaid well after its due date. The due date already includes the buyer's credit days and grace period.",
     nextStep: "Follow up with the department; check for a pending CRAC or deduction that is holding the payment."
   },
   {
@@ -245,10 +303,13 @@ export const CHECKS = [
     title: "GeM contract billed twice or billed above the order",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      invoices: ["id", "company_id", "order_id", "invoice_number", "gem_contract_number", "is_deleted"],
-      invoice_items: ["billing_id", "order_item_id", "quantity", "is_deleted"],
-      order_items: ["id", "order_id", "quantity", "is_deleted"]
+      invoices: ["company_id", "gem_contract_number", "id", "invoice_date", "invoice_number", "is_deleted", "order_id", "posting_status"],
+      invoice_items: ["billing_id", "is_deleted", "order_item_id", "quantity"],
+      order_items: ["company_id", "id", "is_deleted", "item_description", "order_id", "quantity"],
+      supply_orders: ["order_number"]
     },
     limits: {},
     meaning: "The same GeM contract number appears on bills for two different orders, or more quantity was billed than the order contains.",
@@ -260,7 +321,11 @@ export const CHECKS = [
     title: "More received than billed",
     severity: "medium",
     readiness: "now",
-    reads: { receivables: ["id", "company_id", "invoice_number", "invoice_amount", "amount_received", "tds_deducted", "gst_tds_deducted", "other_deductions", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      receivables: ["amount_received", "billing_id", "gst_tds_deducted", "id", "invoice_amount", "invoice_date", "invoice_number", "is_deleted", "other_deductions", "status", "tds_deducted"]
+    },
     limits: { toleranceRupees: rupees(1, "Ignore differences up to this amount") },
     meaning: "Receipts and deductions against a bill add up to more than the bill. Either a receipt went to the wrong bill or a refund is due.",
     nextStep: "Reallocate the receipt to the right bill, or record the refund due to the buyer."
@@ -271,7 +336,9 @@ export const CHECKS = [
     title: "Large deduction by the buyer",
     severity: "medium",
     readiness: "now",
-    reads: { receivables: ["id", "company_id", "invoice_number", "invoice_amount", "other_deductions", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: { receivables: ["billing_id", "id", "invoice_amount", "invoice_date", "invoice_number", "is_deleted", "other_deductions", "status"] },
     limits: { abovePercent: percent(5, "Flag other deductions above this share of the bill") },
     meaning: "The buyer kept back a large amount as 'other deductions' (not TDS or GST TDS), such as a penalty or short payment.",
     nextStep: "Get the department's deduction letter. Claim it back if it is wrong, or book it to the right expense."
@@ -284,7 +351,14 @@ export const CHECKS = [
     title: "Negative stock",
     severity: "high",
     readiness: "now",
-    reads: { stock_ledger: ["id", "company_id", "item_id", "warehouse_id", "transaction_date", "document_number", "inward_quantity", "outward_quantity", "is_deleted"], items: ["id", "item_name", "opening_stock", "default_warehouse_id"] },
+    version: 1,
+    scope: "company",
+    helpers: ["stockBalance"],
+    reads: {
+      stock_ledger: ["company_id", "document_number", "id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
+      items: ["default_warehouse_id", "id", "item_name", "opening_stock"],
+      warehouses: ["warehouse_name"]
+    },
     limits: {},
     meaning: "The stock register shows less than zero of an item in a warehouse. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.",
     nextStep: "Find the inward entry that is missing or late and record it with its real date."
@@ -295,9 +369,16 @@ export const CHECKS = [
     title: "Slow-moving stock",
     severity: "low",
     readiness: "now",
-    reads: { stock_ledger: ["company_id", "item_id", "warehouse_id", "transaction_date", "inward_quantity", "outward_quantity", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    helpers: ["stockBalance"],
+    reads: {
+      stock_ledger: ["company_id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
+      items: ["created_at", "default_warehouse_id", "id", "is_deleted", "item_name", "opening_stock"],
+      warehouses: ["id", "status", "warehouse_name"]
+    },
     limits: { idleDays: days(180, "Flag items with stock and no movement for this many days") },
-    meaning: "An item has stock on hand but has not moved for months. Money is tied up and the stock may be obsolete.",
+    meaning: "An item has stock on hand but has not moved for months, including opening stock that has never moved. Money is tied up and the stock may be obsolete.",
     nextStep: "Plan to use, return or sell the stock; consider writing down its value at year end."
   },
   {
@@ -306,13 +387,19 @@ export const CHECKS = [
     title: "Large or frequent stock adjustments",
     severity: "medium",
     readiness: "now",
-    reads: { stock_adjustments: ["id", "company_id", "item_id", "adjustment_date", "adjustment_type", "quantity", "rate", "reason", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      stock_adjustments: ["adjustment_date", "adjustment_type", "company_id", "id", "is_deleted", "item_id", "posting_status", "quantity", "rate", "reason"],
+      items: ["item_name"],
+      stock_ledger: ["is_deleted", "source_id", "source_module", "value", "value_minor"]
+    },
     limits: {
       minimumRupees: rupees(25000, "Flag one adjustment from this value"),
       repeatCount: count(3, "Flag an item adjusted this many times"),
       windowDays: days(30, "Repeats counted within this many days")
     },
-    meaning: "Stock was adjusted by a large value, or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.",
+    meaning: "Stock was adjusted by a large value (the value actually posted, which for a write-off keyed without a rate is the average cost), or the same item was adjusted again and again. Adjustments change stock without a supplier or buyer document.",
     nextStep: "Check the reason and the physical count sheet for each adjustment."
   },
   {
@@ -321,7 +408,12 @@ export const CHECKS = [
     title: "Many damaged returns from one supplier",
     severity: "low",
     readiness: "now",
-    reads: { stock_returns: ["id", "company_id", "return_type", "supplier_id", "item_id", "return_date", "quantity", "condition_status", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      stock_returns: ["company_id", "condition_status", "id", "is_deleted", "posting_status", "quantity", "return_date", "supplier_id"],
+      suppliers: ["supplier_name"]
+    },
     limits: { minimumReturns: count(3, "Flag a supplier with this many damaged returns"), lookbackDays: days(180, "Counted over this many days") },
     meaning: "A supplier's goods keep coming back damaged or defective.",
     nextStep: "Review the supplier's quality and claim credit notes for every damaged return."
@@ -332,7 +424,12 @@ export const CHECKS = [
     title: "Serial number used twice",
     severity: "high",
     readiness: "now",
-    reads: { serial_numbers: ["id", "company_id", "item_id", "serial_number", "order_id", "status", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      serial_numbers: ["id", "is_deleted", "item_id", "serial_number", "status"],
+      items: ["item_name"]
+    },
     limits: {},
     meaning: "The same serial number of an item is recorded more than once. One physical unit cannot be bought or delivered twice.",
     nextStep: "Check the unit's label and correct the wrong entry."
@@ -343,7 +440,12 @@ export const CHECKS = [
     title: "Expired batch still in stock",
     severity: "low",
     readiness: "now",
-    reads: { batches: ["id", "company_id", "item_id", "batch_number", "balance_quantity", "expiry_date", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      batches: ["balance_quantity", "batch_number", "expiry_date", "id", "is_deleted", "item_id"],
+      items: ["item_name"]
+    },
     limits: {},
     meaning: "A batch past its expiry date still shows quantity on hand.",
     nextStep: "Remove expired stock from saleable stock and record the write-off."
@@ -354,15 +456,21 @@ export const CHECKS = [
     title: "Bought more than the order needs, or billed more than delivered",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      order_items: ["id", "company_id", "order_id", "quantity", "is_deleted"],
-      procurement_items: ["order_item_id", "quantity", "is_deleted"],
-      invoice_items: ["order_item_id", "quantity", "is_deleted"],
-      delivery_challans: ["id", "order_id", "is_deleted"],
-      delivery_challan_items: ["delivery_challan_id", "item_id", "quantity"]
+      procurement_items: ["is_deleted", "order_item_id", "procurement_id", "quantity"],
+      order_items: ["company_id", "id", "is_deleted", "item_description", "order_id", "quantity"],
+      supply_orders: ["id", "order_number"],
+      procurements: ["is_deleted", "posting_status", "purchase_date"],
+      invoice_items: ["billing_id", "company_id", "is_deleted", "item_id", "quantity"],
+      invoices: ["invoice_date", "is_deleted", "order_id", "posting_status"],
+      delivery_challan_items: ["delivery_challan_id", "item_id", "quantity"],
+      delivery_challans: ["company_id", "id", "is_deleted", "order_id", "status"],
+      items: ["item_name"]
     },
     limits: { tolerancePercent: percent(0, "Allowed excess over the order") },
-    meaning: "More was purchased against an order line than the order asks for, or more was billed on an order than was delivered.",
+    meaning: "More was purchased against an order line than the order asks for, or more was billed on an order than was delivered on confirmed delivery challans. Orders that use no delivery challan are not compared.",
     nextStep: "Find where the extra stock went, or hold the bill until delivery is complete."
   },
 
@@ -373,13 +481,19 @@ export const CHECKS = [
     title: "Hand-made journal to a sensitive ledger",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
+    coverage: ["manual vouchers", "guided journals and contras"],
     reads: {
-      vouchers: ["id", "company_id", "voucher_number", "voucher_date", "voucher_type", "source_module", "status", "is_deleted"],
-      voucher_lines: ["voucher_id", "account_id", "debit_minor", "credit_minor", "is_deleted"],
-      accounts: ["id", "account_name", "account_code"]
+      vouchers: ["id", "is_deleted", "narration", "source_id", "source_module", "status", "voucher_date", "voucher_number", "voucher_type"],
+      voucher_lines: ["account_id", "debit_minor", "is_deleted"],
+      accounts: ["account_name", "id"],
+      guided_vouchers: ["voucher_kind"],
+      account_group_assignments: ["account_group_id", "status"],
+      account_groups: ["group_code"]
     },
     limits: { minimumRupees: rupees(10000, "Flag journals from this amount") },
-    meaning: "A journal typed by hand moves money in Cash, Bank, Capital, GST or a suspense ledger. These ledgers normally move only through receipts, payments and bills.",
+    meaning: "A journal typed by hand (a manual voucher, or a journal or contra keyed through Guided Vouchers) moves money in cash or bank, capital, GST or a suspense ledger, judged by each ledger's account group. These ledgers normally move only through receipts, payments and bills.",
     nextStep: "Read the narration and supporting paper; make sure a second person approved it."
   },
   {
@@ -388,8 +502,11 @@ export const CHECKS = [
     title: "Entry on a Sunday or outside office hours",
     severity: "low",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      vouchers: ["id", "company_id", "voucher_number", "voucher_type", "voucher_date", "source_module", "created_at", "status", "is_deleted"]
+      vouchers: ["created_at", "id", "is_deleted", "source_module", "status", "voucher_date", "voucher_number", "voucher_type"],
+      voucher_lines: ["debit_minor", "is_deleted"]
     },
     limits: { officeStart: clock("09:00", "Office opens (IST)"), officeEnd: clock("20:00", "Office closes (IST)") },
     meaning: "A voucher is dated on a Sunday, or was keyed outside office hours. Not wrong in itself, but entries made when nobody is watching deserve a second look.",
@@ -401,9 +518,13 @@ export const CHECKS = [
     title: "Round-sum journal",
     severity: "low",
     readiness: "now",
+    version: 1,
+    scope: "company",
+    coverage: ["manual vouchers", "guided journals and contras"],
     reads: {
-      vouchers: ["id", "company_id", "voucher_number", "voucher_date", "voucher_type", "source_module", "status", "is_deleted"],
-      voucher_lines: ["voucher_id", "debit_minor", "credit_minor", "is_deleted"]
+      vouchers: ["id", "is_deleted", "narration", "source_id", "source_module", "status", "voucher_date", "voucher_number", "voucher_type"],
+      voucher_lines: ["debit_minor", "is_deleted"],
+      guided_vouchers: ["voucher_kind"]
     },
     limits: { minimumRupees: rupees(100000, "Flag from this amount"), roundTo: rupees(10000, "Amount is an exact multiple of this") },
     meaning: "A large journal is an exact round figure. Real transactions rarely land on round sums; estimates and plugs often do.",
@@ -415,9 +536,14 @@ export const CHECKS = [
     title: "Suspense or clearing balance left open",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      ledger_entries: ["company_id", "account_id", "entry_date", "debit_minor", "credit_minor", "is_deleted"],
-      accounts: ["id", "company_id", "account_name", "account_code"]
+      ledger_entries: ["account_id", "credit_minor", "debit_minor", "entry_date", "is_deleted", "voucher_id"],
+      accounts: ["account_name", "company_id", "id"],
+      vouchers: ["is_deleted", "status"],
+      account_group_assignments: ["account_group_id", "status"],
+      account_groups: ["group_code"]
     },
     limits: { openDays: days(30, "Flag balances older than this") },
     meaning: "A suspense or clearing ledger (such as Opening Balance Suspense or Goods Received Not Invoiced) still holds a balance from more than a month ago. These ledgers should empty out.",
@@ -429,12 +555,16 @@ export const CHECKS = [
     title: "Backdated voucher",
     severity: "medium",
     readiness: "now",
+    version: 1,
+    scope: "company",
+    coverage: ["manual vouchers", "guided vouchers", "any voucher posted into a closed year"],
     reads: {
-      vouchers: ["id", "company_id", "voucher_number", "voucher_date", "source_module", "financial_year_id", "created_at", "status", "is_deleted"],
-      financial_years: ["id", "financial_year_name", "status", "closed_at"]
+      vouchers: ["created_at", "financial_year_id", "id", "is_deleted", "source_id", "source_module", "status", "voucher_date", "voucher_number", "voucher_type"],
+      guided_vouchers: ["created_at"],
+      financial_years: ["closed_at", "financial_year_name", "status"]
     },
     limits: { lateDays: days(7, "Flag vouchers dated this many days before they were keyed") },
-    meaning: "A voucher carries a date well before the day it was entered. Backdating can push income or expense into a period that was already reported.",
+    meaning: "A voucher whose date a person chose carries a date well before the day it was keyed, or any voucher was entered into a year after it was closed. Backdating can push income or expense into a period that was already reported. Bills and payments that take their document's date are not counted; late sales bills are AW-S03's.",
     nextStep: "Confirm the real transaction date and that reports already filed are not affected."
   },
   {
@@ -443,7 +573,12 @@ export const CHECKS = [
     title: "Many reversals, or reversal of an old voucher",
     severity: "medium",
     readiness: "now",
-    reads: { vouchers: ["id", "company_id", "voucher_number", "voucher_date", "reversal_date", "reversed_by", "status", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      vouchers: ["id", "is_deleted", "reversal_date", "reversed_by", "status", "voucher_date", "voucher_number", "voucher_type"],
+      users: ["username"]
+    },
     limits: { oldDays: days(60, "A reversal this long after the voucher date is late"), repeatCount: count(5, "Flag a user with this many reversals"), windowDays: days(30, "Reversals counted within this many days") },
     meaning: "A voucher was reversed long after its date, or one user reversed many vouchers in a short time.",
     nextStep: "Check each reason; repeated reversals point to a training gap or a process being worked around."
@@ -454,9 +589,15 @@ export const CHECKS = [
     title: "Bank line left unmatched",
     severity: "medium",
     readiness: "now",
-    reads: { bank_statement_entries: ["id", "company_id", "bank_id", "transaction_date", "narration", "amount", "debit", "credit", "match_status", "is_deleted"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      bank_statement_entries: ["amount", "bank_id", "company_id", "credit", "debit", "id", "is_deleted", "match_status", "narration", "posted_bank_book_id", "review_status", "transaction_date", "voucher_id"],
+      banks: ["bank_name"],
+      vouchers: ["is_deleted", "status"]
+    },
     limits: { openDays: days(15, "Flag lines unmatched for this many days") },
-    meaning: "A line from an imported bank statement has not been matched to any entry in the books.",
+    meaning: "A line from an imported bank statement is not in the books: it was neither matched, booked through a voucher proposal, nor reconciled. A suggested match nobody confirmed still counts as open.",
     nextStep: "Match it in Bank Reconciliation, or record the missing receipt, payment or bank charge."
   },
   {
@@ -465,10 +606,12 @@ export const CHECKS = [
     title: "First digits do not follow the usual pattern",
     severity: "low",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      voucher_lines: ["voucher_id", "account_id", "debit_minor", "credit_minor", "is_deleted"],
-      vouchers: ["id", "company_id", "voucher_date", "status", "is_deleted"],
-      accounts: ["id", "account_name"]
+      vouchers: ["id", "is_deleted", "source_module", "status", "voucher_date"],
+      voucher_lines: ["account_id", "credit_minor", "debit_minor", "is_deleted"],
+      accounts: ["account_name", "id"]
     },
     limits: { minimumRows: count(300, "Run only on ledgers with this many entries"), tolerance: percent(15, "Flag when the first-digit spread differs by more than this (MAD x 1000)") },
     meaning: "In natural business amounts, about 30% start with 1 and fewer start with each higher digit (Benford's law). A ledger whose amounts break that pattern may have invented or repeated figures.",
@@ -480,12 +623,17 @@ export const CHECKS = [
     title: "Cash in hand below zero",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      ledger_entries: ["company_id", "account_id", "entry_date", "debit_minor", "credit_minor", "is_deleted"],
-      accounts: ["id", "company_id", "account_name", "opening_balance", "opening_balance_minor"]
+      ledger_entries: ["account_id", "credit_minor", "debit_minor", "entry_date", "is_deleted", "voucher_id"],
+      accounts: ["account_name", "company_id", "id", "opening_balance", "opening_balance_minor"],
+      vouchers: ["is_deleted", "status"],
+      account_group_assignments: ["account_group_id", "status"],
+      account_groups: ["group_code"]
     },
     limits: {},
-    meaning: "On some day the Cash ledger shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
+    meaning: "On some day a cash-in-hand ledger (any ledger in the cash group other than a bank) shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
     nextStep: "Find the cash receipt that should come before the payment and record it with its real date."
   },
   {
@@ -494,13 +642,16 @@ export const CHECKS = [
     title: "Book integrity",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
+    helpers: ["bookIntegrityChecks"],
     reads: {
-      ledger_entries: ["voucher_id", "debit_minor", "credit_minor", "is_deleted"],
-      vouchers: ["id", "company_id", "status", "is_deleted"],
-      audit_log: ["id", "event_hash"]
+      ledger_entries: ["credit_minor", "debit_minor", "is_deleted", "voucher_id"],
+      vouchers: ["company_id", "id", "is_deleted", "status"],
+      audit_log: ["event_hash", "id"]
     },
     limits: {},
-    meaning: "The existing book checks: the trial balance ties, every voucher balances, and the audit trail's hash chain is unbroken.",
+    meaning: "The existing book checks: the trial balance ties, every voucher balances, no posting is stuck, and the audit trail's hash chain is unbroken. Negative stock and over-collected bills are shown by AW-I01 and AW-S06 instead, so they are not counted twice.",
     nextStep: "Open Error Console for the details."
   },
 
@@ -511,7 +662,9 @@ export const CHECKS = [
     title: "Admin account unused for a long time",
     severity: "medium",
     readiness: "now",
-    reads: { users: ["id", "username", "role", "status", "last_login_at", "created_at"] },
+    version: 1,
+    scope: "installation",
+    reads: { users: ["created_at", "display_name", "id", "last_login_at", "role", "status", "username"] },
     limits: { idleDays: days(90, "Flag admin accounts unused for this many days") },
     meaning: "An active admin or super admin account has not logged in for months. Unused powerful accounts are easy to misuse.",
     nextStep: "Disable the account, or confirm who still needs it."
@@ -522,7 +675,9 @@ export const CHECKS = [
     title: "Repeated failed logins or locked account",
     severity: "medium",
     readiness: "now",
-    reads: { users: ["id", "username", "role", "failed_login_count", "locked_until"] },
+    version: 1,
+    scope: "installation",
+    reads: { users: ["failed_login_count", "id", "locked_until", "role", "username"] },
     limits: { failedLogins: count(3, "Flag accounts with this many failed attempts") },
     meaning: "Someone keeps entering the wrong password for an account, or the account is locked.",
     nextStep: "Ask the user whether it was them. Reset the password if not."
@@ -533,12 +688,16 @@ export const CHECKS = [
     title: "Maker and approver are the same person",
     severity: "high",
     readiness: "now",
+    version: 1,
+    scope: "company",
     reads: {
-      guided_vouchers: ["id", "company_id", "voucher_kind", "voucher_date", "created_by", "approved_by", "status", "is_deleted"],
-      approval_queue: ["id", "company_id", "module_name", "record_id", "maker_id", "checker_id", "approval_status", "approved_at", "created_at", "is_deleted"]
+      guided_vouchers: ["approved_by", "company_id", "created_by", "id", "is_deleted", "status", "submitted_by", "voucher_date", "voucher_kind"],
+      users: ["username"],
+      audit_log: ["action", "record_id", "table_name", "user_id"],
+      approval_queue: ["approval_status", "approved_at", "checker_id", "company_id", "created_at", "id", "is_deleted", "maker_id", "module_name", "record_id"]
     },
     limits: {},
-    meaning: "One user both prepared and approved the same voucher or record, so the second check never happened.",
+    meaning: "One user both prepared (keyed or submitted) and approved the same voucher or record, so the second check never happened.",
     nextStep: "Have another user review it. If the company runs with one user, record that decision."
   },
   {
@@ -547,9 +706,14 @@ export const CHECKS = [
     title: "Sensitive master change",
     severity: "medium",
     readiness: "now",
-    reads: { audit_log: ["id", "company_id", "user_id", "action", "table_name", "record_id", "old_value", "new_value", "created_at"] },
+    version: 1,
+    scope: "company",
+    reads: {
+      audit_log: ["action", "company_id", "created_at", "id", "new_value", "old_value", "record_id", "table_name", "user_id"],
+      users: ["username"]
+    },
     limits: { lookbackDays: days(30, "Show changes from this many days") },
-    meaning: "A user's role was raised, or bank details or an employee's incentive percentage were changed.",
+    meaning: "Bank details or an employee's incentive percentage were changed, one record at a time or in bulk through Master Data Tools. A user's role raised to admin is also shown once the app records role changes; it does not record them yet.",
     nextStep: "Confirm each change was requested and approved."
   },
   {
@@ -558,7 +722,9 @@ export const CHECKS = [
     title: "Audit trail gap",
     severity: "medium",
     readiness: "now",
-    reads: { audit_log: ["id", "company_id", "user_id", "action", "table_name", "created_at"] },
+    version: 1,
+    scope: "installation",
+    reads: { audit_log: ["action", "company_id", "created_at", "id", "table_name", "user_id"] },
     limits: { lookbackDays: days(30, "Look at actions from this many days") },
     meaning: "Changes to records were logged without the user who made them, so they cannot be traced to a person.",
     nextStep: "Tell the developers; the screen or import that wrote these rows must record the user."
@@ -569,6 +735,10 @@ export const CHECKS = [
     title: "Accounting policy setting changed",
     severity: "medium",
     readiness: "after_acc",
+    version: 1,
+    scope: "company",
+    // ACC P-18 adds the single-user mode setting this check watches.
+    waitsFor: { codeMarker: "single_user_mode" },
     reads: { audit_log: ["id", "action", "table_name", "created_at"] },
     limits: {},
     meaning: "A company-level accounting policy (such as maker-checker or single-user mode) was changed.",

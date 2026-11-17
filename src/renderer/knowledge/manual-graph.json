@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "KG-5",
-  "generatedAt": "2026-11-17T13:36:51.648Z",
+  "generatedAt": "2026-11-17T14:34:36.663Z",
   "owner": "Architecture & Governance",
   "description": "Document and Manual Graph — governed inventory of ERP manuals with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors.",
   "version": "1.0.0",
@@ -14,7 +14,9 @@
       "WG-1",
       "FF-1"
     ],
-    "dependedBy": []
+    "dependedBy": [
+      "AG-1"
+    ]
   },
   "relationships": {
     "manualToFeature": [
@@ -1028,7 +1030,7 @@
       "title": "Audit Watch Guide",
       "fileName": "GII-GeM-ERP-Audit-Watch-Guide.md",
       "sourcePath": "docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md",
-      "lineCount": 483,
+      "lineCount": 493,
       "sectionCount": 9,
       "category": "user-operations",
       "status": "current",

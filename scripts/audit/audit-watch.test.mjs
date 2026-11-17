@@ -15,7 +15,7 @@ const m = await load("src/main/database/init.js");
 const { CHECKS } = await load("src/main/services/auditWatch/catalogue.js");
 const { CHECK_FUNCTIONS } = await load("src/main/services/auditWatch/checks.js");
 const { readOnlyQuery, resolveLimits } = await load("src/main/services/auditWatch/auditWatchService.js");
-const { fixtures, findings, names, istToday, shift } = await load("scripts/audit/lib/auditWatchFixtures.mjs");
+const { fixtures, findings, names, istToday, shift, tracedReads } = await load("scripts/audit/lib/auditWatchFixtures.mjs");
 
 const cleanup = [];
 afterEach(() => { while (cleanup.length) cleanup.pop()(); });
@@ -625,4 +625,272 @@ test("AW-T05 flags record changes logged without a user, not attributed ones", (
   const list = findings(m, db, "AW-T05", { today });
   assert.ok(list.some((row) => !base.includes(row.key) && row.summary.includes("items")), JSON.stringify(list.map((row) => row.summary)));
   assert.ok(!list.some((row) => row.summary.includes("delete action(s) on warehouses")));
+});
+
+// ------------------------------------------------------------ through the app's own write paths
+// These go through the functions the screens use (posting, reversal, guided vouchers,
+// approvals, stock adjustments), not hand-planted rows, so a check that reads columns
+// the app never fills cannot pass.
+
+test("a reverse-and-re-enter correction is not a duplicate (AW-P01, AW-P02, AW-S05)", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  const first = f.bill(s, { purchase_invoice_number: "SUP/77", purchase_date: "2026-07-01", posting_status: "Draft", approval_status: "Approved" });
+  m.postPurchaseVoucher(db, first);
+  m.reverseVoucher(db, db.prepare("SELECT id FROM vouchers WHERE source_module = 'procurement' AND source_id = ?").get(first).id, "wrong rate");
+  assert.equal(db.prepare("SELECT posting_status FROM procurements WHERE id = ?").get(first).posting_status, "Reversed");
+  const again = f.bill(s, { purchase_invoice_number: "SUP/77", purchase_date: "2026-07-01", posting_status: "Draft", approval_status: "Approved" });
+  m.postPurchaseVoucher(db, again);
+  clean(findings(m, db, "AW-P01"), ["procurements", first], ["procurements", again]);
+
+  const paid = f.supplierPayment(s, { payment_date: "2026-07-10", amount_paid: 11800, posting_status: "Draft", utr_number: "UTR0000001" });
+  m.postSupplierPaymentVoucher(db, paid);
+  m.reverseVoucher(db, db.prepare("SELECT id FROM vouchers WHERE source_module = 'supplier_payment' AND source_id = ?").get(paid).id, "wrong bank");
+  const repaid = f.supplierPayment(s, { payment_date: "2026-07-11", amount_paid: 11800, utr_number: "UTR0000002" });
+  clean(findings(m, db, "AW-P02"), ["supplier_payments", paid], ["supplier_payments", repaid]);
+
+  const order = f.order();
+  const line = f.orderItem(order, { quantity: 10 });
+  const bill = f.invoice(order, { posting_status: "Draft", approval_status: "Approved", invoice_date: "2026-08-01" });
+  f.invoiceLine(bill, { order_item_id: line, quantity: 10, billing_rate: 1000, taxable_value: 10000, gst_amount: 1800, gross_value: 11800 });
+  m.postSalesVoucher(db, bill);
+  m.reverseVoucher(db, db.prepare("SELECT id FROM vouchers WHERE source_module = 'billing' AND source_id = ?").get(bill).id, "wrong consignee");
+  const rebill = f.invoice(order, { invoice_date: "2026-08-02" });
+  f.invoiceLine(rebill, { order_item_id: line, quantity: 10, billing_rate: 1000 });
+  clean(findings(m, db, "AW-S05"), ["order_items", line]);
+});
+
+test("AW-P01 and AW-P02 skip placeholders and a bill number reused in a new financial year", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  const lastYear = f.bill(s, { purchase_invoice_number: "15", purchase_date: "2025-06-10", purchase_value: 4000, purchase_gst: 720 });
+  const thisYear = f.bill(s, { purchase_invoice_number: "15", purchase_date: "2026-06-12", purchase_value: 9000, purchase_gst: 1620 });
+  const na1 = f.bill(s, { purchase_invoice_number: "NA", purchase_date: "2026-05-01", purchase_value: 300 });
+  const na2 = f.bill(s, { purchase_invoice_number: "N.A.", purchase_date: "2026-09-01", purchase_value: 700 });
+  const bills = findings(m, db, "AW-P01");
+  clean(bills, ["procurements", lastYear], ["procurements", thisYear]);
+  clean(bills, ["procurements", na1], ["procurements", na2]);
+  const other = f.supplier();
+  const x = f.supplierPayment(s, { utr_number: "NA", amount_paid: 1200, payment_date: "2026-07-01", payment_mode: "Cash" });
+  const y = f.supplierPayment(other, { utr_number: "N.A.", amount_paid: 3400, payment_date: "2026-09-01", payment_mode: "Cash" });
+  clean(findings(m, db, "AW-P02"), ["supplier_payments", x], ["supplier_payments", y]);
+});
+
+test("AW-T03 sees a guided voucher keyed and approved by one user through the real workflow", () => {
+  const { db, f } = fresh();
+  const u = f.user({ role: "admin" });
+  const other = f.user({ role: "admin" });
+  const keyedBy = (user) => m.runAsActor({ id: user, role: "admin" }, () => m.createBusinessVoucher(db, {
+    company_id: 1, voucher_kind: "journal", voucher_date: "2026-08-10",
+    lines: [{ account_id: f.accountId("Cash"), debit: 500000, credit: 0 }, { account_id: f.accountId("Capital"), debit: 0, credit: 500000 }]
+  }));
+  const own = keyedBy(u);
+  const checked = keyedBy(u);
+  assert.equal(own.created_by, null, "the screen sends no created_by; the draft's audit row carries the maker");
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, own.id, step, u, "");
+  m.updateGuidedVoucherStatus(db, checked.id, "submit", u, "");
+  m.updateGuidedVoucherStatus(db, checked.id, "review", other, "");
+  m.updateGuidedVoucherStatus(db, checked.id, "approve", other, "");
+  const list = findings(m, db, "AW-T03");
+  flagged(list, ["guided_vouchers", own.id]);
+  clean(list, ["guided_vouchers", checked.id]);
+  // Approval queue: maker_id is empty in the app, so the maker is the record's create row.
+  const bill = f.bill(f.supplier(), { purchase_date: "2026-08-12" });
+  m.auditLog(db, { company_id: 1, user_id: u, action: "create", table_name: "procurements", record_id: bill, new_value: "{}" });
+  m.approveTransaction(db, "procurements", bill, u, "ok");
+  assert.equal(db.prepare("SELECT maker_id FROM approval_queue WHERE record_id = ?").get(bill).maker_id, null);
+  flagged(findings(m, db, "AW-T03"), ["approval_queue", db.prepare("SELECT id FROM approval_queue WHERE record_id = ?").get(bill).id]);
+});
+
+test("AW-G01 and AW-G03 cover journals keyed through Guided Vouchers", () => {
+  const { db, f } = fresh();
+  const u = f.user({ role: "admin" });
+  const gv = m.createBusinessVoucher(db, { company_id: 1, voucher_kind: "journal", voucher_date: "2026-08-10",
+    lines: [{ account_id: f.accountId("Cash"), debit: 500000, credit: 0 }, { account_id: f.accountId("Capital"), debit: 0, credit: 500000 }] });
+  for (const step of ["submit", "review", "approve"]) m.updateGuidedVoucherStatus(db, gv.id, step, u, "");
+  m.postGuidedVoucher(db, gv.id, u);
+  const voucher = db.prepare("SELECT posted_voucher_id id FROM guided_vouchers WHERE id = ?").get(gv.id).id;
+  flagged(findings(m, db, "AW-G01"), ["vouchers", voucher]);
+  flagged(findings(m, db, "AW-G03"), ["vouchers", voucher]);
+});
+
+test("ledger checks follow the account groups, not the ledger names (AW-G01, AW-G09)", () => {
+  const { db, f } = fresh();
+  // The client calls the cash ledger "Cash in Hand"; its group still says it is cash.
+  db.prepare("UPDATE accounts SET account_name = 'Cash in Hand' WHERE company_id = 1 AND account_name = 'Cash'").run();
+  f.voucher({ date: "2026-07-01", source: "payment", lines: [["Trade Payables", 2000, 0], ["Cash in Hand", 0, 2000]] });
+  const list = findings(m, db, "AW-G09");
+  assert.ok(list.some((row) => row.summary.startsWith("Cash in Hand fell to")), JSON.stringify(list.map((row) => row.summary)));
+  // A bank overdraft is not cash below zero.
+  f.voucher({ date: "2026-07-02", source: "payment", lines: [["Trade Payables", 5000, 0], ["Bank", 0, 5000]] });
+  assert.ok(!findings(m, db, "AW-G09").some((row) => row.summary.startsWith("Bank")));
+  const journal = f.voucher({ date: "2026-07-03", lines: [["Cash in Hand", 20000, 0], ["Sales", 0, 20000]] });
+  flagged(findings(m, db, "AW-G01"), ["vouchers", journal]);
+});
+
+test("AW-G05 measures lateness only where a person chose the date", () => {
+  const { db, f } = fresh();
+  // A supplier bill posted ten days after its date is normal posting lag.
+  const lag = f.voucher({ date: "2026-07-01", createdAt: "2026-07-11 06:00:00", source: "procurement", lines: [["Purchase", 1000, 0], ["Trade Payables", 0, 1000]] });
+  const backdated = f.voucher({ date: "2026-07-01", createdAt: "2026-07-11 06:00:00", lines: [["Cash", 1000, 0], ["Capital", 0, 1000]] });
+  const list = findings(m, db, "AW-G05");
+  clean(list, ["vouchers", lag]);
+  flagged(list, ["vouchers", backdated]);
+});
+
+test("AW-G07 counts a proposal-booked line as matched and an unconfirmed suggestion as open", () => {
+  const { db, f } = fresh();
+  const voucher = f.voucher({ date: "2026-08-01", source: "voucher_proposal", lines: [["Bank Charges", 2500, 0], ["Bank", 0, 2500]] });
+  const imp = f.insert("bank_statement_imports", { company_id: 1 });
+  const base = { company_id: 1, import_id: imp, transaction_date: "2026-08-01", narration: "x", debit: 2500, credit: 0, amount: -2500 };
+  const bookedLine = f.insert("bank_statement_entries", { ...base, match_status: "Unmatched", review_status: "Posted", voucher_id: voucher });
+  const suggested = f.insert("bank_statement_entries", { ...base, match_status: "Suggested", review_status: "Pending" });
+  const list = findings(m, db, "AW-G07");
+  clean(list, ["bank_statement_entries", bookedLine]);
+  flagged(list, ["bank_statement_entries", suggested]);
+});
+
+test("AW-I03 values a rate-less write-off at what was posted", () => {
+  const { db, f } = fresh();
+  const item = f.item();
+  const store = f.warehouse();
+  f.stockMove(item, store, "2026-06-01", 100);
+  db.prepare("UPDATE stock_ledger SET value = 500000, value_minor = 50000000, rate = 5000 WHERE item_id = ?").run(item);
+  const writeOff = f.insert("stock_adjustments", { company_id: 1, item_id: item, warehouse_id: store, adjustment_date: "2026-08-01", adjustment_type: "Decrease", quantity: 40, reason: "write off", approval_status: "Approved" });
+  m.postStockAdjustment(db, writeOff);
+  assert.equal(db.prepare("SELECT rate FROM stock_adjustments WHERE id = ?").get(writeOff).rate, 0);
+  const list = findings(m, db, "AW-I03");
+  assert.ok(list.some((row) => row.key === `AW-I03:${writeOff}` && row.amountMinor === 20000000), JSON.stringify(list.map((row) => row.summary)));
+});
+
+test("AW-I02 sees opening stock that never moved", () => {
+  const { db, f } = fresh();
+  const store = f.warehouse();
+  const idle = f.item({ opening_stock: 50, opening_rate: 1000, opening_value: 50000, default_warehouse_id: store, created_at: "2025-01-01 06:00:00" });
+  const fresher = f.item({ opening_stock: 5, opening_rate: 1000, opening_value: 5000, default_warehouse_id: store });
+  const list = findings(m, db, "AW-I02");
+  flagged(list, ["items", idle]);
+  clean(list, ["items", fresher]);
+});
+
+test("AW-S04 uses the stored due date as final (credit days and grace already in it)", () => {
+  const { db, f } = fresh();
+  m.saveCreditTerm(db, { company_id: 1, party_type: "department", party_id: 1, default_credit_days: 30, grace_period: 30, status: "active" });
+  const order = f.order();
+  const bill = f.invoice(order, { invoice_date: "2026-08-01", posting_status: "Draft", approval_status: "Approved" });
+  f.invoiceLine(bill, { quantity: 1, billing_rate: 10000, taxable_value: 10000, gst_amount: 1800, gross_value: 11800 });
+  m.postSalesVoucher(db, bill);
+  assert.equal(db.prepare("SELECT due_date FROM receivables WHERE billing_id = ?").get(bill).due_date, "2026-09-30");
+  const due = (today) => findings(m, db, "AW-S04", { today }).filter((row) => names([row], ["invoices", bill]));
+  assert.equal(due("2026-10-10").length, 0, "10 days past due is inside the 15-day reporting buffer");
+  assert.match(due("2026-10-25")[0]?.summary || "", /25 days past due/);
+});
+
+test("AW-I07 counts only confirmed challans as delivered", () => {
+  const { db, f } = fresh();
+  const item = f.item();
+  const store = f.warehouse();
+  const order = f.order();
+  f.challanLine(f.challan(order, { status: "Draft" }), item, store, 10);
+  f.invoiceLine(f.invoice(order, { invoice_date: "2026-08-05" }), { item_id: item, quantity: 10 });
+  assert.ok(findings(m, db, "AW-I07").some((row) => row.key === `AW-I07:billed-${order}-${item}`));
+});
+
+test("AW-T04 sees bank details changed in bulk through Master Data Tools", () => {
+  const { db } = fresh();
+  const today = istToday();
+  m.auditLog(db, { company_id: 1, user_id: 1, action: "bank_details_changed", module: "security", table_name: "suppliers", new_value: JSON.stringify({ source: "master_data_import", batch: "B1" }) });
+  const list = findings(m, db, "AW-T04", { today, from: shift(today, -30), to: today });
+  assert.ok(list.some((row) => row.summary.includes("in bulk on suppliers")), JSON.stringify(list.map((row) => row.summary)));
+});
+
+// ------------------------------------------------------------ keys, speed and the runner
+
+test("finding keys stay the same across periods and unrelated rows; fingerprints show change", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  f.bill(s, { purchase_invoice_number: "B-100", purchase_date: "2026-06-01" });
+  f.bill(s, { purchase_invoice_number: "B 100", purchase_date: "2026-06-20", purchase_value: 7 });
+  const keyOf = (options) => findings(m, db, "AW-P01", options).find((row) => row.key.startsWith("AW-P01:number-"));
+  const wide = keyOf({ from: "2026-04-01", to: "2026-12-31" });
+  const narrow = keyOf({ from: "2026-06-15", to: "2026-07-31" });
+  assert.ok(wide && narrow);
+  assert.equal(wide.key, narrow.key);
+  f.bill(f.supplier(), { purchase_invoice_number: "Z-9", purchase_date: "2026-06-21" });
+  assert.equal(keyOf({}).key, wide.key);
+  f.bill(s, { purchase_invoice_number: "B/100", purchase_date: "2026-07-01", purchase_value: 9 });
+  const grown = keyOf({});
+  assert.equal(grown.key, wide.key);
+  assert.notEqual(grown.fingerprint, wide.fingerprint);
+  // Every finding of every check carries a key and a fingerprint, and the report says
+  // which version of each check produced it.
+  const report = m.runAuditWatch(db, { companyId: 1, role: "admin", today: "2026-11-17" });
+  for (const result of report.results.filter((row) => row.status === "findings")) {
+    assert.ok(Number.isInteger(result.version) && ["company", "installation"].includes(result.scope), result.id);
+    result.findings.forEach((finding) => assert.ok(finding.key.startsWith(`${result.id}:`) && typeof finding.fingerprint === "string", `${result.id} ${finding.key}`));
+  }
+});
+
+test("the purchase checks stay fast on large books", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  const item = f.item();
+  const order = f.order();
+  db.transaction(() => {
+    for (let i = 0; i < 6000; i += 1) {
+      const date = shift("2025-06-01", i % 500);
+      const bill = f.bill(s, { order_id: order, purchase_invoice_number: i % 2 ? "NA" : `B${i % 40}`, purchase_date: date, purchase_value: 1000, purchase_gst: 0 });
+      f.insert("procurement_items", { company_id: 1, procurement_id: bill, order_id: order, item_id: item, quantity: 1, purchase_rate: 100 + (i % 7), gross_value: 100 });
+      f.supplierPayment(s, { payment_date: date, amount_paid: 500, utr_number: null });
+    }
+  })();
+  const started = Date.now();
+  const report = m.runAuditWatch(db, { companyId: 1, role: "admin", areas: ["procurement"], from: "2025-04-01", to: "2026-12-31", today: "2026-11-17" });
+  const ms = Date.now() - started;
+  assert.equal(report.results.filter((row) => row.status === "error").length, 0);
+  assert.ok(ms < 15000, `procurement checks took ${ms} ms on 6,000 bills`);
+  assert.ok(JSON.stringify(report).length < 5e6, "report stays small: duplicates are grouped, not paired");
+});
+
+test("the runner uses a worker thread, falls back in-process, refuses overlap and stops at the time limit", async () => {
+  const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
+  const { db } = fresh();
+  const options = { companyId: 1, role: "admin", today: "2026-11-17" };
+  const runner = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts) });
+  const viaWorker = await runner.run(db.name, options);
+  assert.equal(viaWorker.engine, "worker");
+  const inProcess = m.runAuditWatch(db, options);
+  assert.deepEqual(viaWorker.results.map((row) => `${row.id}:${row.status}:${row.findingCount}`), inProcess.results.map((row) => `${row.id}:${row.status}:${row.findingCount}`));
+  // A refusal inside the worker comes back as the same plain message.
+  await assert.rejects(runner.run(db.name, { ...options, role: "viewer" }), /cannot open Audit Watch/);
+  const broken = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts), workerUrl: new URL("file:///nonexistent/audit-watch-worker.js") });
+  assert.equal((await broken.run(db.name, options)).engine, "in-process");
+  const first = runner.run(db.name, options);
+  await assert.rejects(runner.run(db.name, options), /already running/);
+  await first;
+  const slow = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts), timeLimitMs: 1 });
+  await assert.rejects(slow.run(db.name, options), /stopped after/);
+});
+
+// ------------------------------------------------------------ catalogue contract (keep last)
+
+test("the catalogue declares every table and column the checks read, and no table they do not", () => {
+  const traced = tracedReads();
+  if (process.env.AW_DUMP_READS) fs.writeFileSync(process.env.AW_DUMP_READS, JSON.stringify(traced, null, 2));
+  const problems = [];
+  for (const check of CHECKS.filter((row) => row.readiness === "now")) {
+    const actual = traced[check.id];
+    if (!actual) {
+      // A check that only calls a shared helper sends no query of its own.
+      if (!check.helpers?.length) problems.push(`${check.id}: never ran through the tracer`);
+      continue;
+    }
+    for (const [table, columns] of Object.entries(actual)) {
+      if (!check.reads[table]) { problems.push(`${check.id}: reads table ${table}, not declared`); continue; }
+      columns.filter((column) => !check.reads[table].includes(column)).forEach((column) => problems.push(`${check.id}: reads ${table}.${column}, not declared`));
+    }
+    // Tables read through a shared helper (stockBalance, bookIntegrityChecks) are not traced.
+    if (!check.helpers?.length) Object.keys(check.reads).filter((table) => !actual[table]).forEach((table) => problems.push(`${check.id}: declares ${table} but never reads it`));
+  }
+  assert.deepEqual(problems, []);
 });

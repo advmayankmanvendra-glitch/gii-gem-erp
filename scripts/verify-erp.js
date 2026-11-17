@@ -61,6 +61,7 @@ const PIPELINE = [
   { name: "verify:dashboard-wiring", cmd: `${NPM} run verify:dashboard-wiring`, continueOn: [0, 1] },
   { name: "verify:knowledge",  cmd: `${NPM} run verify:knowledge`,   continueOn: [0, 1] },
   { name: "verify:audit",      cmd: `${NPM} run verify:audit`,       continueOn: [0, 1] },
+  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch`, continueOn: [0, 1] },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },

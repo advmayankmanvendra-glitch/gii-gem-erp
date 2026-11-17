@@ -7,7 +7,6 @@ import {
 import { SettingsScreen } from "../screens/SettingsScreen.jsx";
 import { EnvironmentManagerScreen } from "../screens/EnvironmentManager/EnvironmentManagerScreen.jsx";
 import { HealthCenterScreen } from "../screens/HealthCenter/index.js";
-import { AuditWatchScreen } from "../features/reports/auditWatch/AuditWatchScreen.jsx";
 import { masterViews, transactionViews } from "./viewDefinitions.js";
 import { businessVoucherRouteKinds } from "./navigation.js";
 import { ProfitabilityScreen } from "../screens/ProfitabilityScreen.jsx";
@@ -64,7 +63,6 @@ export function resolveScreen(effectiveView, {
   if (effectiveView === "unposted_drilldown") return <UnpostedDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />;
   if (effectiveView === "settings") return <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} role={session?.role} userId={session?.id} companyContext={companyContext} />;
   if (effectiveView === "environment_manager") return <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} />;
-  if (effectiveView === "audit_watch") return <AuditWatchScreen notify={notify} apiClient={api} companyContext={companyContext} />;
   if (effectiveView === "health_center") return <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />;
   if (masterViews[effectiveView]) return <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} />;
   if (effectiveView === "invoices") return <BillingVoucherScreen notify={notify} role={session?.role} companyContext={companyContext} onNavigate={navigate} api={api} confirmAction={confirmAction} reversalConfirmOptions={reversalConfirmOptions} postConfirmOptions={postConfirmOptions} isRecordLocked={isRecordLocked} normalizeStatusClass={normalizeStatusClass} />;

@@ -698,6 +698,34 @@ const reportsMetadata = [
     auditEvents: [],
     verificationChecks: ["Import completeness check"],
     status: "Active"
+  },
+  {
+    id: "KNG-RPT-026",
+    title: "Audit Watch",
+    moduleGroup: "Reports",
+    routeKey: "audit_watch",
+    screenType: "Report",
+    purpose: "Read-only internal-audit exception checks over the selected company's books: duplicate bills and payments, payments after a bank change, backdated or hand-keyed journals, stock and receivable exceptions, and user-access exceptions. Open it from Reports > Internal Audit > Audit Watch.",
+    dataEnteredHere: [],
+    dataComesFrom: ["Purchase bills and supplier payments", "Sales bills and receivables", "Stock ledger and adjustments", "Vouchers and ledger entries", "Bank statement lines", "Users and the audit trail"],
+    feedsInto: ["Internal audit review", "CA review", "Corrections made through the source screens"],
+    sourceTables: ["procurements", "supplier_payments", "invoices", "receivables", "stock_ledger", "stock_adjustments", "vouchers", "ledger_entries", "bank_statement_entries", "audit_log", "users"],
+    dependentTables: [],
+    relatedModules: [],
+    relatedReports: [],
+    relatedDashboards: [],
+    accountingImpact: "None: Audit Watch only reads. A finding is something to look at, not proof that anything is wrong.",
+    gstImpact: "None directly. Late credit notes and suppliers without a GSTIN are shown for review.",
+    inventoryImpact: "None directly. Negative, idle and expired stock are shown for review.",
+    profitabilityImpact: "None directly. Billing below cost is shown for review.",
+    correctionPolicy: "N/A: read-only. Correct the source document on its own screen, or reverse and re-enter it.",
+    editDeletePolicy: "No edit or delete: report only.",
+    riskLevel: "Low",
+    permissions: ["Audit Watch: admin (all areas), accountant (all but users and access), manager (purchases, sales, stock)"],
+    helpTopics: ["Audit Watch", "Internal Audit", "Exception Checks"],
+    auditEvents: [],
+    verificationChecks: ["npm run verify:audit-watch", "scripts/audit/audit-watch.test.mjs"],
+    status: "Active"
   }
 ];
 

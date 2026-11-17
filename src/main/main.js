@@ -149,6 +149,7 @@ import { profitSimulation } from "./services/profitSimulatorService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 import { searchEntities, SUPPORTED_ENTITY_TYPES } from "./services/entitySearchService.js";
 import { createDesktopSessionService } from "./services/desktopSessionService.js";
+import { createAuditWatchRunner } from "./services/auditWatch/auditWatchRunner.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -289,6 +290,8 @@ const alerts = alertServiceWith({
   decryptSecret: (value) => safeStorage.decryptString(Buffer.from(String(value), "base64"))
 });
 let alertTimer = null;
+// Audit Watch runs off the main thread; the fallback reads through the live connection's file.
+const auditWatchRunner = createAuditWatchRunner({ runInProcess: (options) => runAuditWatch(db, options) });
 
 const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "imported_by", "approved_by", "deleted_by", "posted_by"];
 
@@ -1216,12 +1219,14 @@ function registerIpc() {
   // Audit Watch: read-only exception checks. The role that decides which areas run is
   // the signed-in user's role from the database, never a value the screen sends.
   handle("audit-watch:catalogue", sessionGuarded("audit_watch", "audit_watch", (_payload, actor) => auditWatchCatalogue(actor.user_role), { readOnly: true }));
-  handle("audit-watch:run", sessionGuarded("audit_watch", "audit_watch", (payload = {}, actor) => runAuditWatch(db, {
+  // A run goes to a worker thread with its own read-only connection, so the window and
+  // every other call stay responsive; "today" is the app's IST business date, never a
+  // value from the screen.
+  handle("audit-watch:run", sessionGuarded("audit_watch", "audit_watch", (payload = {}, actor) => auditWatchRunner.run(db?.name, {
     companyId: Number(payload?.company_id || 0),
     role: actor.user_role,
     from: payload?.from,
     to: payload?.to,
-    today: payload?.today,
     areas: Array.isArray(payload?.areas) ? payload.areas.map(String) : undefined
   }), { readOnly: true }));
   handle("health:error-console-record", (_event, entry = {}) => {

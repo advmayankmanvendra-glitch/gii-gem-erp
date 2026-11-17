@@ -24,6 +24,7 @@
   gap: 10px; grid-template-columns: auto 1fr auto; padding: 10px 12px; text-align: left; width: 100%;
 }
 .audit-watch-check-title { font-weight: 600; }
+.audit-watch-scope { font-weight: 400; opacity: 0.75; }
 .audit-watch-check-status { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .audit-watch-detail { padding: 8px 12px 12px; }
 .audit-watch-detail p { margin: 6px 0; }
