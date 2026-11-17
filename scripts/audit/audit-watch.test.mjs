@@ -1473,7 +1473,14 @@ test("verify-erp rules: the verifier refuses a verify-erp.js that could run anot
     ["run redefined", patch(RUN, `${RUN}\n    void function run() {};`), /run must be declared once|run must be called exactly once/],
     ["a decoy evaluateMasterLockGate call", patch("function main() {", "function unused() { return evaluateMasterLockGate([], \"\"); }\nfunction main() {"), /exactly one evaluateMasterLockGate call/],
     ["strictExitCode removed", patch("result.exitCode = strictExitCode(step.name, result.exitCode);", ""), /does not apply strictExitCode/],
-    ["PIPELINE not frozen", patch("const PIPELINE = Object.freeze([", "const PIPELINE = (["), /PIPELINE must be Object.freeze/]
+    ["PIPELINE not frozen", patch("const PIPELINE = Object.freeze([", "const PIPELINE = (["), /PIPELINE must be Object.freeze/],
+    ["PIPELINE declared with let", patch("const PIPELINE = Object.freeze([", "let PIPELINE = Object.freeze(["), /PIPELINE must be declared once, at top level, with const/],
+    ["Object redefined", patch("const PIPELINE = Object.freeze([", "const Object = { freeze: (value) => value };\nconst PIPELINE = Object.freeze(["), /Object is redefined or changed/],
+    ["PIPELINE changed after its literal", patch("function main() {", "PIPELINE.length = 0;\nfunction main() {"), /PIPELINE is changed after its literal/],
+    ["strictExitCode replaced by a local function", patch("import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate, strictExitCode } from", "function strictExitCode(name, code) { return name && 0 * code; }\nimport { LOCK_BLOCKING_STEPS, evaluateMasterLockGate } from"), /strictExitCode must be imported/],
+    ["the run loop skips a step", patch("for (const step of PIPELINE) {", 'for (const step of PIPELINE.filter((item) => item.name !== "test:audit-watch")) {'), /exactly one loop over PIPELINE/],
+    ["another binding named run", patch("function main() {", "function unused(run) { return run; }\nfunction main() {"), /run must be declared once/],
+    ["an Audit Watch step with a spread", patch('Object.freeze({ name: "test:audit-watch",', 'Object.freeze({ ...{}, name: "test:audit-watch",'), /an Audit Watch step is not a plain object/]
   ];
   for (const [name, text, message] of refused) {
     assert.throws(() => readVerifyErpPipeline(text), message, `not refused by its own rule: ${name}`);
