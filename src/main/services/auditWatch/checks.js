@@ -750,6 +750,7 @@ export const CHECK_FUNCTIONS = {
       return { item: names.items.get(Number(itemId)), warehouse: names.warehouses.get(Number(warehouseId)) };
     };
     const findings = [];
+    const belowAtStart = [];
     for (const pairKey of pairKeys) {
       const [itemId, warehouseId] = pairKey.split("|").map(Number);
       const rows = moves.get(pairKey) || [];
@@ -758,15 +759,9 @@ export const CHECK_FUNCTIONS = {
       const label = rows[0] ? { item: rows[0].item_name, warehouse: rows[0].warehouse_name } : nameOf(itemId, warehouseId);
       const round = (value) => Math.round(value * 1000) / 1000;
       if (balance < -0.0001) {
-        findings.push({
-          key: `AW-I01:${itemId}-${warehouseId}`,
-          fingerprint: `${from}|${Math.round(balance * 1000)}`,
-          summary: `${label.item || "Item"} in ${label.warehouse || "warehouse"} was already at ${round(balance)} when the period began on ${from}`,
-          date: from,
-          amountMinor: 0,
-          refs: [{ table: "items", id: itemId }],
-          evidence: [{ item_id: itemId, warehouse_id: warehouseId, balance_at_start: balance, period_start: from }]
-        });
+        // The day it went below zero is found below, so the fingerprint does not move
+        // with the period chosen.
+        belowAtStart.push({ itemId, warehouseId, pairKey, balance, label });
         continue;
       }
       // Movements on one day are netted: stock received later the same day is not a gap.
@@ -784,6 +779,41 @@ export const CHECK_FUNCTIONS = {
           });
           break;
         }
+      }
+    }
+    if (belowAtStart.length) {
+      // Walk each such pair's earlier days (one grouped read) to find when it last went
+      // below zero and stayed there until the period began.
+      const earlier = groupBy(q(`
+        SELECT sl.item_id, sl.warehouse_id, sl.transaction_date,
+          SUM(COALESCE(sl.inward_quantity, 0) - COALESCE(sl.outward_quantity, 0)) change, MAX(sl.id) last_id
+        FROM stock_ledger sl
+        WHERE sl.company_id = ? AND ${live("sl")} AND sl.transaction_date < ?
+          AND (sl.item_id || '|' || sl.warehouse_id) IN (SELECT value FROM json_each(?))
+        GROUP BY sl.item_id, sl.warehouse_id, sl.transaction_date
+        ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date
+      `, [companyId, from, JSON.stringify(belowAtStart.map((pair) => pair.pairKey))]), (row) => `${row.item_id}|${row.warehouse_id}`);
+      for (const pair of belowAtStart) {
+        const days = earlier.get(pair.pairKey) || [];
+        let running = pair.balance - days.reduce((sum, row) => sum + Number(row.change), 0);
+        let since = running < -0.0001 ? null : undefined;
+        let sinceRow = null;
+        for (const day of days) {
+          const wasBelow = running < -0.0001;
+          running += Number(day.change);
+          if (!wasBelow && running < -0.0001) { since = day.transaction_date; sinceRow = day.last_id; }
+        }
+        const round = (value) => Math.round(value * 1000) / 1000;
+        const sinceText = since ? `below zero since ${since}` : "below zero from its opening stock";
+        findings.push({
+          key: `AW-I01:${pair.itemId}-${pair.warehouseId}`,
+          fingerprint: `${since || "opening"}|${Math.round(pair.balance * 1000)}`,
+          summary: `${pair.label.item || "Item"} in ${pair.label.warehouse || "warehouse"} was at ${round(pair.balance)} when the period began on ${from} (${sinceText})`,
+          date: from,
+          amountMinor: 0,
+          refs: [{ table: "items", id: pair.itemId }, ...(sinceRow ? [{ table: "stock_ledger", id: sinceRow }] : [])],
+          evidence: [{ item_id: pair.itemId, warehouse_id: pair.warehouseId, balance_at_start: pair.balance, period_start: from, below_zero_since: since || null }]
+        });
       }
     }
     return findings;
@@ -1293,10 +1323,10 @@ export const CHECK_FUNCTIONS = {
     const results = deps.bookIntegrityChecks(companyId) || [];
     return results.filter((row) => row.status === "fail" && !INTEGRITY_COVERED_ELSEWHERE.has(row.id)).map((row) => ({
       key: `AW-G10:${row.id || row.key || row.label}`,
-      // A check that lists only its first few failures also gives every failing id, so the
+      // A check that lists only its first few failures also gives a digest of every failing id, so the
       // fingerprint changes when one more fails even if the shown list does not.
-      fingerprint: Array.isArray(row.failingIds)
-        ? `${row.failingIds.length}:${row.failingIds.join(",")}`
+      fingerprint: typeof row.failingDigest === "string"
+        ? row.failingDigest
         // Otherwise the numbers in the detail (amounts, ids, counts), not its wording, so
         // rewording the message in an update does not make a reviewed finding look changed.
         : `${row.id || "check"}:${(String(row.detail || "").match(/-?\d+(?:\.\d+)?/g) || []).join(",")}`,
@@ -1304,8 +1334,7 @@ export const CHECK_FUNCTIONS = {
       date: null,
       amountMinor: 0,
       refs: [],
-      // The full id list can be long; the count and the detail's first ten are enough to read.
-      evidence: [{ ...row, failingIds: undefined, failingCount: Array.isArray(row.failingIds) ? row.failingIds.length : undefined }]
+      evidence: [row]
     }));
   },
 

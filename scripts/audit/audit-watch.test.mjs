@@ -27,6 +27,14 @@ function fresh() {
 }
 const flagged = (list, ...refs) => assert.ok(names(list, ...refs), `expected a finding naming ${JSON.stringify(refs)}; got ${JSON.stringify(list.map((x) => x.summary))}`);
 const clean = (list, ...refs) => assert.ok(!names(list, ...refs), `did not expect a finding naming ${JSON.stringify(refs)}`);
+// The runner's lock is shared by the whole process; wait for any earlier run to end.
+async function runnerIdle() {
+  const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
+  const probe = createAuditWatchRunner({ runInProcess: () => ({ results: [] }) });
+  const deadline = Date.now() + 10000;
+  while (probe.isRunning() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(probe.isRunning(), false, "an earlier Audit Watch run never released the lock");
+}
 
 // ------------------------------------------------------------ engine
 
@@ -337,7 +345,14 @@ test("AW-I01 reports stock already below zero when the period begins, moved or n
   clean(april, ["items", fine]);
   const rose = april.find((row) => row.refs.some((ref) => ref.table === "items" && ref.id === rising));
   assert.equal(rose.date, "2026-04-01");
-  assert.match(rose.summary, /already at -10 when the period began on 2026-04-01/);
+  assert.match(rose.summary, /was at -10 when the period began on 2026-04-01 \(below zero since 2026-03-25\)/);
+  // The same unchanged stretch keeps one fingerprint whatever period is chosen, and it
+  // matches the finding of the period that saw the fall.
+  const stillIn = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${still}-${w}`);
+  const fall = stillIn({ from: "2026-03-01", to: "2026-03-31" });
+  assert.equal(fall.fingerprint, "2026-03-25|-10000");
+  assert.equal(stillIn({ from: "2026-04-01", to: "2026-04-30" }).fingerprint, fall.fingerprint);
+  assert.equal(stillIn({ from: "2026-05-01", to: "2026-05-10" }).fingerprint, fall.fingerprint);
   // Once the receipt brings it back to zero, a later period is clear.
   clean(findings(m, db, "AW-I01", { from: "2026-06-01", to: "2026-06-30" }), ["items", still]);
 });
@@ -587,6 +602,24 @@ test("AW-G10 reports a failed book check and is clear on sound books", () => {
   assert.deepEqual(list.map((row) => row.key), before.map((row) => row.key));
 });
 
+test("AW-G10 notices one more tampered audit row even past the twenty the detail lists", () => {
+  const { db } = fresh();
+  for (let i = 0; i < 40; i += 1) m.auditLog(db, { company_id: 1, action: "update", table_name: "items", record_id: i + 1 });
+  const ids = db.prepare("SELECT id FROM audit_log ORDER BY id DESC LIMIT 30").all().map((row) => row.id).reverse();
+  const tamper = (id) => db.prepare("UPDATE audit_log SET new_value = 'edited' WHERE id = ?").run(id);
+  ids.slice(0, 22).forEach(tamper);
+  const chainRow = () => findings(m, db, "AW-G10").find((row) => row.key === "AW-G10:audit_chain");
+  const first = chainRow();
+  assert.ok(first, "a tampered audit chain should be reported");
+  assert.match(first.summary, /and 2 more/);
+  assert.match(first.fingerprint, /^22:[0-9a-f]{32}:0$/, "the audit chain hands over the count and a digest of every broken row");
+  tamper(ids[27]);
+  const second = chainRow();
+  assert.equal(second.key, first.key);
+  assert.notEqual(second.fingerprint, first.fingerprint);
+  assert.match(second.summary, /and 3 more/);
+});
+
 test("AW-G10 notices one more unbalanced voucher even past the ten the detail names", () => {
   const { db, f } = fresh();
   db.exec("DROP TRIGGER IF EXISTS trg_ledger_guard_voucher_post; DROP TRIGGER IF EXISTS trg_ledger_guard_voucher_posted_update");
@@ -596,6 +629,8 @@ test("AW-G10 notices one more unbalanced voucher even past the ten the detail na
   const eleven = balanceRow();
   assert.ok(eleven, "unbalanced vouchers should be reported");
   assert.match(eleven.summary, /and 1 more/);
+  // The book check hands over a digest of every failing voucher (the contract G10 relies on).
+  assert.match(eleven.fingerprint, /^11:[0-9a-f]{32}$/);
   lopsided();
   const twelve = balanceRow();
   assert.equal(twelve.key, eleven.key);
@@ -899,6 +934,7 @@ test("the purchase checks stay fast on large books", () => {
 });
 
 test("the runner uses a worker thread, falls back in-process, refuses overlap and stops at the time limit", async () => {
+  await runnerIdle();
   const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
   const { db } = fresh();
   const options = { companyId: 1, role: "admin", today: "2026-11-17" };
@@ -909,16 +945,29 @@ test("the runner uses a worker thread, falls back in-process, refuses overlap an
   assert.deepEqual(viaWorker.results.map((row) => `${row.id}:${row.status}:${row.findingCount}`), inProcess.results.map((row) => `${row.id}:${row.status}:${row.findingCount}`));
   // A refusal inside the worker comes back as the same plain message.
   await assert.rejects(runner.run(db.name, { ...options, role: "viewer" }), /cannot open Audit Watch/);
+  await runnerIdle();
   const broken = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts), workerUrl: new URL("file:///nonexistent/audit-watch-worker.js") });
   assert.equal((await broken.run(db.name, options)).engine, "in-process");
+  await runnerIdle();
   const first = runner.run(db.name, options);
   await assert.rejects(runner.run(db.name, options), /already running/);
   await first;
+  await runnerIdle();
   const slow = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts), timeLimitMs: 1 });
   await assert.rejects(slow.run(db.name, options), /stopped after/);
+  // Every runner shares one lock: a second runner cannot start beside the first.
+  assert.equal(runner.isRunning(), slow.isRunning());
+  await runnerIdle();
+  const one = runner.run(db.name, options);
+  const other = createAuditWatchRunner({ runInProcess: (opts) => m.runAuditWatch(db, opts) });
+  assert.equal(other.isRunning(), true);
+  await assert.rejects(other.run(db.name, options), /already running/);
+  await one;
+  await runnerIdle();
 });
 
 test("the runner holds its lock until a stopped worker has exited, and never re-runs a started worker in-process", async () => {
+  await runnerIdle();
   const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
   const { db } = fresh();
   const logged = [];
@@ -930,6 +979,7 @@ test("the runner holds its lock until a stopped worker has exited, and never re-
   await assert.rejects(crashing.run(db.name, {}), /stopped unexpectedly/);
   assert.equal(inProcessRuns, 0);
   assert.equal(logged.length, 0);
+  await runnerIdle();
   // Past the time limit the caller gets an answer at once, but the lock stays until the
   // worker has really gone (a long SQLite step cannot be cut short).
   const busy = createAuditWatchRunner({ runInProcess, workerUrl: workerUrl("startedThenBusy.mjs"), timeLimitMs: 50 });
@@ -1060,7 +1110,9 @@ test("stockBalances gives the same balance as stockBalance for every item, wareh
         company_id: rand(4) ? 1 : second, item_id: items[rand(items.length)], warehouse_id: warehouses[rand(warehouses.length)],
         // Dates run past today, and types include reservations and adjustments, so a rule
         // about either in stockBalance shows up here as a difference.
-        transaction_date: shift("2026-04-01", rand(500)), transaction_type: ["Reservation", "Adjustment", "Transfer"][rand(6)] || (inward ? "Inward" : "Outward"), source_module: "audit_watch_fixture", source_id: i,
+        // Dates are counted back from today, so some always lie in the future.
+        transaction_date: shift(istToday(), rand(500) - 300), transaction_type: ["Reservation", "Adjustment", "Transfer"][rand(6)] || (inward ? "Inward" : "Outward"),
+        source_module: ["sales_voucher", "stock_adjustment", "supplier_return", "stock_transfer", "order_reservation"][rand(5)], source_id: i,
         inward_quantity: inward ? quantity : 0, outward_quantity: inward ? 0 : quantity, rate: 10, value_minor: rand(90000), is_deleted: rand(10) ? 0 : 1
       });
     }
@@ -1094,6 +1146,7 @@ test("stockBalance (used by stock posting) keeps its known results", () => {
 });
 
 test("a worker that loaded but cannot open the books gives an error and is not re-run in the main process", async () => {
+  await runnerIdle();
   const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
   let inProcessRuns = 0;
   const runner = createAuditWatchRunner({ runInProcess: () => { inProcessRuns += 1; return { results: [] }; }, log: () => {} });

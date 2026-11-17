@@ -19,12 +19,12 @@
 
 import { paise, rupees } from "../../domain/money.js";
 
-// SHA-256 of inventoryService.js's openingWarehouseId and stockBalance source (spaces
-// collapsed), as last checked against this file. The Audit Watch verifier fails when
-// that source changes, so a change to how posting values stock (AGENTS.md rule 4) is
-// also made here before Audit Watch reports on it. To refresh after re-checking the
-// rules above: node scripts/verify-audit-watch.js prints the new value.
-export const STOCK_BALANCE_SOURCE_SHA256 = "6ea8485725682d07b4991788e30dcad19c60b39e407af6b37397d90085b98863";
+// SHA-256 of inventoryService.js (spaces collapsed), as last checked against this file.
+// The Audit Watch verifier fails when that file changes, so a change to how posting
+// values stock (AGENTS.md rule 4) is also made here before Audit Watch reports on it.
+// To refresh after re-checking the rules above: node scripts/verify-audit-watch.js
+// prints the new value.
+export const STOCK_BALANCE_SOURCE_SHA256 = "0df5651b53dde2781f7e6719587c7c1e446bc82b2d16be5d8b0ab49339226fc1";
 
 // `source` is the run's read-only query helper (q(sql, params) -> rows), so the reads
 // are traced like a check's own; a better-sqlite3 handle is also accepted.

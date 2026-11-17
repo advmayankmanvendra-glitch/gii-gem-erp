@@ -31,8 +31,8 @@
 - `src/main/services/auditWatch/catalogue.js`: the single source for each check (area, severity, version, scope, reads, limits, wording)
 - `src/main/services/auditWatch/checks.js`: one read-only function per runnable check
 - `src/main/services/auditWatch/auditWatchService.js`: runner (role areas, dates, read-only connection, one snapshot)
-- `src/main/services/auditWatch/auditWatchRunner.js`, `auditWatchWorker.js`: runs off the main thread, time limit, one run at a time, in-process fallback
-- `src/main/services/auditWatch/stockBalances.js`: every item and warehouse balance in grouped reads, for AW-I01 and AW-I02, through the run's read-only query helper. It follows the same rules as `stockBalance`; a randomised parity test, a fixed-value test and a source hash of `stockBalance` (checked by the verifier) hold the two together
+- `src/main/services/auditWatch/auditWatchRunner.js`, `auditWatchWorker.js`: runs off the main thread, time limit, one run at a time in the whole process, in-process fallback
+- `src/main/services/auditWatch/stockBalances.js`: every item and warehouse balance in grouped reads, for AW-I01 and AW-I02, through the run's read-only query helper. It follows the same rules as `stockBalance`; a randomised parity test, a fixed-value test and a hash of `inventoryService.js` (checked by the verifier) hold the two together
 - `src/main/database/postingSources.js`: classifies every `source_module` (manual, guided, document, system-dated)
 - `src/renderer/features/reports/auditWatch/AuditWatchScreen.jsx`, `src/renderer/styles/auditWatch.css`
 - `scripts/build-audit-watch-graph.js`, `scripts/verify-audit-watch.js`, `scripts/smoke-audit-watch.mjs`
@@ -45,7 +45,8 @@
 - `src/main/services/authService.js`: `audit_watch` permission for admin, accountant and manager
 - `src/preload/preload.cjs`: `getAuditWatchCatalogue`, `runAuditWatch`
 - `src/main/database/init.js`: exports `runAuditWatch` and `auditWatchCatalogue`
-- `src/main/services/errorConsoleService.js`: the `voucher_balance` and `audit_chain` book checks also return `failingIds` (additive; the detail names how many more vouchers fail past the first ten). No check result changes
+- `src/main/services/errorConsoleService.js`: the `voucher_balance` and `audit_chain` book checks also return `failingDigest`, a fixed-size count and digest of every failing id (additive; no screen reads it). Pass/fail results do not change; the Health detail now adds "and N more" when more failures exist than it lists
+- `src/main/database/init.js` `verifyAuditChain`: checks the whole chain instead of stopping at 20 broken rows, and adds `brokenCount` and `brokenDigest`. It still lists at most 20, and `verified` is now right when more than 20 rows are broken
 - `src/main/services/inventoryService.js`: **unchanged** (byte-identical to `main` 2c79106). An earlier round shared its balance rules with Audit Watch; round 5 put it back, because stock valuation is AGENTS.md rule 4 territory
 - `scripts/lib/masterVerificationPolicy.js`: `verify:audit-watch` and `test:audit-watch` are lock-blocking
 - `src/renderer/App.jsx`: one import and one route line (no logic)
@@ -71,11 +72,11 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 |---|---|
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
-| `node scripts/verify-audit-watch.js` | 40 passed, 0 failed (also validates AG-1 against its schema, pins `stockBalance`'s source, checks the exact wiring and that the verify:erp steps and their npm scripts stay blocking) |
-| `node --test scripts/audit/audit-watch.test.mjs` | 72 of 72 pass (also on Electron's Node) |
+| `node scripts/verify-audit-watch.js` | 40 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring and that the verify:erp steps and their npm scripts stay blocking) |
+| `node --test scripts/audit/audit-watch.test.mjs` | 73 of 73 pass (also on Electron's Node) |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
-| `npm run test:integrity` | 294 of 294 pass, then IPC 57 of 57 |
+| `npm run test:integrity` | 295 of 295 pass, then IPC 57 of 57 |
 | `verify:accounting`, `verify:financials`, `verify:controls`, `verify:voucher-inventory`, `verify:flow`, `verify:phase10` | All pass (exit 0), run with Electron and `--no-sandbox`, because the container runs as root |
 | `npm run verify:erp` | Lint, build and every step up to and including `verify:audit-watch` and `test:audit-watch` pass. In this container the Electron-launched steps cannot start as root without `--no-sandbox` (run separately above), and the pipeline stops at `verify:financial-reports`, which launches Electron itself and also fails on `main`. On Windows these steps launch normally. |
 
@@ -87,7 +88,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a and a37ff99. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md` and `audit-a37ff99-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99 and 1e790c0. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md` and `audit-1e790c0-response.md`).
 
 ## Production Readiness
 

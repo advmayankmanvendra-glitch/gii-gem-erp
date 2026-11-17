@@ -1817,27 +1817,32 @@ export function verifyAuditChain(db) {
   if (!startId) return { chained: false, verified: 0, broken: [], legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log").get().c };
   const rows = db.prepare("SELECT * FROM audit_log WHERE id >= ? ORDER BY id").all(startId);
   let previous = db.prepare("SELECT event_hash FROM audit_log WHERE id < ? ORDER BY id DESC LIMIT 1").get(startId)?.event_hash || "";
-  const broken = [];
+  // Every broken row is counted (and folded into a digest, so a change in which rows are
+  // broken shows); only the first 20 are listed.
+  const brokenSet = new Set();
+  const digest = crypto.createHash("sha256");
+  const markBroken = (id) => { if (!brokenSet.has(id)) { brokenSet.add(id); digest.update(`${id},`); } };
   let expectedId = startId;
   for (const row of rows) {
     // A gap in ids after the chain started means a row was deleted.
-    if (row.id !== expectedId) broken.push(expectedId);
-    if (auditEventHash(row, previous) !== row.event_hash) broken.push(row.id);
+    if (row.id !== expectedId) markBroken(expectedId);
+    if (auditEventHash(row, previous) !== row.event_hash) markBroken(row.id);
     previous = row.event_hash;
     expectedId = row.id + 1;
-    if (broken.length >= 20) break;
   }
   // AUTOINCREMENT keeps the highest id ever issued, so rows deleted from the end
   // of the log leave a gap between it and the last row still present.
   const lastIssued = Number(db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'").get()?.seq || 0);
   const lastPresent = Number(rows[rows.length - 1]?.id || 0);
-  if (lastIssued > lastPresent) broken.push(lastPresent + 1);
+  if (lastIssued > lastPresent) markBroken(lastPresent + 1);
   return {
     chained: true,
     startedAt: rows[0]?.created_at || null,
     missingNewestRows: Math.max(0, lastIssued - lastPresent),
-    verified: rows.length - new Set(broken).size,
-    broken: [...new Set(broken)],
+    verified: rows.length - Math.min(rows.length, brokenSet.size),
+    broken: [...brokenSet].slice(0, 20),
+    brokenCount: brokenSet.size,
+    brokenDigest: brokenSet.size ? digest.digest("hex") : "",
     legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log WHERE id < ?").get(startId).c
   };
 }

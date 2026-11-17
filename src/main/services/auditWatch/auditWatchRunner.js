@@ -5,7 +5,7 @@
 // while the app keeps writing.
 //
 // Rules:
-//   - One run at a time. The lock is held until the worker has actually exited, not
+//   - One run at a time in the whole process. The lock is held until the worker has actually exited, not
 //     just until the caller gets an answer: a stopped worker can still be inside one
 //     SQLite statement, and a second run (or a restore) must not start beside it.
 //   - The worker says "started" once it has loaded its code.
@@ -22,6 +22,11 @@ import { Worker } from "node:worker_threads";
 export const AUDIT_WATCH_TIME_LIMIT_MS = 120000;
 export const AUDIT_WATCH_MEMORY_LIMIT_MB = 1024;
 
+// The lock is shared by every runner in the process, so a second runner (for example a
+// scheduled run added later) can never run beside the first, and restore and reset,
+// which ask any runner, always see a run that is in progress.
+let running = false;
+
 export function createAuditWatchRunner({
   runInProcess,
   workerUrl = new URL("./auditWatchWorker.js", import.meta.url),
@@ -30,7 +35,6 @@ export function createAuditWatchRunner({
   useWorker = true,
   log = (message) => console.warn(message)
 } = {}) {
-  let running = false;
 
   // Returns { result, exited }: result settles with the report or an error; exited
   // settles once the worker thread is gone.

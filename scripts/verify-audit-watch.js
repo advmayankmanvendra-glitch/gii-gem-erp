@@ -19,8 +19,8 @@
 //      through the runner;
 //  11. AG-1 does not validate against its schema file;
 //  12. verify:erp or the lock gate stops treating the Audit Watch steps as blocking;
-//  13. inventoryService.js's stockBalance (or openingWarehouseId) changed since
-//      auditWatch/stockBalances.js last restated its rules.
+//  13. inventoryService.js changed since auditWatch/stockBalances.js last restated
+//      stockBalance's rules.
 // The tables and columns each check actually reads are traced by the test suite
 // (scripts/audit/audit-watch.test.mjs, last test) and compared with `reads` there.
 // A table missing from DG-1 is reported as a warning (DG-1 is curated separately).
@@ -270,7 +270,9 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
 
 // ---- Exact wiring: who may name the service, the runner and runAuditWatch, and how often ----
 {
-  const tokens = (rel, word) => [...read(rel).matchAll(new RegExp(`\\b${word}\\b`, "g"))].length;
+  // Comments are left out, so a comment naming these does not count as a use.
+  const code = (rel) => read(rel).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+  const tokens = (rel, word) => [...code(rel).matchAll(new RegExp(`\\b${word}\\b`, "g"))].length;
   const expected = {
     // file: { token: exact count } — anything else in src/main naming these fails.
     "src/main/main.js": { runAuditWatch: 2, createAuditWatchRunner: 2, auditWatchRunner: null, createAuditWatchService: 0, auditWatchService: 0 },
@@ -289,33 +291,42 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
 }
 
 // ---- stockBalances.js restates stockBalance's rules: pin the original's source ----
+// The whole of inventoryService.js is pinned, not just stockBalance, because the rules
+// can move into helpers or constants that stockBalance calls. Only whitespace is ignored.
 {
   const text = read("src/main/services/inventoryService.js");
-  const functionSource = (name) => {
-    const start = text.indexOf(`function ${name}(`);
-    if (start < 0) return null;
-    let depth = 0;
-    for (let i = text.indexOf("{", start); i < text.length; i += 1) {
-      if (text[i] === "{") depth += 1;
-      else if (text[i] === "}" && (depth -= 1) === 0) return text.slice(start, i + 1);
-    }
-    return null;
-  };
-  const parts = ["openingWarehouseId", "stockBalance"].map(functionSource);
-  const hash = parts.every(Boolean) ? crypto.createHash("sha256").update(parts.join("\n").replace(/\s+/g, " ")).digest("hex") : "missing";
+  const hash = crypto.createHash("sha256").update(text.replace(/\s+/g, " ").trim()).digest("hex");
   const { STOCK_BALANCE_SOURCE_SHA256 } = await load("src/main/services/auditWatch/stockBalances.js");
-  check("stockBalances.js matches the current stockBalance source", hash === STOCK_BALANCE_SOURCE_SHA256,
-    hash === STOCK_BALANCE_SOURCE_SHA256 ? "inventoryService.js openingWarehouseId + stockBalance" : `stockBalance changed (now ${hash}): restate its rules in src/main/services/auditWatch/stockBalances.js, extend the parity test, then set STOCK_BALANCE_SOURCE_SHA256`);
+  check("stockBalances.js matches the current inventoryService.js", hash === STOCK_BALANCE_SOURCE_SHA256,
+    hash === STOCK_BALANCE_SOURCE_SHA256 ? "src/main/services/inventoryService.js" : `inventoryService.js changed (now ${hash}): if stockBalance's rules moved, restate them in src/main/services/auditWatch/stockBalances.js and extend the parity test; then set STOCK_BALANCE_SOURCE_SHA256`);
 }
 
 // ---- The Audit Watch steps stay blocking in verify:erp and the lock gate ----
 {
   const { LOCK_BLOCKING_STEPS } = await load("scripts/lib/masterVerificationPolicy.js");
+  // Evaluate verify-erp.js's PIPELINE literal (without running the pipeline) and look at
+  // the step objects themselves, so layout, comments and extra fields do not matter.
   const pipelineText = read("scripts/verify-erp.js");
+  let pipeline = [];
+  try {
+    const open = pipelineText.indexOf("const PIPELINE = [");
+    const close = pipelineText.indexOf("\n];", open);
+    const literal = pipelineText.slice(open + "const PIPELINE = ".length, close + 2);
+    // Free names (helpers such as warningValidator functions) read as undefined; NPM is "npm".
+    const scope = new Proxy({}, {
+      has: (target, key) => typeof key === "string" && !(key in globalThis),
+      get: (target, key) => (key === "NPM" ? "npm" : undefined)
+    });
+    pipeline = new Function("scope", `with (scope) { return (${literal}); }`)(scope);
+  } catch (error) {
+    console.log(`  (could not read PIPELINE from scripts/verify-erp.js: ${error.message})`);
+    pipeline = [];
+  }
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
-    // The step's object literal, however it is laid out (template ${...} parts allowed).
-    const step = pipelineText.match(new RegExp(`\\{\\s*name:\\s*"${name}"(?:[^{}]|\\$\\{[^}]*\\})*\\}`));
-    return !LOCK_BLOCKING_STEPS.has(name) || !step || !/strict:\s*true/.test(step[0]) || !/continueOn:\s*\[0\]/.test(step[0]) || !new RegExp(`run ${name}:electron`).test(step[0]);
+    const steps = pipeline.filter((step) => step?.name === name);
+    const step = steps[0];
+    return !LOCK_BLOCKING_STEPS.has(name) || steps.length !== 1 || step.strict !== true
+      || JSON.stringify(step.continueOn) !== "[0]" || step.cmd !== `npm run ${name}:electron` || step.warningValidator !== undefined;
   });
   // And the npm scripts those steps run do exactly what they say: the whole suite and the
   // whole verifier on Electron's Node, with nothing that filters tests or hides a failure.
