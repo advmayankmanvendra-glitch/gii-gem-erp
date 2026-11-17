@@ -82,7 +82,7 @@ const badLimits = CHECKS.flatMap((item) => Object.entries(item.limits).filter(([
 )).map(([key]) => `${item.id}.${key}`));
 check("Every limit has a unit, a label and a valid default", badLimits.length === 0, badLimits.join(", "));
 const badMeta = CHECKS.filter((item) => !Number.isInteger(item.version) || item.version < 1 || !["company", "installation"].includes(item.scope)
-  || (item.helpers && !item.helpers.every((helper) => ["stockBalance", "bookIntegrityChecks"].includes(helper))));
+  || (item.helpers && !item.helpers.every((helper) => ["stockBalances", "bookIntegrityChecks"].includes(helper))));
 check("Every check has a version, a scope and known helpers", badMeta.length === 0, badMeta.map((item) => item.id).join(", "));
 const installationOutsideIt = CHECKS.filter((item) => item.scope === "installation" && item.area !== "it");
 check("Installation-wide checks sit in the admin-only users and access area", installationOutsideIt.length === 0, installationOutsideIt.map((item) => item.id).join(", "));
@@ -178,15 +178,6 @@ for (const rel of sourceFiles) {
 }
 const unclassified = [...usedSources].filter((source) => !(source in POSTING_SOURCES));
 check("Posting code uses only classified source modules", unclassified.length === 0, unclassified.length ? `classify in src/main/database/postingSources.js: ${unclassified.join(", ")}` : `${usedSources.size} used`);
-// A check that names what it does not cover yet (a posting source or table whose name
-// matches) fails here once that arrives.
-const allSourceNames = new Set([...usedSources, ...Object.keys(POSTING_SOURCES)]);
-for (const item of CHECKS.filter((entry) => entry.uncovered)) {
-  const pattern = new RegExp(item.uncovered.namePattern, "i");
-  const arrived = [...[...allSourceNames].filter((name) => pattern.test(name)), ...[...liveTables].filter((name) => pattern.test(name))];
-  check(`${item.id}: nothing it does not cover has arrived`, arrived.length === 0,
-    arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it, then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
-}
 // The graph registry gives the same schema version as the schema files of the graphs
 // Audit Watch writes to (AI tools read the registry first).
 const graphRegistry = JSON.parse(read("repository/graph-registry.json"));
@@ -198,10 +189,14 @@ check("Graph registry schema versions match the AG-1 and KG-5 schema files", reg
 // One way in: main-process code runs Audit Watch through the runner (worker thread),
 // never by calling runAuditWatch directly, so a later caller cannot block the app.
 const allowedCallers = new Set(["src/main/main.js", "src/main/database/init.js", "src/main/services/auditWatch/auditWatchWorker.js", "src/main/services/auditWatch/auditWatchService.js"]);
-const directCallers = sourceFiles.filter((rel) => !allowedCallers.has(rel) && /\brunAuditWatch\b/.test(read(rel)));
-const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\(/g)].length;
-check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && mainCalls === 1,
-  directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
+const directCallers = sourceFiles.filter((rel) => !allowedCallers.has(rel) && /\brunAuditWatch\b|\bCHECK_FUNCTIONS\b/.test(read(rel))
+  && !rel.startsWith("src/main/services/auditWatch/checks.js"));
+const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
+// One runner, so its lock (which restore and reset also wait on) sees every run.
+const runnerMakers = sourceFiles.flatMap((rel) => [...read(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
+  .filter((rel) => rel !== "src/main/services/auditWatch/auditWatchRunner.js");
+check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && mainCalls === 1 && runnerMakers.length === 1 && runnerMakers[0] === "src/main/main.js",
+  directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : runnerMakers.length !== 1 ? `one runner only, in main.js; found in: ${runnerMakers.join(", ") || "nowhere"}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
 const registryText = read("src/main/database/accountMappingRegistry.js");
 const knownGroups = new Set([...registryText.matchAll(/^\s*\["([A-Z_]+)", "[^"]+", (?:"[A-Z_]+"|null)/gm)].map((match) => match[1]));
 const checksModule = await load("src/main/services/auditWatch/checks.js");
@@ -217,6 +212,7 @@ for (const match of initText().matchAll(/\[((?:\s*"[a-z_]+"\s*,?)+)\]\.includes\
   for (const kind of match[1].matchAll(/"([a-z_]+)"/g)) codeKinds.add(kind[1]);
 }
 for (const match of initText().matchAll(/\bkind === "([a-z_]+)"/g)) codeKinds.add(match[1]);
+for (const match of initText().matchAll(/\bcase "([a-z_]+)"\s*:/g)) codeKinds.add(match[1]);
 const classifiedKinds = new Set([...HAND_KEYED_GUIDED_KINDS, ...DOCUMENT_STYLE_GUIDED_KINDS]);
 const unclassifiedKinds = [...codeKinds].filter((kind) => !classifiedKinds.has(kind));
 const goneKinds = [...classifiedKinds].filter((kind) => !codeKinds.has(kind));
@@ -224,6 +220,16 @@ check("Every guided voucher kind is classified as hand-keyed or document-style",
   unclassifiedKinds.length ? `classify in src/main/database/postingSources.js: ${unclassifiedKinds.join(", ")}` : goneKinds.length ? `no longer in init.js: ${goneKinds.join(", ")}` : `${codeKinds.size} kinds`);
 const overlap = HAND_KEYED_GUIDED_KINDS.filter((kind) => DOCUMENT_STYLE_GUIDED_KINDS.includes(kind));
 check("No guided kind is both hand-keyed and document-style", overlap.length === 0, overlap.join(", "));
+// A check that names what it does not cover yet (a posting source, table or guided
+// voucher kind whose name matches) fails here once that arrives.
+const allSourceNames = new Set([...usedSources, ...Object.keys(POSTING_SOURCES)]);
+for (const item of CHECKS.filter((entry) => entry.uncovered)) {
+  const pattern = new RegExp(item.uncovered.namePattern, "i");
+  const allowed = new Set([...(item.uncovered.allowedNames || []), ...(item.uncovered.coveredKinds || [])]);
+  const arrived = [...new Set([...allSourceNames, ...liveTables, ...codeKinds])].filter((name) => pattern.test(name) && !allowed.has(name));
+  check(`${item.id}: nothing it does not cover has arrived`, arrived.length === 0,
+    arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it (or list it as not relevant), then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
+}
 
 // ---- 4. Visibility roles follow the app's roles ----
 const roleMatch = read("src/main/services/authService.js").match(/const ROLE_HIERARCHY = \[([^\]]+)\]/);

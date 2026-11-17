@@ -8,7 +8,7 @@
 //   - One run at a time. The lock is held until the worker has actually exited, not
 //     just until the caller gets an answer: a stopped worker can still be inside one
 //     SQLite statement, and a second run (or a restore) must not start beside it.
-//   - The worker says "started" once it has loaded its code and opened the database.
+//   - The worker says "started" once it has loaded its code.
 //     Only a worker that never started (for example a packaged build that cannot load
 //     the worker file) falls back to running in-process, still read-only; the fallback
 //     is logged and the report says which engine ran. A worker that started and then
@@ -59,6 +59,8 @@ export function createAuditWatchRunner({
         if (message?.started) { started = true; return; }
         if (message?.ok) finish(resolve, { ...message.report, engine: "worker" });
         else finish(reject, new Error(message?.error || "Audit Watch could not run"));
+        // The answer is in; make sure the thread goes, so the lock is always released.
+        worker.terminate();
       });
       const failed = (error) => {
         if (!started) return finish(reject, Object.assign(error, { workerUnavailable: true }));

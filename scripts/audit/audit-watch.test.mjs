@@ -926,18 +926,27 @@ test("AW-G09 shows cash that was already below zero when the period starts, unde
   assert.equal(quiet.length, 1, "still below zero with no movement in the period");
   assert.equal(later[0].key, fromStart[0].key);
   assert.equal(quiet[0].key, fromStart[0].key);
+  assert.equal(later[0].fingerprint, fromStart[0].fingerprint, "the fingerprint does not hold the period");
+  assert.equal(quiet[0].fingerprint, fromStart[0].fingerprint);
   assert.match(later[0].summary, /below zero since 2026-05-10/);
 });
 
-test("run-based and pair-based keys do not change with the period chosen (P01, P02, P05, I03)", () => {
+test("run-based and pair-based keys do not change with the period chosen (P01, P02, P05, I03, G06)", () => {
   const { db, f } = fresh();
   const s = f.supplier();
   ["2026-07-01", "2026-07-03", "2026-07-06"].forEach((date) => f.bill(s, { purchase_invoice_number: "NA", purchase_date: date, purchase_value: 90000, purchase_gst: 0 }));
   ["2026-07-01", "2026-07-04"].forEach((date) => f.supplierPayment(s, { payment_date: date, amount_paid: 777, utr_number: null }));
   const item = f.item();
   ["2026-07-01", "2026-07-02", "2026-07-03"].forEach((date) => f.insert("stock_adjustments", { company_id: 1, item_id: item, warehouse_id: 1, adjustment_date: date, adjustment_type: "Decrease", quantity: 1, rate: 10, reason: "count" }));
-  const keysFor = (id, options) => findings(m, db, id, { limits: { "AW-P05": { minimumBills: 3 }, "AW-I03": { repeatCount: 3 } }, ...options }).map((row) => `${row.key}|${row.fingerprint}`).sort();
-  for (const id of ["AW-P01", "AW-P02", "AW-P05", "AW-I03"]) {
+  const keysFor = (id, options) => findings(m, db, id, { limits: { "AW-P05": { minimumBills: 3 }, "AW-I03": { repeatCount: 3 }, "AW-G06": { repeatCount: 3 } }, ...options }).map((row) => `${row.key}|${row.fingerprint}`).sort();
+  const reverser = f.user({ role: "admin" });
+  // The guard lets a voucher become Reversed only once a reversal posts; fixtures stand in for that here.
+  db.exec("DROP TRIGGER IF EXISTS trg_ledger_guard_voucher_posted_update");
+  ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-05", "2026-07-06"].forEach((date) => {
+    const voucher = f.voucher({ date: "2026-06-01", lines: [["Transport Expense", 100, 0], ["Cash", 0, 100]] });
+    db.prepare("UPDATE vouchers SET status = 'Reversed', reversal_date = ?, reversed_by = ? WHERE id = ?").run(date, reverser, voucher);
+  });
+  for (const id of ["AW-P01", "AW-P02", "AW-P05", "AW-I03", "AW-G06"]) {
     const wide = keysFor(id, { from: "2026-04-01", to: "2026-12-31" });
     const narrow = keysFor(id, { from: "2026-07-03", to: "2026-07-31" });
     assert.ok(wide.length > 0, `${id} found nothing`);
@@ -956,6 +965,55 @@ test("every finding stays bounded: at most 50 record links with the full count, 
   assert.match(bounded.fingerprint, /^sha256:[0-9a-f]{64}$/);
   assert.notEqual(boundFinding({ key: "AW-X:1", refs, fingerprint: "x".repeat(499) }).fingerprint, bounded.fingerprint);
   assert.equal(boundFinding({ key: "AW-X:1", amountMinor: 5, date: "2026-07-01" }).fingerprint, "5|2026-07-01");
+  const huge = boundFinding({ key: `AW-P07:${"S1-".repeat(5000)}`, summary: "x".repeat(10000), evidence: [{ names: "y".repeat(10000), id: 3 }] });
+  assert.match(huge.key, /^AW-P07:sha256-[0-9a-f]{64}$/);
+  assert.equal(huge.key, boundFinding({ key: `AW-P07:${"S1-".repeat(5000)}` }).key, "a hashed key is still stable");
+  assert.ok(huge.summary.length <= 400 && huge.evidence[0].names.length <= 300 && huge.evidence[0].id === 3);
+});
+
+// ------------------------------------------------------------ round-3 fixes
+
+test("repeat checks leave out no row of a qualifying window (overlapping windows are merged)", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  // Windows from 1 Jul, 3 Jul and 6 Jul each hold three near-limit bills worth more than
+  // the limit together; the bills of 9 and 12 Jul must not be dropped.
+  const ids = ["2026-07-01", "2026-07-03", "2026-07-06", "2026-07-09", "2026-07-12"].map((date) => f.bill(s, { purchase_invoice_number: "NA", purchase_date: date, purchase_value: 90000, purchase_gst: 0 }));
+  for (const options of [{ from: "2026-04-01", to: "2026-12-31" }, { from: "2026-07-08", to: "2026-07-31" }]) {
+    const list = findings(m, db, "AW-P05", { limits: { "AW-P05": { minimumBills: 3 } }, ...options });
+    flagged(list, ...ids.map((id) => ["procurements", id]));
+    assert.equal(list.length, 1);
+    assert.equal(list[0].key, `AW-P05:${ids[0]}`);
+  }
+});
+
+test("stockBalances gives the same balance as stockBalance for every item and warehouse", () => {
+  const { db, f } = fresh();
+  const item = f.item({ opening_stock: 5, opening_rate: 20 });
+  const other = f.item();
+  f.stockMove(item, 1, "2026-07-01", 3);
+  f.stockMove(other, 1, "2026-07-02", 4);
+  f.stockMove(other, 1, "2026-07-03", -1);
+  const balances = m.stockBalances(db, 1);
+  const pairs = db.prepare("SELECT DISTINCT item_id, warehouse_id FROM stock_ledger WHERE company_id = 1").all();
+  pairs.push({ item_id: item, warehouse_id: 1 });
+  for (const pair of pairs) {
+    const single = m.stockBalance(db, 1, pair.item_id, pair.warehouse_id);
+    const batch = balances.get(`${pair.item_id}|${pair.warehouse_id}`) || { quantity: 0, value_minor: 0 };
+    assert.equal(batch.quantity, single.quantity, `${pair.item_id}|${pair.warehouse_id}`);
+    assert.equal(batch.value_minor, single.value_minor, `${pair.item_id}|${pair.warehouse_id}`);
+  }
+});
+
+test("a worker that loaded but cannot open the books gives an error and is not re-run in the main process", async () => {
+  const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
+  let inProcessRuns = 0;
+  const runner = createAuditWatchRunner({ runInProcess: () => { inProcessRuns += 1; return { results: [] }; }, log: () => {} });
+  await assert.rejects(runner.run("/nonexistent/folder/gii.db", { companyId: 1, role: "admin" }), /could not open the books/);
+  assert.equal(inProcessRuns, 0);
+  const deadline = Date.now() + 5000;
+  while (runner.isRunning() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(runner.isRunning(), false);
 });
 
 // ------------------------------------------------------------ catalogue contract (keep last)

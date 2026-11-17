@@ -35,6 +35,50 @@ export function createInventoryService(deps) {
     return { quantity, value, value_minor: valueMinor, rate: quantity > 0 ? value / quantity : Number(item.opening_rate || 0) };
   }
 
+  // stockBalance for many item/warehouse pairs at once, by the same rules, in two
+  // grouped reads instead of one ledger scan per pair. Read-only callers that need
+  // every pair (Audit Watch) use this; posting code keeps using stockBalance.
+  // Returns a Map keyed "itemId|warehouseId"; a pair with no movement and no opening
+  // stock is absent (its balance is zero).
+  function stockBalances(db, companyId) {
+    const firstActive = db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
+    const companyWarehouses = new Set(db.prepare("SELECT id FROM warehouses WHERE company_id = ? OR company_id IS NULL OR company_id = 0").all(companyId).map((row) => Number(row.id)));
+    const out = new Map();
+    const entry = (itemId, warehouseId) => {
+      const key = `${itemId}|${warehouseId}`;
+      if (!out.has(key)) out.set(key, { quantity: 0, openingValue: 0, movementMinor: 0, openingRate: 0 });
+      return out.get(key);
+    };
+    for (const item of db.prepare("SELECT id, opening_stock, opening_rate, opening_value, default_warehouse_id FROM items").all()) {
+      const warehouseId = Number(item.default_warehouse_id || 0) || firstActive;
+      if (!warehouseId || !companyWarehouses.has(Number(warehouseId))) continue;
+      const openingQuantity = Number(item.opening_stock || 0);
+      const openingValue = Number(item.opening_value || 0) || openingQuantity * Number(item.opening_rate || 0);
+      if (!openingQuantity && !openingValue) continue;
+      const row = entry(item.id, warehouseId);
+      row.quantity += openingQuantity;
+      row.openingValue += openingValue;
+      row.openingRate = Number(item.opening_rate || 0);
+    }
+    for (const move of db.prepare(`
+      SELECT item_id, warehouse_id, COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
+        COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
+      FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0
+      GROUP BY item_id, warehouse_id
+    `).all(companyId)) {
+      const row = entry(move.item_id, move.warehouse_id);
+      row.quantity += Number(move.quantity || 0);
+      row.movementMinor += Number(move.value_minor || 0);
+    }
+    const balances = new Map();
+    for (const [key, row] of out) {
+      const valueMinor = Math.max(0, paise(row.openingValue) + row.movementMinor);
+      const value = rupees(valueMinor);
+      balances.set(key, { quantity: row.quantity, value, value_minor: valueMinor, rate: row.quantity > 0 ? value / row.quantity : row.openingRate });
+    }
+    return balances;
+  }
+
   // Value of stock leaving a warehouse at weighted average cost, in rupees to the
   // paisa. Issuing everything that is left takes the exact remaining value, so no
   // stray paise stay behind in Inventory once the quantity reaches zero.
@@ -1038,7 +1082,7 @@ export function createInventoryService(deps) {
   }
 
   return {
-    stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
+    stockBalance, stockBalances, weightedAverageCost, outwardValue, insertStockLedger,
     inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
     procurementRequirementReport,
     postStockInward, postStockOutward, postStockAdjustment,

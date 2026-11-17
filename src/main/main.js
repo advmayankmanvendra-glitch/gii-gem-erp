@@ -291,7 +291,14 @@ const alerts = alertServiceWith({
 });
 let alertTimer = null;
 // Audit Watch runs off the main thread; the fallback reads through the live connection's file.
-const auditWatchRunner = createAuditWatchRunner({ runInProcess: (options) => runAuditWatch(db, options) });
+const auditWatchRunner = createAuditWatchRunner({
+  runInProcess: (options) => runAuditWatch(db, options),
+  // A fallback to the main process is recorded in the app's error console as well.
+  log: (message) => {
+    console.warn(message);
+    try { recordError(runtimeDataRoot, { source: "main", channel: "audit-watch:run", message }); } catch { /* the console is best effort */ }
+  }
+});
 
 const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "imported_by", "approved_by", "deleted_by", "posted_by"];
 
@@ -392,7 +399,7 @@ function sessionGuarded(permission, moduleName, handler, { readOnly = false } = 
 // SQLite from folding recent changes into the file before it is copied or replaced.
 function assertAuditWatchIdle(action) {
   if (auditWatchRunner.isRunning()) {
-    throw new Error(`Audit Watch is still running, so ${action} cannot start yet. Wait for the run to finish (at most two minutes), then try again.`);
+    throw new Error(`Audit Watch is still running, so ${action} cannot start yet. Wait for the run to finish (Reports > Internal Audit > Audit Watch shows when it is done), then try again.`);
   }
 }
 

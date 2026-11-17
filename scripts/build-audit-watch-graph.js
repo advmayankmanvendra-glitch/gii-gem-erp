@@ -41,6 +41,8 @@ export function detectiveControlsFromCatalogue({ CHECKS, AUDIT_WATCH_VERSION, AR
       scope: check.scope,
       ...(check.helpers ? { helpers: [...check.helpers] } : {}),
       ...(check.coverage ? { coverage: [...check.coverage] } : {}),
+      ...(check.uncovered ? { uncovered: { ...check.uncovered } } : {}),
+      ...(check.waitsFor ? { waitsFor: { ...check.waitsFor } } : {}),
       reads: Object.entries(check.reads).map(([table, columns]) => ({ table, columns: [...columns] })),
       limits: Object.entries(check.limits).map(([key, limit]) => ({ key, ...limit })),
       meaning: check.meaning,

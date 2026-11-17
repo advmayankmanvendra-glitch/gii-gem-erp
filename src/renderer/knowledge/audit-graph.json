@@ -514,7 +514,7 @@
         "limits": [
           {
             "key": "windowDays",
-            "default": 7,
+            "default": 5,
             "unit": "days",
             "label": "Same amount counts as a repeat within this many days"
           }
@@ -555,7 +555,7 @@
         "limits": [
           {
             "key": "windowDays",
-            "default": 7,
+            "default": 5,
             "unit": "days",
             "label": "Same amount counts as a repeat within this many days"
           }
@@ -906,6 +906,11 @@
         "readiness": "after_acc",
         "version": 1,
         "scope": "company",
+        "waitsFor": {
+          "tables": [
+            "purchase_order_items"
+          ]
+        },
         "reads": [
           {
             "table": "purchase_orders",
@@ -1024,6 +1029,18 @@
         "coverage": [
           "guided credit notes"
         ],
+        "uncovered": {
+          "namePattern": "credit|return|refund",
+          "coveredKinds": [
+            "credit_note"
+          ],
+          "allowedNames": [
+            "credit_terms",
+            "stock_returns",
+            "stock_return_receipts",
+            "supplier_returns"
+          ]
+        },
         "reads": [
           {
             "table": "guided_vouchers",
@@ -1284,7 +1301,7 @@
         "version": 1,
         "scope": "company",
         "helpers": [
-          "stockBalance"
+          "stockBalances"
         ],
         "reads": [
           {
@@ -1330,7 +1347,7 @@
         "version": 1,
         "scope": "company",
         "helpers": [
-          "stockBalance"
+          "stockBalances"
         ],
         "reads": [
           {
@@ -1409,6 +1426,7 @@
           {
             "table": "stock_ledger",
             "columns": [
+              "company_id",
               "is_deleted",
               "source_id",
               "source_module",
@@ -2398,6 +2416,17 @@
         "readiness": "after_acc",
         "version": 1,
         "scope": "company",
+        "waitsFor": {
+          "codeMarkers": [
+            "single_user_mode",
+            "singleUserMode",
+            "single-user mode",
+            "maker_checker_enabled",
+            "makerCheckerEnabled",
+            "accounting_policy_settings",
+            "company_policy_settings"
+          ]
+        },
         "reads": [
           {
             "table": "audit_log",

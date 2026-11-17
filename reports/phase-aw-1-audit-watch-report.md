@@ -43,7 +43,8 @@
 - `src/main/main.js`: two channels, `audit-watch:catalogue` and `audit-watch:run` (session-guarded, read-only); restore, reset and rollback wait while a run is in progress
 - `src/main/services/authService.js`: `audit_watch` permission for admin, accountant and manager
 - `src/preload/preload.cjs`: `getAuditWatchCatalogue`, `runAuditWatch`
-- `src/main/database/init.js`: exports `runAuditWatch`, `auditWatchCatalogue`
+- `src/main/database/init.js`: exports `runAuditWatch`, `auditWatchCatalogue`, `stockBalances`
+- `src/main/services/inventoryService.js`: adds `stockBalances` (every item and warehouse balance in one pass, by `stockBalance`'s rules; read-only, posting code unchanged)
 - `src/renderer/App.jsx`: one import and one route line (no logic)
 - `src/renderer/config/navigation.js`: Reports > Internal Audit > Audit Watch
 - `src/renderer/knowledge/modules/reports.js`: help metadata KNG-RPT-026
@@ -68,10 +69,12 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
 | `node scripts/verify-audit-watch.js` | 35 passed, 0 failed |
-| `node --test scripts/audit/audit-watch.test.mjs` | 64 of 64 pass |
+| `node --test scripts/audit/audit-watch.test.mjs` | 67 of 67 pass |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
-| `npm run test:integrity` | 286 of 286 pass, then IPC 57 of 57 |
+| `npm run test:integrity` | 289 of 289 pass, then IPC 57 of 57 |
+| `verify:accounting`, `verify:financials`, `verify:controls`, `verify:voucher-inventory`, `verify:flow`, `verify:phase10` | All pass (exit 0), run with Electron and `--no-sandbox`, because the container runs as root |
+| `npm run verify:erp` | Lint, build and every step up to and including `verify:audit-watch` and `test:audit-watch` pass. In this container the Electron-launched steps cannot start as root without `--no-sandbox` (run separately above), and the pipeline stops at `verify:financial-reports`, which launches Electron itself and also fails on `main`. On Windows these steps launch normally. |
 
 Two verifiers already fail on `main` and are not touched here: `verify-alphabetical-option-order` and `verify-financial-report-structure`.
 
@@ -81,7 +84,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture) and again at e9dd130. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md` and `audit-e9dd130-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture), and again at e9dd130 and 1b9f377. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md` and `audit-1b9f377-response.md`).
 
 ## Production Readiness
 

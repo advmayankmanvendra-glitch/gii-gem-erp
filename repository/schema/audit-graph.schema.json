@@ -366,6 +366,8 @@
               "scope": { "type": "string", "enum": ["company", "installation"] },
               "helpers": { "type": "array", "items": { "type": "string" } },
               "coverage": { "type": "array", "items": { "type": "string" } },
+              "uncovered": { "type": "object", "description": "Names (pattern) of posting sources, tables or guided kinds the check does not look at yet; the verifier fails once one appears." },
+              "waitsFor": { "type": "object", "description": "Tables or code markers a waiting check needs; the verifier fails once they arrive." },
               "reads": { "type": "array", "items": { "type": "object", "required": ["table", "columns"] } },
               "limits": { "type": "array", "items": { "type": "object", "required": ["key", "default", "unit", "label"] } },
               "meaning": { "type": "string" },

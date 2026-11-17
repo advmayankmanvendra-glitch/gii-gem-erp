@@ -39,7 +39,7 @@ Severity: high.
 
 **Limits** (defaults; changing them for one company comes in a later phase):
 
-- Same amount counts as a repeat within this many days: 7 days
+- Same amount counts as a repeat within this many days: 5 days
 
 ### AW-P02 Same supplier paid twice
 
@@ -51,7 +51,7 @@ Severity: high.
 
 **Limits** (defaults; changing them for one company comes in a later phase):
 
-- Same amount counts as a repeat within this many days: 7 days
+- Same amount counts as a repeat within this many days: 5 days
 
 ### AW-P03 Supplier paid soon after its bank account changed
 

@@ -76,7 +76,7 @@ export const CHECKS = [
       procurements: ["company_id", "id", "is_deleted", "posting_status", "purchase_date", "purchase_gst", "purchase_invoice_number", "purchase_value", "supplier_id"],
       suppliers: ["supplier_name"]
     },
-    limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
+    limits: { windowDays: days(5, "Same amount counts as a repeat within this many days") },
     meaning: "Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or two bills of the same amount within a few days of each other (each such pair is shown once). Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.",
     nextStep: "Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice."
   },
@@ -92,7 +92,7 @@ export const CHECKS = [
       supplier_payments: ["amount_paid", "company_id", "id", "is_deleted", "payment_date", "payment_mode", "posting_status", "supplier_id", "utr_number"],
       suppliers: ["supplier_name"]
     },
-    limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
+    limits: { windowDays: days(5, "Same amount counts as a repeat within this many days") },
     meaning: "Two supplier payments carry the same UTR, or the same supplier was paid the same amount twice within a few days (each such pair is shown once). Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.",
     nextStep: "Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill."
   },
@@ -260,9 +260,10 @@ export const CHECKS = [
     coverage: ["guided credit notes"],
     // Credit notes from anywhere else (for example document credit notes from the ACC
     // programme) are not looked at yet. scripts/verify-audit-watch.js fails once any
-    // posting source or table whose name says credit note or sales return appears, so
-    // this check cannot report "Clear" over entries it never sees.
-    uncovered: { namePattern: "credit_?notes?|sales_?returns?" },
+    // posting source, table or guided voucher kind whose name says credit, return or
+    // refund appears (other than the ones listed here, which are not sales credit
+    // notes), so this check cannot report "Clear" over entries it never sees.
+    uncovered: { namePattern: "credit|return|refund", coveredKinds: ["credit_note"], allowedNames: ["credit_terms", "stock_returns", "stock_return_receipts", "supplier_returns"] },
     reads: {
       guided_vouchers: ["company_id", "id", "is_deleted", "payload_json", "status", "voucher_date", "voucher_kind"],
       invoices: ["company_id", "invoice_date", "invoice_number", "is_deleted"]
@@ -360,7 +361,7 @@ export const CHECKS = [
     readiness: "now",
     version: 1,
     scope: "company",
-    helpers: ["stockBalance"],
+    helpers: ["stockBalances"],
     reads: {
       stock_ledger: ["company_id", "document_number", "id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
       items: ["default_warehouse_id", "id", "item_name", "opening_stock"],
@@ -378,7 +379,7 @@ export const CHECKS = [
     readiness: "now",
     version: 1,
     scope: "company",
-    helpers: ["stockBalance"],
+    helpers: ["stockBalances"],
     reads: {
       stock_ledger: ["company_id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
       items: ["created_at", "default_warehouse_id", "id", "is_deleted", "item_name", "opening_stock"],
@@ -399,7 +400,7 @@ export const CHECKS = [
     reads: {
       stock_adjustments: ["adjustment_date", "adjustment_type", "company_id", "id", "is_deleted", "item_id", "posting_status", "quantity", "rate", "reason"],
       items: ["item_name"],
-      stock_ledger: ["is_deleted", "source_id", "source_module", "value", "value_minor"]
+      stock_ledger: ["company_id", "is_deleted", "source_id", "source_module", "value", "value_minor"]
     },
     limits: {
       minimumRupees: rupees(25000, "Flag one adjustment from this value"),

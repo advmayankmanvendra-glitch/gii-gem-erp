@@ -26,20 +26,33 @@ const MAX_RANGE_DAYS = 3 * 366;
 const MAX_REFS_PER_FINDING = 50;
 const MAX_EVIDENCE_PER_FINDING = 20;
 const MAX_FINGERPRINT_LENGTH = 64;
+const MAX_KEY_LENGTH = 160;
+const MAX_SUMMARY_LENGTH = 400;
+const MAX_EVIDENCE_TEXT = 300;
+
+const sha256 = (text) => createHash("sha256").update(text).digest("hex");
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+const clipRow = (row) => (row && typeof row === "object"
+  ? Object.fromEntries(Object.entries(row).map(([field, value]) => [field, typeof value === "string" ? clip(value, MAX_EVIDENCE_TEXT) : value]))
+  : row);
 
 // Keeps every finding a bounded size: at most 50 record links (refCount gives the full
-// number) and 20 evidence rows, and a long fingerprint is replaced by its SHA-256, so
-// it still changes when what it describes changes.
+// number), 20 evidence rows with long text cut, a summary of at most 400 characters,
+// and a long key or fingerprint replaced by its SHA-256 (so it is still stable, and
+// still changes when what it describes changes).
 export function boundFinding(finding) {
   const refs = Array.isArray(finding.refs) ? finding.refs : [];
   const evidence = Array.isArray(finding.evidence) ? finding.evidence : [];
+  const key = String(finding.key ?? "");
   const fingerprint = String(finding.fingerprint ?? `${finding.amountMinor || 0}|${finding.date || ""}`);
   return {
     ...finding,
-    fingerprint: fingerprint.length > MAX_FINGERPRINT_LENGTH ? `sha256:${createHash("sha256").update(fingerprint).digest("hex")}` : fingerprint,
+    key: key.length > MAX_KEY_LENGTH ? `${key.split(":")[0]}:sha256-${sha256(key)}` : key,
+    fingerprint: fingerprint.length > MAX_FINGERPRINT_LENGTH ? `sha256:${sha256(fingerprint)}` : fingerprint,
+    summary: clip(String(finding.summary ?? ""), MAX_SUMMARY_LENGTH),
     refs: refs.slice(0, MAX_REFS_PER_FINDING),
     refCount: refs.length,
-    evidence: evidence.slice(0, MAX_EVIDENCE_PER_FINDING)
+    evidence: evidence.slice(0, MAX_EVIDENCE_PER_FINDING).map(clipRow)
   };
 }
 
@@ -83,7 +96,7 @@ function readOnlyConnection(db) {
   return { connection, close: () => connection.close() };
 }
 
-export function createAuditWatchService({ stockBalance, bookIntegrityChecks, verifyAuditChain }) {
+export function createAuditWatchService({ stockBalance, stockBalances, bookIntegrityChecks, verifyAuditChain }) {
   function catalogueForRole(role) {
     const allowed = new Set(areasForRole(role));
     return {
@@ -118,8 +131,11 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
 
     const { connection, close } = readOnlyConnection(db);
     const baseQuery = readOnlyQuery(connection);
+    const balanceCache = new Map();
     const deps = {
       stockBalance: (company, itemId, warehouseId) => stockBalance(connection, company, itemId, warehouseId),
+      // Every pair's balance in one pass, read once per run and shared by I01 and I02.
+      stockBalances: (company) => (balanceCache.get(company) ?? balanceCache.set(company, stockBalances(connection, company)).get(company)),
       bookIntegrityChecks: (company) => bookIntegrityChecks(connection, company, { verifyAuditChain })
     };
     const started = Date.now();

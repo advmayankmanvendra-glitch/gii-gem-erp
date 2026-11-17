@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "graphId": "KG-5",
-  "generatedAt": "2026-11-17T15:01:02.858Z",
+  "generatedAt": "2026-11-17T15:18:47.804Z",
   "owner": "Architecture & Governance",
   "description": "Document and Manual Graph — governed inventory of ERP manuals with section indexes and resolved cross-references to FF-1 features, WG-1 workflow stages, RG-1 screens, BRAIN-1 reports and errors.",
   "version": "1.0.0",

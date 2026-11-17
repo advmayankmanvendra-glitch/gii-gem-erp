@@ -72,18 +72,29 @@ const medianSorted = (sorted) => {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
 
-// Groups rows (sorted by date) into runs where every row lies within `windowDays` of
-// the run's first row; returns the runs that satisfy `keep`. Runs do not overlap.
+// Groups rows (sorted by date) into clusters. Every window that starts at a row and
+// holds the rows within `windowDays` of it is tested with `keep`; windows that pass and
+// overlap are merged into one cluster. So no row of a qualifying window is ever left
+// out, and over a whole history the clusters (and their first ids, used as keys) do not
+// depend on the period chosen. Linear in rows times rows per window.
 function dateRuns(rows, windowDays, keep) {
-  const runs = [];
-  let start = 0;
-  while (start < rows.length) {
-    let end = start;
-    while (end + 1 < rows.length && daysBetween(rows[start].date, rows[end + 1].date) <= windowDays) end += 1;
-    const run = rows.slice(start, end + 1);
-    if (keep(run)) { runs.push(run); start = end + 1; } else start += 1;
+  const clusters = [];
+  let start = -1;
+  let end = -1;
+  let last = 0;
+  for (let first = 0; first < rows.length; first += 1) {
+    last = Math.max(last, first);
+    while (last + 1 < rows.length && daysBetween(rows[first].date, rows[last + 1].date) <= windowDays) last += 1;
+    if (!keep(rows.slice(first, last + 1))) continue;
+    if (start >= 0 && first <= end) end = Math.max(end, last);
+    else {
+      if (start >= 0) clusters.push(rows.slice(start, end + 1));
+      start = first;
+      end = last;
+    }
   }
-  return runs;
+  if (start >= 0) clusters.push(rows.slice(start, end + 1));
+  return clusters;
 }
 
 // Neighbouring pairs (rows sorted by date) that lie within `windowDays` of each other.
@@ -512,11 +523,21 @@ export const CHECK_FUNCTIONS = {
   },
 
   "AW-S03"(q, { companyId, from, to, limits }) {
+    // Each order's first dispatch is found once in a grouped pass and joined (the
+    // challan table has no index on order_id).
     const rows = q(`
-      SELECT inv.id, inv.invoice_number, inv.invoice_date, ${keyedOn("inv")} keyed_on,
-        (SELECT MIN(dc.dispatch_date) FROM delivery_challans dc WHERE dc.order_id = inv.order_id AND ${live("dc")} AND dc.status = 'Confirmed') first_dispatch
-      FROM invoices inv
-      WHERE inv.company_id = ? AND ${live("inv")} AND ${notReversed("inv")} AND inv.invoice_date BETWEEN ? AND ?
+      WITH period AS (
+        SELECT inv.id, inv.order_id, inv.invoice_number, inv.invoice_date, ${keyedOn("inv")} keyed_on
+        FROM invoices inv
+        WHERE inv.company_id = ? AND ${live("inv")} AND ${notReversed("inv")} AND inv.invoice_date BETWEEN ? AND ?
+      ),
+      dispatch AS (
+        SELECT dc.order_id, MIN(dc.dispatch_date) first_dispatch FROM delivery_challans dc
+        WHERE ${live("dc")} AND dc.status = 'Confirmed' AND dc.order_id IN (SELECT order_id FROM period WHERE order_id IS NOT NULL)
+        GROUP BY dc.order_id
+      )
+      SELECT period.id, period.invoice_number, period.invoice_date, period.keyed_on, dispatch.first_dispatch
+      FROM period LEFT JOIN dispatch ON dispatch.order_id = period.order_id
     `, [companyId, from, to]);
     const findings = [];
     for (const row of rows) {
@@ -670,10 +691,13 @@ export const CHECK_FUNCTIONS = {
       ORDER BY sl.item_id, sl.warehouse_id, sl.transaction_date, sl.id
     `, [companyId, from, to]), (row) => `${row.item_id}|${row.warehouse_id}`);
     const findings = [];
+    // Balances for every pair come from one grouped read (stockBalances, the same rules
+    // as stockBalance), not one stock-ledger scan per pair.
+    const balances = deps.stockBalances(companyId);
     for (const pair of pairs) {
       const rows = moves.get(`${pair.item_id}|${pair.warehouse_id}`) || [];
-      // Opening stock held on the item (not in the stock ledger) comes from stockBalance.
-      const itemOpening = Number(deps.stockBalance(companyId, pair.item_id, pair.warehouse_id).quantity || 0) - Number(pair.all_movement || 0);
+      // Opening stock held on the item (not in the stock ledger) comes from stockBalances.
+      const itemOpening = Number(balances.get(`${pair.item_id}|${pair.warehouse_id}`)?.quantity || 0) - Number(pair.all_movement || 0);
       let balance = itemOpening + Number(pair.before_from || 0);
       // Movements on one day are netted: stock received later the same day is not a gap.
       for (const [date, dayRows] of groupBy(rows, (row) => row.transaction_date)) {
@@ -717,9 +741,10 @@ export const CHECK_FUNCTIONS = {
       FROM opening o JOIN warehouses w ON w.id = o.warehouse_id
     `).filter((row) => !movedPairs.has(`${row.item_id}|${row.warehouse_id}`));
     const findings = [];
+    const balances = deps.stockBalances(companyId);
     for (const row of [...moved, ...openingOnly]) {
       if (row.last_movement && row.last_movement >= cutoff) continue;
-      const balance = deps.stockBalance(companyId, row.item_id, row.warehouse_id);
+      const balance = balances.get(`${row.item_id}|${row.warehouse_id}`) || { quantity: 0, value: 0 };
       if (!(Number(balance.quantity) > 0.0001)) continue;
       const valueMinor = Math.round(Number(balance.value || 0) * 100);
       const idle = row.last_movement ? `no movement for ${daysBetween(row.last_movement, today)} days` : "never moved";
@@ -738,17 +763,31 @@ export const CHECK_FUNCTIONS = {
 
   "AW-I03"(q, { companyId, from, to, limits }) {
     // The value is what was posted to the stock ledger (a decrease keyed without a rate
-    // is posted at average cost); quantity x rate only for a row not yet posted.
-    const rows = q(`
+    // is posted at average cost); quantity x rate only for a row not yet posted. The
+    // ledger values are added up once per adjustment in a grouped pass and joined.
+    // Every adjustment of an item adjusted in the period is read, back to the start of
+    // its history, so repeats (and their keys and values) do not depend on the period.
+    const history = q(`
+      WITH touched AS (
+        SELECT DISTINCT p.item_id FROM stock_adjustments p
+        WHERE p.company_id = ? AND ${live("p")} AND ${notReversed("p")} AND p.adjustment_date BETWEEN ? AND ?
+      ),
+      posted AS (
+        SELECT sl.source_id, ABS(SUM(COALESCE(sl.value_minor, CAST(ROUND(sl.value * 100) AS INTEGER)))) value_minor
+        FROM stock_ledger sl
+        WHERE sl.company_id = ? AND sl.source_module = 'stock_adjustments' AND ${live("sl")}
+        GROUP BY sl.source_id
+      )
       SELECT sa.id, sa.item_id, i.item_name, sa.adjustment_date date, sa.adjustment_type, sa.quantity, sa.rate, sa.reason, sa.posting_status,
-        COALESCE(
-          (SELECT ABS(SUM(COALESCE(sl.value_minor, CAST(ROUND(sl.value * 100) AS INTEGER)))) FROM stock_ledger sl
-            WHERE sl.source_module = 'stock_adjustments' AND sl.source_id = sa.id AND ${live("sl")}),
-          CAST(ROUND(ABS(COALESCE(sa.quantity, 0) * COALESCE(sa.rate, 0)) * 100) AS INTEGER)) value_minor
-      FROM stock_adjustments sa LEFT JOIN items i ON i.id = sa.item_id
-      WHERE sa.company_id = ? AND ${live("sa")} AND ${notReversed("sa")} AND sa.adjustment_date BETWEEN ? AND ?
+        COALESCE(posted.value_minor, CAST(ROUND(ABS(COALESCE(sa.quantity, 0) * COALESCE(sa.rate, 0)) * 100) AS INTEGER)) value_minor
+      FROM stock_adjustments sa
+      JOIN touched ON touched.item_id = sa.item_id
+      LEFT JOIN posted ON posted.source_id = sa.id
+      LEFT JOIN items i ON i.id = sa.item_id
+      WHERE sa.company_id = ? AND ${live("sa")} AND ${notReversed("sa")} AND sa.adjustment_date <= ?
       ORDER BY sa.item_id, sa.adjustment_date, sa.id
-    `, [companyId, from, to]);
+    `, [companyId, from, to, companyId, companyId, to]);
+    const rows = history.filter((row) => row.date >= from);
     const findings = [];
     const minimum = Math.round(limits.minimumRupees * 100);
     for (const row of rows.filter((item) => item.value_minor >= minimum)) {
@@ -761,16 +800,6 @@ export const CHECK_FUNCTIONS = {
         evidence: [row]
       });
     }
-    // Repeats are found over each item's whole history, so a run and its key do not
-    // depend on where the period starts.
-    const history = q(`
-      SELECT sa.id, sa.item_id, i.item_name, sa.adjustment_date date, sa.quantity, ${paise("ABS(COALESCE(sa.quantity, 0) * COALESCE(sa.rate, 0))")} value_minor
-      FROM stock_adjustments sa LEFT JOIN items i ON i.id = sa.item_id
-      WHERE sa.company_id = ? AND ${live("sa")} AND ${notReversed("sa")} AND sa.adjustment_date <= ?
-        AND sa.item_id IN (SELECT DISTINCT p.item_id FROM stock_adjustments p WHERE p.company_id = ? AND ${live("p")} AND p.adjustment_date BETWEEN ? AND ?)
-      ORDER BY sa.item_id, sa.adjustment_date, sa.id
-    `, [companyId, to, companyId, from, to]);
-    const valueOf = new Map(rows.map((row) => [row.id, row.value_minor]));
     for (const itemRows of groupBy(history, (row) => row.item_id).values()) {
       for (const run of runsTouching(dateRuns(itemRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount), from, to, (row) => row.date)) {
         findings.push({
@@ -778,7 +807,7 @@ export const CHECK_FUNCTIONS = {
           fingerprint: ids(run),
           summary: `${run[0].item_name || "Item"} adjusted ${run.length} times between ${run[0].date} and ${run[run.length - 1].date}`,
           date: run[run.length - 1].date,
-          amountMinor: run.reduce((sum, row) => sum + (valueOf.get(row.id) ?? row.value_minor), 0),
+          amountMinor: run.reduce((sum, row) => sum + row.value_minor, 0),
           refs: run.map((row) => ({ table: "stock_adjustments", id: row.id })),
           evidence: run
         });
@@ -1157,11 +1186,14 @@ export const CHECK_FUNCTIONS = {
       let fellOn = balance < 0 ? "opening" : null;
       let lowest = balance;
       let reported = false;
+      let current = null;
       const report = (date, movement) => {
         reported = true;
         const since = fellOn === "opening" ? "the opening balance" : fellOn;
-        findings.push({
+        current = {
           key: `AW-G09:${accountDays[0].account_id}-${fellOn}`,
+          // Not the period: the day it fell and the lowest balance so far.
+          fingerprint: `${fellOn}|${lowest}`,
           summary: fellOn === date
             ? `${accountDays[0].account_name} fell to ${rupeesText(balance)} on ${date}`
             : `${accountDays[0].account_name} was ${rupeesText(balance)} on ${date}, below zero since ${since}`,
@@ -1169,7 +1201,8 @@ export const CHECK_FUNCTIONS = {
           amountMinor: -lowest,
           refs: [{ table: "accounts", id: accountDays[0].account_id }],
           evidence: [{ account: accountDays[0].account_name, below_zero_since: since, entry_date: date, day_movement_minor: movement, closing_balance_minor: balance }]
-        });
+        };
+        findings.push(current);
       };
       for (const day of accountDays) {
         // Already below zero when the period starts: report it at the period's first day.
@@ -1178,7 +1211,9 @@ export const CHECK_FUNCTIONS = {
         if (balance < 0 && !fellOn) { fellOn = day.entry_date; lowest = balance; reported = false; }
         if (balance < 0) lowest = Math.min(lowest, balance);
         if (balance < 0 && !reported && day.entry_date >= from) report(day.entry_date, day.net_minor);
-        if (balance >= 0) { fellOn = null; reported = false; lowest = 0; }
+        // A reported stretch keeps its lowest balance up to date, whatever the period.
+        if (current && balance < 0) { current.amountMinor = -lowest; current.fingerprint = `${fellOn}|${lowest}`; }
+        if (balance >= 0) { fellOn = null; reported = false; lowest = 0; current = null; }
       }
       // No movement in or after the period, and still below zero.
       if (fellOn && !reported && balance < 0) report(from, 0);
