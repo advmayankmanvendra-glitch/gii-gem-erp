@@ -1815,38 +1815,43 @@ function ensureAuditChain(db) {
 export function verifyAuditChain(db) {
   const startId = auditChainStartId(db);
   if (!startId) return { chained: false, verified: 0, broken: [], legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log").get().c };
-  const rows = db.prepare("SELECT * FROM audit_log WHERE id >= ? ORDER BY id").all(startId);
   let previous = db.prepare("SELECT event_hash FROM audit_log WHERE id < ? ORDER BY id DESC LIMIT 1").get(startId)?.event_hash || "";
-  // Every broken row is counted (and folded into a digest, so a change in which rows are
-  // broken shows); only the first 20 are listed.
-  const brokenSet = new Set();
+  // Rows are streamed, not loaded at once, so a long audit log does not fill memory.
+  // Broken ids arrive in increasing order, so a count, the first 20 ids and a digest of
+  // all of them (a change in which rows are broken shows) are kept, not every id.
+  const broken = [];
+  let brokenCount = 0;
   const digest = crypto.createHash("sha256");
-  const markBroken = (id) => { if (!brokenSet.has(id)) { brokenSet.add(id); digest.update(`${id},`); } };
+  const markBroken = (id) => { brokenCount += 1; digest.update(`${id},`); if (broken.length < 20) broken.push(id); };
   // Rows still present whose hash fails; deleted rows (gaps) are marked broken but were
   // never there to verify, so they do not lower the verified count.
   let editedRows = 0;
+  let presentRows = 0;
+  let startedAt = null;
+  let lastPresent = startId - 1; // with every chained row gone, the chain ends before it started
   let expectedId = startId;
-  for (const row of rows) {
+  for (const row of db.prepare("SELECT * FROM audit_log WHERE id >= ? ORDER BY id").iterate(startId)) {
+    if (presentRows === 0) startedAt = row.created_at || null;
+    presentRows += 1;
     // A gap in ids after the chain started means a row was deleted.
     if (row.id !== expectedId) markBroken(expectedId);
     if (auditEventHash(row, previous) !== row.event_hash) { markBroken(row.id); editedRows += 1; }
     previous = row.event_hash;
     expectedId = row.id + 1;
+    lastPresent = row.id;
   }
   // AUTOINCREMENT keeps the highest id ever issued, so rows deleted from the end
   // of the log leave a gap between it and the last row still present.
   const lastIssued = Number(db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'audit_log'").get()?.seq || 0);
-  // With every chained row gone, the chain ends just before where it started.
-  const lastPresent = Number(rows[rows.length - 1]?.id || startId - 1);
   if (lastIssued > lastPresent) markBroken(lastPresent + 1);
   return {
     chained: true,
-    startedAt: rows[0]?.created_at || null,
+    startedAt,
     missingNewestRows: Math.max(0, lastIssued - lastPresent),
-    verified: rows.length - editedRows,
-    broken: [...brokenSet].slice(0, 20),
-    brokenCount: brokenSet.size,
-    brokenDigest: brokenSet.size ? digest.digest("hex") : "",
+    verified: presentRows - editedRows,
+    broken,
+    brokenCount,
+    brokenDigest: brokenCount ? digest.digest("hex") : "",
     legacyRows: db.prepare("SELECT COUNT(*) c FROM audit_log WHERE id < ?").get(startId).c
   };
 }
