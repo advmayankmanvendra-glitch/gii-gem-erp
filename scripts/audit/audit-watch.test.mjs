@@ -345,7 +345,7 @@ test("AW-I01 reports stock already below zero when the period begins, moved or n
   clean(april, ["items", fine]);
   const rose = april.find((row) => row.refs.some((ref) => ref.table === "items" && ref.id === rising));
   assert.equal(rose.date, "2026-04-01");
-  assert.match(rose.summary, /was at -10 when the period began on 2026-04-01 \(below zero since 2026-03-25\)/);
+  assert.match(rose.summary, /went below zero on 2026-03-25 \(to -10\); at -10 when the period began on 2026-04-01/);
   // The same unchanged stretch keeps one fingerprint whatever period is chosen, and it
   // matches the finding of the period that saw the fall.
   const stillIn = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${still}-${w}`);
@@ -363,6 +363,39 @@ test("AW-I01 reports stock already below zero when the period begins, moved or n
   assert.equal(risingIn({ from: "2026-05-01", to: "2026-05-31" }).fingerprint, early.fingerprint);
   // Once the receipt brings it back to zero, a later period is clear.
   clean(findings(m, db, "AW-I01", { from: "2026-06-01", to: "2026-06-30" }), ["items", still]);
+});
+
+test("AW-I01 names the latest stretch below zero, any recovery and later falls, with one fingerprint per stretch", () => {
+  const { db, f } = fresh();
+  const w = f.warehouse();
+  // (a) below zero at the start, recovers, then falls again (less deeply).
+  const a = f.item();
+  f.stockMove(a, w, "2026-03-25", -5);
+  f.stockMove(a, w, "2026-04-10", 5);
+  f.stockMove(a, w, "2026-04-20", -2);
+  const aIn = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${a}-${w}`);
+  const april = aIn({ from: "2026-04-01", to: "2026-04-30" });
+  assert.match(april.summary, /went below zero on 2026-04-20 \(to -2\); 2 separate stretches below zero in this period/);
+  assert.equal(april.fingerprint, "2026-04-20|-2000");
+  assert.equal(aIn({ from: "2026-04-15", to: "2026-05-31" }).fingerprint, april.fingerprint);
+  const early = aIn({ from: "2026-04-01", to: "2026-04-12" });
+  assert.match(early.summary, /went below zero on 2026-03-25 \(to -5\).*back to zero or above on 2026-04-10/);
+  assert.equal(early.fingerprint, "2026-03-25|-5000");
+  // (b) two falls in one stretch: the stretch is named by its first fall in every period.
+  const b = f.item();
+  f.stockMove(b, w, "2026-03-05", -2);
+  f.stockMove(b, w, "2026-03-25", -3);
+  const bIn = (options) => findings(m, db, "AW-I01", options).find((row) => row.key === `AW-I01:${b}-${w}`);
+  const march = bIn({ from: "2026-03-01", to: "2026-03-31" });
+  assert.equal(march.fingerprint, "2026-03-05|-2000");
+  assert.match(march.summary, /lowest -5 on 2026-03-25/);
+  assert.equal(bIn({ from: "2026-03-15", to: "2026-03-31" }).fingerprint, march.fingerprint);
+  assert.equal(bIn({ from: "2026-04-01", to: "2026-04-30" }).fingerprint, march.fingerprint);
+  // (c) a fall inside the period that deepens is shown with its lowest point.
+  const c = f.item();
+  f.stockMove(c, w, "2026-05-02", -5);
+  f.stockMove(c, w, "2026-05-09", -8);
+  assert.match(findings(m, db, "AW-I01", { from: "2026-05-01", to: "2026-05-31" }).find((row) => row.key === `AW-I01:${c}-${w}`).summary, /went below zero on 2026-05-02 \(to -5\); lowest -13 on 2026-05-09/);
 });
 
 test("AW-I01 flags stock going below zero, not a same-day receipt and issue", () => {

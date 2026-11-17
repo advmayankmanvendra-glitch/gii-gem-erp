@@ -210,23 +210,51 @@ const registryDrift = (graphRegistry.graphs || []).filter((entry) => ["AG-1", "K
 check("Graph registry schema versions match the AG-1 and KG-5 schema files", registryDrift.length === 0, registryDrift.join("; "));
 
 // Source read through a real parser (@babel/parser), so comments and strings are told
-// apart from code: `codeOf` blanks out comments, `nameCount` counts identifiers, and
-// `stringCount` counts string literals (import paths) that contain a word.
+// apart from code: `codeOf` blanks out comments and the text of every string except
+// import paths, `nameCount` counts identifiers, and `stringCount` counts import paths
+// that contain a word. A file the parser cannot read fails the wiring check by name.
 const { parse: babelParse } = await import("@babel/parser");
 const parsed = new Map();
+const unparsable = [];
+function walk(node, visit) {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) { node.forEach((child) => walk(child, visit)); return; }
+  if (typeof node.type === "string") visit(node);
+  for (const key of Object.keys(node)) if (!["loc", "start", "end", "leadingComments", "trailingComments", "innerComments", "tokens", "comments", "extra"].includes(key)) walk(node[key], visit);
+}
 function parsedFile(rel) {
   if (!parsed.has(rel)) {
     const text = read(rel);
-    const ast = babelParse(text, { sourceType: "module", plugins: ["jsx", "topLevelAwait"], tokens: true, errorRecovery: true, allowReturnOutsideFunction: true });
+    let ast;
+    try {
+      ast = babelParse(text, { sourceType: "module", plugins: ["jsx", "topLevelAwait"], tokens: true, allowReturnOutsideFunction: true });
+    } catch (error) {
+      unparsable.push(`${rel}: ${error.message}`);
+      ast = { program: { body: [] }, tokens: [], comments: [] };
+    }
+    // Import paths: static imports, re-exports and import().
+    const importPaths = [];
+    walk(ast.program, (node) => {
+      if (["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(node.type) && node.source) importPaths.push(node.source);
+      if (node.type === "ImportExpression" && node.source) importPaths.push(node.source);
+      if (node.type === "CallExpression" && node.callee?.type === "Import" && node.arguments?.[0]) importPaths.push(node.arguments[0]);
+    });
+    const keep = new Set(importPaths.map((node) => node.start));
+    const blanks = [
+      ...(ast.comments || []).map((comment) => [comment.start, comment.end]),
+      ...(ast.tokens || []).filter((token) => ["string", "template"].includes(token.type?.label) && !keep.has(token.start) && token.end - token.start > 0)
+        .map((token) => (token.type.label === "string" ? [token.start + 1, token.end - 1] : [token.start, token.end]))
+    ];
     let code = text;
-    for (const comment of ast.comments || []) code = code.slice(0, comment.start) + " ".repeat(comment.end - comment.start) + code.slice(comment.end);
-    parsed.set(rel, { ast, code });
+    for (const [start, end] of blanks) code = code.slice(0, start) + code.slice(start, end).replace(/[^\n]/g, " ") + code.slice(end);
+    const importText = importPaths.map((node) => String(node.value ?? ""));
+    parsed.set(rel, { ast, code, importText });
   }
   return parsed.get(rel);
 }
 const codeOf = (rel) => parsedFile(rel).code;
 const nameCount = (rel, word) => parsedFile(rel).ast.tokens.filter((token) => token.type?.label === "name" && token.value === word).length;
-const stringCount = (rel, word) => parsedFile(rel).ast.tokens.filter((token) => ["string", "template"].includes(token.type?.label) && String(token.value).includes(word)).length;
+const stringCount = (rel, word) => parsedFile(rel).importText.filter((value) => value.includes(word)).length;
 
 // One way in: main-process code runs Audit Watch through the runner (worker thread),
 // never by calling runAuditWatch directly, so a later caller cannot block the app.
@@ -235,7 +263,7 @@ const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /
   // The check functions are run only by the service; the worker file only by the runner;
   // and the runner is never imported under another name.
   || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(codeOf(rel)))
-  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(codeOf(rel)))
+  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(read(rel)))
   || /\bcreateAuditWatchRunner\s*(?:as\b|:)/.test(codeOf(rel))
   // No renamed import or destructuring of runAuditWatch anywhere, main.js included.
   || /\brunAuditWatch\s*(?:as\b|:)/.test(codeOf(rel)));
@@ -309,6 +337,7 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const have = tokens(rel, word);
     return have === want ? [] : [`${rel}: ${word} ${have} (expected ${want})`];
   }));
+  wrong.push(...unparsable.map((problem) => `cannot parse ${problem}`));
   check("Audit Watch is wired in exactly one way (service in init.js, runner in main.js)", wrong.length === 0, wrong.length ? wrong.join("; ") : "init.js, main.js, worker");
 }
 
@@ -332,10 +361,24 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   };
   const functionsHash = crypto.createHash("sha256").update(["openingWarehouseId", "stockBalance"].map(functionSource).join("\n")).digest("hex");
   const pin = await load("src/main/services/auditWatch/stockBalances.js");
-  const same = hash === pin.STOCK_BALANCE_SOURCE_SHA256;
   const functionsSame = functionsHash === pin.STOCK_BALANCE_FUNCTIONS_SHA256;
-  check("stockBalances.js matches the current inventoryService.js", same, same ? `${rel} as checked at ${pin.STOCK_BALANCE_CHECKED_AT}` : [
-    `${rel} changed since ${pin.STOCK_BALANCE_CHECKED_AT}.`,
+  const same = hash === pin.STOCK_BALANCE_SOURCE_SHA256 && functionsSame;
+  // The recorded commit must be a full commit id whose inventoryService.js has the pinned
+  // whole-file hash (checked when git and that commit are available).
+  let commitProblem = /^[0-9a-f]{40}$/.test(String(pin.STOCK_BALANCE_CHECKED_AT)) ? "" : "STOCK_BALANCE_CHECKED_AT must be a full 40-character commit id";
+  if (!commitProblem) {
+    try {
+      const { execFileSync } = await import("node:child_process");
+      const atCommit = execFileSync("git", ["show", `${pin.STOCK_BALANCE_CHECKED_AT}:${rel}`], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
+      const atHash = crypto.createHash("sha256").update(atCommit.replace(/\s+/g, " ").trim()).digest("hex");
+      if (atHash !== pin.STOCK_BALANCE_SOURCE_SHA256) commitProblem = `STOCK_BALANCE_SOURCE_SHA256 is not the hash of ${rel} at ${pin.STOCK_BALANCE_CHECKED_AT}`;
+    } catch {
+      // No git or a shallow copy without that commit: the hashes alone are checked.
+    }
+  }
+  check("stockBalances.js pin names a real commit and agrees with it", !commitProblem, commitProblem || `${rel} at ${pin.STOCK_BALANCE_CHECKED_AT.slice(0, 7)}`);
+  check("stockBalances.js matches the current inventoryService.js", same, same ? `${rel} as checked at ${pin.STOCK_BALANCE_CHECKED_AT.slice(0, 7)}` : [
+    hash === pin.STOCK_BALANCE_SOURCE_SHA256 ? `${rel} is unchanged, but STOCK_BALANCE_FUNCTIONS_SHA256 is stale.` : `${rel} changed since ${pin.STOCK_BALANCE_CHECKED_AT}.`,
     functionsSame ? "stockBalance and openingWarehouseId themselves are unchanged; check that no helper or constant they use changed."
       : "stockBalance or openingWarehouseId itself changed: restate its rules in src/main/services/auditWatch/stockBalances.js and extend the parity test.",
     `See: git diff ${pin.STOCK_BALANCE_CHECKED_AT} -- ${rel}.`,
@@ -352,9 +395,25 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   let pipelineProblem = "";
   try {
     const { ast } = parsedFile("scripts/verify-erp.js");
-    const declarator = ast.program.body.flatMap((node) => (node.type === "VariableDeclaration" ? node.declarations : []))
-      .find((node) => node.id?.name === "PIPELINE");
-    if (declarator?.init?.type !== "ArrayExpression") throw new Error("no `const PIPELINE = [...]` array");
+    const code = read("scripts/verify-erp.js");
+    // Exactly one top-level `const PIPELINE = [...]`, used only by `for (const step of
+    // PIPELINE)`: nothing can add, remove or change steps after the literal.
+    const topLevel = ast.program.body.filter((node) => node.type === "VariableDeclaration");
+    const declarations = topLevel.filter((node) => node.declarations.some((item) => item.id?.name === "PIPELINE"));
+    if (declarations.length !== 1 || declarations[0].kind !== "const") throw new Error("PIPELINE must be declared once, at top level, with const (not exported)");
+    const declarator = declarations[0].declarations.find((item) => item.id?.name === "PIPELINE");
+    if (declarator?.init?.type !== "ArrayExpression") throw new Error("PIPELINE is not a plain array literal");
+    const uses = [];
+    walk(ast.program, (node) => {
+      if (node.type === "Identifier" && node.name === "PIPELINE" && node !== declarator.id) uses.push(node);
+    });
+    const loops = [];
+    walk(ast.program, (node) => { if (node.type === "ForOfStatement" && node.right?.type === "Identifier" && node.right.name === "PIPELINE") loops.push(node.right); });
+    if (uses.length !== loops.length || !loops.length) throw new Error(`PIPELINE is used other than by \`for (const step of PIPELINE)\` (${uses.length} uses, ${loops.length} loops)`);
+    // NPM must be the plain npm launcher.
+    const npm = topLevel.flatMap((node) => node.declarations).filter((item) => item.id?.name === "NPM");
+    const npmText = npm.length === 1 ? code.slice(npm[0].start, npm[0].end).replace(/\s+/g, " ") : "";
+    if (npmText !== 'NPM = /^win/.test(process.platform) ? "npm.cmd" : "npm"') throw new Error(`NPM is not the plain npm launcher (${npmText || "missing"})`);
     const valueOf = (node) => {
       if (!node) return undefined;
       if (["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes(node.type)) return node.value;
@@ -362,16 +421,25 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
       if (node.type === "TemplateLiteral") return node.quasis.map((quasi, i) => quasi.value.cooked + (node.expressions[i] ? (node.expressions[i].name === "NPM" ? "npm" : "${?}") : "")).join("");
       return { unreadable: node.type };
     };
-    pipeline = declarator.init.elements.map((element) => (element?.type === "ObjectExpression"
-      ? Object.fromEntries(element.properties.filter((prop) => prop.type === "ObjectProperty").map((prop) => [prop.key.name ?? prop.key.value, valueOf(prop.value)]))
-      : { unreadable: element?.type }));
+    // A spread, getter, method or computed key could hide what a step really is, so a step
+    // that has one is unreadable; an Audit Watch step must be read in full.
+    pipeline = declarator.init.elements.map((element) => {
+      if (element?.type !== "ObjectExpression") return { unreadable: element?.type || "hole", name: undefined };
+      const plain = element.properties.every((prop) => prop.type === "ObjectProperty" && !prop.computed && ["Identifier", "StringLiteral"].includes(prop.key.type));
+      const entries = element.properties.filter((prop) => prop.type === "ObjectProperty" && !prop.computed).map((prop) => [prop.key.name ?? prop.key.value, valueOf(prop.value)]);
+      const keys = entries.map(([key]) => key);
+      return { ...Object.fromEntries(entries), ...(plain && new Set(keys).size === keys.length ? {} : { unreadable: "spread, getter, method, computed or repeated key" }) };
+    });
+    // Any step that names an Audit Watch step in some form must be readable.
+    const hidden = declarator.init.elements.filter((element, i) => pipeline[i].unreadable && /audit-watch/.test(code.slice(element?.start ?? 0, element?.end ?? 0)));
+    if (hidden.length) throw new Error(`an Audit Watch step is not a plain object (${pipeline[declarator.init.elements.indexOf(hidden[0])].unreadable})`);
   } catch (error) {
     pipelineProblem = `could not read PIPELINE in scripts/verify-erp.js: ${error.message}`;
   }
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
     const steps = pipeline.filter((step) => step?.name === name);
     const step = steps[0];
-    return !LOCK_BLOCKING_STEPS.has(name) || steps.length !== 1 || step.strict !== true
+    return !LOCK_BLOCKING_STEPS.has(name) || steps.length !== 1 || step.unreadable || step.strict !== true
       || JSON.stringify(step.continueOn) !== "[0]" || step.cmd !== `npm run ${name}:electron` || step.warningValidator !== undefined;
   });
   // And the npm scripts those steps run do exactly what they say: the whole suite and the

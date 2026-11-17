@@ -23,11 +23,12 @@ import { paise, rupees } from "../../domain/money.js";
 // as a SHA-256 of the whole file and of stockBalance + openingWarehouseId alone (spaces
 // collapsed, comments left out of the second). The Audit Watch verifier fails when the
 // file changes, says whether stockBalance itself changed, and prints the git diff to
-// read. A change to how posting values stock (AGENTS.md rule 4) must be restated here
+// read. All three values must agree (the verifier checks the file at that commit
+// when git is available). A change to how posting values stock (AGENTS.md rule 4) must be restated here
 // before the new values are set; an unrelated change needs only the new values.
-export const STOCK_BALANCE_CHECKED_AT = "2c79106";
+export const STOCK_BALANCE_CHECKED_AT = "2c79106f85862d7d2a4f05dc089abea9ed964dbc";
 export const STOCK_BALANCE_SOURCE_SHA256 = "0df5651b53dde2781f7e6719587c7c1e446bc82b2d16be5d8b0ab49339226fc1";
-export const STOCK_BALANCE_FUNCTIONS_SHA256 = "68689d50eef3b6ec4d7288b76b2b68482d602094156ab639a16ee53a572e0e77";
+export const STOCK_BALANCE_FUNCTIONS_SHA256 = "0665ab4dda493bc66e7e58256ecbd9733d55933cf7defa6abdef255998889146";
 
 // `source` is the run's read-only query helper (q(sql, params) -> rows), so the reads
 // are traced like a check's own; a better-sqlite3 handle is also accepted.
