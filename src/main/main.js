@@ -387,9 +387,19 @@ function sessionGuarded(permission, moduleName, handler, { readOnly = false } = 
   };
 }
 
+// Steps that replace the database file (restore, reset, go-live rollback) wait for an
+// Audit Watch run to finish: its worker holds a read snapshot open, which would stop
+// SQLite from folding recent changes into the file before it is copied or replaced.
+function assertAuditWatchIdle(action) {
+  if (auditWatchRunner.isRunning()) {
+    throw new Error(`Audit Watch is still running, so ${action} cannot start yet. Wait for the run to finish (at most two minutes), then try again.`);
+  }
+}
+
 // Runs a step that replaces the database file. The shared connection is closed
 // first and always reopened afterwards, so no stale handle can corrupt the file.
-function withDatabaseClosed(step) {
+function withDatabaseClosed(step, action = "this step") {
+  assertAuditWatchIdle(action);
   db?.close();
   db = null;
   try {
@@ -1177,6 +1187,7 @@ function registerIpc() {
   handle("backup:list", () => listBackups(runtimeDataRoot));
   handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
     const userId = actorId();
+    assertAuditWatchIdle("the restore");
     db?.close();
     db = null;
     try {
@@ -1488,7 +1499,7 @@ function registerIpc() {
       auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: error.message.slice(0, 500) }) });
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }
-    const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
+    const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId), "the go-live rollback");
     auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: String(reason ?? "").slice(0, 500), success: result?.rollbackResult?.success }) });
     return result;
   }));
@@ -1505,6 +1516,7 @@ function registerIpc() {
   });
 
   handle("reset:execute", guarded("system_reset", "operational_reset", (payload = {}) => {
+    assertAuditWatchIdle("the reset");
     const result = executeReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
@@ -1517,6 +1529,7 @@ function registerIpc() {
   });
 
   handle("reset:execute-enhanced", guarded("system_reset", "operational_reset", (payload = {}) => {
+    assertAuditWatchIdle("the reset");
     const result = executeEnhancedReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
@@ -1525,7 +1538,7 @@ function registerIpc() {
 
   handle("reset:rollback", guarded("restore_backup", "operational_reset", ({ backup } = {}) => {
     const userId = actorId();
-    const result = withDatabaseClosed(() => rollbackReset(runtimeDataRoot, backup));
+    const result = withDatabaseClosed(() => rollbackReset(runtimeDataRoot, backup), "the reset rollback");
     auditLog(db, { action: "reset_rollback", module: "operational_reset", table_name: "system", user_id: userId, new_value: JSON.stringify(result) });
     return result;
   }));

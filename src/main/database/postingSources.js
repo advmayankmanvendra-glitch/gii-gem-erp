@@ -39,6 +39,17 @@ export const POSTING_SOURCES = Object.freeze({
 
 // Guided voucher kinds whose lines a person chooses freely, like a manual journal.
 export const HAND_KEYED_GUIDED_KINDS = Object.freeze(["journal", "journal_voucher", "contra", "contra_voucher"]);
+// Guided voucher kinds whose lines the app builds from a document-style form. Every kind
+// the posting code handles must be in exactly one of these two lists;
+// scripts/verify-audit-watch.js fails otherwise, so a new kind gets a decision.
+export const DOCUMENT_STYLE_GUIDED_KINDS = Object.freeze([
+  "receipt", "receipt_voucher", "customer_receipt", "advance_receipt",
+  "supplier_payment", "payment", "payment_voucher",
+  "sales", "sales_voucher", "purchase", "purchase_voucher",
+  "expense", "expense_voucher", "commission", "commission_voucher",
+  "employee_incentive", "employee_incentive_voucher",
+  "credit_note", "debit_note"
+]);
 
 export const sourcesOfClass = (sourceClass) => Object.keys(POSTING_SOURCES).filter((source) => POSTING_SOURCES[source] === sourceClass);
 

@@ -144,7 +144,7 @@
       "validationMethod": "verify:audit --phase=brain-1",
       "regenerationTrigger": "Architecture audit phase",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
-      "schemaVersion": "1.1.0",
+      "schemaVersion": "1.0.0",
       "futureGraph": "N/A"
     },
     {
@@ -307,7 +307,7 @@
       "validationMethod": "npm run verify:audit-graph && npm run verify:audit-watch",
       "regenerationTrigger": "When audit actions, audit tables, or audit modules change in src/main; rerun the Audit Watch builder when src/main/services/auditWatch/catalogue.js changes",
       "documentation": "docs/architecture/enterprise-intelligence-layer.md",
-      "schemaVersion": "1.0.0",
+      "schemaVersion": "1.1.0",
       "futureGraph": "N/A"
     },
     {

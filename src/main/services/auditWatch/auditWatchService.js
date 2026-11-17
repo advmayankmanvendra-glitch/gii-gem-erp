@@ -14,6 +14,7 @@
 // Who may run which area is decided here from the caller's role (AREA_VISIBILITY),
 // never from what the screen asks for.
 
+import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 import { AREAS, AUDIT_WATCH_VERSION, CHECKS, areasForRole } from "./catalogue.js";
 import { CHECK_FUNCTIONS, addDays } from "./checks.js";
@@ -22,6 +23,25 @@ import { localBusinessDate } from "../../domain/businessDate.js";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_FINDINGS_PER_CHECK = 500;
 const MAX_RANGE_DAYS = 3 * 366;
+const MAX_REFS_PER_FINDING = 50;
+const MAX_EVIDENCE_PER_FINDING = 20;
+const MAX_FINGERPRINT_LENGTH = 64;
+
+// Keeps every finding a bounded size: at most 50 record links (refCount gives the full
+// number) and 20 evidence rows, and a long fingerprint is replaced by its SHA-256, so
+// it still changes when what it describes changes.
+export function boundFinding(finding) {
+  const refs = Array.isArray(finding.refs) ? finding.refs : [];
+  const evidence = Array.isArray(finding.evidence) ? finding.evidence : [];
+  const fingerprint = String(finding.fingerprint ?? `${finding.amountMinor || 0}|${finding.date || ""}`);
+  return {
+    ...finding,
+    fingerprint: fingerprint.length > MAX_FINGERPRINT_LENGTH ? `sha256:${createHash("sha256").update(fingerprint).digest("hex")}` : fingerprint,
+    refs: refs.slice(0, MAX_REFS_PER_FINDING),
+    refCount: refs.length,
+    evidence: evidence.slice(0, MAX_EVIDENCE_PER_FINDING)
+  };
+}
 
 function validDate(value) {
   return DATE.test(String(value || "")) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
@@ -116,7 +136,7 @@ export function createAuditWatchService({ stockBalance, bookIntegrityChecks, ver
       const checkStarted = Date.now();
       try {
         const all = CHECK_FUNCTIONS[check.id](q, { companyId, from, to, today, now, limits, deps })
-          .map((finding) => ({ ...finding, fingerprint: finding.fingerprint ?? `${finding.amountMinor || 0}|${finding.date || ""}` }));
+          .map(boundFinding);
         all.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(a.key).localeCompare(String(b.key)));
         return {
           ...base,

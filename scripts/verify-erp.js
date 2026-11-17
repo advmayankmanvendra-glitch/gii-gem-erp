@@ -61,7 +61,10 @@ const PIPELINE = [
   { name: "verify:dashboard-wiring", cmd: `${NPM} run verify:dashboard-wiring`, continueOn: [0, 1] },
   { name: "verify:knowledge",  cmd: `${NPM} run verify:knowledge`,   continueOn: [0, 1] },
   { name: "verify:audit",      cmd: `${NPM} run verify:audit`,       continueOn: [0, 1] },
-  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch`, continueOn: [0, 1] },
+  // Audit Watch's verifier and contract tests block: any failure is a FAIL, not a warning,
+  // so the catalogue, AG-1, the manual and the checks cannot drift apart unseen.
+  { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch`, continueOn: [0], strict: true },
+  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch`,  continueOn: [0], strict: true },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },
@@ -149,6 +152,8 @@ function main() {
         result.stderr = [result.stderr, validation.detail].filter(Boolean).join("\n");
       }
     }
+    // A strict step has no warning state: any non-zero exit stops the pipeline.
+    if (step.strict && result.exitCode !== EXIT.PASS && result.exitCode < EXIT.FAIL) result.exitCode = EXIT.FAIL;
     const label = EXIT_LABEL[result.exitCode] || `UNKNOWN(${result.exitCode})`;
     const durationSec = (result.duration / 1000).toFixed(1);
 

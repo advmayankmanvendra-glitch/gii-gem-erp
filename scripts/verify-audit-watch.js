@@ -11,7 +11,11 @@
 //   6. posting code uses a source_module the posting-source registry does not classify,
 //      or a ledger group / guided-voucher kind the checks name no longer exists (a new
 //      posting path must never make a check go quiet unseen);
-//   7. a check waiting for the ACC programme could already run (its tables exist).
+//   7. a check waiting for the ACC programme could already run (its tables or code
+//      markers exist), or something a check says it does not cover yet has arrived;
+//   8. a guided voucher kind is not classified as hand-keyed or document-style;
+//   9. the graph registry's schema version for AG-1 or KG-5 differs from the schema file;
+//  10. main-process code calls runAuditWatch directly instead of through the runner.
 // The tables and columns each check actually reads are traced by the test suite
 // (scripts/audit/audit-watch.test.mjs, last test) and compared with `reads` there.
 // A table missing from DG-1 is reported as a warning (DG-1 is curated separately).
@@ -110,8 +114,10 @@ check("KG-5 section index matches the guide's headings", isDeepStrictEqual(index
 const { initializeDatabase } = await load("src/main/database/init.js");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gii-audit-watch-verify-"));
 let db;
+const liveTables = new Set();
 try {
   db = initializeDatabase(tmp);
+  db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().forEach((row) => liveTables.add(row.name));
   const columnsOf = new Map();
   const columns = (table) => {
     if (!columnsOf.has(table)) columnsOf.set(table, new Set(db.prepare(`PRAGMA table_info(${JSON.stringify(table)})`).all().map((row) => row.name)));
@@ -131,10 +137,11 @@ try {
   CHECKS.filter((item) => item.readiness !== "now").forEach((item) => {
     const waits = item.waitsFor || {};
     const missingTables = (waits.tables || []).filter((table) => !columns(table).size);
-    const markerAbsent = waits.codeMarker ? !mainCode().includes(waits.codeMarker) : true;
-    const named = (waits.tables?.length || 0) + (waits.codeMarker ? 1 : 0);
-    check(`${item.id} names what it waits for, and it has not arrived`, named > 0 && (waits.tables?.length ? missingTables.length > 0 : true) && markerAbsent,
-      !named ? "add waitsFor to the catalogue entry" : `${missingTables.length ? `missing: ${missingTables.join(", ")}` : ""}${waits.codeMarker ? ` marker "${waits.codeMarker}" ${markerAbsent ? "not in src/main" : "now in src/main: implement the check"}` : ""}`.trim());
+    const markers = waits.codeMarkers || [];
+    const arrivedMarkers = markers.filter((marker) => mainCode().toLowerCase().includes(marker.toLowerCase()));
+    const named = (waits.tables?.length || 0) + markers.length;
+    check(`${item.id} names what it waits for, and it has not arrived`, named > 0 && (waits.tables?.length ? missingTables.length > 0 : true) && arrivedMarkers.length === 0,
+      !named ? "add waitsFor to the catalogue entry" : `${missingTables.length ? `missing: ${missingTables.join(", ")}` : ""}${markers.length ? ` markers ${arrivedMarkers.length ? `now in src/main (${arrivedMarkers.join(", ")}): implement the check` : "not in src/main"}` : ""}`.trim());
   });
 } finally {
   db?.close();
@@ -156,24 +163,67 @@ const untested = runnable.filter((item) => !new RegExp(`test\\("${item.id} `).te
 check("Every runnable check has a planted-exception test", untested.length === 0, untested.map((item) => item.id).join(", "));
 
 // ---- 3c. Posting sources, ledger groups and guided kinds the checks rely on ----
-const { POSTING_SOURCES, SOURCE_CLASSES, HAND_KEYED_GUIDED_KINDS } = await load("src/main/database/postingSources.js");
+const { POSTING_SOURCES, SOURCE_CLASSES, HAND_KEYED_GUIDED_KINDS, DOCUMENT_STYLE_GUIDED_KINDS } = await load("src/main/database/postingSources.js");
 check("Every posting source has a known class", Object.values(POSTING_SOURCES).every((value) => SOURCE_CLASSES.includes(value)), `${Object.keys(POSTING_SOURCES).length} sources`);
 const sourceFiles = listSourceFiles("src/main");
+const initText = Object.assign(() => (initText.text ??= read("src/main/database/init.js")), { text: undefined });
 const usedSources = new Set();
 for (const rel of sourceFiles) {
   for (const match of read(rel).matchAll(/source_?[mM]odule(?:\s*[:=]|\s+IN\s*\(?)\s*["']([a-z_]+)["']/g)) usedSources.add(match[1]);
 }
+// Source names held in exported constants (for example ROUNDING_ADJUSTMENT_SOURCE in
+// ledgerGuards.js) count as used too, so a new constant cannot slip past the scan.
+for (const rel of sourceFiles) {
+  for (const match of read(rel).matchAll(/export const [A-Z_]*SOURCE[A-Z_]*\s*=\s*["']([a-z_]+)["']/g)) usedSources.add(match[1]);
+}
 const unclassified = [...usedSources].filter((source) => !(source in POSTING_SOURCES));
 check("Posting code uses only classified source modules", unclassified.length === 0, unclassified.length ? `classify in src/main/database/postingSources.js: ${unclassified.join(", ")}` : `${usedSources.size} used`);
+// A check that names what it does not cover yet (a posting source or table whose name
+// matches) fails here once that arrives.
+const allSourceNames = new Set([...usedSources, ...Object.keys(POSTING_SOURCES)]);
+for (const item of CHECKS.filter((entry) => entry.uncovered)) {
+  const pattern = new RegExp(item.uncovered.namePattern, "i");
+  const arrived = [...[...allSourceNames].filter((name) => pattern.test(name)), ...[...liveTables].filter((name) => pattern.test(name))];
+  check(`${item.id}: nothing it does not cover has arrived`, arrived.length === 0,
+    arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it, then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
+}
+// The graph registry gives the same schema version as the schema files of the graphs
+// Audit Watch writes to (AI tools read the registry first).
+const graphRegistry = JSON.parse(read("repository/graph-registry.json"));
+const registryDrift = (graphRegistry.graphs || []).filter((entry) => ["AG-1", "KG-5"].includes(entry.graphId))
+  .filter((entry) => JSON.parse(read(entry.schema)).schemaVersion !== entry.schemaVersion)
+  .map((entry) => `${entry.graphId}: registry ${entry.schemaVersion}, schema ${JSON.parse(read(entry.schema)).schemaVersion}`);
+check("Graph registry schema versions match the AG-1 and KG-5 schema files", registryDrift.length === 0, registryDrift.join("; "));
+
+// One way in: main-process code runs Audit Watch through the runner (worker thread),
+// never by calling runAuditWatch directly, so a later caller cannot block the app.
+const allowedCallers = new Set(["src/main/main.js", "src/main/database/init.js", "src/main/services/auditWatch/auditWatchWorker.js", "src/main/services/auditWatch/auditWatchService.js"]);
+const directCallers = sourceFiles.filter((rel) => !allowedCallers.has(rel) && /\brunAuditWatch\b/.test(read(rel)));
+const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\(/g)].length;
+check("Only the runner calls runAuditWatch in the main process", directCallers.length === 0 && mainCalls === 1,
+  directCallers.length ? `use the runner in: ${directCallers.join(", ")}` : `main.js calls it ${mainCalls} time(s), as the runner's in-process fallback`);
 const registryText = read("src/main/database/accountMappingRegistry.js");
 const knownGroups = new Set([...registryText.matchAll(/^\s*\["([A-Z_]+)", "[^"]+", (?:"[A-Z_]+"|null)/gm)].map((match) => match[1]));
 const checksModule = await load("src/main/services/auditWatch/checks.js");
 const namedGroups = [...checksModule.SENSITIVE_GROUPS, ...checksModule.CLEARING_GROUPS, ...checksModule.CASH_GROUPS];
 const unknownGroups = namedGroups.filter((code) => !knownGroups.has(code));
 check("Ledger groups named by the checks exist in the account-group registry", unknownGroups.length === 0, unknownGroups.length ? unknownGroups.join(", ") : `${new Set(namedGroups).size} groups`);
-const initText = read("src/main/database/init.js");
-const missingKinds = HAND_KEYED_GUIDED_KINDS.filter((kind) => !initText.includes(`"${kind}"`));
-check("Hand-keyed guided voucher kinds still exist", missingKinds.length === 0, missingKinds.join(", "));
+// Every guided voucher kind the posting code handles must be classified as hand-keyed
+// (a free journal, looked at by G01 and G03) or document-style; a new kind (for example
+// a document credit note from the ACC programme) fails here until someone decides which
+// checks should cover it.
+const codeKinds = new Set();
+for (const match of initText().matchAll(/\[((?:\s*"[a-z_]+"\s*,?)+)\]\.includes\(kind\)/g)) {
+  for (const kind of match[1].matchAll(/"([a-z_]+)"/g)) codeKinds.add(kind[1]);
+}
+for (const match of initText().matchAll(/\bkind === "([a-z_]+)"/g)) codeKinds.add(match[1]);
+const classifiedKinds = new Set([...HAND_KEYED_GUIDED_KINDS, ...DOCUMENT_STYLE_GUIDED_KINDS]);
+const unclassifiedKinds = [...codeKinds].filter((kind) => !classifiedKinds.has(kind));
+const goneKinds = [...classifiedKinds].filter((kind) => !codeKinds.has(kind));
+check("Every guided voucher kind is classified as hand-keyed or document-style", codeKinds.size > 0 && unclassifiedKinds.length === 0 && goneKinds.length === 0,
+  unclassifiedKinds.length ? `classify in src/main/database/postingSources.js: ${unclassifiedKinds.join(", ")}` : goneKinds.length ? `no longer in init.js: ${goneKinds.join(", ")}` : `${codeKinds.size} kinds`);
+const overlap = HAND_KEYED_GUIDED_KINDS.filter((kind) => DOCUMENT_STYLE_GUIDED_KINDS.includes(kind));
+check("No guided kind is both hand-keyed and document-style", overlap.length === 0, overlap.join(", "));
 
 // ---- 4. Visibility roles follow the app's roles ----
 const roleMatch = read("src/main/services/authService.js").match(/const ROLE_HIERARCHY = \[([^\]]+)\]/);

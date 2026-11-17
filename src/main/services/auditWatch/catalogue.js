@@ -13,6 +13,8 @@
 //              audit trail, shared by every company on the computer);
 //   helpers  : shared read functions the check calls besides its own queries;
 //   coverage : for checks that depend on how entries are keyed, what they look at;
+//   uncovered: names of posting sources or tables the check does not look at yet; the
+//              verifier fails once one of them exists, so the gap cannot go quiet;
 //   waitsFor : for a check waiting on ACC, what will show it can run (a table, or a
 //              name in the code); the verifier fails once it appears.
 // The test suite traces the SQL each check actually runs and fails when `reads`
@@ -75,7 +77,7 @@ export const CHECKS = [
       suppliers: ["supplier_name"]
     },
     limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
-    meaning: "Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.",
+    meaning: "Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or two bills of the same amount within a few days of each other (each such pair is shown once). Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.",
     nextStep: "Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice."
   },
   {
@@ -91,7 +93,7 @@ export const CHECKS = [
       suppliers: ["supplier_name"]
     },
     limits: { windowDays: days(7, "Same amount counts as a repeat within this many days") },
-    meaning: "Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days. Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.",
+    meaning: "Two supplier payments carry the same UTR, or the same supplier was paid the same amount twice within a few days (each such pair is shown once). Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.",
     nextStep: "Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill."
   },
   {
@@ -108,7 +110,7 @@ export const CHECKS = [
       suppliers: ["supplier_name"]
     },
     limits: { windowDays: days(15, "Flag payments made within this many days of the change") },
-    meaning: "A supplier's bank account number, IFSC, bank name or UPI id was changed and the supplier was paid soon after. A changed account is the usual route for misdirected payments.",
+    meaning: "A supplier's bank account number, IFSC, bank name or UPI id was changed and the supplier was paid soon after. A changed account is the usual route for misdirected payments. Changes made in bulk through Master Data Tools are not linked to later payments yet; Sensitive master change (AW-T04) lists those batches.",
     nextStep: "Confirm the new account with the supplier by phone on a number already on file, not one from the change request."
   },
   {
@@ -256,6 +258,11 @@ export const CHECKS = [
     version: 1,
     scope: "company",
     coverage: ["guided credit notes"],
+    // Credit notes from anywhere else (for example document credit notes from the ACC
+    // programme) are not looked at yet. scripts/verify-audit-watch.js fails once any
+    // posting source or table whose name says credit note or sales return appears, so
+    // this check cannot report "Clear" over entries it never sees.
+    uncovered: { namePattern: "credit_?notes?|sales_?returns?" },
     reads: {
       guided_vouchers: ["company_id", "id", "is_deleted", "payload_json", "status", "voucher_date", "voucher_kind"],
       invoices: ["company_id", "invoice_date", "invoice_number", "is_deleted"]
@@ -627,13 +634,13 @@ export const CHECKS = [
     scope: "company",
     reads: {
       ledger_entries: ["account_id", "credit_minor", "debit_minor", "entry_date", "is_deleted", "voucher_id"],
-      accounts: ["account_name", "company_id", "id", "opening_balance", "opening_balance_minor"],
+      accounts: ["account_name", "account_type", "company_id", "id", "opening_balance", "opening_balance_minor"],
       vouchers: ["is_deleted", "status"],
       account_group_assignments: ["account_group_id", "status"],
       account_groups: ["group_code"]
     },
     limits: {},
-    meaning: "On some day a cash-in-hand ledger (any ledger in the cash group other than a bank) shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
+    meaning: "On some day a cash-in-hand ledger shows more paid out than ever came in. Cash-in-hand means a ledger in the cash group other than a bank, or, for a ledger with no group, an asset ledger whose name says cash (such as Petty Cash). A balance that was already below zero when the period starts is shown too. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.",
     nextStep: "Find the cash receipt that should come before the payment and record it with its real date."
   },
   {
@@ -693,7 +700,7 @@ export const CHECKS = [
     reads: {
       guided_vouchers: ["approved_by", "company_id", "created_by", "id", "is_deleted", "status", "submitted_by", "voucher_date", "voucher_kind"],
       users: ["username"],
-      audit_log: ["action", "record_id", "table_name", "user_id"],
+      audit_log: ["action", "id", "record_id", "table_name", "user_id"],
       approval_queue: ["approval_status", "approved_at", "checker_id", "company_id", "created_at", "id", "is_deleted", "maker_id", "module_name", "record_id"]
     },
     limits: {},
@@ -737,8 +744,9 @@ export const CHECKS = [
     readiness: "after_acc",
     version: 1,
     scope: "company",
-    // ACC P-18 adds the single-user mode setting this check watches.
-    waitsFor: { codeMarker: "single_user_mode" },
+    // ACC P-18 adds the single-user mode and maker-checker settings this check watches.
+    // Any of these spellings appearing in src/main means they have arrived.
+    waitsFor: { codeMarkers: ["single_user_mode", "singleUserMode", "single-user mode", "maker_checker_enabled", "makerCheckerEnabled", "accounting_policy_settings", "company_policy_settings"] },
     reads: { audit_log: ["id", "action", "table_name", "created_at"] },
     limits: {},
     meaning: "A company-level accounting policy (such as maker-checker or single-user mode) was changed.",

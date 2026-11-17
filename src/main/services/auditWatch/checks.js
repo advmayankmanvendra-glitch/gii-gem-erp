@@ -86,21 +86,20 @@ function dateRuns(rows, windowDays, keep) {
   return runs;
 }
 
-// Splits rows (sorted by date) wherever two neighbours are more than `windowDays`
-// apart; each chain of two or more is a repeat. One pass, so it stays linear.
-function chains(rows, dateOf, windowDays) {
+// Neighbouring pairs (rows sorted by date) that lie within `windowDays` of each other.
+// A pair is named by its two ids, so it never changes with the period chosen or with
+// rows added elsewhere in the history. One pass, so it stays linear.
+function nearPairs(rows, dateOf, windowDays) {
   const out = [];
-  let current = [];
-  for (const row of rows) {
-    if (current.length && daysBetween(dateOf(current[current.length - 1]), dateOf(row)) > windowDays) {
-      if (current.length > 1) out.push(current);
-      current = [];
-    }
-    current.push(row);
+  for (let index = 1; index < rows.length; index += 1) {
+    if (daysBetween(dateOf(rows[index - 1]), dateOf(rows[index])) <= windowDays) out.push([rows[index - 1], rows[index]]);
   }
-  if (current.length > 1) out.push(current);
   return out;
 }
+
+// Runs over a whole history: the partition never depends on the period chosen, and the
+// runs that touch the period are kept.
+const runsTouching = (runs, from, to, dateOf) => runs.filter((run) => run.some((row) => dateOf(row) >= from && dateOf(row) <= to));
 
 const groupBy = (rows, keyOf) => rows.reduce((map, row) => {
   const key = keyOf(row);
@@ -120,8 +119,10 @@ const inGroups = (alias, groups, fallbackSql) => `(${groupOf(alias)} IN ${sqlLis
 const SENSITIVE_ACCOUNT_SQL = inGroups("a", SENSITIVE_GROUPS, "(a.account_name LIKE '%Suspense%' OR a.account_name LIKE '%GST%' OR a.account_name IN ('Cash', 'Bank', 'Capital'))");
 const CLEARING_ACCOUNT_SQL = inGroups("a", CLEARING_GROUPS, "(a.account_name LIKE '%Suspense%' OR a.account_name LIKE '%Clearing%')");
 // Cash in hand: the cash-and-equivalents group without the bank ledgers (a bank
-// overdraft is not cash below zero).
-const CASH_IN_HAND_SQL = `(${inGroups("a", CASH_GROUPS, "a.account_name LIKE 'Cash%'")} AND LOWER(a.account_name) NOT LIKE '%bank%')`;
+// overdraft is not cash below zero). A ledger with no group counts only when it is an
+// asset whose name says cash ("Petty Cash" yes, "Cash Discount Received" no). Bank
+// ledgers are told apart by name, because the banks table does not name its ledger.
+const CASH_IN_HAND_SQL = `(${inGroups("a", CASH_GROUPS, "(a.account_type = 'Asset' AND LOWER(a.account_name) LIKE '%cash%')")} AND LOWER(a.account_name) NOT LIKE '%bank%')`;
 
 // ---- Vouchers by posting source (postingSources.js).
 const POSTED = "v.status IN ('Posted', 'Reversed')";
@@ -193,17 +194,16 @@ export const CHECK_FUNCTIONS = {
       });
     }
     for (const group of groupBy(bills.filter((row) => row.amount_minor > 0), (row) => `${row.supplier_id}|${row.amount_minor}`).values()) {
-      for (const run of chains(group, (row) => row.purchase_date, limits.windowDays)) {
-        if (!run.some((row) => row.purchase_date >= from) || run.every((row) => sameNumber.has(row.id))) continue;
-        const last = run[run.length - 1];
+      for (const [first, second] of nearPairs(group, (row) => row.purchase_date, limits.windowDays)) {
+        if (second.purchase_date < from || (sameNumber.has(first.id) && sameNumber.has(second.id))) continue;
         findings.push({
-          key: `AW-P01:amount-${run[0].id}`,
-          fingerprint: ids(run),
-          summary: `${last.supplier_name || "Supplier"}: ${run.length} bills of ${rupeesText(last.amount_minor)} within ${daysBetween(run[0].purchase_date, last.purchase_date)} days`,
-          date: last.purchase_date,
-          amountMinor: last.amount_minor,
-          refs: run.map((row) => ({ table: "procurements", id: row.id })),
-          evidence: run.slice(0, MAX_GROUP_EVIDENCE)
+          key: `AW-P01:amount-${first.id}-${second.id}`,
+          fingerprint: `${first.amount_minor}|${first.purchase_date}|${second.purchase_date}`,
+          summary: `${second.supplier_name || "Supplier"}: two bills of ${rupeesText(second.amount_minor)} within ${daysBetween(first.purchase_date, second.purchase_date)} days`,
+          date: second.purchase_date,
+          amountMinor: second.amount_minor,
+          refs: [first, second].map((row) => ({ table: "procurements", id: row.id })),
+          evidence: [first, second]
         });
       }
     }
@@ -236,17 +236,16 @@ export const CHECK_FUNCTIONS = {
     }
     const recent = payments.filter((row) => row.amount_minor > 0 && row.payment_date >= addDays(from, -limits.windowDays));
     for (const group of groupBy(recent, (row) => `${row.supplier_id}|${row.amount_minor}`).values()) {
-      for (const run of chains(group, (row) => row.payment_date, limits.windowDays)) {
-        if (!run.some((row) => row.payment_date >= from) || run.every((row) => sameUtr.has(row.id))) continue;
-        const last = run[run.length - 1];
+      for (const [first, second] of nearPairs(group, (row) => row.payment_date, limits.windowDays)) {
+        if (second.payment_date < from || (sameUtr.has(first.id) && sameUtr.has(second.id))) continue;
         findings.push({
-          key: `AW-P02:amount-${run[0].id}`,
-          fingerprint: ids(run),
-          summary: `${last.supplier_name || "Supplier"} paid ${rupeesText(last.amount_minor)} ${run.length} times within ${daysBetween(run[0].payment_date, last.payment_date)} days`,
-          date: last.payment_date,
-          amountMinor: last.amount_minor,
-          refs: run.map((row) => ({ table: "supplier_payments", id: row.id })),
-          evidence: run.slice(0, MAX_GROUP_EVIDENCE)
+          key: `AW-P02:amount-${first.id}-${second.id}`,
+          fingerprint: `${first.amount_minor}|${first.payment_date}|${second.payment_date}`,
+          summary: `${second.supplier_name || "Supplier"} paid ${rupeesText(second.amount_minor)} twice within ${daysBetween(first.payment_date, second.payment_date)} days`,
+          date: second.payment_date,
+          amountMinor: second.amount_minor,
+          refs: [first, second].map((row) => ({ table: "supplier_payments", id: row.id })),
+          evidence: [first, second]
         });
       }
     }
@@ -286,17 +285,31 @@ export const CHECK_FUNCTIONS = {
   },
 
   "AW-P04"(q, { companyId, from, to, limits }) {
+    // Lines, payments and advances are added up once per bill and joined, so the work
+    // grows with the number of rows, not with bills times rows.
     const rows = q(`
-      WITH bills AS (
-        SELECT p.id, p.supplier_id, p.purchase_invoice_number, p.purchase_date,
-          COALESCE((SELECT SUM(${paise("pi.gross_value")}) FROM procurement_items pi WHERE pi.procurement_id = p.id AND ${live("pi")}),
-            ${paise("p.purchase_value")} + ${paise("p.purchase_gst")}) bill_minor,
-          COALESCE((SELECT SUM(${paise("spa.allocated_amount")}) FROM supplier_payment_allocations spa
-            WHERE spa.procurement_id = p.id AND ${live("spa")}), 0)
-          + COALESCE((SELECT SUM(${paise("aa.adjusted_amount")}) FROM advance_adjustments aa
-            WHERE aa.adjustment_type = 'supplier' AND aa.procurement_id = p.id AND ${live("aa")} AND aa.status = 'Active'), 0) paid_minor
+      WITH period AS (
+        SELECT p.id, p.supplier_id, p.purchase_invoice_number, p.purchase_date, ${paise("p.purchase_value")} + ${paise("p.purchase_gst")} header_minor
         FROM procurements p
         WHERE p.company_id = ? AND ${live("p")} AND ${notReversed("p")} AND p.purchase_date BETWEEN ? AND ?
+      ),
+      lines AS (
+        SELECT pi.procurement_id, SUM(${paise("pi.gross_value")}) minor FROM procurement_items pi JOIN period ON period.id = pi.procurement_id
+        WHERE ${live("pi")} GROUP BY pi.procurement_id
+      ),
+      allocated AS (
+        SELECT spa.procurement_id, SUM(${paise("spa.allocated_amount")}) minor FROM supplier_payment_allocations spa JOIN period ON period.id = spa.procurement_id
+        WHERE ${live("spa")} GROUP BY spa.procurement_id
+      ),
+      advanced AS (
+        SELECT aa.procurement_id, SUM(${paise("aa.adjusted_amount")}) minor FROM advance_adjustments aa JOIN period ON period.id = aa.procurement_id
+        WHERE aa.adjustment_type = 'supplier' AND ${live("aa")} AND aa.status = 'Active' GROUP BY aa.procurement_id
+      ),
+      bills AS (
+        SELECT period.id, period.supplier_id, period.purchase_invoice_number, period.purchase_date,
+          COALESCE(lines.minor, period.header_minor) bill_minor, COALESCE(allocated.minor, 0) + COALESCE(advanced.minor, 0) paid_minor
+        FROM period LEFT JOIN lines ON lines.procurement_id = period.id
+          LEFT JOIN allocated ON allocated.procurement_id = period.id LEFT JOIN advanced ON advanced.procurement_id = period.id
       )
       SELECT b.*, s.supplier_name FROM bills b LEFT JOIN suppliers s ON s.id = b.supplier_id
       WHERE b.paid_minor - b.bill_minor > ?
@@ -317,14 +330,16 @@ export const CHECK_FUNCTIONS = {
     const bills = q(`
       SELECT p.id, p.supplier_id, s.supplier_name, p.purchase_invoice_number, p.purchase_date date, ${paise("p.purchase_value")} amount_minor
       FROM procurements p LEFT JOIN suppliers s ON s.id = p.supplier_id
-      WHERE p.company_id = ? AND ${live("p")} AND ${notReversed("p")} AND p.purchase_date BETWEEN ? AND ?
+      WHERE p.company_id = ? AND ${live("p")} AND ${notReversed("p")} AND p.purchase_date <= ?
         AND ${paise("p.purchase_value")} >= ? AND ${paise("p.purchase_value")} < ?
       ORDER BY p.supplier_id, p.purchase_date, p.id
-    `, [companyId, from, to, nearMinor, limitMinor]);
+    `, [companyId, to, nearMinor, limitMinor]);
     const findings = [];
+    // Runs are found over the supplier's whole history (only bills just under the limit
+    // are read), so a run and its key do not depend on where the period starts.
     for (const rows of groupBy(bills, (row) => row.supplier_id).values()) {
-      const runs = dateRuns(rows, limits.windowDays, (run) => run.length >= limits.minimumBills
-        && run.reduce((sum, row) => sum + row.amount_minor, 0) > limitMinor);
+      const runs = runsTouching(dateRuns(rows, limits.windowDays, (run) => run.length >= limits.minimumBills
+        && run.reduce((sum, row) => sum + row.amount_minor, 0) > limitMinor), from, to, (row) => row.date);
       for (const run of runs) {
         const total = run.reduce((sum, row) => sum + row.amount_minor, 0);
         findings.push({
@@ -434,17 +449,26 @@ export const CHECK_FUNCTIONS = {
 
   // ------------------------------------------------------------ Sales
   "AW-S01"(q, { companyId, from, to, limits }) {
+    // The cost of each order line is worked out once, for the order lines billed in the
+    // period, and joined: linear in the rows, not lines times purchases.
     const rows = q(`
-      SELECT ii.id, ii.billing_id, inv.invoice_number, inv.invoice_date, ii.order_item_id, ii.quantity, ii.billing_rate,
-        oi.quoted_rate, oi.item_description,
-        (SELECT CASE WHEN SUM(pi.quantity) > 0 THEN
-            SUM(CASE WHEN pi.landed_cost > 0 THEN pi.landed_cost ELSE pi.quantity * pi.purchase_rate END) / SUM(pi.quantity) END
-          FROM procurement_items pi JOIN procurements pp ON pp.id = pi.procurement_id AND ${notReversed("pp")}
-          WHERE pi.order_item_id = ii.order_item_id AND ${live("pi")}) unit_cost
-      FROM invoice_items ii
-      JOIN invoices inv ON inv.id = ii.billing_id AND ${live("inv")} AND ${notReversed("inv")}
-      LEFT JOIN order_items oi ON oi.id = ii.order_item_id AND ${live("oi")}
-      WHERE ii.company_id = ? AND ${live("ii")} AND inv.invoice_date BETWEEN ? AND ? AND ii.billing_rate > 0
+      WITH billed AS (
+        SELECT ii.id, ii.billing_id, inv.invoice_number, inv.invoice_date, ii.order_item_id, ii.quantity, ii.billing_rate
+        FROM invoice_items ii
+        JOIN invoices inv ON inv.id = ii.billing_id AND ${live("inv")} AND ${notReversed("inv")}
+        WHERE ii.company_id = ? AND ${live("ii")} AND inv.invoice_date BETWEEN ? AND ? AND ii.billing_rate > 0
+      ),
+      costs AS (
+        SELECT pi.order_item_id, CASE WHEN SUM(pi.quantity) > 0 THEN
+            SUM(CASE WHEN pi.landed_cost > 0 THEN pi.landed_cost ELSE pi.quantity * pi.purchase_rate END) / SUM(pi.quantity) END unit_cost
+        FROM procurement_items pi JOIN procurements pp ON pp.id = pi.procurement_id AND ${notReversed("pp")}
+        WHERE ${live("pi")} AND pi.order_item_id IN (SELECT order_item_id FROM billed WHERE order_item_id IS NOT NULL)
+        GROUP BY pi.order_item_id
+      )
+      SELECT billed.*, oi.quoted_rate, oi.item_description, costs.unit_cost
+      FROM billed
+      LEFT JOIN order_items oi ON oi.id = billed.order_item_id AND ${live("oi")}
+      LEFT JOIN costs ON costs.order_item_id = billed.order_item_id
     `, [companyId, from, to]);
     const findings = [];
     for (const row of rows) {
@@ -737,14 +761,24 @@ export const CHECK_FUNCTIONS = {
         evidence: [row]
       });
     }
-    for (const itemRows of groupBy(rows, (row) => row.item_id).values()) {
-      for (const run of dateRuns(itemRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount)) {
+    // Repeats are found over each item's whole history, so a run and its key do not
+    // depend on where the period starts.
+    const history = q(`
+      SELECT sa.id, sa.item_id, i.item_name, sa.adjustment_date date, sa.quantity, ${paise("ABS(COALESCE(sa.quantity, 0) * COALESCE(sa.rate, 0))")} value_minor
+      FROM stock_adjustments sa LEFT JOIN items i ON i.id = sa.item_id
+      WHERE sa.company_id = ? AND ${live("sa")} AND ${notReversed("sa")} AND sa.adjustment_date <= ?
+        AND sa.item_id IN (SELECT DISTINCT p.item_id FROM stock_adjustments p WHERE p.company_id = ? AND ${live("p")} AND p.adjustment_date BETWEEN ? AND ?)
+      ORDER BY sa.item_id, sa.adjustment_date, sa.id
+    `, [companyId, to, companyId, from, to]);
+    const valueOf = new Map(rows.map((row) => [row.id, row.value_minor]));
+    for (const itemRows of groupBy(history, (row) => row.item_id).values()) {
+      for (const run of runsTouching(dateRuns(itemRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount), from, to, (row) => row.date)) {
         findings.push({
           key: `AW-I03:repeat-${run[0].id}`,
           fingerprint: ids(run),
           summary: `${run[0].item_name || "Item"} adjusted ${run.length} times between ${run[0].date} and ${run[run.length - 1].date}`,
           date: run[run.length - 1].date,
-          amountMinor: run.reduce((sum, row) => sum + row.value_minor, 0),
+          amountMinor: run.reduce((sum, row) => sum + (valueOf.get(row.id) ?? row.value_minor), 0),
           refs: run.map((row) => ({ table: "stock_adjustments", id: row.id })),
           evidence: run
         });
@@ -1002,6 +1036,15 @@ export const CHECK_FUNCTIONS = {
       WHERE v.company_id = ? AND ${live("v")} AND v.status = 'Reversed' AND v.reversal_date BETWEEN ? AND ?
       ORDER BY v.reversed_by, v.reversal_date, v.id
     `, [companyId, from, to]);
+    // Reversal runs are found over each user's whole history of reversals, so a run and
+    // its key do not depend on where the period starts.
+    const history = q(`
+      SELECT v.id, v.voucher_number, v.voucher_type, v.voucher_date, v.reversal_date date, v.reversed_by, u.username reversed_by_name
+      FROM vouchers v LEFT JOIN users u ON u.id = v.reversed_by
+      WHERE v.company_id = ? AND ${live("v")} AND v.status = 'Reversed' AND v.reversal_date <= ? AND v.reversed_by IS NOT NULL
+        AND v.reversed_by IN (SELECT DISTINCT r.reversed_by FROM vouchers r WHERE r.company_id = ? AND ${live("r")} AND r.status = 'Reversed' AND r.reversal_date BETWEEN ? AND ?)
+      ORDER BY v.reversed_by, v.reversal_date, v.id
+    `, [companyId, to, companyId, from, to]);
     const findings = [];
     for (const row of rows) {
       if (daysBetween(row.voucher_date, row.date) <= limits.oldDays) continue;
@@ -1014,8 +1057,8 @@ export const CHECK_FUNCTIONS = {
         evidence: [row]
       });
     }
-    for (const userRows of groupBy(rows.filter((row) => row.reversed_by), (row) => row.reversed_by).values()) {
-      for (const run of dateRuns(userRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount)) {
+    for (const userRows of groupBy(history, (row) => row.reversed_by).values()) {
+      for (const run of runsTouching(dateRuns(userRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount), from, to, (row) => row.date)) {
         findings.push({
           key: `AW-G06:user-${run[0].reversed_by}-${run[0].id}`,
           fingerprint: ids(run),
@@ -1083,7 +1126,7 @@ export const CHECK_FUNCTIONS = {
       const worst = [...spread].sort((a, b) => (b.observed_percent - b.expected_percent) - (a.observed_percent - a.expected_percent))[0];
       findings.push({
         key: `AW-G08:${lines[0].account_id}`,
-        fingerprint: `${from}|${to}|${worst.digit}`,
+        fingerprint: `${worst.digit}|${Math.round(mad * 100)}`,
         summary: `${lines[0].account_name}: amounts starting with ${worst.digit} are ${worst.observed_percent}% of ${lines.length} entries (about ${worst.expected_percent}% expected)`,
         date: to,
         amountMinor: 0,
@@ -1109,21 +1152,36 @@ export const CHECK_FUNCTIONS = {
     const findings = [];
     for (const accountDays of groupBy(days, (row) => row.account_id).values()) {
       let balance = Number(accountDays[0].opening_minor || 0);
-      let negative = false;
+      // fellOn: the day the balance went below zero; the key names that day, so a
+      // stretch below zero keeps one key whatever period is chosen.
+      let fellOn = balance < 0 ? "opening" : null;
+      let lowest = balance;
+      let reported = false;
+      const report = (date, movement) => {
+        reported = true;
+        const since = fellOn === "opening" ? "the opening balance" : fellOn;
+        findings.push({
+          key: `AW-G09:${accountDays[0].account_id}-${fellOn}`,
+          summary: fellOn === date
+            ? `${accountDays[0].account_name} fell to ${rupeesText(balance)} on ${date}`
+            : `${accountDays[0].account_name} was ${rupeesText(balance)} on ${date}, below zero since ${since}`,
+          date,
+          amountMinor: -lowest,
+          refs: [{ table: "accounts", id: accountDays[0].account_id }],
+          evidence: [{ account: accountDays[0].account_name, below_zero_since: since, entry_date: date, day_movement_minor: movement, closing_balance_minor: balance }]
+        });
+      };
       for (const day of accountDays) {
+        // Already below zero when the period starts: report it at the period's first day.
+        if (fellOn && !reported && day.entry_date > from && balance < 0) report(from, 0);
         balance += Number(day.net_minor);
-        if (balance < 0 && !negative && day.entry_date >= from) {
-          findings.push({
-            key: `AW-G09:${day.account_id}-${day.entry_date}`,
-            summary: `${day.account_name} fell to ${rupeesText(balance)} on ${day.entry_date}`,
-            date: day.entry_date,
-            amountMinor: -balance,
-            refs: [{ table: "accounts", id: day.account_id }],
-            evidence: [{ account: day.account_name, entry_date: day.entry_date, day_movement_minor: day.net_minor, closing_balance_minor: balance }]
-          });
-        }
-        negative = balance < 0;
+        if (balance < 0 && !fellOn) { fellOn = day.entry_date; lowest = balance; reported = false; }
+        if (balance < 0) lowest = Math.min(lowest, balance);
+        if (balance < 0 && !reported && day.entry_date >= from) report(day.entry_date, day.net_minor);
+        if (balance >= 0) { fellOn = null; reported = false; lowest = 0; }
       }
+      // No movement in or after the period, and still below zero.
+      if (fellOn && !reported && balance < 0) report(from, 0);
     }
     return findings;
   },
@@ -1183,20 +1241,32 @@ export const CHECK_FUNCTIONS = {
     // The maker of a guided voucher is the user who keyed the draft: created_by when the
     // screen sent it, otherwise the user on the draft's audit row (always stamped from
     // the session). Approving a voucher you keyed or submitted yourself is flagged.
+    // The audit rows are read in one grouped pass and joined (the audit log has no index
+    // on record_id, so a lookup per voucher would scan it once per voucher).
     const guided = q(`
+      WITH drafts AS (
+        SELECT al.record_id, MIN(al.id) first_id FROM audit_log al
+        WHERE al.table_name = 'guided_vouchers' AND al.action = 'guided_voucher_draft_created' GROUP BY al.record_id
+      )
       SELECT gv.id, gv.voucher_kind, gv.voucher_date date, gv.status, gv.approved_by user_id, u.username, gv.submitted_by,
-        COALESCE(gv.created_by, (SELECT al.user_id FROM audit_log al WHERE al.table_name = 'guided_vouchers' AND al.record_id = gv.id
-          AND al.action = 'guided_voucher_draft_created' ORDER BY al.id LIMIT 1)) maker_id
+        COALESCE(gv.created_by, dal.user_id) maker_id
       FROM guided_vouchers gv LEFT JOIN users u ON u.id = gv.approved_by
+        LEFT JOIN drafts ON drafts.record_id = gv.id LEFT JOIN audit_log dal ON dal.id = drafts.first_id
       WHERE gv.company_id = ? AND ${live("gv")} AND gv.approved_by IS NOT NULL AND gv.voucher_date BETWEEN ? AND ?
     `, [companyId, from, to]).filter((row) => row.user_id === row.maker_id || row.user_id === row.submitted_by);
     // approval_queue.maker_id is filled only by submitForApproval; otherwise the maker is
     // the user on the record's own "create" audit row.
     const queue = q(`
+      WITH creates AS (
+        SELECT al.table_name, al.record_id, MIN(al.id) first_id FROM audit_log al
+        WHERE al.action = 'create' AND al.table_name IN (SELECT DISTINCT module_name FROM approval_queue)
+        GROUP BY al.table_name, al.record_id
+      )
       SELECT aq.id, aq.module_name, aq.record_id, date(COALESCE(aq.approved_at, aq.created_at), ${IST}) date, aq.approval_status status, aq.checker_id user_id, u.username,
-        COALESCE(aq.maker_id, (SELECT al.user_id FROM audit_log al WHERE al.table_name = aq.module_name AND al.record_id = aq.record_id
-          AND al.action = 'create' ORDER BY al.id LIMIT 1)) maker_id
+        COALESCE(aq.maker_id, cal.user_id) maker_id
       FROM approval_queue aq LEFT JOIN users u ON u.id = aq.checker_id
+        LEFT JOIN creates ON creates.table_name = aq.module_name AND creates.record_id = aq.record_id
+        LEFT JOIN audit_log cal ON cal.id = creates.first_id
       WHERE aq.company_id = ? AND ${live("aq")} AND aq.checker_id IS NOT NULL
         AND date(COALESCE(aq.approved_at, aq.created_at), ${IST}) BETWEEN ? AND ?
     `, [companyId, from, to]).filter((row) => row.user_id === row.maker_id);

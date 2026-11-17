@@ -172,7 +172,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
               </button>
             ))}
           </div>
-          <p className="muted">Period {report.from} to {report.to}, as of {report.today}. Ran {report.results.length} checks in {report.ms} ms.</p>
+          <p className="muted">Period {report.from} to {report.to}, as of {report.today}. Ran {report.results.length} checks in {report.ms} ms.{report.engine === "in-process" ? " This run used the app's main process because the background runner could not start, so the window may have paused while it ran." : ""}</p>
 
           <div className="audit-watch-checks">
             {visible.map((result) => (

@@ -33,7 +33,7 @@ Data entry operators and viewers do not see Audit Watch, because a finding may b
 
 Severity: high.
 
-**What it means.** Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or the same amount within a few days. Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.
+**What it means.** Two purchase bills from one supplier carry the same bill number in the same financial year (ignoring spaces, dashes, slashes, dots and case), or two bills of the same amount within a few days of each other (each such pair is shown once). Reversed bills do not count, and placeholders such as NA or 0 are not treated as bill numbers. The supplier could be paid twice for one supply.
 
 **What to do.** Open both bills and compare them with the supplier's bill copy. Delete the duplicate if it was keyed twice.
 
@@ -45,7 +45,7 @@ Severity: high.
 
 Severity: high.
 
-**What it means.** Two supplier payments carry the same UTR, or the same supplier was paid the same amount within a few days. Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.
+**What it means.** Two supplier payments carry the same UTR, or the same supplier was paid the same amount twice within a few days (each such pair is shown once). Reversed payments do not count, and short placeholders such as NA or CASH are not treated as UTRs.
 
 **What to do.** Check the bank statement. If the money left twice, ask the supplier for a refund or adjust the next bill.
 
@@ -57,7 +57,7 @@ Severity: high.
 
 Severity: high.
 
-**What it means.** A supplier's bank account number, IFSC, bank name or UPI id was changed and the supplier was paid soon after. A changed account is the usual route for misdirected payments.
+**What it means.** A supplier's bank account number, IFSC, bank name or UPI id was changed and the supplier was paid soon after. A changed account is the usual route for misdirected payments. Changes made in bulk through Master Data Tools are not linked to later payments yet; Sensitive master change (AW-T04) lists those batches.
 
 **What to do.** Confirm the new account with the supplier by phone on a number already on file, not one from the change request.
 
@@ -409,7 +409,7 @@ Severity: low.
 
 Severity: high.
 
-**What it means.** On some day a cash-in-hand ledger (any ledger in the cash group other than a bank) shows more paid out than ever came in. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.
+**What it means.** On some day a cash-in-hand ledger shows more paid out than ever came in. Cash-in-hand means a ledger in the cash group other than a bank, or, for a ledger with no group, an asset ledger whose name says cash (such as Petty Cash). A balance that was already below zero when the period starts is shown too. Physical cash cannot go negative, so a receipt is missing or a payment is wrong.
 
 **What to do.** Find the cash receipt that should come before the payment and record it with its real date.
 

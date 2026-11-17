@@ -56,6 +56,7 @@
     "verify:audit-graph": "node scripts/verify-audit-graph.js",
     "verify:manual-graph": "node scripts/verify-manual-graph.js",
     "verify:audit-watch": "node scripts/verify-audit-watch.js",
+    "test:audit-watch": "node --test scripts/audit/audit-watch.test.mjs",
     "verify:workflow-enforcement": "node scripts/verify-workflow-enforcement-foundation.js",
     "verify:operational-stages": "electron --disable-gpu --disable-gpu-compositing --disable-gpu-sandbox --disable-accelerated-2d-canvas --in-process-gpu scripts/verify-operational-stage-crud.js",
     "verify:erp": "node scripts/verify-erp.js",

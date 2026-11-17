@@ -872,6 +872,92 @@ test("the runner uses a worker thread, falls back in-process, refuses overlap an
   await assert.rejects(slow.run(db.name, options), /stopped after/);
 });
 
+test("the runner holds its lock until a stopped worker has exited, and never re-runs a started worker in-process", async () => {
+  const { createAuditWatchRunner } = await load("src/main/services/auditWatch/auditWatchRunner.js");
+  const { db } = fresh();
+  const logged = [];
+  let inProcessRuns = 0;
+  const runInProcess = () => { inProcessRuns += 1; return { results: [] }; };
+  const workerUrl = (name) => new URL(`./lib/workers/${name}`, import.meta.url);
+  // A worker that started and then died gives an error; it is not run again on the main thread.
+  const crashing = createAuditWatchRunner({ runInProcess, workerUrl: workerUrl("startedThenCrash.mjs"), log: (line) => logged.push(line) });
+  await assert.rejects(crashing.run(db.name, {}), /stopped unexpectedly/);
+  assert.equal(inProcessRuns, 0);
+  assert.equal(logged.length, 0);
+  // Past the time limit the caller gets an answer at once, but the lock stays until the
+  // worker has really gone (a long SQLite step cannot be cut short).
+  const busy = createAuditWatchRunner({ runInProcess, workerUrl: workerUrl("startedThenBusy.mjs"), timeLimitMs: 50 });
+  await assert.rejects(busy.run(db.name, { busyMs: 600 }), /stopped after/);
+  assert.equal(busy.isRunning(), true);
+  await assert.rejects(busy.run(db.name, {}), /already running/);
+  const deadline = Date.now() + 5000;
+  while (busy.isRunning() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(busy.isRunning(), false);
+  // A worker that could not start at all is logged and falls back.
+  const missing = createAuditWatchRunner({ runInProcess, workerUrl: new URL("file:///nonexistent/audit-watch-worker.js"), log: (line) => logged.push(line) });
+  assert.equal((await missing.run(db.name, {})).engine, "in-process");
+  assert.equal(inProcessRuns, 1);
+  assert.match(logged[0], /could not start/);
+});
+
+// ------------------------------------------------------------ round-2 fixes
+
+test("AW-G09 treats an ungrouped asset ledger named cash as cash, not an income ledger that says cash", () => {
+  const { db, f } = fresh();
+  const petty = f.insert("accounts", { company_id: 1, account_code: "1005", account_name: "Petty Cash", account_type: "Asset", normal_balance: "Debit", opening_balance: 0, status: "active" });
+  const discount = f.insert("accounts", { company_id: 1, account_code: "4105", account_name: "Cash Discount Received", account_type: "Income", normal_balance: "Credit", opening_balance: 0, status: "active" });
+  f.voucher({ date: "2026-07-01", lines: [["Transport Expense", 300, 0], ["Petty Cash", 0, 300]] });
+  f.voucher({ date: "2026-07-02", lines: [["Trade Payables", 500, 0], ["Cash Discount Received", 0, 500]] });
+  const list = findings(m, db, "AW-G09");
+  flagged(list, ["accounts", petty]);
+  clean(list, ["accounts", discount]);
+});
+
+test("AW-G09 shows cash that was already below zero when the period starts, under one key", () => {
+  const { db, f } = fresh();
+  const cashId = f.accountId("Cash");
+  f.voucher({ date: "2026-05-10", lines: [["Transport Expense", 4000, 0], ["Cash", 0, 4000]] });
+  f.voucher({ date: "2026-08-10", lines: [["Transport Expense", 100, 0], ["Cash", 0, 100]] });
+  const fromStart = findings(m, db, "AW-G09", { from: "2026-04-01", to: "2026-12-31" }).filter((row) => names([row], ["accounts", cashId]));
+  const later = findings(m, db, "AW-G09", { from: "2026-07-01", to: "2026-12-31" }).filter((row) => names([row], ["accounts", cashId]));
+  const quiet = findings(m, db, "AW-G09", { from: "2026-09-01", to: "2026-12-31" }).filter((row) => names([row], ["accounts", cashId]));
+  assert.equal(fromStart.length, 1);
+  assert.equal(later.length, 1, "a stretch below zero that began before the period is still shown");
+  assert.equal(quiet.length, 1, "still below zero with no movement in the period");
+  assert.equal(later[0].key, fromStart[0].key);
+  assert.equal(quiet[0].key, fromStart[0].key);
+  assert.match(later[0].summary, /below zero since 2026-05-10/);
+});
+
+test("run-based and pair-based keys do not change with the period chosen (P01, P02, P05, I03)", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  ["2026-07-01", "2026-07-03", "2026-07-06"].forEach((date) => f.bill(s, { purchase_invoice_number: "NA", purchase_date: date, purchase_value: 90000, purchase_gst: 0 }));
+  ["2026-07-01", "2026-07-04"].forEach((date) => f.supplierPayment(s, { payment_date: date, amount_paid: 777, utr_number: null }));
+  const item = f.item();
+  ["2026-07-01", "2026-07-02", "2026-07-03"].forEach((date) => f.insert("stock_adjustments", { company_id: 1, item_id: item, warehouse_id: 1, adjustment_date: date, adjustment_type: "Decrease", quantity: 1, rate: 10, reason: "count" }));
+  const keysFor = (id, options) => findings(m, db, id, { limits: { "AW-P05": { minimumBills: 3 }, "AW-I03": { repeatCount: 3 } }, ...options }).map((row) => `${row.key}|${row.fingerprint}`).sort();
+  for (const id of ["AW-P01", "AW-P02", "AW-P05", "AW-I03"]) {
+    const wide = keysFor(id, { from: "2026-04-01", to: "2026-12-31" });
+    const narrow = keysFor(id, { from: "2026-07-03", to: "2026-07-31" });
+    assert.ok(wide.length > 0, `${id} found nothing`);
+    assert.ok(narrow.length > 0, `${id}: the run or pair touching the narrow period is still found`);
+    for (const key of narrow) assert.ok(wide.includes(key), `${id}: ${key} only appears in the narrow period`);
+  }
+});
+
+test("every finding stays bounded: at most 50 record links with the full count, and long fingerprints are hashed", async () => {
+  const { boundFinding } = await load("src/main/services/auditWatch/auditWatchService.js");
+  const refs = Array.from({ length: 120 }, (_, id) => ({ table: "procurements", id }));
+  const bounded = boundFinding({ key: "AW-X:1", refs, evidence: refs, fingerprint: "x".repeat(500) });
+  assert.equal(bounded.refs.length, 50);
+  assert.equal(bounded.refCount, 120);
+  assert.equal(bounded.evidence.length, 20);
+  assert.match(bounded.fingerprint, /^sha256:[0-9a-f]{64}$/);
+  assert.notEqual(boundFinding({ key: "AW-X:1", refs, fingerprint: "x".repeat(499) }).fingerprint, bounded.fingerprint);
+  assert.equal(boundFinding({ key: "AW-X:1", amountMinor: 5, date: "2026-07-01" }).fingerprint, "5|2026-07-01");
+});
+
 // ------------------------------------------------------------ catalogue contract (keep last)
 
 test("the catalogue declares every table and column the checks read, and no table they do not", () => {

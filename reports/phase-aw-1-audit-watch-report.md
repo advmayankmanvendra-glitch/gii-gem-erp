@@ -40,7 +40,7 @@
 
 ### Modified
 
-- `src/main/main.js`: two channels, `audit-watch:catalogue` and `audit-watch:run` (session-guarded, read-only)
+- `src/main/main.js`: two channels, `audit-watch:catalogue` and `audit-watch:run` (session-guarded, read-only); restore, reset and rollback wait while a run is in progress
 - `src/main/services/authService.js`: `audit_watch` permission for admin, accountant and manager
 - `src/preload/preload.cjs`: `getAuditWatchCatalogue`, `runAuditWatch`
 - `src/main/database/init.js`: exports `runAuditWatch`, `auditWatchCatalogue`
@@ -48,7 +48,7 @@
 - `src/renderer/config/navigation.js`: Reports > Internal Audit > Audit Watch
 - `src/renderer/knowledge/modules/reports.js`: help metadata KNG-RPT-026
 - AG-1 graph and schema (1.1.0, detectiveControls, KG-5 dependency), KG-5 graph and builder, graph registry, manual index
-- `scripts/verify-audit-graph.js` (accepts schema 1.1.0), `scripts/verify-erp.js` (adds verify:audit-watch), `package.json`
+- `scripts/verify-audit-graph.js` (accepts schema 1.1.0), `scripts/verify-erp.js` (adds verify:audit-watch and test:audit-watch as blocking steps), `package.json`
 
 ## IPC, Route and Database Impact
 
@@ -67,11 +67,11 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 |---|---|
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
-| `node scripts/verify-audit-watch.js` | 31 passed, 0 failed |
-| `node --test scripts/audit/audit-watch.test.mjs` | 59 of 59 pass |
+| `node scripts/verify-audit-watch.js` | 35 passed, 0 failed |
+| `node --test scripts/audit/audit-watch.test.mjs` | 64 of 64 pass |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
-| `npm run test:integrity` | See the PR description for the run at head |
+| `npm run test:integrity` | 286 of 286 pass, then IPC 57 of 57 |
 
 Two verifiers already fail on `main` and are not touched here: `verify-alphabetical-option-order` and `verify-financial-report-structure`.
 
@@ -81,7 +81,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture). The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture) and again at e9dd130. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md` and `audit-e9dd130-response.md`).
 
 ## Production Readiness
 
@@ -94,7 +94,8 @@ Three audits ran at 3a80616 (correctness, security, architecture). The findings 
 - The app does not yet record role changes, so AW-T04's role branch stays quiet until it does.
 - Limits are the catalogue defaults; per-company limits and a review trail come in AW-2.
 - RG-1 is not regenerated in this phase, because rebuilding it churns heavily on `main` as well. The navigation entry and KNG-RPT-026 answer "where is Audit Watch?".
-- A packaged build that cannot start the worker falls back to running in the main process, still read-only. The run is then bounded by the linear checks, not by the time limit.
+- A packaged build that cannot start the worker falls back to running in the main process, still read-only. The run is then bounded by the linear checks, not by the time limit, and the screen says so. A worker that started and then failed is never re-run in the main process.
+- Bank ledgers are told apart from cash ledgers by name (AW-G09), because the banks table does not name its ledger.
 
 ## Lock Note
 
