@@ -104,12 +104,16 @@ function dateRuns(rows, windowDays, keep, valueOf = () => 0) {
 // A long run can reach back far before the period. Its finding names the period's own
 // rows first (refs and evidence are capped), and its amount and wording are about them;
 // the whole run is only counted.
+// The rows just before the period come next, newest first (they are the ones that make
+// a short in-period stretch qualify), then any after it.
 function periodView(run, from, to) {
   const inPeriod = run.filter((row) => row.date >= from && row.date <= to);
-  const others = run.filter((row) => row.date < from || row.date > to);
+  const before = run.filter((row) => row.date < from).reverse();
+  const after = run.filter((row) => row.date > to);
   const since = run[0].date;
-  return { inPeriod, ordered: [...inPeriod, ...others], since, partOf: others.length ? ` (part of a run of ${run.length} since ${since})` : "" };
+  return { inPeriod, ordered: [...inPeriod, ...before, ...after], since, partOf: before.length || after.length ? ` (part of a run of ${run.length} since ${since})` : "" };
 }
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 
 // Neighbouring pairs (rows sorted by date) that lie within `windowDays` of each other.
 // A pair is named by its two ids, so it never changes with the period chosen or with
@@ -150,7 +154,7 @@ const CLEARING_ACCOUNT_SQL = inGroups("a", CLEARING_GROUPS, "(a.account_name LIK
 const CASH_IN_HAND_SQL = `(${inGroups("a", CASH_GROUPS, "(a.account_type = 'Asset' AND LOWER(a.account_name) LIKE '%cash%')")} AND LOWER(a.account_name) NOT LIKE '%bank%')`;
 
 // AW-S02 reads exactly the guided kinds its catalogue entry says it covers.
-const S02_KINDS = sqlList(checkById("AW-S02").uncovered.coveredKinds);
+const S02_KINDS = sqlList(checkById("AW-S02").readsGuidedKinds);
 
 // ---- Vouchers by posting source (postingSources.js).
 const POSTED = "v.status IN ('Posted', 'Reversed')";
@@ -303,7 +307,14 @@ export const CHECK_FUNCTIONS = {
     for (const change of changes) {
       const fields = changedFields(change, SUPPLIER_BANK_FIELDS);
       const until = addDays(change.changed_on, limits.windowDays);
-      const payments = (paymentsBySupplier.get(Number(change.supplier_id)) || []).filter((row) => row.payment_date >= change.changed_on && row.payment_date <= until);
+      // The supplier's payments are sorted by date: find the first one on or after the
+      // change by binary search and stop at the end of the window.
+      const supplierPayments = paymentsBySupplier.get(Number(change.supplier_id)) || [];
+      let low = 0;
+      let high = supplierPayments.length;
+      while (low < high) { const mid = (low + high) >> 1; if (supplierPayments[mid].payment_date < change.changed_on) low = mid + 1; else high = mid; }
+      const payments = [];
+      for (let index = low; index < supplierPayments.length && supplierPayments[index].payment_date <= until; index += 1) payments.push(supplierPayments[index]);
       for (const payment of payments) {
         findings.push({
           key: `AW-P03:${change.audit_id}-${payment.id}`,
@@ -381,7 +392,7 @@ export const CHECK_FUNCTIONS = {
         findings.push({
           key: `AW-P05:${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].supplier_name || "Supplier"}: ${view.inPeriod.length} bills in this period just under ${rupeesText(limitMinor)} add up to ${rupeesText(total)}${view.partOf}`,
+          summary: `${run[0].supplier_name || "Supplier"}: ${plural(view.inPeriod.length, "bill", "bills")} in this period just under ${rupeesText(limitMinor)} ${view.inPeriod.length === 1 ? "comes to" : "add up to"} ${rupeesText(total)}${view.partOf}`,
           date: view.inPeriod[view.inPeriod.length - 1].date,
           amountMinor: total,
           refs: view.ordered.map((row) => ({ table: "procurements", id: row.id })),
@@ -834,7 +845,7 @@ export const CHECK_FUNCTIONS = {
         findings.push({
           key: `AW-I03:repeat-${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].item_name || "Item"} adjusted ${view.inPeriod.length} times in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
+          summary: `${run[0].item_name || "Item"} adjusted ${plural(view.inPeriod.length, "time", "times")} in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
           date: view.inPeriod[view.inPeriod.length - 1].date,
           amountMinor: view.inPeriod.reduce((sum, row) => sum + row.value_minor, 0),
           refs: view.ordered.map((row) => ({ table: "stock_adjustments", id: row.id })),
@@ -1121,7 +1132,7 @@ export const CHECK_FUNCTIONS = {
         findings.push({
           key: `AW-G06:user-${run[0].reversed_by}-${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].reversed_by_name || "One user"} reversed ${view.inPeriod.length} vouchers in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
+          summary: `${run[0].reversed_by_name || "One user"} reversed ${plural(view.inPeriod.length, "voucher", "vouchers")} in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
           date: view.inPeriod[view.inPeriod.length - 1].date,
           amountMinor: 0,
           refs: [{ table: "users", id: run[0].reversed_by }, ...view.ordered.map((row) => ({ table: "vouchers", id: row.id }))],
@@ -1255,9 +1266,9 @@ export const CHECK_FUNCTIONS = {
     const results = deps.bookIntegrityChecks(companyId) || [];
     return results.filter((row) => row.status === "fail" && !INTEGRITY_COVERED_ELSEWHERE.has(row.id)).map((row) => ({
       key: `AW-G10:${row.id || row.key || row.label}`,
-      // The numbers in the result, not its wording: rewording the message elsewhere
-      // must not make a reviewed finding look changed.
-      fingerprint: (String(row.detail || "").match(/-?\d[\d,]*(?:\.\d+)?/g) || []).map((part) => part.replaceAll(",", "")).join("|") || "fail",
+      // What failed, without the count of audit rows verified (that count grows with every
+      // audited action, so it would make a reviewed finding look changed every day).
+      fingerprint: String(row.detail || "fail").replace(/^\d+ chained row\(s\) verified;?\s*/, ""),
       summary: `${row.label || row.name || "Book check"} failed: ${row.detail || ""}`.trim(),
       date: null,
       amountMinor: 0,

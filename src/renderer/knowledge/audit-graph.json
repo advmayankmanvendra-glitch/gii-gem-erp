@@ -1029,11 +1029,11 @@
         "coverage": [
           "guided credit notes"
         ],
+        "readsGuidedKinds": [
+          "credit_note"
+        ],
         "uncovered": {
           "namePattern": "credit|return|refund",
-          "coveredKinds": [
-            "credit_note"
-          ],
           "notSalesCredit": {
             "credit_terms": "buyer and supplier credit periods, not a document",
             "stock_returns": "goods returned to stock; a buyer return posts Inventory against Cost of Goods Sold, never Sales or receivables (tested)",
@@ -1315,6 +1315,7 @@
               "item_id",
               "outward_quantity",
               "transaction_date",
+              "value_minor",
               "warehouse_id"
             ]
           },
@@ -1324,12 +1325,17 @@
               "default_warehouse_id",
               "id",
               "item_name",
-              "opening_stock"
+              "opening_rate",
+              "opening_stock",
+              "opening_value"
             ]
           },
           {
             "table": "warehouses",
             "columns": [
+              "company_id",
+              "id",
+              "status",
               "warehouse_name"
             ]
           }
@@ -1359,6 +1365,7 @@
               "item_id",
               "outward_quantity",
               "transaction_date",
+              "value_minor",
               "warehouse_id"
             ]
           },
@@ -1370,12 +1377,15 @@
               "id",
               "is_deleted",
               "item_name",
-              "opening_stock"
+              "opening_rate",
+              "opening_stock",
+              "opening_value"
             ]
           },
           {
             "table": "warehouses",
             "columns": [
+              "company_id",
               "id",
               "status",
               "warehouse_name"

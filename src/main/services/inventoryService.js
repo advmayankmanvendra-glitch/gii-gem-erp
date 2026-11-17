@@ -10,83 +10,29 @@ export function createInventoryService(deps) {
   // Items are shared by all companies, so item opening stock sits in ONE warehouse:
   // the item's default warehouse, or the first active warehouse of the database when
   // none is set. Only the company that owns that warehouse counts it.
-  // firstActive may be passed in when many items are looked at together.
-  function openingWarehouseId(db, companyId, item, firstActive) {
+  function openingWarehouseId(db, companyId, item) {
     const preferred = Number(item.default_warehouse_id || 0);
     if (preferred) return preferred;
-    if (firstActive !== undefined) return firstActive;
     return db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
   }
 
-  // The opening stock an item contributes to one warehouse, and the balance a warehouse
-  // holds from that opening plus its stock-ledger movement. Both stockBalance and
-  // stockBalances use these two functions, so the rules exist once.
-  //   holds: whether this company counts the item's opening stock in this warehouse
-  //          (the warehouse is the item's opening warehouse and belongs to the company,
-  //          or to no company).
-  function openingHeld(item, holds) {
-    const quantity = holds ? Number(item.opening_stock || 0) : 0;
-    const value = holds ? (Number(item.opening_value || 0) || quantity * Number(item.opening_rate || 0)) : 0;
-    return { quantity, value };
-  }
-  function balanceFrom(item, opening, movementQuantity, movementMinor) {
-    const quantity = opening.quantity + Number(movementQuantity || 0);
-    // Stock value is kept in whole paise so it always agrees with the Inventory ledger.
-    const valueMinor = Math.max(0, paise(opening.value) + Number(movementMinor || 0));
-    const value = rupees(valueMinor);
-    return { quantity, value, value_minor: valueMinor, rate: quantity > 0 ? value / quantity : Number(item.opening_rate || 0) };
-  }
-  const warehouseOfCompany = (warehouse, companyId) => Boolean(warehouse)
-    && (warehouse.company_id === null || Number(warehouse.company_id) === 0 || Number(warehouse.company_id) === Number(companyId));
-
   function stockBalance(db, companyId, itemId, warehouseId) {
     const item = db.prepare("SELECT opening_stock, opening_rate, opening_value, default_warehouse_id FROM items WHERE id = ?").get(itemId) || {};
-    const holds = Number(openingWarehouseId(db, companyId, item) || 0) === Number(warehouseId || 0)
+    const holdsOpening = Number(openingWarehouseId(db, companyId, item) || 0) === Number(warehouseId || 0)
       && Boolean(db.prepare("SELECT 1 FROM warehouses WHERE id = ? AND (company_id = ? OR company_id IS NULL OR company_id = 0)").get(warehouseId, companyId));
+    const openingQuantity = holdsOpening ? Number(item.opening_stock || 0) : 0;
+    const openingValue = holdsOpening ? (Number(item.opening_value || 0) || openingQuantity * Number(item.opening_rate || 0)) : 0;
+    // Stock value is kept in whole paise so it always agrees with the Inventory ledger.
     const movement = db.prepare(`
       SELECT COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
         COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
       FROM stock_ledger
       WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND COALESCE(is_deleted, 0) = 0
     `).get(companyId, itemId, warehouseId);
-    return balanceFrom(item, openingHeld(item, holds), movement?.quantity, movement?.value_minor);
-  }
-
-  // stockBalance for every item/warehouse pair of a company at once, by the same rules
-  // (openingHeld and balanceFrom), in grouped reads instead of one ledger scan per pair.
-  // Read-only callers that need every pair (Audit Watch) use this; posting code keeps
-  // using stockBalance. Returns { get(itemId, warehouseId), entries() }: get gives the
-  // same result as stockBalance for any pair, and entries() lists the pairs that hold
-  // opening stock or have stock-ledger movement.
-  function stockBalances(db, companyId) {
-    const firstActive = db.prepare("SELECT id FROM warehouses WHERE status = 'active' ORDER BY id LIMIT 1").get()?.id || null;
-    const warehouses = new Map(db.prepare("SELECT id, company_id FROM warehouses").all().map((row) => [Number(row.id), row]));
-    const items = new Map(db.prepare("SELECT id, opening_stock, opening_rate, opening_value, default_warehouse_id FROM items").all().map((row) => [Number(row.id), row]));
-    const openingWarehouse = (item) => openingWarehouseId(db, companyId, item, firstActive);
-    const movement = new Map(db.prepare(`
-      SELECT item_id, warehouse_id, COALESCE(SUM(inward_quantity - outward_quantity), 0) quantity,
-        COALESCE(SUM(CASE WHEN inward_quantity > 0 THEN value_minor ELSE -value_minor END), 0) value_minor
-      FROM stock_ledger WHERE company_id = ? AND COALESCE(is_deleted, 0) = 0
-      GROUP BY item_id, warehouse_id
-    `).all(companyId).map((row) => [`${row.item_id}|${row.warehouse_id}`, row]));
-    const get = (itemId, warehouseId) => {
-      const item = items.get(Number(itemId)) || {};
-      const holds = Number(openingWarehouse(item) || 0) === Number(warehouseId || 0) && warehouseOfCompany(warehouses.get(Number(warehouseId)), companyId);
-      const moved = movement.get(`${itemId}|${warehouseId}`);
-      return balanceFrom(item, openingHeld(item, holds), moved?.quantity, moved?.value_minor);
-    };
-    const pairs = new Set(movement.keys());
-    for (const item of items.values()) {
-      const warehouseId = openingWarehouse(item);
-      if (warehouseId && openingHeld(item, warehouseOfCompany(warehouses.get(Number(warehouseId)), companyId)).quantity) pairs.add(`${item.id}|${warehouseId}`);
-    }
-    return {
-      get,
-      entries: () => [...pairs].map((key) => {
-        const [itemId, warehouseId] = key.split("|").map(Number);
-        return { itemId, warehouseId, moved: movement.has(key), balance: get(itemId, warehouseId) };
-      })
-    };
+    const quantity = openingQuantity + Number(movement?.quantity || 0);
+    const valueMinor = Math.max(0, paise(openingValue) + Number(movement?.value_minor || 0));
+    const value = rupees(valueMinor);
+    return { quantity, value, value_minor: valueMinor, rate: quantity > 0 ? value / quantity : Number(item.opening_rate || 0) };
   }
 
   // Value of stock leaving a warehouse at weighted average cost, in rupees to the
@@ -1092,7 +1038,7 @@ export function createInventoryService(deps) {
   }
 
   return {
-    stockBalance, stockBalances, weightedAverageCost, outwardValue, insertStockLedger,
+    stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
     inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
     procurementRequirementReport,
     postStockInward, postStockOutward, postStockAdjustment,

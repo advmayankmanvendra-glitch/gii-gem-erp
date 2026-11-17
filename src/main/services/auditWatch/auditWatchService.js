@@ -18,6 +18,7 @@ import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 import { AREAS, AUDIT_WATCH_VERSION, CHECKS, areasForRole } from "./catalogue.js";
 import { CHECK_FUNCTIONS, addDays } from "./checks.js";
+import { stockBalances } from "./stockBalances.js";
 import { localBusinessDate } from "../../domain/businessDate.js";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -96,7 +97,7 @@ function readOnlyConnection(db) {
   return { connection, close: () => connection.close() };
 }
 
-export function createAuditWatchService({ stockBalance, stockBalances, bookIntegrityChecks, verifyAuditChain }) {
+export function createAuditWatchService({ stockBalance, bookIntegrityChecks, verifyAuditChain }) {
   function catalogueForRole(role) {
     const allowed = new Set(areasForRole(role));
     return {

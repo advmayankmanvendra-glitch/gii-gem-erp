@@ -555,6 +555,13 @@ test("AW-G10 reports a failed book check and is clear on sound books", () => {
   db.prepare("INSERT INTO audit_log (company_id, action, table_name, created_at, event_hash) VALUES (1, 'tamper', 'vouchers', '2026-07-01 00:00:00', 'not-a-real-hash')").run();
   const list = findings(m, db, "AW-G10");
   assert.ok(list.length >= 1, "a broken audit chain should be reported");
+  // Key and fingerprint stay the same across periods and as ordinary audited work
+  // goes on, so a reviewed finding does not look new or changed the next day.
+  const before = findings(m, db, "AW-G10", { from: "2026-04-01", to: "2026-06-30" });
+  for (let i = 0; i < 3; i += 1) m.auditLog(db, { company_id: 1, action: "update", table_name: "items", record_id: i + 1 });
+  const after = findings(m, db, "AW-G10", { from: "2026-07-01", to: "2027-03-31" });
+  assert.deepEqual(after.map((row) => [row.key, row.fingerprint]), before.map((row) => [row.key, row.fingerprint]));
+  assert.deepEqual(list.map((row) => row.key), before.map((row) => row.key));
 });
 
 // ------------------------------------------------------------ users and access
@@ -987,42 +994,62 @@ test("repeat checks leave out no row of a qualifying window (overlapping windows
   }
 });
 
-test("stockBalances gives the same balance as stockBalance for every item, warehouse and company", () => {
-  const { db, f } = fresh();
-  const second = f.insert("companies", { company_name: "Second Co" });
-  const shared = f.insert("warehouses", { warehouse_name: "Shared", status: "active", company_id: null });
-  const zero = f.insert("warehouses", { warehouse_name: "Zero", status: "active", company_id: 0 });
-  const theirs = f.insert("warehouses", { warehouse_name: "Theirs", status: "active", company_id: second });
-  const closed = f.insert("warehouses", { warehouse_name: "Closed", status: "inactive", company_id: 1 });
-  const items = [
-    f.item({ opening_stock: 5, opening_rate: 20 }),
-    f.item({ opening_stock: 3, opening_rate: 7, opening_value: 30, default_warehouse_id: shared }),
-    f.item({ opening_stock: 4, opening_rate: 9, default_warehouse_id: theirs }),
-    f.item({ opening_stock: 2, opening_rate: 11, default_warehouse_id: closed }),
-    f.item({ opening_stock: 6, opening_rate: 13, default_warehouse_id: zero, is_deleted: 1 }),
-    f.item({ opening_rate: 15 }),
-    f.item()
-  ];
-  f.stockMove(items[0], 1, "2026-07-01", 3);
-  f.stockMove(items[5], 1, "2026-07-02", 4);
-  f.stockMove(items[5], 1, "2026-07-03", -4);
-  f.stockMove(items[6], shared, "2026-07-03", 2);
-  const warehouses = db.prepare("SELECT id FROM warehouses").all().map((row) => row.id);
-  let compared = 0;
-  for (const company of [1, second]) {
-    const balances = m.stockBalances(db, company);
-    for (const item of items) {
-      for (const warehouse of warehouses) {
-        const single = m.stockBalance(db, company, item, warehouse);
-        const batch = balances.get(item, warehouse);
-        assert.deepEqual(batch, single, `company ${company}, item ${item}, warehouse ${warehouse}`);
-        compared += 1;
+test("stockBalances gives the same balance as stockBalance for every item, warehouse and company (random books)", async () => {
+  const { stockBalances } = await load("src/main/services/auditWatch/stockBalances.js");
+  for (let seed = 1; seed <= 6; seed += 1) {
+    const { db, f } = fresh();
+    let state = seed * 7919;
+    const rand = (n) => { state = (state * 1103515245 + 12345) % 2147483648; return state % n; };
+    const second = f.insert("companies", { company_name: `Second ${seed}` });
+    const warehouses = [1,
+      f.insert("warehouses", { warehouse_name: "Shared", status: "active", company_id: null }),
+      f.insert("warehouses", { warehouse_name: "Zero", status: "active", company_id: 0 }),
+      f.insert("warehouses", { warehouse_name: "Theirs", status: "active", company_id: second }),
+      f.insert("warehouses", { warehouse_name: "Closed", status: "inactive", company_id: 1 })];
+    const items = [];
+    for (let i = 0; i < 12; i += 1) {
+      const opening = rand(3) ? rand(20) : 0;
+      items.push(f.item({
+        opening_stock: opening, opening_rate: rand(4) ? rand(500) / 7 : 0, opening_value: rand(3) ? 0 : rand(9000) / 3,
+        default_warehouse_id: rand(3) ? warehouses[rand(warehouses.length)] : null, is_deleted: rand(8) ? 0 : 1
+      }));
+    }
+    for (let i = 0; i < 80; i += 1) {
+      const quantity = rand(15) + 1;
+      const inward = rand(3) > 0;
+      f.insert("stock_ledger", {
+        company_id: rand(4) ? 1 : second, item_id: items[rand(items.length)], warehouse_id: warehouses[rand(warehouses.length)],
+        transaction_date: shift("2026-04-01", rand(200)), transaction_type: inward ? "Inward" : "Outward", source_module: "audit_watch_fixture", source_id: i,
+        inward_quantity: inward ? quantity : 0, outward_quantity: inward ? 0 : quantity, rate: 10, value_minor: rand(90000), is_deleted: rand(10) ? 0 : 1
+      });
+    }
+    for (const company of [1, second]) {
+      const balances = stockBalances(db, company);
+      for (const item of [...items, 999999]) {
+        for (const warehouse of [...warehouses, 999999]) {
+          assert.deepEqual(balances.get(item, warehouse), m.stockBalance(db, company, item, warehouse), `seed ${seed}, company ${company}, item ${item}, warehouse ${warehouse}`);
+        }
+      }
+      for (const entry of balances.entries()) {
+        assert.deepEqual(entry.balance, m.stockBalance(db, company, entry.itemId, entry.warehouseId));
+        assert.ok(entry.moved || entry.balance.quantity !== 0);
       }
     }
-    // entries() lists exactly the pairs with movement or opening stock held.
-    for (const entry of balances.entries()) assert.deepEqual(entry.balance, m.stockBalance(db, company, entry.itemId, entry.warehouseId));
   }
-  assert.ok(compared >= 2 * items.length * 5);
+});
+
+test("stockBalance (used by stock posting) keeps its known results", () => {
+  const { db, f } = fresh();
+  const shared = f.insert("warehouses", { warehouse_name: "Shared", status: "active", company_id: null });
+  const withOpening = f.item({ opening_stock: 4, opening_rate: 25, default_warehouse_id: shared });
+  const valued = f.item({ opening_stock: 3, opening_rate: 10, opening_value: 45, default_warehouse_id: shared });
+  const empty = f.item({ opening_rate: 12 });
+  f.insert("stock_ledger", { company_id: 1, item_id: withOpening, warehouse_id: shared, transaction_date: "2026-07-01", transaction_type: "Outward", source_module: "audit_watch_fixture", source_id: 1, inward_quantity: 0, outward_quantity: 1, value_minor: 2500 });
+  assert.deepEqual(m.stockBalance(db, 1, withOpening, shared), { quantity: 3, value: 75, value_minor: 7500, rate: 25 });
+  assert.deepEqual(m.stockBalance(db, 1, valued, shared), { quantity: 3, value: 45, value_minor: 4500, rate: 15 });
+  // No stock: the rate is the item's opening rate, and value never goes below zero.
+  assert.deepEqual(m.stockBalance(db, 1, empty, shared), { quantity: 0, value: 0, value_minor: 0, rate: 12 });
+  assert.deepEqual(m.stockBalance(db, 1, withOpening, 1), { quantity: 0, value: 0, value_minor: 0, rate: 25 });
 });
 
 test("a worker that loaded but cannot open the books gives an error and is not re-run in the main process", async () => {

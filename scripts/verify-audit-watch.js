@@ -15,7 +15,10 @@
 //      markers exist), or something a check says it does not cover yet has arrived;
 //   8. a guided voucher kind is not classified as hand-keyed or document-style;
 //   9. the graph registry's schema version for AG-1 or KG-5 differs from the schema file;
-//  10. main-process code calls runAuditWatch directly instead of through the runner.
+//  10. main-process code calls runAuditWatch directly (or under another name) instead of
+//      through the runner;
+//  11. AG-1 does not validate against its schema file;
+//  12. verify:erp or the lock gate stops treating the Audit Watch steps as blocking.
 // The tables and columns each check actually reads are traced by the test suite
 // (scripts/audit/audit-watch.test.mjs, last test) and compared with `reads` there.
 // A table missing from DG-1 is reported as a warning (DG-1 is curated separately).
@@ -95,6 +98,12 @@ console.log(`  INFO: ${runnable.length} checks runnable now, ${CHECKS.length - r
 // ---- 2. AG-1 and KG-5 in step with the catalogue ----
 const ag1 = JSON.parse(read("src/renderer/knowledge/audit-graph.json"));
 check("AG-1 has a detectiveControls section", Boolean(ag1.detectiveControls));
+{
+  const { default: Ajv } = await import("ajv");
+  const validate = new Ajv({ allErrors: true, strict: false }).compile(JSON.parse(read("repository/schema/audit-graph.schema.json")));
+  const valid = validate(ag1);
+  check("AG-1 validates against its schema", valid, valid ? "repository/schema/audit-graph.schema.json" : (validate.errors || []).slice(0, 5).map((error) => `${error.instancePath || "/"} ${error.message}`).join("; "));
+}
 check("AG-1 detectiveControls matches the catalogue", isDeepStrictEqual(ag1.detectiveControls, detectiveControlsFromCatalogue(catalogue)), "rebuild: node scripts/build-audit-watch-graph.js");
 const manualPath = "docs/manuals/GII-GeM-ERP-Audit-Watch-Guide.md";
 const manualText = fs.existsSync(path.join(ROOT, manualPath)) ? read(manualPath) : "";
@@ -195,7 +204,9 @@ const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /
   // and the runner is never imported under another name.
   || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(read(rel)))
   || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(read(rel)))
-  || /\bcreateAuditWatchRunner\s+as\b/.test(read(rel)));
+  || /\bcreateAuditWatchRunner\s+as\b/.test(read(rel))
+  // No renamed import or destructuring of runAuditWatch anywhere, main.js included.
+  || /\brunAuditWatch\s*(?:as\b|:)/.test(read(rel)));
 const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
 // One runner, so its lock (which restore and reset also wait on) sees every run.
 const runnerMakers = sourceFiles.flatMap((rel) => [...read(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
@@ -230,19 +241,32 @@ check("No guided kind is both hand-keyed and document-style", overlap.length ===
 const allSourceNames = new Set([...usedSources, ...Object.keys(POSTING_SOURCES)]);
 for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   const pattern = new RegExp(item.uncovered.namePattern, "i");
-  // Covered kinds excuse guided kinds only; the reasons list excuses sources and tables
-  // only. So a posting source named like a covered kind still fails until the check
-  // really reads it.
-  const coveredKinds = new Set(item.uncovered.coveredKinds || []);
+  // Kinds the check reads excuse guided kinds only, so a posting source or table named
+  // like one still fails until the check really reads it. Anything else needs a reason.
+  const coveredKinds = new Set(item.readsGuidedKinds || []);
   const notInScope = item.uncovered.notSalesCredit || {};
   const badReasons = Object.entries(notInScope).filter(([, reason]) => typeof reason !== "string" || reason.trim().length < 10).map(([name]) => name);
   const arrived = [
     ...[...new Set([...allSourceNames, ...liveTables])].filter((name) => pattern.test(name) && !(name in notInScope)),
-    ...[...codeKinds].filter((kind) => pattern.test(kind) && !coveredKinds.has(kind))
+    ...[...codeKinds].filter((kind) => pattern.test(kind) && !coveredKinds.has(kind) && !(kind in notInScope))
   ];
+  // A kind the check says it reads must be a real guided kind.
+  const unknownRead = [...coveredKinds].filter((kind) => !codeKinds.has(kind));
+  if (unknownRead.length) arrived.push(...unknownRead.map((kind) => `${kind} (readsGuidedKinds names a kind the posting code does not handle)`));
   if (badReasons.length) arrived.push(...badReasons.map((name) => `${name} (no reason given)`));
   check(`${item.id}: nothing it does not cover has arrived`, arrived.length === 0,
     arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it (or list it as not relevant), then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
+}
+
+// ---- The Audit Watch steps stay blocking in verify:erp and the lock gate ----
+{
+  const { LOCK_BLOCKING_STEPS } = await load("scripts/lib/masterVerificationPolicy.js");
+  const pipelineText = read("scripts/verify-erp.js");
+  const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
+    const step = pipelineText.match(new RegExp(`^\\s*\\{\\s*name:\\s*"${name}".*$`, "m"));
+    return !LOCK_BLOCKING_STEPS.has(name) || !step || !/strict:\s*true/.test(step[0]) || !/continueOn:\s*\[0\]/.test(step[0]) || !new RegExp(`run ${name}:electron`).test(step[0]);
+  });
+  check("verify:erp runs both Audit Watch steps as strict, lock-blocking steps", missing.length === 0, missing.length ? `restore in scripts/verify-erp.js and LOCK_BLOCKING_STEPS: ${missing.join(", ")}` : "verify:audit-watch, test:audit-watch");
 }
 
 // ---- 4. Visibility roles follow the app's roles ----

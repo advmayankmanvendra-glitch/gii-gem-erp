@@ -2020,7 +2020,7 @@ const {
 });
 
 const {
-  stockBalance, stockBalances, weightedAverageCost, outwardValue, insertStockLedger,
+  stockBalance, weightedAverageCost, outwardValue, insertStockLedger,
   inventoryStockSummary, inventoryLowStockReport, inventoryDashboard,
   procurementRequirementReport,
   postStockInward, postStockOutward, postStockAdjustment,
@@ -2255,10 +2255,8 @@ export {
 };
 
 // Audit Watch: read-only exception checks (src/main/services/auditWatch/).
-const { runAuditWatch, catalogueForRole: auditWatchCatalogue } = createAuditWatchService({ stockBalance, stockBalances, bookIntegrityChecks, verifyAuditChain });
+const { runAuditWatch, catalogueForRole: auditWatchCatalogue } = createAuditWatchService({ stockBalance, bookIntegrityChecks, verifyAuditChain });
 export { runAuditWatch, auditWatchCatalogue };
-// Batched read-only stock balances (stockBalance is exported above), for tests.
-export { stockBalances };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const db = initializeDatabase();

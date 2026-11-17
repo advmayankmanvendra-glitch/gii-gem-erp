@@ -366,15 +366,15 @@
               "scope": { "type": "string", "enum": ["company", "installation"] },
               "helpers": { "type": "array", "items": { "type": "string" } },
               "coverage": { "type": "array", "items": { "type": "string" } },
+              "readsGuidedKinds": { "type": "array", "items": { "type": "string" }, "description": "Guided voucher kinds the check reads; its SQL is built from this list." },
               "uncovered": {
                 "type": "object",
-                "description": "What the check does not look at yet. The verifier fails once a posting source, table or guided voucher kind matching namePattern exists that is neither a covered kind nor listed with a reason.",
+                "description": "What the check does not look at yet. The verifier fails once a posting source, table or guided voucher kind matching namePattern exists that is neither in readsGuidedKinds nor listed with a reason.",
                 "additionalProperties": false,
                 "required": ["namePattern"],
                 "properties": {
                   "namePattern": { "type": "string", "description": "Case-insensitive regular expression." },
-                  "coveredKinds": { "type": "array", "items": { "type": "string" }, "description": "Guided voucher kinds the check reads." },
-                  "notSalesCredit": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Matching posting sources or tables that are out of scope, each with the reason." }
+                  "notSalesCredit": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Matching posting sources, tables or guided kinds that are out of scope, each with the reason." }
                 }
               },
               "waitsFor": {

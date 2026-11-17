@@ -13,10 +13,11 @@
 //              audit trail, shared by every company on the computer);
 //   helpers  : shared read functions the check calls besides its own queries;
 //   coverage : for checks that depend on how entries are keyed, what they look at;
-//   uncovered: what the check does not look at yet: a name pattern, the guided voucher
-//              kinds it does read (coveredKinds) and matching names that are not in its
-//              scope, with reasons (notSalesCredit); the verifier fails once any other
-//              posting source, table or guided kind matching the pattern exists;
+//   readsGuidedKinds: the guided voucher kinds a check reads (its SQL uses this list);
+//   uncovered: what the check does not look at yet: a name pattern and matching names
+//              that are out of its scope, with reasons (notSalesCredit); the verifier
+//              fails once any other posting source, table or guided kind matching the
+//              pattern exists (a kind in readsGuidedKinds is covered);
 //   waitsFor : for a check waiting on ACC, what will show it can run (a table, or a
 //              name in the code); the verifier fails once it appears.
 // The test suite traces the SQL each check actually runs and fails when `reads`
@@ -265,12 +266,13 @@ export const CHECKS = [
     // posting source, table or guided voucher kind whose name says credit, return or
     // refund appears (other than the ones listed here, which are not sales credit
     // notes), so this check cannot report "Clear" over entries it never sees.
+    // The guided voucher kinds this check reads; its SQL is built from this list.
+    readsGuidedKinds: ["credit_note"],
     uncovered: {
       namePattern: "credit|return|refund",
-      // Guided voucher kinds AW-S02 reads (its SQL is built from this list).
-      coveredKinds: ["credit_note"],
-      // Posting sources and tables that match the pattern but are not sales credit
-      // notes, each with the reason. Anything else that matches fails the verifier.
+      // Posting sources, tables or guided kinds that match the pattern but are not sales
+      // credit notes, each with the reason. Anything else that matches, other than the
+      // kinds in readsGuidedKinds, fails the verifier.
       notSalesCredit: {
         credit_terms: "buyer and supplier credit periods, not a document",
         stock_returns: "goods returned to stock; a buyer return posts Inventory against Cost of Goods Sold, never Sales or receivables (tested)",
@@ -377,9 +379,9 @@ export const CHECKS = [
     scope: "company",
     helpers: ["stockBalances"],
     reads: {
-      stock_ledger: ["company_id", "document_number", "id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
-      items: ["default_warehouse_id", "id", "item_name", "opening_stock"],
-      warehouses: ["warehouse_name"]
+      stock_ledger: ["company_id", "document_number", "id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "value_minor", "warehouse_id"],
+      items: ["default_warehouse_id", "id", "item_name", "opening_rate", "opening_stock", "opening_value"],
+      warehouses: ["company_id", "id", "status", "warehouse_name"]
     },
     limits: {},
     meaning: "The stock register shows less than zero of an item in a warehouse. The posting guards should stop this, so a hit means stock went out before it was received or a guard was bypassed.",
@@ -395,9 +397,9 @@ export const CHECKS = [
     scope: "company",
     helpers: ["stockBalances"],
     reads: {
-      stock_ledger: ["company_id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "warehouse_id"],
-      items: ["created_at", "default_warehouse_id", "id", "is_deleted", "item_name", "opening_stock"],
-      warehouses: ["id", "status", "warehouse_name"]
+      stock_ledger: ["company_id", "inward_quantity", "is_deleted", "item_id", "outward_quantity", "transaction_date", "value_minor", "warehouse_id"],
+      items: ["created_at", "default_warehouse_id", "id", "is_deleted", "item_name", "opening_rate", "opening_stock", "opening_value"],
+      warehouses: ["company_id", "id", "status", "warehouse_name"]
     },
     limits: { idleDays: days(180, "Flag items with stock and no movement for this many days") },
     meaning: "An item has stock on hand but has not moved for months, including opening stock that has never moved. Money is tied up and the stock may be obsolete.",
