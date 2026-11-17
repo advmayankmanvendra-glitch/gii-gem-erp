@@ -115,7 +115,8 @@ check(
   missingTopLevel.length ? `Missing: ${missingTopLevel.join(", ")}` : `${requiredTopLevel.length} required fields present`
 );
 check("AG-1: graphId = AG-1", graph.graphId === "AG-1", `graphId = ${graph.graphId}`);
-check("AG-1: schemaVersion = 1.0.0", graph.schemaVersion === "1.0.0", `schemaVersion = ${graph.schemaVersion}`);
+// 1.1.0 added the optional detectiveControls section (Audit Watch); 1.0.0 graphs stay valid.
+check("AG-1: schemaVersion is a known AG-1 schema version", ["1.0.0", "1.1.0"].includes(graph.schemaVersion), `schemaVersion = ${graph.schemaVersion}`);
 check("AG-1: status = active", graph.status === "active", `status = ${graph.status}`);
 
 // ---- 5. All event IDs are unique ----

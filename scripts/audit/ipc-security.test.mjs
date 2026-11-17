@@ -1253,3 +1253,20 @@ test("32263ab round: after a launch, no second installer can be started", async 
     fs.rmSync(installer, { force: true });
   }
 });
+
+test("Audit Watch: areas follow the signed-in role, never a role the screen sends", async () => {
+  for (const role of ["viewer", "data_entry_operator"]) {
+    const win = await roleWindow(`aw-${role}`, role);
+    assert.match((await call(win, "audit-watch:run", { company_id: 1, user_role: "admin", role: "admin" })).err || "ran", /Permission denied/, role);
+    assert.match((await call(win, "audit-watch:catalogue", { company_id: 1 })).err || "ran", /Permission denied/, role);
+  }
+  const manager = await roleWindow("aw-manager", "manager");
+  const run = await call(manager, "audit-watch:run", { company_id: 1, user_role: "super_admin", role: "admin", areas: ["it", "ledger", "sales"] });
+  assert.ok(run.ok, run.err);
+  assert.deepEqual([...new Set(run.ok.results.map((row) => row.area))], ["sales"], "a manager asking for users and ledger gets only sales");
+  const admin = await adminWindow();
+  const full = await call(admin, "audit-watch:run", { company_id: 1 });
+  assert.ok(full.ok, full.err);
+  assert.equal(new Set(full.ok.results.map((row) => row.area)).size, 5);
+  assert.equal(full.ok.results.filter((row) => row.status === "error").length, 0);
+});

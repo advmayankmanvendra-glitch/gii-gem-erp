@@ -1,10 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:gii-gem-erp:ag-1:schema:1.0.0",
+  "$id": "urn:gii-gem-erp:ag-1:schema:1.1.0",
   "title": "AG-1 Audit Intelligence Graph Schema",
-  "description": "JSON Schema for the AG-1 Audit Intelligence Graph. Follows the Enterprise Intelligence Layer schema contract. Frozen at schemaVersion 1.0.0.",
+  "description": "JSON Schema for the AG-1 Audit Intelligence Graph. Follows the Enterprise Intelligence Layer schema contract. Version 1.1.0 (additive) adds the optional detectiveControls section generated from the Audit Watch catalogue (each check with its version, scope, reads, limits, coverage, and the uncovered and waitsFor canaries); graphs written at 1.0.0 stay valid.",
   "type": "object",
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "graphId": "AG-1",
   "required": [
     "schemaVersion", "graphId", "generatedAt", "owner", "description",
@@ -19,7 +19,7 @@
     "schemaVersion": {
       "type": "string",
       "description": "Semantic version of the AG-1 schema.",
-      "enum": ["1.0.0"]
+      "enum": ["1.0.0", "1.1.0"]
     },
     "graphId": {
       "type": "string",
@@ -338,6 +338,62 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Notes on future extensions."
+    },
+    "detectiveControls": {
+      "type": "object",
+      "description": "Audit Watch: read-only exception checks over the books. Generated from src/main/services/auditWatch/catalogue.js by scripts/build-audit-watch-graph.js; verified by scripts/verify-audit-watch.js.",
+      "required": ["catalogueVersion", "source", "manual", "mode", "counts", "areas", "visibility", "checks"],
+      "properties": {
+        "catalogueVersion": { "type": "string" },
+        "source": { "type": "string" },
+        "manual": { "type": "string" },
+        "mode": { "type": "string", "enum": ["read-only"] },
+        "counts": { "type": "object" },
+        "areas": { "type": "array", "items": { "type": "object", "required": ["id", "label"] } },
+        "visibility": { "type": "object" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["checkId", "area", "title", "severity", "readiness", "reads", "limits", "meaning", "nextStep"],
+            "properties": {
+              "checkId": { "type": "string", "pattern": "^AW-[PSIGT][0-9]{2}$" },
+              "area": { "type": "string", "enum": ["procurement", "sales", "inventory", "ledger", "it"] },
+              "title": { "type": "string" },
+              "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+              "readiness": { "type": "string", "enum": ["now", "after_acc"] },
+              "version": { "type": "integer", "minimum": 1, "description": "Raised when the check's logic changes." },
+              "scope": { "type": "string", "enum": ["company", "installation"] },
+              "helpers": { "type": "array", "items": { "type": "string" } },
+              "coverage": { "type": "array", "items": { "type": "string" } },
+              "readsGuidedKinds": { "type": "array", "items": { "type": "string" }, "description": "Guided voucher kinds the check reads; its SQL is built from this list." },
+              "uncovered": {
+                "type": "object",
+                "description": "What the check does not look at yet. The verifier fails once a posting source, table or guided voucher kind matching namePattern exists that is neither in readsGuidedKinds nor listed with a reason.",
+                "additionalProperties": false,
+                "required": ["namePattern"],
+                "properties": {
+                  "namePattern": { "type": "string", "description": "Case-insensitive regular expression." },
+                  "notSalesCredit": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Matching posting sources, tables or guided kinds that are out of scope, each with the reason." }
+                }
+              },
+              "waitsFor": {
+                "type": "object",
+                "description": "What a waiting check needs; the verifier fails once it arrives, so the check is switched on.",
+                "additionalProperties": false,
+                "properties": {
+                  "tables": { "type": "array", "items": { "type": "string" } },
+                  "codeMarkers": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "reads": { "type": "array", "items": { "type": "object", "required": ["table", "columns"] } },
+              "limits": { "type": "array", "items": { "type": "object", "required": ["key", "default", "unit", "label"] } },
+              "meaning": { "type": "string" },
+              "nextStep": { "type": "string" }
+            }
+          }
+        }
+      }
     }
   }
 }

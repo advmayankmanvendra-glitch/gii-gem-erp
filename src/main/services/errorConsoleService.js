@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { ROUNDING_ADJUSTMENT_SOURCE, VOUCHER_REVERSAL_SOURCE, voucherLedgerCheckSql } from "../database/ledgerGuards.js";
 
@@ -120,6 +121,13 @@ function stuckPostings(db, companyId) {
   return rows;
 }
 
+// A fixed-size summary of what fails (count plus a digest of every failing id), so a
+// reader such as Audit Watch can tell when the set changes without the ids themselves
+// travelling with the result (it can be large, and it is not shown anywhere).
+function failingDigest(ids) {
+  return `${ids.length}:${crypto.createHash("sha256").update(ids.join(",")).digest("hex").slice(0, 32)}`;
+}
+
 function integrityCheck(id, label, ok, detail, action) {
   return { id, label, status: ok ? "pass" : "fail", detail, action: ok ? "No action required." : action };
 }
@@ -163,8 +171,13 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
     if (diff + (correctionSum.get(row.id) || 0) === 0) return false;
     if (row.source_module === VOUCHER_REVERSAL_SOURCE && diff + (diffById.get(row.source_id) || 0) === 0) return false;
     return true;
-  }).slice(0, 10).map((row) => row.voucher_number);
-  checks.push(integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced or not matching their ledger entries: ${unbalanced.join(", ")}` : "All posted vouchers balance and match their ledger entries.", "Open Health > Money integrity, which says what is wrong with each voucher. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."));
+  });
+  const unbalancedShown = unbalanced.slice(0, 10).map((row) => row.voucher_number);
+  const unbalancedMore = unbalanced.length > unbalancedShown.length ? ` and ${unbalanced.length - unbalancedShown.length} more` : "";
+  checks.push({
+    ...integrityCheck("voucher_balance", "Every posted voucher balances", unbalanced.length === 0, unbalanced.length ? `Unbalanced or not matching their ledger entries: ${unbalancedShown.join(", ")}${unbalancedMore}` : "All posted vouchers balance and match their ledger entries.", "Open Health > Money integrity, which says what is wrong with each voucher. A voucher off by up to one rupee can take a labelled rounding adjustment; otherwise reverse it and post a corrected entry."),
+    failingDigest: failingDigest(unbalanced.map((row) => row.id))
+  });
 
   const stockCompany = companyId ? " AND company_id = ?" : "";
   // Item opening stock is not in stock_ledger; it sits in the item's default
@@ -191,9 +204,12 @@ export function bookIntegrityChecks(db, companyId, { verifyAuditChain } = {}) {
 
   if (verifyAuditChain) {
     const chain = verifyAuditChain(db);
-    checks.push(integrityCheck("audit_chain", "No tampering found in the audit trail", chain.chained && chain.broken.length === 0 && !chain.missingNewestRows,
-      chain.chained ? `${chain.verified} chained row(s) verified${chain.broken.length ? `; broken at row(s) ${chain.broken.join(", ")}` : ""}${chain.missingNewestRows ? `; ${chain.missingNewestRows} newest row(s) deleted` : ""}${chain.legacyRows ? `; ${chain.legacyRows} older row(s) predate the chain` : ""}` : "The audit chain has not started on this database.",
-      "Someone edited or deleted audit rows outside the ERP. Keep this database aside, restore the last good backup and review who had file access."));
+    checks.push({ ...integrityCheck("audit_chain", "No tampering found in the audit trail", chain.chained && chain.broken.length === 0 && !chain.missingNewestRows,
+      chain.chained ? `${chain.verified} chained row(s) verified${chain.broken.length ? `; broken at row(s) ${chain.broken.join(", ")}${(chain.brokenCount || 0) > chain.broken.length ? ` and ${chain.brokenCount - chain.broken.length} more` : ""}` : ""}${chain.missingNewestRows ? `; ${chain.missingNewestRows} newest row(s) deleted` : ""}${chain.legacyRows ? `; ${chain.legacyRows} older row(s) predate the chain` : ""}` : "The audit chain has not started on this database.",
+      "Someone edited or deleted audit rows outside the ERP. Keep this database aside, restore the last good backup and review who had file access."),
+    // What is wrong, without the count of rows verified (it grows with every audited action).
+    // Only 20 broken rows are listed; the count and digest cover every one of them.
+    failingDigest: chain.chained ? `${chain.brokenCount ?? chain.broken.length}:${(chain.brokenDigest || chain.broken.join(",")).slice(0, 32)}:${chain.missingNewestRows || 0}` : "not-started" });
   }
   return checks;
 }

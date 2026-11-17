@@ -66,6 +66,7 @@ import {
 import { DocumentsScreen } from "./screens/DocumentsScreen.jsx";
 import { EnvironmentManagerScreen } from "./screens/EnvironmentManager/EnvironmentManagerScreen.jsx";
 import { HealthCenterScreen } from "./screens/HealthCenter/index.js";
+import { AuditWatchScreen } from "./features/reports/auditWatch/AuditWatchScreen.jsx";
 import { HelpTrainingScreen } from "./screens/HelpTrainingScreen.jsx";
 import { KeyboardShortcutScreen } from "./screens/KeyboardShortcutScreen.jsx";
 import { HelpAssistant } from "./modules/helpAssistant/HelpAssistant.jsx";
@@ -1354,6 +1355,7 @@ function App() {
             {effectiveView === "unposted_drilldown" && <UnpostedDrilldown apiClient={api} companyContext={companyContext} onNavigate={navigate} />}
             {effectiveView === "settings" && <SettingsScreen notify={notify} apiClient={api} confirmAction={confirmAction} role={session.role} userId={session.id} companyContext={companyContext} />}
             {effectiveView === "environment_manager" && <EnvironmentManagerScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onDataReset={() => { setGlobalSearchData(null); setProductivityStats(null); loadCompanies(); }} />}
+            {effectiveView === "audit_watch" && <AuditWatchScreen notify={notify} apiClient={api} companyContext={companyContext} />}
             {effectiveView === "health_center" && <HealthCenterScreen notify={notify} apiClient={api} session={session} companyContext={companyContext} onNavigate={navigate} />}
             {masterViews[effectiveView] && <MasterScreen table={effectiveView} config={masterViews[effectiveView]} notify={notify} companyContext={companyContext} selectTableRow={selectTableRow} api={api} />}
             {effectiveView === "invoices" && <BillingVoucherScreen notify={notify} role={session.role} companyContext={companyContext} onNavigate={navigate} api={api} confirmAction={confirmAction} reversalConfirmOptions={reversalConfirmOptions} postConfirmOptions={postConfirmOptions} isRecordLocked={isRecordLocked} normalizeStatusClass={normalizeStatusClass} />}

@@ -16,6 +16,8 @@ import {
   roleCan,
   enforceBankDetailPermission,
   verifyAuditChain,
+  runAuditWatch,
+  auditWatchCatalogue,
   alertServiceWith,
   autoReserveOrderStock,
   bankStatementData,
@@ -147,6 +149,7 @@ import { profitSimulation } from "./services/profitSimulatorService.js";
 import { submitFeedback, listFeedback, exportFeedback } from "./services/feedbackService.js";
 import { searchEntities, SUPPORTED_ENTITY_TYPES } from "./services/entitySearchService.js";
 import { createDesktopSessionService } from "./services/desktopSessionService.js";
+import { createAuditWatchRunner } from "./services/auditWatch/auditWatchRunner.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -287,6 +290,15 @@ const alerts = alertServiceWith({
   decryptSecret: (value) => safeStorage.decryptString(Buffer.from(String(value), "base64"))
 });
 let alertTimer = null;
+// Audit Watch runs off the main thread; the fallback reads through the live connection's file.
+const auditWatchRunner = createAuditWatchRunner({
+  runInProcess: (options) => runAuditWatch(db, options),
+  // A fallback to the main process is recorded in the app's error console as well.
+  log: (message) => {
+    console.warn(message);
+    try { recordError(runtimeDataRoot, { source: "main", channel: "audit-watch:run", message }); } catch { /* the console is best effort */ }
+  }
+});
 
 const ACTOR_FIELDS = ["user_id", "userId", "created_by", "uploaded_by", "imported_by", "approved_by", "deleted_by", "posted_by"];
 
@@ -382,9 +394,19 @@ function sessionGuarded(permission, moduleName, handler, { readOnly = false } = 
   };
 }
 
+// Steps that replace the database file (restore, reset, go-live rollback) wait for an
+// Audit Watch run to finish: its worker holds a read snapshot open, which would stop
+// SQLite from folding recent changes into the file before it is copied or replaced.
+function assertAuditWatchIdle(action) {
+  if (auditWatchRunner.isRunning()) {
+    throw new Error(`Audit Watch is still running, so ${action} cannot start yet. Wait for the run to finish (Reports > Internal Audit > Audit Watch shows when it is done), then try again.`);
+  }
+}
+
 // Runs a step that replaces the database file. The shared connection is closed
 // first and always reopened afterwards, so no stale handle can corrupt the file.
-function withDatabaseClosed(step) {
+function withDatabaseClosed(step, action = "this step") {
+  assertAuditWatchIdle(action);
   db?.close();
   db = null;
   try {
@@ -1172,6 +1194,7 @@ function registerIpc() {
   handle("backup:list", () => listBackups(runtimeDataRoot));
   handle("backup:restore", guarded("restore_backup", "backup", (fileName) => {
     const userId = actorId();
+    assertAuditWatchIdle("the restore");
     db?.close();
     db = null;
     try {
@@ -1211,6 +1234,19 @@ function registerIpc() {
   handle("health:error-console", (_event, context = {}) => {
     return errorConsoleState(db, runtimeDataRoot, { companyId: Number(context.company_id || 0) || null, verifyAuditChain });
   });
+  // Audit Watch: read-only exception checks. The role that decides which areas run is
+  // the signed-in user's role from the database, never a value the screen sends.
+  handle("audit-watch:catalogue", sessionGuarded("audit_watch", "audit_watch", (_payload, actor) => auditWatchCatalogue(actor.user_role), { readOnly: true }));
+  // A run goes to a worker thread with its own read-only connection, so the window and
+  // every other call stay responsive; "today" is the app's IST business date, never a
+  // value from the screen.
+  handle("audit-watch:run", sessionGuarded("audit_watch", "audit_watch", (payload = {}, actor) => auditWatchRunner.run(db?.name, {
+    companyId: Number(payload?.company_id || 0),
+    role: actor.user_role,
+    from: payload?.from,
+    to: payload?.to,
+    areas: Array.isArray(payload?.areas) ? payload.areas.map(String) : undefined
+  }), { readOnly: true }));
   handle("health:error-console-record", (_event, entry = {}) => {
     // Renderer-side failures (screen crashes, failed loads) join the same journal.
     return recordError(runtimeDataRoot, { source: "screen", channel: String(entry.screen || "renderer").slice(0, 80), message: entry.message, company_id: entry.company_id, user_id: actorId() });
@@ -1470,7 +1506,7 @@ function registerIpc() {
       auditLog(db, { action: "go_live_rollback_refused", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: error.message.slice(0, 500) }) });
       return { rollbackResult: { success: false, reason: error.message }, reason };
     }
-    const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId));
+    const result = withDatabaseClosed(() => failGoLiveWithRollback(runtimeDataRoot, goLiveId, reason, null, userId), "the go-live rollback");
     auditLog(db, { action: "go_live_rollback", module: "go_live", table_name: "system", user_id: userId, new_value: JSON.stringify({ goLiveId: String(goLiveId ?? "").slice(0, 64), reason: String(reason ?? "").slice(0, 500), success: result?.rollbackResult?.success }) });
     return result;
   }));
@@ -1487,6 +1523,7 @@ function registerIpc() {
   });
 
   handle("reset:execute", guarded("system_reset", "operational_reset", (payload = {}) => {
+    assertAuditWatchIdle("the reset");
     const result = executeReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
@@ -1499,6 +1536,7 @@ function registerIpc() {
   });
 
   handle("reset:execute-enhanced", guarded("system_reset", "operational_reset", (payload = {}) => {
+    assertAuditWatchIdle("the reset");
     const result = executeEnhancedReset(db, runtimeDataRoot, { userId: actorId(), companyId: payload.company_id, confirmText: payload.confirm_text });
     db.close();
     db = initializeDatabase(runtimeDataRoot);
@@ -1507,7 +1545,7 @@ function registerIpc() {
 
   handle("reset:rollback", guarded("restore_backup", "operational_reset", ({ backup } = {}) => {
     const userId = actorId();
-    const result = withDatabaseClosed(() => rollbackReset(runtimeDataRoot, backup));
+    const result = withDatabaseClosed(() => rollbackReset(runtimeDataRoot, backup), "the reset rollback");
     auditLog(db, { action: "reset_rollback", module: "operational_reset", table_name: "system", user_id: userId, new_value: JSON.stringify(result) });
     return result;
   }));

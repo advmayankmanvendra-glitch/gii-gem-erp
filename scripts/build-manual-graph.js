@@ -24,7 +24,8 @@ const MANUAL_SOURCES = [
   { id: "command-execution-guide", title: "Command Execution Guide", file: "GII-GeM-ERP-Command-Execution-Guide.md", category: "administration", status: "current" },
   { id: "feature-status-matrix", title: "Feature Status Matrix", file: "GII-GeM-ERP-Feature-Status-Matrix.md", category: "administration", status: "current" },
   { id: "knowledge-gap-report", title: "Knowledge Gap Report", file: "GII-GeM-ERP-Knowledge-Gap-Report.md", category: "administration", status: "current" },
-  { id: "manual-generation-report", title: "Manual Generation Report", file: "GII-GeM-ERP-Manual-Generation-Report.md", category: "administration", status: "current" }
+  { id: "manual-generation-report", title: "Manual Generation Report", file: "GII-GeM-ERP-Manual-Generation-Report.md", category: "administration", status: "current" },
+  { id: "audit-watch-guide", title: "Audit Watch Guide", file: "GII-GeM-ERP-Audit-Watch-Guide.md", category: "user-operations", status: "current" }
 ];
 
 // Hand-curated cross-references. Every id must resolve at verification time
@@ -110,6 +111,14 @@ const CURATION = {
     screens: [],
     reports: [],
     errors: []
+  },
+  "audit-watch-guide": {
+    topics: ["audit watch", "internal audit", "exceptions", "duplicate bills", "duplicate payments", "segregation of duties", "negative stock", "backdated vouchers"],
+    features: [],
+    stages: [],
+    screens: [],
+    reports: [],
+    errors: []
   }
 };
 
@@ -172,7 +181,7 @@ const graph = {
   status: "active",
   dependencies: {
     dependsOn: ["BRAIN-1", "KG-1", "RG-1", "WG-1", "FF-1"],
-    dependedBy: []
+    dependedBy: ["AG-1"]
   },
   relationships: {
     manualToFeature: [...new Set(manuals.flatMap((m) => m.featureRefs))].sort(),

@@ -19,7 +19,7 @@ import { execSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate } from "./lib/masterVerificationPolicy.js";
+import { LOCK_BLOCKING_STEPS, evaluateMasterLockGate, strictExitCode } from "./lib/masterVerificationPolicy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -53,7 +53,21 @@ function validateFinancialReportKnownGaps(stdout) {
 }
 
 /* ─── Pipeline definition ─── */
-const PIPELINE = [
+// scripts/verify-audit-watch.js (rules in scripts/lib/verifyErpRules.mjs) reads this array from its syntax tree to check that the
+// Audit Watch steps are present as written. Keep it one top-level `const PIPELINE =
+// Object.freeze([...])` of plain object literals, with the two Audit Watch steps each in
+// Object.freeze({...}) so their commands cannot be changed at run time. Which steps are
+// strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
+// one loop over PIPELINE that runs the commands (calls run(...)) must call
+// strictExitCode(step.name, exitCode) for each step, directly or through a top-level
+// helper. execSync is the only import from child_process. run(cmd) passes its
+// parameter unchanged to its one execSync call (options:
+// cwd, encoding, timeout, maxBuffer, stdio, windowsHide), and the run loop calls run
+// exactly once, directly, as run(step.cmd) for its `const step` (a retry loop around that
+// call is fine). There is one evaluateMasterLockGate call, and it also requires each
+// strict step's own passing summary in its output. Keep NPM as
+// `const NPM = <windows test> ? "npm.cmd" : "npm"`.
+const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },
   { name: "build",             cmd: `${NPM} run build`,              continueOn: [0, 1] },
   { name: "verify:master-policy", cmd: `${NPM} run verify:master-policy`, continueOn: [0, 1] },
@@ -61,6 +75,11 @@ const PIPELINE = [
   { name: "verify:dashboard-wiring", cmd: `${NPM} run verify:dashboard-wiring`, continueOn: [0, 1] },
   { name: "verify:knowledge",  cmd: `${NPM} run verify:knowledge`,   continueOn: [0, 1] },
   { name: "verify:audit",      cmd: `${NPM} run verify:audit`,       continueOn: [0, 1] },
+  // Audit Watch's verifier and contract tests block: any failure is a FAIL, not a warning,
+  // so the catalogue, AG-1, the manual and the checks cannot drift apart unseen. They run
+  // on Electron's Node, like verify:accounting, so one better-sqlite3 build serves all.
+  Object.freeze({ name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0] }),
+  Object.freeze({ name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0] }),
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },
@@ -92,7 +111,7 @@ const PIPELINE = [
     continueOn: [0, 1],
     warningValidator: validateFinancialReportKnownGaps
   },
-];
+]);
 
 /* ─── Helpers ─── */
 function timestamp() {
@@ -103,10 +122,11 @@ function run(cmd) {
   const start = Date.now();
   try {
     const stdout = execSync(cmd, { cwd: ROOT, encoding: "utf-8", timeout: 600000 });
-    return { exitCode: 0, stdout, stderr: "", duration: Date.now() - start };
+    return { cmd, exitCode: 0, stdout, stderr: "", duration: Date.now() - start };
   } catch (e) {
     const exitCode = e.status != null ? e.status : 3;
     return {
+      cmd,
       exitCode,
       stdout: e.stdout || "",
       stderr: e.stderr || e.message,
@@ -148,6 +168,8 @@ function main() {
         result.stderr = [result.stderr, validation.detail].filter(Boolean).join("\n");
       }
     }
+    // A strict step (STRICT_STEPS) has no warning state: any non-zero exit stops the pipeline.
+    result.exitCode = strictExitCode(step.name, result.exitCode);
     const label = EXIT_LABEL[result.exitCode] || `UNKNOWN(${result.exitCode})`;
     const durationSec = (result.duration / 1000).toFixed(1);
 
@@ -165,6 +187,7 @@ function main() {
 
     steps.push({
       name: step.name,
+      cmd: result.cmd, // the command run() actually ran, which the lock gate checks
       exitCode: result.exitCode,
       label,
       durationMs: result.duration,
@@ -294,6 +317,12 @@ function main() {
     lockGate.missingBlockingSteps.length
       ? `Missing mandatory lock checks: ${lockGate.missingBlockingSteps.join(", ")}`
       : `All mandatory lock checks executed.`,
+    lockGate.commandMismatches.length
+      ? `Strict steps that did not run their expected command: ${lockGate.commandMismatches.map((s) => `${s.name} (${s.cmd ?? "command not recorded"})`).join(", ")}`
+      : ``,
+    lockGate.missingProof.length
+      ? `Strict steps without their own passing summary in their output: ${lockGate.missingProof.map((s) => s.name).join(", ")}`
+      : ``,
     ``,
     `## Details`,
     ``,
