@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:gii-gem-erp:ag-1:schema:1.1.0",
   "title": "AG-1 Audit Intelligence Graph Schema",
-  "description": "JSON Schema for the AG-1 Audit Intelligence Graph. Follows the Enterprise Intelligence Layer schema contract. Version 1.1.0 (additive) adds the optional detectiveControls section generated from the Audit Watch catalogue; graphs written at 1.0.0 stay valid.",
+  "description": "JSON Schema for the AG-1 Audit Intelligence Graph. Follows the Enterprise Intelligence Layer schema contract. Version 1.1.0 (additive) adds the optional detectiveControls section generated from the Audit Watch catalogue (each check with its version, scope, reads, limits, coverage, and the uncovered and waitsFor canaries); graphs written at 1.0.0 stay valid.",
   "type": "object",
   "schemaVersion": "1.1.0",
   "graphId": "AG-1",
@@ -366,8 +366,26 @@
               "scope": { "type": "string", "enum": ["company", "installation"] },
               "helpers": { "type": "array", "items": { "type": "string" } },
               "coverage": { "type": "array", "items": { "type": "string" } },
-              "uncovered": { "type": "object", "description": "Names (pattern) of posting sources, tables or guided kinds the check does not look at yet; the verifier fails once one appears." },
-              "waitsFor": { "type": "object", "description": "Tables or code markers a waiting check needs; the verifier fails once they arrive." },
+              "uncovered": {
+                "type": "object",
+                "description": "What the check does not look at yet. The verifier fails once a posting source, table or guided voucher kind matching namePattern exists that is neither a covered kind nor listed with a reason.",
+                "additionalProperties": false,
+                "required": ["namePattern"],
+                "properties": {
+                  "namePattern": { "type": "string", "description": "Case-insensitive regular expression." },
+                  "coveredKinds": { "type": "array", "items": { "type": "string" }, "description": "Guided voucher kinds the check reads." },
+                  "notSalesCredit": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Matching posting sources or tables that are out of scope, each with the reason." }
+                }
+              },
+              "waitsFor": {
+                "type": "object",
+                "description": "What a waiting check needs; the verifier fails once it arrives, so the check is switched on.",
+                "additionalProperties": false,
+                "properties": {
+                  "tables": { "type": "array", "items": { "type": "string" } },
+                  "codeMarkers": { "type": "array", "items": { "type": "string" } }
+                }
+              },
               "reads": { "type": "array", "items": { "type": "object", "required": ["table", "columns"] } },
               "limits": { "type": "array", "items": { "type": "object", "required": ["key", "default", "unit", "label"] } },
               "meaning": { "type": "string" },

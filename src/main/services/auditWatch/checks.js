@@ -31,6 +31,7 @@
 // UTC; office hours and "keyed on" dates are converted to IST (+05:30).
 
 import { HAND_KEYED_GUIDED_KINDS, sourcesOfClass, sqlList } from "../../database/postingSources.js";
+import { checkById } from "./catalogue.js";
 
 const IST = "'+330 minutes'";
 const live = (alias) => `COALESCE(${alias}.is_deleted, 0) = 0`;
@@ -73,11 +74,14 @@ const medianSorted = (sorted) => {
 };
 
 // Groups rows (sorted by date) into clusters. Every window that starts at a row and
-// holds the rows within `windowDays` of it is tested with `keep`; windows that pass and
-// overlap are merged into one cluster. So no row of a qualifying window is ever left
-// out, and over a whole history the clusters (and their first ids, used as keys) do not
-// depend on the period chosen. Linear in rows times rows per window.
-function dateRuns(rows, windowDays, keep) {
+// holds the rows within `windowDays` of it is tested with keep(count, total), where
+// total adds up valueOf(row) over the window; windows that pass and overlap are merged
+// into one cluster. So no row of a qualifying window is ever left out, and over a whole
+// history the clusters (and their first ids, used as keys) do not depend on the period
+// chosen. Running sums keep it linear: no window is copied.
+function dateRuns(rows, windowDays, keep, valueOf = () => 0) {
+  const prefix = [0];
+  rows.forEach((row, index) => { prefix[index + 1] = prefix[index] + Number(valueOf(row) || 0); });
   const clusters = [];
   let start = -1;
   let end = -1;
@@ -85,7 +89,7 @@ function dateRuns(rows, windowDays, keep) {
   for (let first = 0; first < rows.length; first += 1) {
     last = Math.max(last, first);
     while (last + 1 < rows.length && daysBetween(rows[first].date, rows[last + 1].date) <= windowDays) last += 1;
-    if (!keep(rows.slice(first, last + 1))) continue;
+    if (!keep(last - first + 1, prefix[last + 1] - prefix[first])) continue;
     if (start >= 0 && first <= end) end = Math.max(end, last);
     else {
       if (start >= 0) clusters.push(rows.slice(start, end + 1));
@@ -95,6 +99,16 @@ function dateRuns(rows, windowDays, keep) {
   }
   if (start >= 0) clusters.push(rows.slice(start, end + 1));
   return clusters;
+}
+
+// A long run can reach back far before the period. Its finding names the period's own
+// rows first (refs and evidence are capped), and its amount and wording are about them;
+// the whole run is only counted.
+function periodView(run, from, to) {
+  const inPeriod = run.filter((row) => row.date >= from && row.date <= to);
+  const others = run.filter((row) => row.date < from || row.date > to);
+  const since = run[0].date;
+  return { inPeriod, ordered: [...inPeriod, ...others], since, partOf: others.length ? ` (part of a run of ${run.length} since ${since})` : "" };
 }
 
 // Neighbouring pairs (rows sorted by date) that lie within `windowDays` of each other.
@@ -134,6 +148,9 @@ const CLEARING_ACCOUNT_SQL = inGroups("a", CLEARING_GROUPS, "(a.account_name LIK
 // asset whose name says cash ("Petty Cash" yes, "Cash Discount Received" no). Bank
 // ledgers are told apart by name, because the banks table does not name its ledger.
 const CASH_IN_HAND_SQL = `(${inGroups("a", CASH_GROUPS, "(a.account_type = 'Asset' AND LOWER(a.account_name) LIKE '%cash%')")} AND LOWER(a.account_name) NOT LIKE '%bank%')`;
+
+// AW-S02 reads exactly the guided kinds its catalogue entry says it covers.
+const S02_KINDS = sqlList(checkById("AW-S02").uncovered.coveredKinds);
 
 // ---- Vouchers by posting source (postingSources.js).
 const POSTED = "v.status IN ('Posted', 'Reversed')";
@@ -272,14 +289,21 @@ export const CHECK_FUNCTIONS = {
         AND date(al.created_at, ${IST}) BETWEEN ? AND ?
     `, [addDays(from, -limits.windowDays), to]);
     const findings = [];
+    if (!changes.length) return findings;
+    // One read of the period's payments to the changed suppliers, grouped in memory, so
+    // the work does not grow with changes times payments.
+    const changedSuppliers = [...new Set(changes.map((change) => Number(change.supplier_id)).filter(Number.isFinite))];
+    const paymentsBySupplier = groupBy(q(`
+      SELECT sp.id, sp.supplier_id, sp.payment_date, ${paise("sp.amount_paid")} amount_minor, s.supplier_name
+      FROM supplier_payments sp LEFT JOIN suppliers s ON s.id = sp.supplier_id
+      WHERE sp.company_id = ? AND ${live("sp")} AND ${notReversed("sp")} AND sp.payment_date BETWEEN ? AND ?
+        AND sp.supplier_id IN (SELECT value FROM json_each(?))
+      ORDER BY sp.payment_date, sp.id
+    `, [companyId, from, to, JSON.stringify(changedSuppliers)]), (row) => Number(row.supplier_id));
     for (const change of changes) {
       const fields = changedFields(change, SUPPLIER_BANK_FIELDS);
-      const payments = q(`
-        SELECT sp.id, sp.payment_date, ${paise("sp.amount_paid")} amount_minor, s.supplier_name
-        FROM supplier_payments sp LEFT JOIN suppliers s ON s.id = sp.supplier_id
-        WHERE sp.company_id = ? AND ${live("sp")} AND ${notReversed("sp")} AND sp.supplier_id = ?
-          AND sp.payment_date >= ? AND sp.payment_date <= ? AND sp.payment_date BETWEEN ? AND ?
-      `, [companyId, change.supplier_id, change.changed_on, addDays(change.changed_on, limits.windowDays), from, to]);
+      const until = addDays(change.changed_on, limits.windowDays);
+      const payments = (paymentsBySupplier.get(Number(change.supplier_id)) || []).filter((row) => row.payment_date >= change.changed_on && row.payment_date <= until);
       for (const payment of payments) {
         findings.push({
           key: `AW-P03:${change.audit_id}-${payment.id}`,
@@ -349,18 +373,19 @@ export const CHECK_FUNCTIONS = {
     // Runs are found over the supplier's whole history (only bills just under the limit
     // are read), so a run and its key do not depend on where the period starts.
     for (const rows of groupBy(bills, (row) => row.supplier_id).values()) {
-      const runs = runsTouching(dateRuns(rows, limits.windowDays, (run) => run.length >= limits.minimumBills
-        && run.reduce((sum, row) => sum + row.amount_minor, 0) > limitMinor), from, to, (row) => row.date);
+      const runs = runsTouching(dateRuns(rows, limits.windowDays, (count, total) => count >= limits.minimumBills && total > limitMinor,
+        (row) => row.amount_minor), from, to, (row) => row.date);
       for (const run of runs) {
-        const total = run.reduce((sum, row) => sum + row.amount_minor, 0);
+        const view = periodView(run, from, to);
+        const total = view.inPeriod.reduce((sum, row) => sum + row.amount_minor, 0);
         findings.push({
           key: `AW-P05:${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].supplier_name || "Supplier"}: ${run.length} bills just under ${rupeesText(limitMinor)} add up to ${rupeesText(total)}`,
-          date: run[run.length - 1].date,
+          summary: `${run[0].supplier_name || "Supplier"}: ${view.inPeriod.length} bills in this period just under ${rupeesText(limitMinor)} add up to ${rupeesText(total)}${view.partOf}`,
+          date: view.inPeriod[view.inPeriod.length - 1].date,
           amountMinor: total,
-          refs: run.map((row) => ({ table: "procurements", id: row.id })),
-          evidence: run
+          refs: view.ordered.map((row) => ({ table: "procurements", id: row.id })),
+          evidence: view.ordered
         });
       }
     }
@@ -412,11 +437,18 @@ export const CHECK_FUNCTIONS = {
   },
 
   "AW-P07"(q, { companyId }) {
+    // The suppliers this company traded with are found in one grouped pass and joined
+    // (bills and payments have no index on supplier_id).
     const suppliers = q(`
+      WITH traded AS (
+        SELECT p.supplier_id FROM procurements p WHERE p.company_id = ? AND ${live("p")} AND p.supplier_id IS NOT NULL
+        UNION
+        SELECT sp.supplier_id FROM supplier_payments sp WHERE sp.company_id = ? AND ${live("sp")} AND sp.supplier_id IS NOT NULL
+      )
       SELECT s.id, s.supplier_name name, s.supplier_account_number account_number, s.supplier_bank_ifsc_code ifsc,
-        EXISTS (SELECT 1 FROM procurements p WHERE p.supplier_id = s.id AND p.company_id = ? AND ${live("p")})
-          OR EXISTS (SELECT 1 FROM supplier_payments sp WHERE sp.supplier_id = s.id AND sp.company_id = ? AND ${live("sp")}) traded
-      FROM suppliers s WHERE ${live("s")} AND TRIM(COALESCE(s.supplier_account_number, '')) <> ''
+        CASE WHEN traded.supplier_id IS NULL THEN 0 ELSE 1 END traded
+      FROM suppliers s LEFT JOIN traded ON traded.supplier_id = s.id
+      WHERE ${live("s")} AND TRIM(COALESCE(s.supplier_account_number, '')) <> ''
     `, [companyId, companyId]).map((row) => ({ ...row, party: "supplier" }));
     const employees = q(`
       SELECT e.id, e.employee_name name, e.account_number, e.ifsc, 0 traded
@@ -508,7 +540,7 @@ export const CHECK_FUNCTIONS = {
       FROM guided_vouchers gv
       JOIN invoices inv ON inv.id = CAST(json_extract(gv.payload_json, '$.linked_invoice_id') AS INTEGER) AND ${live("inv")}
         AND inv.company_id = gv.company_id
-      WHERE gv.company_id = ? AND ${live("gv")} AND ${guidedKind("gv")} = 'credit_note' AND gv.status = 'Posted'
+      WHERE gv.company_id = ? AND ${live("gv")} AND ${guidedKind("gv")} IN ${S02_KINDS} AND gv.status = 'Posted'
         AND json_valid(gv.payload_json) AND gv.voucher_date BETWEEN ? AND ?
         AND substr(gv.voucher_date, 1, 7) > substr(inv.invoice_date, 1, 7)
     `, [companyId, from, to]);
@@ -697,7 +729,7 @@ export const CHECK_FUNCTIONS = {
     for (const pair of pairs) {
       const rows = moves.get(`${pair.item_id}|${pair.warehouse_id}`) || [];
       // Opening stock held on the item (not in the stock ledger) comes from stockBalances.
-      const itemOpening = Number(balances.get(`${pair.item_id}|${pair.warehouse_id}`)?.quantity || 0) - Number(pair.all_movement || 0);
+      const itemOpening = Number(balances.get(pair.item_id, pair.warehouse_id).quantity || 0) - Number(pair.all_movement || 0);
       let balance = itemOpening + Number(pair.before_from || 0);
       // Movements on one day are netted: stock received later the same day is not a gap.
       for (const [date, dayRows] of groupBy(rows, (row) => row.transaction_date)) {
@@ -727,24 +759,20 @@ export const CHECK_FUNCTIONS = {
       WHERE sl.company_id = ? AND ${live("sl")}
       GROUP BY sl.item_id, sl.warehouse_id
     `, [companyId]);
-    const movedPairs = new Set(moved.map((row) => `${row.item_id}|${row.warehouse_id}`));
-    // Opening stock that never moved has no stock-ledger row. It sits in the item's
-    // default warehouse, or the first active one (openingWarehouseId in inventoryService);
-    // stockBalance then decides whether this company holds it.
-    const openingOnly = q(`
-      WITH opening AS (
-        SELECT i.id item_id, i.item_name, date(i.created_at, ${IST}) since,
-          COALESCE(NULLIF(i.default_warehouse_id, 0), (SELECT fw.id FROM warehouses fw WHERE fw.status = 'active' ORDER BY fw.id LIMIT 1)) warehouse_id
-        FROM items i WHERE ${live("i")} AND COALESCE(i.opening_stock, 0) > 0
-      )
-      SELECT o.item_id, o.warehouse_id, o.since last_movement, o.item_name, w.warehouse_name, 1 opening_only
-      FROM opening o JOIN warehouses w ON w.id = o.warehouse_id
-    `).filter((row) => !movedPairs.has(`${row.item_id}|${row.warehouse_id}`));
-    const findings = [];
+    // Opening stock that never moved has no stock-ledger row; stockBalances names the
+    // pairs that hold it (by inventoryService's own opening-warehouse rule).
     const balances = deps.stockBalances(companyId);
+    const itemNames = new Map(q(`SELECT i.id, i.item_name name, date(i.created_at, ${IST}) since FROM items i WHERE ${live("i")}`).map((row) => [Number(row.id), row]));
+    const warehouseNames = new Map(q("SELECT w.id, w.warehouse_name name FROM warehouses w").map((row) => [Number(row.id), row]));
+    // A deleted item's opening stock is not reported.
+    const openingOnly = balances.entries().filter((entry) => !entry.moved && itemNames.has(entry.itemId)).map((entry) => ({
+      item_id: entry.itemId, warehouse_id: entry.warehouseId, last_movement: itemNames.get(entry.itemId)?.since || null,
+      item_name: itemNames.get(entry.itemId)?.name, warehouse_name: warehouseNames.get(entry.warehouseId)?.name, opening_only: 1
+    }));
+    const findings = [];
     for (const row of [...moved, ...openingOnly]) {
       if (row.last_movement && row.last_movement >= cutoff) continue;
-      const balance = balances.get(`${row.item_id}|${row.warehouse_id}`) || { quantity: 0, value: 0 };
+      const balance = balances.get(row.item_id, row.warehouse_id);
       if (!(Number(balance.quantity) > 0.0001)) continue;
       const valueMinor = Math.round(Number(balance.value || 0) * 100);
       const idle = row.last_movement ? `no movement for ${daysBetween(row.last_movement, today)} days` : "never moved";
@@ -801,15 +829,16 @@ export const CHECK_FUNCTIONS = {
       });
     }
     for (const itemRows of groupBy(history, (row) => row.item_id).values()) {
-      for (const run of runsTouching(dateRuns(itemRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount), from, to, (row) => row.date)) {
+      for (const run of runsTouching(dateRuns(itemRows, limits.windowDays, (count) => count >= limits.repeatCount), from, to, (row) => row.date)) {
+        const view = periodView(run, from, to);
         findings.push({
           key: `AW-I03:repeat-${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].item_name || "Item"} adjusted ${run.length} times between ${run[0].date} and ${run[run.length - 1].date}`,
-          date: run[run.length - 1].date,
-          amountMinor: run.reduce((sum, row) => sum + row.value_minor, 0),
-          refs: run.map((row) => ({ table: "stock_adjustments", id: row.id })),
-          evidence: run
+          summary: `${run[0].item_name || "Item"} adjusted ${view.inPeriod.length} times in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
+          date: view.inPeriod[view.inPeriod.length - 1].date,
+          amountMinor: view.inPeriod.reduce((sum, row) => sum + row.value_minor, 0),
+          refs: view.ordered.map((row) => ({ table: "stock_adjustments", id: row.id })),
+          evidence: view.ordered
         });
       }
     }
@@ -1087,15 +1116,16 @@ export const CHECK_FUNCTIONS = {
       });
     }
     for (const userRows of groupBy(history, (row) => row.reversed_by).values()) {
-      for (const run of runsTouching(dateRuns(userRows, limits.windowDays, (candidate) => candidate.length >= limits.repeatCount), from, to, (row) => row.date)) {
+      for (const run of runsTouching(dateRuns(userRows, limits.windowDays, (count) => count >= limits.repeatCount), from, to, (row) => row.date)) {
+        const view = periodView(run, from, to);
         findings.push({
           key: `AW-G06:user-${run[0].reversed_by}-${run[0].id}`,
           fingerprint: ids(run),
-          summary: `${run[0].reversed_by_name || "One user"} reversed ${run.length} vouchers between ${run[0].date} and ${run[run.length - 1].date}`,
-          date: run[run.length - 1].date,
+          summary: `${run[0].reversed_by_name || "One user"} reversed ${view.inPeriod.length} vouchers in this period, between ${view.inPeriod[0].date} and ${view.inPeriod[view.inPeriod.length - 1].date}${view.partOf}`,
+          date: view.inPeriod[view.inPeriod.length - 1].date,
           amountMinor: 0,
-          refs: [{ table: "users", id: run[0].reversed_by }, ...run.map((row) => ({ table: "vouchers", id: row.id }))],
-          evidence: run
+          refs: [{ table: "users", id: run[0].reversed_by }, ...view.ordered.map((row) => ({ table: "vouchers", id: row.id }))],
+          evidence: view.ordered
         });
       }
     }
@@ -1225,7 +1255,9 @@ export const CHECK_FUNCTIONS = {
     const results = deps.bookIntegrityChecks(companyId) || [];
     return results.filter((row) => row.status === "fail" && !INTEGRITY_COVERED_ELSEWHERE.has(row.id)).map((row) => ({
       key: `AW-G10:${row.id || row.key || row.label}`,
-      fingerprint: String(row.detail || ""),
+      // The numbers in the result, not its wording: rewording the message elsewhere
+      // must not make a reviewed finding look changed.
+      fingerprint: (String(row.detail || "").match(/-?\d[\d,]*(?:\.\d+)?/g) || []).map((part) => part.replaceAll(",", "")).join("|") || "fail",
       summary: `${row.label || row.name || "Book check"} failed: ${row.detail || ""}`.trim(),
       date: null,
       amountMinor: 0,

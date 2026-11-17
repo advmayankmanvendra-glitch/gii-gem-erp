@@ -65,7 +65,7 @@ const PIPELINE = [
   // so the catalogue, AG-1, the manual and the checks cannot drift apart unseen. They run
   // on Electron's Node, like verify:accounting, so one better-sqlite3 build serves all.
   { name: "verify:audit-watch", cmd: `${NPM} run verify:audit-watch:electron`, continueOn: [0], strict: true },
-  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch`,  continueOn: [0], strict: true },
+  { name: "test:audit-watch",  cmd: `${NPM} run test:audit-watch:electron`, continueOn: [0], strict: true },
   { name: "verify:accounting", cmd: `${NPM} run verify:accounting`,  continueOn: [0, 1] },
   { name: "verify:financials", cmd: `${NPM} run verify:financials`,  continueOn: [0, 1] },
   { name: "verify:controls",   cmd: `${NPM} run verify:controls`,    continueOn: [0, 1] },

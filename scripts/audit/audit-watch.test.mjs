@@ -987,22 +987,42 @@ test("repeat checks leave out no row of a qualifying window (overlapping windows
   }
 });
 
-test("stockBalances gives the same balance as stockBalance for every item and warehouse", () => {
+test("stockBalances gives the same balance as stockBalance for every item, warehouse and company", () => {
   const { db, f } = fresh();
-  const item = f.item({ opening_stock: 5, opening_rate: 20 });
-  const other = f.item();
-  f.stockMove(item, 1, "2026-07-01", 3);
-  f.stockMove(other, 1, "2026-07-02", 4);
-  f.stockMove(other, 1, "2026-07-03", -1);
-  const balances = m.stockBalances(db, 1);
-  const pairs = db.prepare("SELECT DISTINCT item_id, warehouse_id FROM stock_ledger WHERE company_id = 1").all();
-  pairs.push({ item_id: item, warehouse_id: 1 });
-  for (const pair of pairs) {
-    const single = m.stockBalance(db, 1, pair.item_id, pair.warehouse_id);
-    const batch = balances.get(`${pair.item_id}|${pair.warehouse_id}`) || { quantity: 0, value_minor: 0 };
-    assert.equal(batch.quantity, single.quantity, `${pair.item_id}|${pair.warehouse_id}`);
-    assert.equal(batch.value_minor, single.value_minor, `${pair.item_id}|${pair.warehouse_id}`);
+  const second = f.insert("companies", { company_name: "Second Co" });
+  const shared = f.insert("warehouses", { warehouse_name: "Shared", status: "active", company_id: null });
+  const zero = f.insert("warehouses", { warehouse_name: "Zero", status: "active", company_id: 0 });
+  const theirs = f.insert("warehouses", { warehouse_name: "Theirs", status: "active", company_id: second });
+  const closed = f.insert("warehouses", { warehouse_name: "Closed", status: "inactive", company_id: 1 });
+  const items = [
+    f.item({ opening_stock: 5, opening_rate: 20 }),
+    f.item({ opening_stock: 3, opening_rate: 7, opening_value: 30, default_warehouse_id: shared }),
+    f.item({ opening_stock: 4, opening_rate: 9, default_warehouse_id: theirs }),
+    f.item({ opening_stock: 2, opening_rate: 11, default_warehouse_id: closed }),
+    f.item({ opening_stock: 6, opening_rate: 13, default_warehouse_id: zero, is_deleted: 1 }),
+    f.item({ opening_rate: 15 }),
+    f.item()
+  ];
+  f.stockMove(items[0], 1, "2026-07-01", 3);
+  f.stockMove(items[5], 1, "2026-07-02", 4);
+  f.stockMove(items[5], 1, "2026-07-03", -4);
+  f.stockMove(items[6], shared, "2026-07-03", 2);
+  const warehouses = db.prepare("SELECT id FROM warehouses").all().map((row) => row.id);
+  let compared = 0;
+  for (const company of [1, second]) {
+    const balances = m.stockBalances(db, company);
+    for (const item of items) {
+      for (const warehouse of warehouses) {
+        const single = m.stockBalance(db, company, item, warehouse);
+        const batch = balances.get(item, warehouse);
+        assert.deepEqual(batch, single, `company ${company}, item ${item}, warehouse ${warehouse}`);
+        compared += 1;
+      }
+    }
+    // entries() lists exactly the pairs with movement or opening stock held.
+    for (const entry of balances.entries()) assert.deepEqual(entry.balance, m.stockBalance(db, company, entry.itemId, entry.warehouseId));
   }
+  assert.ok(compared >= 2 * items.length * 5);
 });
 
 test("a worker that loaded but cannot open the books gives an error and is not re-run in the main process", async () => {
@@ -1014,6 +1034,42 @@ test("a worker that loaded but cannot open the books gives an error and is not r
   const deadline = Date.now() + 5000;
   while (runner.isRunning() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(runner.isRunning(), false);
+});
+
+// ------------------------------------------------------------ round-4 fixes
+
+test("a long repeat run names the period's own records first, and its amount is the period's", () => {
+  const { db, f } = fresh();
+  const s = f.supplier();
+  // A near-limit bill every third day for a year chains into one long run.
+  const ids = [];
+  for (let day = 0; day < 360; day += 3) ids.push({ id: f.bill(s, { purchase_invoice_number: "NA", purchase_date: shift("2025-11-01", day), purchase_value: 90000, purchase_gst: 0 }), date: shift("2025-11-01", day) });
+  const october = ids.filter((row) => row.date >= "2026-10-01" && row.date <= "2026-10-31");
+  const list = findings(m, db, "AW-P05", { limits: { "AW-P05": { minimumBills: 3 } }, from: "2026-10-01", to: "2026-10-31" });
+  assert.equal(list.length, 1);
+  assert.equal(list[0].refCount, ids.length, "the whole run is counted");
+  assert.deepEqual(list[0].refs.slice(0, october.length).map((ref) => ref.id), october.map((row) => row.id), "October's bills come first");
+  assert.equal(list[0].amountMinor, october.length * 9000000);
+  assert.match(list[0].summary, new RegExp(`^.*: ${october.length} bills in this period .* \\(part of a run of ${ids.length} since 2025-11-01\\)$`));
+});
+
+test("a buyer (department) stock return posts no sales or receivable line, so AW-S02 may leave stock_returns out", async () => {
+  const { db, f } = fresh();
+  const item = f.item({ opening_stock: 10, opening_rate: 50 });
+  const order = f.order();
+  const ret = m.createRecord(db, "stock_returns", { company_id: 1, return_type: "Department", order_id: order, department_id: 1, item_id: item, warehouse_id: 1, return_date: "2026-07-03", quantity: 2 });
+  m.postStockReturn(db, ret.id);
+  const lines = db.prepare(`
+    SELECT a.account_name, a.account_type FROM voucher_lines vl JOIN vouchers v ON v.id = vl.voucher_id JOIN accounts a ON a.id = vl.account_id
+    WHERE v.source_module = 'stock_returns' AND v.source_id = ?
+  `).all(ret.id);
+  assert.ok(lines.length > 0, "the return was posted");
+  for (const line of lines) {
+    assert.notEqual(line.account_type, "Income", `${line.account_name} is a sales account`);
+    assert.ok(!/receivable/i.test(line.account_name), `${line.account_name} is a receivable`);
+  }
+  const { checkById } = await load("src/main/services/auditWatch/catalogue.js");
+  assert.ok("stock_returns" in checkById("AW-S02").uncovered.notSalesCredit);
 });
 
 // ------------------------------------------------------------ catalogue contract (keep last)

@@ -1034,12 +1034,12 @@
           "coveredKinds": [
             "credit_note"
           ],
-          "allowedNames": [
-            "credit_terms",
-            "stock_returns",
-            "stock_return_receipts",
-            "supplier_returns"
-          ]
+          "notSalesCredit": {
+            "credit_terms": "buyer and supplier credit periods, not a document",
+            "stock_returns": "goods returned to stock; a buyer return posts Inventory against Cost of Goods Sold, never Sales or receivables (tested)",
+            "stock_return_receipts": "receipt notes for stock returns, posting nothing to Sales or receivables",
+            "supplier_returns": "purchase-side returns"
+          }
         },
         "reads": [
           {

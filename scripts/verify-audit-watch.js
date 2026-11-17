@@ -20,7 +20,8 @@
 // (scripts/audit/audit-watch.test.mjs, last test) and compared with `reads` there.
 // A table missing from DG-1 is reported as a warning (DG-1 is curated separately).
 //
-// Usage: node scripts/verify-audit-watch.js   (needs the Node build of better-sqlite3)
+// Usage: node scripts/verify-audit-watch.js   (with the Node build of better-sqlite3), or
+//        npm run verify:audit-watch:electron     (with the Electron build, as verify:erp does)
 
 import fs from "node:fs";
 import os from "node:os";
@@ -189,8 +190,12 @@ check("Graph registry schema versions match the AG-1 and KG-5 schema files", reg
 // One way in: main-process code runs Audit Watch through the runner (worker thread),
 // never by calling runAuditWatch directly, so a later caller cannot block the app.
 const allowedCallers = new Set(["src/main/main.js", "src/main/database/init.js", "src/main/services/auditWatch/auditWatchWorker.js", "src/main/services/auditWatch/auditWatchService.js"]);
-const directCallers = sourceFiles.filter((rel) => !allowedCallers.has(rel) && /\brunAuditWatch\b|\bCHECK_FUNCTIONS\b/.test(read(rel))
-  && !rel.startsWith("src/main/services/auditWatch/checks.js"));
+const directCallers = sourceFiles.filter((rel) => (!allowedCallers.has(rel) && /\brunAuditWatch\b/.test(read(rel)))
+  // The check functions are run only by the service; the worker file only by the runner;
+  // and the runner is never imported under another name.
+  || (!["src/main/services/auditWatch/checks.js", "src/main/services/auditWatch/auditWatchService.js"].includes(rel) && /\bCHECK_FUNCTIONS\b/.test(read(rel)))
+  || (rel !== "src/main/services/auditWatch/auditWatchRunner.js" && rel !== "src/main/services/auditWatch/auditWatchWorker.js" && /auditWatchWorker/.test(read(rel)))
+  || /\bcreateAuditWatchRunner\s+as\b/.test(read(rel)));
 const mainCalls = [...read("src/main/main.js").matchAll(/\brunAuditWatch\s*\(/g)].length;
 // One runner, so its lock (which restore and reset also wait on) sees every run.
 const runnerMakers = sourceFiles.flatMap((rel) => [...read(rel).matchAll(/\bcreateAuditWatchRunner\s*\(/g)].map(() => rel))
@@ -225,8 +230,17 @@ check("No guided kind is both hand-keyed and document-style", overlap.length ===
 const allSourceNames = new Set([...usedSources, ...Object.keys(POSTING_SOURCES)]);
 for (const item of CHECKS.filter((entry) => entry.uncovered)) {
   const pattern = new RegExp(item.uncovered.namePattern, "i");
-  const allowed = new Set([...(item.uncovered.allowedNames || []), ...(item.uncovered.coveredKinds || [])]);
-  const arrived = [...new Set([...allSourceNames, ...liveTables, ...codeKinds])].filter((name) => pattern.test(name) && !allowed.has(name));
+  // Covered kinds excuse guided kinds only; the reasons list excuses sources and tables
+  // only. So a posting source named like a covered kind still fails until the check
+  // really reads it.
+  const coveredKinds = new Set(item.uncovered.coveredKinds || []);
+  const notInScope = item.uncovered.notSalesCredit || {};
+  const badReasons = Object.entries(notInScope).filter(([, reason]) => typeof reason !== "string" || reason.trim().length < 10).map(([name]) => name);
+  const arrived = [
+    ...[...new Set([...allSourceNames, ...liveTables])].filter((name) => pattern.test(name) && !(name in notInScope)),
+    ...[...codeKinds].filter((kind) => pattern.test(kind) && !coveredKinds.has(kind))
+  ];
+  if (badReasons.length) arrived.push(...badReasons.map((name) => `${name} (no reason given)`));
   check(`${item.id}: nothing it does not cover has arrived`, arrived.length === 0,
     arrived.length ? `now present: ${arrived.join(", ")}; extend ${item.id} to cover it (or list it as not relevant), then update its coverage` : `covers ${(item.coverage || []).join(", ")}`);
 }

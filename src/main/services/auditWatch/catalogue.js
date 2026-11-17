@@ -13,8 +13,10 @@
 //              audit trail, shared by every company on the computer);
 //   helpers  : shared read functions the check calls besides its own queries;
 //   coverage : for checks that depend on how entries are keyed, what they look at;
-//   uncovered: names of posting sources or tables the check does not look at yet; the
-//              verifier fails once one of them exists, so the gap cannot go quiet;
+//   uncovered: what the check does not look at yet: a name pattern, the guided voucher
+//              kinds it does read (coveredKinds) and matching names that are not in its
+//              scope, with reasons (notSalesCredit); the verifier fails once any other
+//              posting source, table or guided kind matching the pattern exists;
 //   waitsFor : for a check waiting on ACC, what will show it can run (a table, or a
 //              name in the code); the verifier fails once it appears.
 // The test suite traces the SQL each check actually runs and fails when `reads`
@@ -263,7 +265,19 @@ export const CHECKS = [
     // posting source, table or guided voucher kind whose name says credit, return or
     // refund appears (other than the ones listed here, which are not sales credit
     // notes), so this check cannot report "Clear" over entries it never sees.
-    uncovered: { namePattern: "credit|return|refund", coveredKinds: ["credit_note"], allowedNames: ["credit_terms", "stock_returns", "stock_return_receipts", "supplier_returns"] },
+    uncovered: {
+      namePattern: "credit|return|refund",
+      // Guided voucher kinds AW-S02 reads (its SQL is built from this list).
+      coveredKinds: ["credit_note"],
+      // Posting sources and tables that match the pattern but are not sales credit
+      // notes, each with the reason. Anything else that matches fails the verifier.
+      notSalesCredit: {
+        credit_terms: "buyer and supplier credit periods, not a document",
+        stock_returns: "goods returned to stock; a buyer return posts Inventory against Cost of Goods Sold, never Sales or receivables (tested)",
+        stock_return_receipts: "receipt notes for stock returns, posting nothing to Sales or receivables",
+        supplier_returns: "purchase-side returns"
+      }
+    },
     reads: {
       guided_vouchers: ["company_id", "id", "is_deleted", "payload_json", "status", "voucher_date", "voucher_kind"],
       invoices: ["company_id", "invoice_date", "invoice_number", "is_deleted"]
