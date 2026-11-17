@@ -45,7 +45,7 @@
 
 ### Modified
 
-- `src/main/main.js`: two channels, `audit-watch:catalogue` and `audit-watch:run` (session-guarded, read-only); restore, reset and rollback wait while a run is in progress
+- `src/main/main.js`: two channels, `audit-watch:catalogue` and `audit-watch:run` (session-guarded, read-only); restore, reset and rollback are refused while a run is in progress
 - `src/main/services/authService.js`: `audit_watch` permission for admin, accountant and manager
 - `src/preload/preload.cjs`: `getAuditWatchCatalogue`, `runAuditWatch`
 - `src/main/database/init.js`: exports `runAuditWatch` and `auditWatchCatalogue`
@@ -59,7 +59,7 @@
 - AG-1 graph and schema (1.1.0, detectiveControls, KG-5 dependency), KG-5 graph and builder, graph registry, manual index
 - `package.json`: `@babel/parser` added to devDependencies (already installed through the build tools; the Audit Watch verifier reads code with it). The verifier's ajv call sets `validateFormats: false`, which only silences a warning: the schema's one format was already ignored
 - `scripts/verify-audit-graph.js` (accepts schema 1.1.0)
-- `scripts/verify-erp.js`: adds verify:audit-watch and test:audit-watch as frozen, strict, blocking steps; PIPELINE is `Object.freeze([...])`; the run loop applies `strictExitCode` to every step; `run()` returns the command it ran, the run loop records it for the lock gate, and the report names a strict step that ran another command
+- `scripts/verify-erp.js`: adds verify:audit-watch and test:audit-watch as frozen, strict, blocking steps; PIPELINE is `Object.freeze([...])`; the run loop applies `strictExitCode` to every step; `run()` returns the command it ran, the run loop records it for the lock gate (which blocks locking if a strict step ran another command), and the verifier checks statically that the run loop calls `run(step.cmd)` and `run()` passes it unchanged to `execSync`
 - `scripts/verify-master-verification-policy.js`: 16 checks, including strict steps, whole-number exit codes and expected strict commands
 - `scripts/audit/ipc-security.test.mjs`: covers the two new channels
 - `scripts/build-manual-graph.js`, `src/renderer/modules/erpBrain/loaders/manualLoader.js`, `src/renderer/modules/erpBrain/data/manualIndex.js`: list the Audit Watch guide in KG-5
@@ -83,7 +83,7 @@ AG-1 carries the `detectiveControls` section generated from the catalogue (schem
 |---|---|
 | `npm run lint:syntax` | Pass |
 | `npm run build` | Pass |
-| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them and records the command `run()` actually ran for the lock gate, and that their npm scripts are unchanged) |
+| `node scripts/verify-audit-watch.js` | 43 passed, 0 failed (also validates AG-1 against its schema, pins `inventoryService.js`, checks the exact wiring, checks that verify:erp runs both frozen Audit Watch steps, applies `strictExitCode` to them, runs exactly the command written in PIPELINE (the run loop calls `run(step.cmd)`, and `run()` passes it unchanged to `execSync`), and that their npm scripts are unchanged) |
 | `node --test scripts/audit/audit-watch.test.mjs` | 83 of 83 pass (also on Electron's Node) |
 | IPC security tests | 57 of 57 pass |
 | `verify-audit-graph`, `verify-manual-graph`, `verify-governance-graph-registry`, `verify-knowledge`, `verify-erp-brain`, `verify-help-assistant-brain`, `verify-audit` | All pass |
@@ -100,7 +100,7 @@ Two verifiers already fail on `main` and are not touched here: `verify-alphabeti
 
 ## In-house Audits
 
-Three audits ran at 3a80616 (correctness, security, architecture). Later rounds ran two (correctness and security together, and architecture), at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff, 6a71786, 61406f7 and 2a67195. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md`, `audit-6a71786-response.md`, `audit-61406f7-response.md` and `audit-2a67195-response.md`).
+Three audits ran at 3a80616 (correctness, security, architecture). Later rounds ran two (correctness and security together, and architecture), at e9dd130, 1b9f377, cda689c, a1f848a, a37ff99, 1e790c0, d904b99, 346d165, 354d4de, b469c16, 5918927, a6dae56, 0858cff, 6a71786, 61406f7, 2a67195 and 0e5ce5a. The findings and what was done about each are in the project's audit folder (`audits/2026-11-16-audit-watch/audit-3a80616-response.md`, `audit-e9dd130-response.md`, `audit-1b9f377-response.md`, `audit-cda689c-response.md`, `audit-a1f848a-response.md`, `audit-a37ff99-response.md`, `audit-1e790c0-response.md`, `audit-d904b99-response.md`, `audit-346d165-response.md`, `audit-354d4de-response.md`, `audit-b469c16-response.md`, `audit-5918927-response.md`, `audit-a6dae56-response.md`, `audit-0858cff-response.md`, `audit-6a71786-response.md`, `audit-61406f7-response.md`, `audit-2a67195-response.md` and `audit-0e5ce5a-response.md`).
 
 ## UX Compliance Checklist
 
@@ -110,20 +110,20 @@ Against `docs/architecture/global-ux-governance-standard.md`:
 | --- | --- | --- |
 | App.jsx protection | One import and one view line; all logic is in `src/renderer/features/reports/auditWatch/` | Met |
 | Navigation | Reached through the central navigation (Reports > Internal Audit > Audit Watch); uses the app's back behaviour | Met |
-| Scroll/focus | Opens at the top; opening a check or a finding expands in place, without moving the page | Met |
-| Toolbar | One action (Run checks), after the period and area controls, as on other report screens | Met |
-| Keyboard | Standard form controls; Enter runs the checks. No new shortcuts, and nothing can be posted from this screen | Met |
+| Scroll/focus | Opening a check or a finding expands in place, without moving the page. Focus is not moved to the results after a run | Partly met |
+| Toolbar | One action (Run checks) after the period and area controls. There is no standard report toolbar (print, export, refresh) yet | Partly met |
+| Keyboard | No new shortcuts, and nothing can be posted from this screen. The app's Smart Enter moves between fields and, on the last field, asks "Save Record?" before running, which reads oddly on a screen that saves nothing | Met (shortcuts are safe), with a gap |
 | Search | No search on this screen. The sidebar search finds it by name | Not applicable |
 | Feedback | The button reads "Checking..." and is disabled while a run is in progress; errors show as a notice | Met |
 | Empty states | Before a run: how many checks the role can run and what to do. After a run: "No check found anything for this period and area" or "No checks in this area" | Met |
 | Tables | Each finding row has one details button (with aria-expanded) that opens its rows | Met |
 | Help | Help metadata KNG-RPT-026 and the KG-5 Audit Watch guide | Met |
 | AI safety | No AI. The checks are fixed SQL and only read | Met |
-| Recovery | Nothing risky: no writes. Restore, reset and rollback wait while a run is in progress | Met |
+| Recovery | Nothing risky: no writes. Restore, reset and rollback are refused until a run finishes | Met |
 | Verification | lint, build, accounting and financial verifiers run (see Verification) | Met |
 | Report | Known limitations are listed below | Met |
 
-Known gap: the screen was checked at 390 px and desktop width by the smoke test; it has no print layout of its own.
+Known gaps: Smart Enter's "Save Record?" prompt on the last field; no report toolbar (print, export, refresh); focus stays on the form after a run. Each finding shows at most 20 supporting rows and 12 columns, and the screen now says so under the rows. The screen was checked at 390 px and desktop width by the smoke test.
 
 ## Production Readiness
 

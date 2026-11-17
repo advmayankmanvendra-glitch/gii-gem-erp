@@ -1,7 +1,8 @@
 // verifyErpRules.mjs — reads scripts/verify-erp.js's PIPELINE and run loop from source and
 // checks the rules that keep the Audit Watch steps strict and lock-blocking. Used by
-// scripts/verify-audit-watch.js; scripts/audit/verify-erp-rules.test.mjs feeds it patched
-// copies of verify-erp.js to show that each rule refuses what it should.
+// scripts/verify-audit-watch.js; the "verify-erp rules" test in
+// scripts/audit/audit-watch.test.mjs feeds it patched copies of verify-erp.js and checks
+// that each rule refuses what it should, with that rule's own message.
 // Throws an Error naming the broken rule; otherwise returns PIPELINE's steps as read.
 
 import { parse as babelParse } from "@babel/parser";
@@ -14,12 +15,6 @@ function walk(node, visit) {
   for (const key of Object.keys(node)) if (!SKIP_KEYS.includes(key)) walk(node[key], visit);
 }
 
-// Each VariableDeclarator under a node, with its declaration's kind (const, let or var).
-function* declarationKinds(root) {
-  const found = [];
-  walk(root, (node) => { if (node.type === "VariableDeclaration") node.declarations.forEach((item) => found.push([item, node.kind])); });
-  yield* found;
-}
 
 export function readVerifyErpPipeline(code) {
   const ast = babelParse(code, { sourceType: "module", plugins: ["jsx", "topLevelAwait"], tokens: true, allowReturnOutsideFunction: true });
@@ -44,14 +39,13 @@ export function readVerifyErpPipeline(code) {
   // written into, changed by a mutating array method or deleted from.
   // A local variable or parameter named PIPELINE hides the top-level one only inside its
   // own scope (the block or function that declares it).
-  const SKIP = ["loc", "start", "end", "leadingComments", "trailingComments", "innerComments", "tokens", "comments", "extra"];
   const withAncestors = (node, ancestors, visit) => {
     if (!node || typeof node !== "object") return;
     if (Array.isArray(node)) { node.forEach((child) => withAncestors(child, ancestors, visit)); return; }
     const isNode = typeof node.type === "string";
     if (isNode) visit(node, ancestors);
     const next = isNode ? [...ancestors, node] : ancestors;
-    for (const key of Object.keys(node)) if (!SKIP.includes(key)) withAncestors(node[key], next, visit);
+    for (const key of Object.keys(node)) if (!SKIP_KEYS.includes(key)) withAncestors(node[key], next, visit);
   };
   const SCOPE = /^(BlockStatement|Program|ForStatement|ForOfStatement|ForInStatement|SwitchStatement|CatchClause)$|Function/;
   const shadowed = [];
@@ -149,118 +143,86 @@ export function readVerifyErpPipeline(code) {
   runLoops.push(...outerRunLoops);
   if (runLoops.length !== 1 || !overPipeline(runLoops[0])) throw new Error(`the commands must be run by exactly one loop over PIPELINE (found ${runLoops.length} loop(s) that call run(), ${runLoops.filter(overPipeline).length} over PIPELINE)`);
   if (!reaches(runLoops[0].body, isStrictCall)) throw new Error("the loop that runs PIPELINE does not apply strictExitCode(step.name, exitCode) to each step's exit code");
-  // The lock gate checks the command each strict step really ran: run(cmd) must return
-  // it as `cmd` from every return, and the step recorded in the run loop must carry
-  // that value (result.cmd), not re-read the step's own cmd.
+  // What runs is checked, not what is recorded. PIPELINE and the Audit Watch steps are
+  // frozen, so if the run loop calls run(<step>.cmd) and run() hands its parameter
+  // unchanged to execSync, the command executed is the one written in PIPELINE.
+  const isIdentifierNamed = (node, name) => node?.type === "Identifier" && node.name === name;
+  const bindsName = (root, name) => {
+    let found = false;
+    walk(root, (inner) => {
+      if (inner.type === "VariableDeclarator") walk(inner.id, (part) => { if (isIdentifierNamed(part, name)) found = true; });
+      if (/Function/.test(inner.type)) (inner.params || []).forEach((param) => walk(param, (part) => { if (isIdentifierNamed(part, name)) found = true; }));
+      if (inner.type === "CatchClause" && inner.param) walk(inner.param, (part) => { if (isIdentifierNamed(part, name)) found = true; });
+      if (/^(FunctionDeclaration|ClassDeclaration)$/.test(inner.type) && isIdentifierNamed(inner.id, name)) found = true;
+    });
+    return found;
+  };
+  const writesName = (root, name) => {
+    let found = false;
+    walk(root, (inner) => {
+      if (inner.type === "AssignmentExpression") walk(inner.left, (part) => { if (isIdentifierNamed(part, name)) found = true; });
+      if (inner.type === "UpdateExpression" && isIdentifierNamed(inner.argument, name)) found = true;
+    });
+    return found;
+  };
+  // 1. execSync is imported by name from child_process, which gives nothing else, and is
+  //    never redefined.
+  const childImports = ast.program.body.filter((node) => node.type === "ImportDeclaration" && /^(node:)?child_process$/.test(node.source.value));
+  const childSpecifiers = childImports.flatMap((node) => node.specifiers);
+  const execImported = childSpecifiers.length === 1 && childSpecifiers[0].type === "ImportSpecifier" && childSpecifiers[0].imported?.name === "execSync" && childSpecifiers[0].local?.name === "execSync";
+  if (!execImported || bindsName(ast.program, "execSync") || writesName(ast.program, "execSync")) throw new Error("execSync must be the only import from child_process, under its own name, and never redefined");
+  // 2. run(cmd): one top-level function. Its parameter is never reassigned, and its one
+  //    execSync call takes that parameter unchanged, with plain options (no shell or env).
   const runFns = ast.program.body.map((node) => (node.type === "ExportNamedDeclaration" ? node.declaration : node)).filter((node) => node?.type === "FunctionDeclaration" && node.id?.name === "run");
   const runFn = runFns.length === 1 ? runFns[0] : null;
-  const param = runFn?.params[0]?.type === "Identifier" ? runFn.params[0].name : null;
-  let returnsCmd = Boolean(param);
-  let paramReassigned = false;
-  let returnCount = 0;
-  // Returns of run() itself; returns inside nested functions (callbacks) belong to them.
-  const nested = [];
-  if (runFn) walk(runFn.body, (inner) => { if (/Function/.test(inner.type)) nested.push([inner.start, inner.end]); });
-  if (runFn) walk(runFn.body, (inner) => {
-    if (inner.type === "AssignmentExpression" && inner.left?.type === "Identifier" && inner.left.name === param) paramReassigned = true;
-    if (inner.type !== "ReturnStatement" || nested.some(([start, end]) => inner.start >= start && inner.end <= end)) return;
-    returnCount += 1;
-    const prop = inner.argument?.type === "ObjectExpression" ? inner.argument.properties.find((item) => item.type === "ObjectProperty" && !item.computed && (item.key.name ?? item.key.value) === "cmd") : null;
-    if (!(prop?.value?.type === "Identifier" && prop.value.name === param)) returnsCmd = false;
-  });
-  let runRedefined = false;
-  walk(ast.program, (node) => {
-    if (node.type === "AssignmentExpression" && node.left?.type === "Identifier" && node.left.name === "run") runRedefined = true;
-    if (node.type === "VariableDeclarator" && node.id?.name === "run") runRedefined = true;
-  });
-  if (!runFn || !returnsCmd || returnCount === 0 || paramReassigned || runRedefined) throw new Error("run(cmd) must be one top-level function that returns { cmd, ... } (the command it ran) from every return");
-  // The lock gate reads one array: the first argument of the one evaluateMasterLockGate
-  // call. That array is declared once as `const <name> = []`, and the only writes to it are
-  // pushes inside the run loop. It is never handed to anything else (no alias, no helper),
-  // so what is pushed is all it ever holds.
+  const param = runFn?.params.length === 1 && runFn.params[0].type === "Identifier" ? runFn.params[0].name : null;
+  const execCalls = [];
+  if (runFn) walk(runFn.body, (inner) => { if (inner.type === "CallExpression" && isIdentifierNamed(inner.callee, "execSync")) execCalls.push(inner); });
+  const OPTIONS = new Set(["cwd", "encoding", "timeout", "maxBuffer", "stdio", "windowsHide"]);
+  const plainOptions = (node) => !node || (node.type === "ObjectExpression" && node.properties.every((item) => item.type === "ObjectProperty" && !item.computed && OPTIONS.has(item.key.name ?? item.key.value)));
+  const runOk = runFn && param && !writesName(runFn.body, param) && !bindsName(runFn.body, param)
+    && execCalls.length === 1 && execCalls[0].arguments.length <= 2 && isIdentifierNamed(execCalls[0].arguments[0], param) && plainOptions(execCalls[0].arguments[1]);
+  if (!runOk) throw new Error(`run(cmd) must be one top-level function that passes its parameter unchanged to its one execSync call, with options limited to ${[...OPTIONS].join(", ")}`);
+  // 3. run is used exactly once in the file: called inside the run loop as run(<step>.cmd),
+  //    where <step> is the loop's const for each PIPELINE entry and nothing in the loop
+  //    declares another variable of that name.
   const loop = runLoops[0];
-  const inLoop = (node) => node.start >= loop.start && node.end <= loop.end;
-  const gateCalls = [];
-  walk(ast.program, (inner) => { if (inner.type === "CallExpression" && ((inner.callee?.type === "Identifier" && inner.callee.name === "evaluateMasterLockGate") || (/MemberExpression$/.test(inner.callee?.type) && inner.callee.property?.name === "evaluateMasterLockGate"))) gateCalls.push(inner); });
-  const stepsName = gateCalls.length === 1 && gateCalls[0].arguments[0]?.type === "Identifier" ? gateCalls[0].arguments[0].name : null;
-  if (!stepsName) throw new Error(`there must be exactly one call evaluateMasterLockGate(<steps array>, ...) (found ${gateCalls.length})`);
-  const stepsDeclarations = [];
+  const runUses = [];
+  withAncestors(ast.program, [], (node, ancestors) => {
+    if (!isIdentifierNamed(node, "run") || node === runFn.id) return;
+    const parent = ancestors[ancestors.length - 1];
+    if ((parent?.type === "ObjectProperty" && parent.key === node && !parent.computed) || (/MemberExpression$/.test(parent?.type) && parent.property === node && !parent.computed)) return;
+    runUses.push(parent?.type === "CallExpression" && parent.callee === node ? parent : node);
+  });
+  let runBindings = 0;
   walk(ast.program, (inner) => {
-    if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.id.name === stepsName) stepsDeclarations.push(inner);
-    if (/Function/.test(inner.type) && (inner.params || []).some((item) => item.type === "Identifier" && item.name === stepsName)) stepsDeclarations.push(inner);
+    if (inner.type === "VariableDeclarator") walk(inner.id, (part) => { if (isIdentifierNamed(part, "run")) runBindings += 1; });
+    if (/Function/.test(inner.type)) (inner.params || []).forEach((item) => walk(item, (part) => { if (isIdentifierNamed(part, "run")) runBindings += 1; }));
+    if (/^(FunctionDeclaration|ClassDeclaration)$/.test(inner.type) && isIdentifierNamed(inner.id, "run")) runBindings += 1;
   });
-  const stepsDeclaration = stepsDeclarations[0];
-  const stepsKind = stepsDeclaration ? [...declarationKinds(ast.program)].find(([node]) => node === stepsDeclaration)?.[1] : null;
-  if (stepsDeclarations.length !== 1 || stepsKind !== "const" || stepsDeclaration.init?.type !== "ArrayExpression" || stepsDeclaration.init.elements.length !== 0) throw new Error(`the array given to evaluateMasterLockGate (${stepsName}) must be declared once, as const ${stepsName} = []`);
-  // Every use of the array: a read of a member (steps.length, steps.map(...)), a push in the
-  // run loop, or the gate call itself. Anything else could change what the gate sees.
-  const READS = new Set(["length", "map", "flatMap", "filter", "some", "every", "find", "findIndex", "forEach", "reduce", "slice", "join", "at", "includes"]);
-  const pushes = [];
-  const misuse = [];
-  withAncestors(ast.program, [], (node, ancestors) => {
-    if (node.type !== "Identifier" || node.name !== stepsName || node === stepsDeclaration.id) return;
-    const parent = ancestors[ancestors.length - 1];
-    const grand = ancestors[ancestors.length - 2];
-    if (parent === gateCalls[0] && parent.arguments[0] === node) return;
-    if (/MemberExpression$/.test(parent?.type) && parent.object === node && !parent.computed) {
-      const name = parent.property?.name;
-      const written = (grand?.type === "AssignmentExpression" && grand.left === parent) || grand?.type === "UpdateExpression" || (grand?.type === "UnaryExpression" && grand.operator === "delete");
-      if (name === "push" && grand?.type === "CallExpression" && grand.callee === parent && inLoop(grand)) { pushes.push(grand); return; }
-      if (READS.has(name) && !written) return;
-    }
-    if ((parent?.type === "ObjectProperty" && parent.key === node && !parent.computed) || (/MemberExpression$/.test(parent?.type) && parent.property === node && !parent.computed)) return;
-    misuse.push(code.slice(parent?.start ?? node.start, parent?.end ?? node.end).split("\n")[0].slice(0, 60));
-  });
-  if (misuse.length) throw new Error(`the array given to evaluateMasterLockGate (${stepsName}) may only be pushed to in the run loop and read: ${misuse[0]}`);
-  // The run result: one const in the run loop that holds run()'s return (directly or
-  // through a helper). Only plain member reads and writes of fields other than cmd are
-  // allowed, so result.cmd stays the command run() reported.
-  const resultDeclarations = [];
-  walk(loop.body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier" && inner.init && (callsRun(inner.init) || reaches(inner.init, callsRun))) resultDeclarations.push(inner); });
-  const resultName = resultDeclarations.length === 1 ? resultDeclarations[0].id.name : null;
-  const resultKind = resultName ? [...declarationKinds(loop.body)].find(([node]) => node === resultDeclarations[0])?.[1] : null;
-  if (!resultName || resultKind !== "const") throw new Error("the run loop must keep run()'s result in exactly one const (for example const result = run(step.cmd))");
-  const resultMisuse = [];
-  withAncestors(ast.program, [], (node, ancestors) => {
-    if (node.type !== "Identifier" || node.name !== resultName || node === resultDeclarations[0].id) return;
-    const parent = ancestors[ancestors.length - 1];
-    const grand = ancestors[ancestors.length - 2];
-    if ((parent?.type === "ObjectProperty" && parent.key === node && !parent.computed) || (/MemberExpression$/.test(parent?.type) && parent.property === node && !parent.computed)) return;
-    if (!inLoop(node)) return; // another variable of the same name elsewhere
-    if (/MemberExpression$/.test(parent?.type) && parent.object === node && !parent.computed) {
-      const written = (grand?.type === "AssignmentExpression" && grand.left === parent) || grand?.type === "UpdateExpression" || (grand?.type === "UnaryExpression" && grand.operator === "delete");
-      if (!written || parent.property?.name !== "cmd") return;
-    }
-    if (node.type === "Identifier" && parent?.type === "VariableDeclarator" && parent.id === node) { resultMisuse.push(`a second ${resultName}`); return; }
-    resultMisuse.push(code.slice(parent?.start ?? node.start, parent?.end ?? node.end).split("\n")[0].slice(0, 60));
-  });
-  if (resultMisuse.length) throw new Error(`run()'s result (${resultName}) may only be read field by field, and its cmd never written: ${resultMisuse[0]}`);
-  // Every push into the array carries exactly one record: an object literal, or a const
-  // declared once in the run loop and never written to, whose only cmd is <result>.cmd.
-  const loopDeclared = [];
-  walk(loop.body, (inner) => { if (inner.type === "VariableDeclarator" && inner.id?.type === "Identifier") loopDeclared.push(inner); });
-  const loopKinds = new Map(declarationKinds(loop.body));
-  const writtenNames = new Set();
-  walk(loop.body, (inner) => {
-    const target = inner.type === "AssignmentExpression" ? inner.left : inner.type === "UpdateExpression" ? inner.argument : inner.type === "UnaryExpression" && inner.operator === "delete" ? inner.argument : null;
-    let base = target;
-    while (base && /MemberExpression$/.test(base.type)) base = base.object;
-    if (base?.type === "Identifier") writtenNames.add(base.name);
-  });
-  const badPush = pushes.find((call) => {
-    if (call.arguments.length !== 1) return true;
-    let record = call.arguments[0];
-    if (record?.type === "Identifier") {
-      const matches = loopDeclared.filter((item) => item.id.name === record.name);
-      if (matches.length !== 1 || matches[0].end > call.start || loopKinds.get(matches[0]) !== "const" || writtenNames.has(record.name)) return true;
-      record = matches[0].init;
-    }
-    if (record?.type !== "ObjectExpression" || record.properties.some((item) => item.type !== "ObjectProperty" || item.computed)) return true;
-    const cmds = record.properties.filter((item) => (item.key.name ?? item.key.value) === "cmd");
-    const value = cmds[0]?.value;
-    return cmds.length !== 1 || !(/MemberExpression$/.test(value?.type) && !value.computed && value.object?.type === "Identifier" && value.object.name === resultName && value.property?.name === "cmd");
-  });
-  if (!pushes.length || badPush) throw new Error(`the run loop must push each step into the array given to evaluateMasterLockGate (${stepsName}) as one plain record with cmd: ${resultName}.cmd, the command run() actually ran`);
+  if (runBindings !== 1 || writesName(ast.program, "run")) throw new Error("run must be declared once, as the top-level function, and never redefined");
+  let stepName = null;
+  let indexName = null;
+  if (loop.type === "ForOfStatement" && loop.left?.type === "VariableDeclaration" && loop.left.kind === "const") {
+    const id = loop.left.declarations[0]?.id;
+    if (id?.type === "Identifier" && isPipeline(loop.right)) stepName = id.name;
+    if (id?.type === "ArrayPattern" && id.elements[1]?.type === "Identifier" && !isPipeline(loop.right)) stepName = id.elements[1].name;
+  }
+  if (loop.type === "ForStatement" && loop.init?.type === "VariableDeclaration" && loop.init.declarations[0]?.id?.type === "Identifier") indexName = loop.init.declarations[0].id.name;
+  const call = runUses[0];
+  const arg = call?.type === "CallExpression" && call.arguments.length === 1 ? call.arguments[0] : null;
+  const argOk = /MemberExpression$/.test(arg?.type) && !arg.computed && arg.property?.name === "cmd"
+    && ((stepName && isIdentifierNamed(arg.object, stepName) && !bindsName(loop.body, stepName))
+      || (indexName && /MemberExpression$/.test(arg.object?.type) && arg.object.computed && isPipeline(arg.object.object) && isIdentifierNamed(arg.object.property, indexName) && !writesName(loop.body, indexName) && !bindsName(loop.body, indexName)));
+  let callInFunction = false;
+  if (call) withAncestors(loop.body, [], (node, ancestors) => { if (node === call && ancestors.some((item) => /Function/.test(item.type))) callInFunction = true; });
+  if (runUses.length !== 1 || !argOk || call.start < loop.body.start || call.end > loop.body.end || callInFunction) {
+    throw new Error("run must be called exactly once, directly in the run loop, as run(step.cmd) for the loop's const step (or run(PIPELINE[i].cmd) in an indexed loop)");
+  }
+  // 4. The lock gate reads the array from one evaluateMasterLockGate call.
+  const gateCalls = [];
+  walk(ast.program, (inner) => { if (inner.type === "CallExpression" && (isIdentifierNamed(inner.callee, "evaluateMasterLockGate") || (/MemberExpression$/.test(inner.callee?.type) && inner.callee.property?.name === "evaluateMasterLockGate"))) gateCalls.push(inner); });
+  if (gateCalls.length !== 1) throw new Error(`there must be exactly one evaluateMasterLockGate call (found ${gateCalls.length})`);
   // The npm launcher: a top-level const, never reassigned, whose value is a conditional
   // giving "npm.cmd" or "npm" (the test itself, quotes, layout and its name do not
   // matter). Only such a name reads as "npm" inside a step's command.

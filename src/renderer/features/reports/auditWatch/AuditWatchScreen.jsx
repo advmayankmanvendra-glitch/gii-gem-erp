@@ -20,7 +20,8 @@ const cell = (value) => (value === null || value === undefined || value === "" ?
 
 function EvidenceTable({ rows }) {
   const list = (rows || []).slice(0, 20);
-  const columns = [...new Set(list.flatMap((row) => Object.keys(row || {})))].slice(0, 12);
+  const allColumns = [...new Set(list.flatMap((row) => Object.keys(row || {})))];
+  const columns = allColumns.slice(0, 12);
   if (!list.length) return <p className="muted">No supporting rows.</p>;
   return (
     <div className="table-wrap audit-watch-evidence">
@@ -32,6 +33,7 @@ function EvidenceTable({ rows }) {
           ))}
         </tbody>
       </table>
+      {list.length >= 20 || allColumns.length > 12 ? <p className="muted">Shows at most 20 rows and 12 columns for each finding.</p> : null}
     </div>
   );
 }
@@ -158,7 +160,7 @@ function AuditWatchScreen({ apiClient, companyContext, notify }) {
         </label>
         <label className="audit-watch-toggle">
           <input type="checkbox" checked={onlyFindings} onChange={(event) => setOnlyFindings(event.target.checked)} />
-          Only checks with findings
+          Only checks with something to look at
         </label>
         <button type="submit" className="primary-btn" disabled={loading || !catalogue}>{loading ? "Checking..." : "Run checks"}</button>
       </form>

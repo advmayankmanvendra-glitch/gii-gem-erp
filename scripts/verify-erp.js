@@ -60,11 +60,10 @@ function validateFinancialReportKnownGaps(stdout) {
 // strict is set by name in STRICT_STEPS (scripts/lib/masterVerificationPolicy.js). The
 // one loop over PIPELINE that runs the commands (calls run(...)) must call
 // strictExitCode(step.name, exitCode) for each step, directly or through a top-level
-// helper. run(cmd) returns the command it ran as `cmd`; keep run()'s result in one const
-// and never write its cmd. The array given to the one evaluateMasterLockGate call is
-// `const steps = []`, only pushed to in the run loop and otherwise only read; each push
-// carries one plain record (literal, or a const declared once in the loop) with
-// `cmd: result.cmd`. Keep NPM as
+// helper. run(cmd) passes its parameter unchanged to its one execSync call (options:
+// cwd, encoding, timeout, maxBuffer, stdio, windowsHide), and the run loop calls run
+// exactly once, directly, as run(step.cmd) for its `const step` (a retry loop around that
+// call is fine). There is one evaluateMasterLockGate call. Keep NPM as
 // `const NPM = <windows test> ? "npm.cmd" : "npm"`.
 const PIPELINE = Object.freeze([
   { name: "lint:syntax",       cmd: `${NPM} run lint:syntax`,        continueOn: [0, 1] },

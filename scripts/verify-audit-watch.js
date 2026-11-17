@@ -453,7 +453,7 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     const { readVerifyErpPipeline } = await load("scripts/lib/verifyErpRules.mjs");
     pipeline = readVerifyErpPipeline(read("scripts/verify-erp.js"));
   } catch (error) {
-    pipelineProblem = `could not read PIPELINE in scripts/verify-erp.js: ${error.message}`;
+    pipelineProblem = `scripts/verify-erp.js breaks a rule in scripts/lib/verifyErpRules.mjs: ${error.message}`;
   }
   const missing = ["verify:audit-watch", "test:audit-watch"].filter((name) => {
     const steps = pipeline.filter((step) => step?.name === name);
