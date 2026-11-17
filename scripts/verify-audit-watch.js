@@ -450,17 +450,55 @@ for (const item of CHECKS.filter((entry) => entry.uncovered)) {
     // Names a loop over PIPELINE gives its steps (for (const step of PIPELINE) and
     // for (const [i, step] of PIPELINE.entries())): writing to them changes a step too.
     const stepNames = new Set();
+    const stepScopes = []; // [name, start, end]: where that name means a step
     walk(ast.program, (node) => {
       if (node.type !== "ForOfStatement") return;
       const right = node.right;
       const overPipeline = isPipeline(right) || (right?.type === "CallExpression" && /MemberExpression$/.test(right.callee?.type) && isPipeline(right.callee.object));
       if (!overPipeline) return;
-      walk(node.left, (inner) => { if (inner.type === "Identifier") stepNames.add(inner.name); });
+      walk(node.left, (inner) => { if (inner.type === "Identifier") { stepNames.add(inner.name); stepScopes.push([inner.name, node.start, node.end]); } });
     });
-    const isStep = (node) => node?.type === "Identifier" && stepNames.has(node.name);
+    // Callbacks given to PIPELINE's methods (PIPELINE.map((s) => ...)) receive steps too.
+    const callbackParams = new Set();
     walk(ast.program, (node) => {
-      if (node.type === "AssignmentExpression" && /MemberExpression$/.test(node.left?.type) && isStep(rootOf(node.left))) changes.push("an assignment to a step in its loop");
+      if (node.type !== "CallExpression" || !/MemberExpression$/.test(node.callee?.type) || !isPipeline(node.callee.object)) return;
+      for (const arg of node.arguments) if (/Function/.test(arg.type)) walk(arg.params, (inner) => { if (inner.type === "Identifier") { stepNames.add(inner.name); callbackParams.add(inner); stepScopes.push([inner.name, arg.start, arg.end]); } });
+    });
+    const isStep = (node) => node?.type === "Identifier" && stepScopes.some(([name, start, end]) => name === node.name && node.start >= start && node.end <= end);
+    walk(ast.program, (node) => {
+      if (["AssignmentExpression", "AssignmentPattern"].includes(node.type) && /MemberExpression$/.test(node.left?.type) && isStep(rootOf(node.left))) changes.push("an assignment to a step in its loop");
       if (node.type === "UnaryExpression" && node.operator === "delete" && isStep(rootOf(node.argument))) changes.push("delete on a step");
+      if (node.type === "UpdateExpression" && isStep(rootOf(node.argument))) changes.push("++/-- on a step");
+    });
+    // A step may only be read through its properties (step.cmd, step.warningValidator(...)).
+    // Used bare anywhere else ([step], Reflect.set(step, ...), f(step)), it could be changed.
+    const withParents = (node, parent, visit) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { node.forEach((child) => withParents(child, parent, visit)); return; }
+      if (typeof node.type === "string") visit(node, parent);
+      for (const key of Object.keys(node)) if (!["loc", "start", "end", "leadingComments", "trailingComments", "innerComments", "tokens", "comments", "extra"].includes(key)) withParents(node[key], typeof node.type === "string" ? node : parent, visit);
+    };
+    const declaredSteps = new Set();
+    walk(ast.program, (node) => { if (node.type === "ForOfStatement") walk(node.left, (inner) => { if (inner.type === "Identifier" && stepNames.has(inner.name)) declaredSteps.add(inner); }); });
+    callbackParams.forEach((param) => declaredSteps.add(param));
+    withParents(ast.program, null, (node, parent) => {
+      if (!isStep(node) || declaredSteps.has(node)) return;
+      const readThrough = /MemberExpression$/.test(parent?.type) && parent.object === node;
+      const isKey = parent && ((/MemberExpression$/.test(parent.type) && parent.property === node && !parent.computed) || (parent.type === "ObjectProperty" && parent.key === node && !parent.computed && parent.value !== node));
+      if (!readThrough && !isKey) changes.push("a step used other than by reading its properties");
+    });
+    // PIPELINE itself: looped over, or read through a property (PIPELINE.length,
+    // PIPELINE.map(...)). A step taken out of it (const s = PIPELINE[1]) escapes.
+    withParents(ast.program, null, (node, parent) => {
+      if (!isPipeline(node)) return;
+      if (parent?.type === "ForOfStatement" && parent.right === node) return;
+      if (/MemberExpression$/.test(parent?.type) && parent.object === node) {
+        const element = parent.computed || /^\d+$/.test(String(parent.property?.name ?? ""));
+        if (!element) return;
+      }
+      if (parent?.type === "CallExpression" && parent.callee?.type === "MemberExpression" && parent.callee.object?.name === "console") return;
+      if (parent?.type === "TemplateLiteral") return;
+      changes.push("PIPELINE or one of its steps used other than by looping over it or reading its properties");
     });
     walk(ast.program, (node) => {
       if (node.type === "AssignmentExpression" && (isPipeline(node.left) || isPipeline(rootOf(node.left)))) changes.push("an assignment");
